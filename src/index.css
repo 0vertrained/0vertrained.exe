@@ -1,0 +1,172 @@
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  background: #FAF9F6;
+  color: #1A1A1A;
+  font-family: 'IBM Plex Sans', 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+input, button, textarea, select {
+  font-family: inherit;
+}
+
+/* iOS Safari zooms the viewport when form controls compute below 16px. */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Focus visibility (accessibility)
+   Pointer/touch interactions stay ring-free, but KEYBOARD focus shows a clear,
+   theme-aware ring. --ovt-focus is set per theme from the ThemeProvider; it
+   falls back to currentColor. !important is required because many interactive
+   elements set `outline: none` inline — keyboard accessibility overrides that.
+   ────────────────────────────────────────────────────────────────────────── */
+:where(button, a, input, textarea, select, [role="button"], [role="tab"], [role="link"], [tabindex]):focus-visible {
+  outline: 2px solid var(--ovt-focus, currentColor) !important;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+/* Suppress focus ring for non-keyboard (mouse/touch) focus. */
+:where(button, a, input, textarea, select, [role="button"], [role="tab"]):focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Remove number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] { -moz-appearance: textfield; }
+
+/* iOS: prevent zoom on input focus by keeping font-size >= 16px where it matters */
+::placeholder { color: #7e8a82; }
+
+::-webkit-scrollbar { width: 0; background: transparent; }
+
+/* Visually-hidden helper for screen-reader-only text */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+/* Session completion overlay animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ringExpand {
+  0%   { transform: scale(0.4); opacity: 0.8; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+@keyframes dialFill {
+  from { stroke-dashoffset: 220; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes popIn {
+  0%   { transform: scale(0.7); opacity: 0; }
+  60%  { transform: scale(1.08); }
+  100% { transform: scale(1);   opacity: 1; }
+}
+@keyframes shimmer {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1; }
+}
+
+/* Keep fixed bottom navigation from covering the last form rows on mobile. */
+#root { padding-bottom: env(safe-area-inset-bottom); }
+.app-shell, main { scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Reduced motion (accessibility / vestibular safety)
+   Honor the OS-level "reduce motion" preference: neutralize animations and
+   transitions, and freeze keyframe-driven effects on their final frame.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Responsive content-width contract ───────────────────────────────────────
+   The app shell and every centered, page-relative fixed surface share one
+   width. This keeps desktop layouts coherent without stretching dense ledger
+   and form screens into a fake multi-column interface. Fixed descendants
+   inherit the root variable, including sheets and overlay interiors.
+   ────────────────────────────────────────────────────────────────────────── */
+:root { --ovt-content-width: 480px; }
+:root { --ovt-shell-width: var(--ovt-content-width); }
+@media (min-width: 768px) {
+  :root { --ovt-content-width: 720px; }
+}
+@media (min-width: 1024px) {
+  :root { --ovt-content-width: 760px; }
+}
+/* V15.0 · Broadsheet tier. The SHELL widens for the ruled three-column
+   layout; --ovt-content-width deliberately stays 760px so every centered
+   fixed surface (sheets, session overlays, toasts) keeps the reading-column
+   contract — mockup 1r (Session complete) is itself a centered 760px plate. */
+@media (min-width: 1440px) {
+  :root {
+    --ovt-shell-width: min(1856px, calc(100vw - 48px));
+    /* V16.3 (U6) · Spread rail tokens. Content rails come in exactly two
+       sizes; Session (380/420) and Settings (300) are mockup-mandated and
+       stay literal. A seventh width can no longer drift in unnoticed. */
+    --ovt-rail-s: 440px;
+    --ovt-rail-m: 480px;
+  }
+}
+
+/* ── Tab-panel enter animation ────────────────────────────────────────────────
+   Triggered via JS class toggle (no remounts). The class is added on every tab
+   switch after a forced reflow so the animation restarts cleanly each time.
+   ────────────────────────────────────────────────────────────────────────── */
+@keyframes ovtTabEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ovt-tab-enter {
+  animation: ovtTabEnter 200ms ease both;
+}
+
+/* ── Interactive surface press feedback ───────────────────────────────────────
+   Instant opacity dip on press for tactile feel. :where() keeps specificity at
+   zero so no inline style is overridden.
+   ────────────────────────────────────────────────────────────────────────── */
+:where(button):active:not([disabled]) {
+  opacity: 0.75;
+}
+
+/* V13 · Broadsheet shell — the bottom dock unmounts at >=1024px (see
+   AppBottomNav), so the mobile dock clearance is no longer needed. Inline
+   styles set the mobile padding, hence the !important here. */
+@media (min-width: 1024px) {
+  .ovt-app-shell {
+    padding-bottom: 32px !important;
+    scroll-padding-bottom: 32px;
+  }
+}

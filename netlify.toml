@@ -1,0 +1,71 @@
+# ============================================================
+#  NETLIFY CONFIGURATION
+#  Security headers + MIME types + SPA routing
+# ============================================================
+
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+# ── Secrets Scanner — omit only intentionally public browser env values ─
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "VITE_COACH_OPEN,VITE_VAPID_PUBLIC_KEY,VAPID_PUBLIC_KEY,VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_USDA_API_KEY,VITE_COACH_USER_ID,VITE_OURA_CLIENT_ID,SUPABASE_URL,SUPABASE_ANON_KEY,COACH_ALLOWED_USER_ID,OURA_CLIENT_ID,GOOGLE_HEALTH_CLIENT_ID,STRAVA_CLIENT_ID,COACH_ROUTING_MODE,COACH_FAST_MODEL,COACH_MAIN_MODEL,COACH_DEEP_MODEL,COACH_FALLBACK_MODEL"
+
+# ── Security Headers ─────────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=(), payment=()"
+    # V12.1 CSP tightening:
+    #  · script-src drops 'unsafe-inline' — Vite production builds emit no
+    #    inline scripts, so it only widened the XSS blast radius.
+    #  · connect-src drops the https://*.run.app wildcard (it whitelisted every
+    #    Cloud Run service on the internet); the specific formcheck host stays.
+    #  · style-src/font-src drop Google's domains — fonts are self-hosted via
+    #    @fontsource (src/fonts.js). style-src keeps 'unsafe-inline' because
+    #    React style props require it.
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://*.supabase.co https://api.nal.usda.gov https://cloud.ouraring.com https://api.ouraring.com https://api.prod.whoop.com https://accounts.google.com https://www.googleapis.com https://health.googleapis.com https://www.strava.com https://www.strava.com/api/v3; media-src 'self' blob: data:; img-src 'self' data: blob:; frame-ancestors 'none'; form-action 'self' https://cloud.ouraring.com https://api.prod.whoop.com https://accounts.google.com https://www.strava.com;"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+    Cache-Control = "no-cache"
+    Service-Worker-Allowed = "/"
+
+[[headers]]
+  for = "/favicon.ico"
+  [headers.values]
+    Content-Type = "image/x-icon"
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/*.png"
+  [headers.values]
+    Content-Type = "image/png"
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[redirects]]
+  from = "/api/account-recovery"
+  to = "/.netlify/functions/account-recovery"
+  status = 200
+
+[[redirects]]
+  from = "/legal/*"
+  to = "/legal/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

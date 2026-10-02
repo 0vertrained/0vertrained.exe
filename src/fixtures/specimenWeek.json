@@ -1,0 +1,40 @@
+{
+  "_comment": "V17.0 · Day Zero specimen content. Hand-curated, deterministic display data for the zero-state plates. This is NOT the demo generator: specimens are a single designed plate per tab, stable across releases, tuned to show each surface at its best. Rendered only when a tab has no real data; stamped SPECIMEN throughout.",
+  "today": {
+    "dayLabel": "PUSH · WEEK 3 · DAY 2",
+    "exercises": [
+      { "name": "Incline DB Press", "target": "4 × 8", "last": "70 lb × 8,8,8,7", "done": true },
+      { "name": "Weighted Dips", "target": "3 × 10", "last": "+45 lb × 10,10,9", "done": true },
+      { "name": "Cable Lateral Raise", "target": "4 × 15", "last": "22.5 lb × 15,15,14,12", "done": false },
+      { "name": "Overhead Rope Extension", "target": "3 × 12", "last": "47.5 lb × 12,12,11", "done": false }
+    ],
+    "footer": "2 of 4 complete · last time ghosts guide every set"
+  },
+  "recovery": {
+    "state": "FRESH",
+    "score": 88,
+    "delta": "→ steady",
+    "headline": "Push day. Load the bar.",
+    "evidence": "HRV is running 6% above your normal range. Resting heart rate is trending down — full green.",
+    "context": "Scheduled: Push. Recently loaded: Back (1d).",
+    "spark": [74, 79, 77, 82, 84, 86, 88]
+  },
+  "fuel": {
+    "rows": [
+      { "label": "Protein", "value": "162 / 205 g", "note": "43 g to go · 2 feedings left" },
+      { "label": "Calories", "value": "1,840 / 2,450", "note": "on pace for the deficit" },
+      { "label": "Water", "value": "84 / 120 oz", "note": "" }
+    ],
+    "meals": ["07:10 · Eggs, egg whites, oats", "12:30 · Chicken, rice, greens", "16:00 · Whey + banana"],
+    "footer": "TDEE learned from your intake vs weight trend — not a formula guess"
+  },
+  "progress": {
+    "headline": "−1.8 lb this month · strength held",
+    "spark": [186.2, 185.8, 185.9, 185.1, 184.9, 184.6, 184.4],
+    "rows": [
+      { "label": "Weight trend", "value": "184.4 lb · −0.45 lb/wk" },
+      { "label": "Incline press e1RM", "value": "212 lb · +4 this block" },
+      { "label": "Weekly volume", "value": "9 of 11 muscle groups in range" }
+    ]
+  }
+}

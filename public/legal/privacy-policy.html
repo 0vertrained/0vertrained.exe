@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — 0VERTRAINED</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #FAF9F6;
+      --panel: #FFFFFF;
+      --text: #1A1A1A;
+      --dim: #67655E;
+      --faint: #767368;
+      --line: #E6E3DB;
+      --line-bright: #DDD9CF;
+      --signal: #B23A1E;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141311;
+        --panel: #1C1B18;
+        --text: #F1EFE8;
+        --dim: #9C988C;
+        --faint: #8A867C;
+        --line: #2E2A26;
+        --line-bright: #3A3632;
+        --signal: #EE8160;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "IBM Plex Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.62;
+      -webkit-font-smoothing: antialiased;
+    }
+    .shell { max-width: 880px; margin: 0 auto; padding: 0 20px 64px; }
+    header { position: sticky; top: 0; z-index: 2; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+    .mast { max-width: 880px; margin: 0 auto; padding: 14px 20px; display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+    .wordmark { font-weight: 700; letter-spacing: -0.01em; }
+    .theta { font-family: Georgia, serif; font-style: italic; font-weight: 500; }
+    .nav { display: flex; gap: 14px; flex-wrap: wrap; }
+    .nav a, a { color: var(--text); text-underline-offset: 3px; }
+    .nav a { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: 0.13em; text-transform: uppercase; text-decoration: none; color: var(--dim); }
+    .hero { padding: 54px 0 34px; border-bottom: 1px solid var(--line); }
+    .eyebrow { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); margin-bottom: 14px; }
+    h1, h2, h3 { font-family: "Newsreader", Georgia, serif; font-weight: 500; letter-spacing: -0.02em; line-height: 1.08; color: var(--text); }
+    h1 { font-size: clamp(38px, 7vw, 64px); margin: 0 0 16px; }
+    h2 { font-size: clamp(24px, 4vw, 34px); margin: 0 0 12px; }
+    h3 { font-size: 20px; margin: 22px 0 8px; }
+    p, li { color: var(--dim); font-size: 15.5px; }
+    .updated { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; letter-spacing: 0.05em; color: var(--faint); }
+    section { border-top: 1px solid var(--line); padding: 30px 0 26px; }
+    .ledger { border-top: 1px solid var(--line); margin: 18px 0; }
+    .row { display: grid; grid-template-columns: minmax(130px, 0.28fr) 1fr; gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+    .row strong { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text); font-weight: 600; }
+    .row span { color: var(--dim); }
+    .callout { border: 1px solid var(--line-bright); background: var(--panel); padding: 16px 18px; margin: 18px 0; }
+    .callout strong { color: var(--text); }
+    ul { padding-left: 20px; }
+    .stamp { display: inline-block; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; background: var(--text); color: var(--bg); padding: 4px 8px; margin-bottom: 12px; }
+    footer { border-top: 1px solid var(--line); padding-top: 26px; color: var(--faint); font-size: 13px; }
+    @media (max-width: 640px) { .row { grid-template-columns: 1fr; gap: 4px; } .mast { align-items: flex-start; flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="mast">
+      <div class="wordmark"><span class="theta">θ</span>VERTRAINED</div>
+      <nav class="nav" aria-label="Legal navigation">
+        <a href="index.html">Legal home</a>
+        <a href="terms-of-service.html">Terms</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="hero">
+      <div class="eyebrow">Legal · Privacy policy</div>
+      <h1>Privacy Policy</h1>
+      <p class="updated">0VERTRAINED — Last updated: July 9, 2026</p>
+      <p>This Privacy Policy explains how 0VERTRAINED ("0VERTRAINED," "we," "us," or "the App") collects, uses, discloses, stores, and protects information when you use the App, connect supported wearables, use AI coaching, enable notifications, or participate in opt-in social features.</p>
+      <p>This policy is written for the current app architecture. It is not a substitute for legal advice, and the policy should be reviewed by counsel before a commercial launch or expansion into new jurisdictions.</p>
+    </div>
+
+    <section>
+      <span class="stamp">Summary</span>
+      <div class="ledger">
+        <div class="row"><strong>No ads</strong><span>We do not serve third-party ads and do not use advertising SDKs or cross-context behavioral advertising.</span></div>
+        <div class="row"><strong>No sale</strong><span>We do not sell your personal information or personal health data.</span></div>
+        <div class="row"><strong>Manual first</strong><span>The App works with manual logging. Oura, Whoop, Google Health/Fitbit, and Strava connections are optional.</span></div>
+        <div class="row"><strong>Derived only</strong><span>Form Check saves derived summaries, not raw videos. Wearable snapshots are display-safe derived values.</span></div>
+        <div class="row"><strong>API limits</strong><span>Google Health/Fitbit and Strava data are used only for user-authorized app features and are subject to each provider's API rules.</span></div>
+        <div class="row"><strong>Opt in sharing</strong><span>Social leaderboards and PR boards are opt-in and expose only handle-level aggregate stats.</span></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>1. Who controls your information</h2>
+      <p>0VERTRAINED is operated by the developer reachable at <a href="mailto:0vertrained.exe@gmail.com">0vertrained.exe@gmail.com</a>. For privacy requests, security questions, or deletion requests, contact that address.</p>
+    </section>
+
+    <section>
+      <h2>2. Information we collect</h2>
+      <h3>Account and authentication</h3>
+      <ul>
+        <li>Username and account identifiers.</li>
+        <li>Password credentials managed through Supabase authentication.</li>
+        <li>Recovery phrase hash. The recovery phrase itself is not stored in plain text.</li>
+        <li>Signup status and account metadata needed to operate the limited beta.</li>
+      </ul>
+
+      <h3>Training, recovery, nutrition, and program data</h3>
+      <ul>
+        <li>Workout logs, exercises, sets, reps, weight, RIR, cardio distance, pace, workout completion, session notes, and training load calculations.</li>
+        <li>Recovery check-ins such as sleep duration, energy, soreness, stress, body weight, supplements, and wellness notes you enter.</li>
+        <li>Nutrition entries, meal plan preferences, calories, protein, carbohydrates, fats, water, and related fuel targets.</li>
+        <li>Program Builder choices, generated programs, schedule, training goals, equipment, experience level, session length, cardio preference, deload settings, and edits.</li>
+      </ul>
+
+      <h3>Connected wearable data</h3>
+      <p>When you choose to connect a supported wearable, the App receives only the data you authorize through that provider's OAuth or consent flow.</p>
+      <ul>
+        <li><strong>Oura:</strong> sleep, readiness, activity, heart-rate, HRV, resting heart rate, SpO2, body temperature deviation, respiratory rate, tags, sessions, workout summaries, and related metadata available through the authorized Oura API scopes.</li>
+        <li><strong>Whoop:</strong> recovery, sleep, cycle, workout, and body-measurement records available through the authorized Whoop API scopes.</li>
+        <li><strong>Google Health / Fitbit by Google:</strong> sleep, HRV, resting heart rate, respiratory rate, oxygen saturation, steps, active minutes, active zone minutes, calories, exercise summaries, profile/settings metadata, and other data you authorize through Google Health scopes. Google Health/Fitbit data is used to provide user-facing recovery, readiness, activity, and optional AI Coach features you enable.</li>
+        <li><strong>Strava:</strong> activity summaries such as runs, rides, walks, hikes, GPS workout metadata, distance, duration, elevation, pace, heart-rate fields when authorized, and related athlete/profile identifiers. Strava data is used for user-visible activity import/display, sync status, and deduplication. Strava data is excluded from AI Coach and is not used to train, fine-tune, evaluate, or improve AI models.</li>
+        <li>OAuth access and refresh tokens needed to sync provider data. Tokens are encrypted server-side and are not exposed to the browser.</li>
+        <li>Wearable sync event metadata, such as source, event type, status, counts, days covered, and timestamps. Sync events do not include raw payloads or tokens.</li>
+      </ul>
+
+      <h3>AI Coach and Form Check</h3>
+      <ul>
+        <li>When you use AI Coach, the App sends a compact, sanitized training/recovery context and your coach message to the server-side AI provider. We do not include OAuth tokens, passwords, recovery phrases, service keys, or unnecessary account identifiers.</li>
+        <li>Google Health/Fitbit data is included in AI Coach context only when you connect Google Health/Fitbit and enable the relevant coaching features. Strava-sourced data is excluded from AI Coach by default.</li>
+        <li>Coach usage counts may be stored to enforce daily or monthly beta limits.</li>
+        <li>Form Check may process a lift video to generate movement analysis, but the App stores derived summaries such as depth, tempo, bar path, capture quality, form score, coaching cues, and confidence. Raw videos are not stored by the App.</li>
+      </ul>
+
+      <h3>Notifications, social features, diagnostics, and device storage</h3>
+      <ul>
+        <li>Push notification subscription data, including endpoint, p256dh key, auth key, reminder preference, and timezone offset, if you enable browser notifications.</li>
+        <li>Opt-in social-circle, leaderboard, and PR-board data such as username/handle, circle membership, invite code, aggregate stats, and PR records. Raw daily entries remain private.</li>
+        <li>Client error reports such as error message, stack trace, component stack, source, path, app version, user agent, and timestamp.</li>
+        <li>Browser localStorage data used for offline-first performance, including recent entries, program/settings cache, coach conversation history, and local UI preferences.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. How we use information</h2>
+      <ul>
+        <li>Provide the App, authenticate accounts, sync data, and keep your account separate from other users.</li>
+        <li>Display dashboards for Today, Recovery, Fuel, Progress, Profile, Form Check, and related app views.</li>
+        <li>Generate readiness, recovery, load, nutrition, program, trend, and coaching insights.</li>
+        <li>Operate optional wearable sync, optional push notifications, optional AI Coach, and optional social features.</li>
+        <li>Debug crashes, prevent abuse, enforce beta limits, maintain security, and improve reliability.</li>
+        <li>Respond to privacy, support, deletion, export, or security requests.</li>
+        <li>Comply with applicable law, including data-security and breach-notification obligations.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. Legal bases for EEA/UK users</h2>
+      <p>Where the GDPR or UK GDPR applies, we rely on the following legal bases:</p>
+      <div class="ledger">
+        <div class="row"><strong>Contract</strong><span>To create and operate your account and provide the App features you request.</span></div>
+        <div class="row"><strong>Consent</strong><span>For optional wearable connections, optional push notifications, optional social sharing, and any other feature where the App asks you to opt in.</span></div>
+        <div class="row"><strong>Legitimate interests</strong><span>For security, abuse prevention, diagnostics, service reliability, and limited product improvement that does not override your privacy rights.</span></div>
+        <div class="row"><strong>Legal obligation</strong><span>When we must preserve, disclose, or notify about information to comply with applicable law.</span></div>
+      </div>
+      <p>Some training and wearable information may be considered health-related or sensitive information under certain laws. We process it only to provide user-directed fitness, recovery, and coaching features and, where required, with your consent.</p>
+    </section>
+
+    <section>
+      <h2>5. How we share information</h2>
+      <p>We do not sell personal information or personal health data. We share information only as needed to operate the App, at your direction, or as legally required.</p>
+      <ul>
+        <li><strong>Supabase:</strong> authentication, database, row-level security, and backend storage.</li>
+        <li><strong>Netlify:</strong> hosting, serverless functions, wearable sync endpoints, notification endpoints, and API routing.</li>
+        <li><strong>Oura, Whoop, Google Health/Fitbit, and Strava:</strong> authorization and data syncing only when you connect those services. Their own terms, privacy policies, API rules, and account controls apply to their services.</li>
+        <li><strong>Google API data:</strong> Google Health/Fitbit data is used only to provide and improve user-facing 0VERTRAINED features you authorize. We do not sell Google user data, use it for advertising, or use it to train generalized AI or machine-learning models. 0VERTRAINED's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.</li>
+        <li><strong>Strava API data:</strong> Strava data is displayed back to the connected user and used for activity import/sync features. We do not disclose Strava-sourced activity data to other users through public feeds, leaderboards, or AI Coach by default.</li>
+        <li><strong>Anthropic:</strong> server-side AI Coach processing when you use the coach feature. The App sends a sanitized coaching context and your coach message.</li>
+        <li><strong>Browser push services:</strong> push notifications are routed through browser/platform notification infrastructure if you enable notifications.</li>
+        <li><strong>Other users:</strong> only for opt-in social features, where visible data is limited to handle-level aggregate stats, PR records, circle membership, and information you choose to share.</li>
+        <li><strong>Legal and safety:</strong> if necessary to comply with law, respond to lawful requests, protect rights and safety, investigate abuse, or enforce the Terms.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>6. Cookies, tracking, ads, and Global Privacy Control</h2>
+      <p>The App does not use third-party advertising cookies, advertising SDKs, or analytics trackers. Because we do not sell personal information, share it for cross-context behavioral advertising, or use targeted advertising, we do not process opt-out preference signals such as Global Privacy Control for those purposes. If this changes, this policy will be updated before the change is implemented.</p>
+    </section>
+
+    <section>
+      <h2>7. Storage, security, and local device data</h2>
+      <ul>
+        <li>Data in transit is encrypted via HTTPS/TLS.</li>
+        <li>Supabase Row Level Security is used so authenticated users can access only their own owner-scoped rows, except for explicitly opt-in aggregate social features.</li>
+        <li>Wearable OAuth tokens are stored server-side, encrypted at rest, and are not returned to browser clients.</li>
+        <li>Service role keys, OAuth client secrets, and AI provider keys are server-side environment variables and should not be committed to source control.</li>
+        <li>Some data is cached in browser localStorage for offline-first use. Anyone with access to your unlocked device/browser profile may be able to view local cached data.</li>
+        <li>No security system is perfect. Use a strong password, protect your device, and contact us immediately if you suspect unauthorized access.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>8. Data retention and deletion</h2>
+      <ul>
+        <li>Account, training, nutrition, recovery, program, and settings data are retained while your account is active unless you delete or request deletion.</li>
+        <li>Disconnecting Oura, Whoop, Google Health/Fitbit, or Strava deletes provider tokens and provider-derived data stored by the App for that source from active app tables, subject to backups, audit logs, legal obligations, and fraud/security retention.</li>
+        <li>Push subscriptions are retained while reminders are enabled and are removed when you unsubscribe or delete your account.</li>
+        <li>Client error reports and coach usage counters are retained only as long as reasonably needed for reliability, abuse prevention, and beta operations.</li>
+        <li>Deletion requests will be completed within 30 days unless a shorter period is legally required or retention is necessary for security, fraud prevention, legal compliance, or dispute resolution.</li>
+      </ul>
+      <p>To request deletion or export, email <a href="mailto:0vertrained.exe@gmail.com">0vertrained.exe@gmail.com</a>.</p>
+    </section>
+
+    <section>
+      <h2>8A. Connected-service controls</h2>
+      <p>You can disconnect supported providers in Settings → Integrations. You may also revoke access directly inside the connected provider account, such as your Google Account permissions page or Strava account settings. Revoking access at the provider may stop future sync before 0VERTRAINED receives a disconnect event.</p>
+      <p>Provider APIs can change, fail, revoke tokens, enforce rate limits, or return incomplete data. 0VERTRAINED stores the scopes granted, sync status, provider account identifiers, and normalized records needed to show connection state and imported metrics.</p>
+    </section>
+
+    <section>
+      <h2>9. Your privacy rights</h2>
+      <p>Depending on where you live, you may have rights to access, correct, delete, port, restrict, or object to processing of your information, and to withdraw consent for optional features. You may also have the right to appeal a decision or lodge a complaint with a data protection authority.</p>
+      <p>California, Colorado, Connecticut, Delaware, Iowa, Montana, Nebraska, New Hampshire, New Jersey, Oregon, Texas, Utah, Virginia, and other U.S. state residents may have additional rights under applicable state privacy laws. We will honor valid requests to the extent those laws apply to 0VERTRAINED.</p>
+      <p>You may exercise rights by emailing <a href="mailto:0vertrained.exe@gmail.com">0vertrained.exe@gmail.com</a>. We may need to verify your account before acting on a request.</p>
+    </section>
+
+    <section>
+      <h2>10. Health data, HIPAA, and breach notification</h2>
+      <p>0VERTRAINED is a personal fitness and recovery app, not a healthcare provider, health plan, healthcare clearinghouse, or medical device. Unless we separately enter into a written agreement that says otherwise, the App is not intended to create a HIPAA-covered relationship.</p>
+      <p>Some U.S. laws, including the FTC Health Breach Notification Rule and state consumer health data laws, may apply to certain health-app data practices. If we discover a breach of unsecured identifiable health information requiring notice, we will notify affected users, regulators, and others as required by applicable law.</p>
+    </section>
+
+    <section>
+      <h2>11. Children</h2>
+      <p>The App is not directed to children under 16, and we do not knowingly collect information from children under 16. If you believe a child has created an account or connected a wearable, contact us so we can delete the information.</p>
+    </section>
+
+    <section>
+      <h2>12. International transfers</h2>
+      <p>The App and its service providers may process information in the United States and other countries where they operate. If you access the App from outside the United States, your information may be transferred to jurisdictions with different privacy laws than your home country.</p>
+    </section>
+
+    <section>
+      <h2>13. Changes to this policy</h2>
+      <p>We may update this Privacy Policy as the App, legal requirements, or service providers change. Material changes will be reflected by updating the date above and, where appropriate, providing additional notice in the App.</p>
+    </section>
+
+    <footer>
+      <p><strong>Contact:</strong> <a href="mailto:0vertrained.exe@gmail.com">0vertrained.exe@gmail.com</a></p>
+      <p><a href="terms-of-service.html">Terms of Service</a> · <a href="index.html">Legal home</a></p>
+    </footer>
+  </main>
+</body>
+</html>
