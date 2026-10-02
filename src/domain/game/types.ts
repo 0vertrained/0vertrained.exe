@@ -6,6 +6,7 @@ import type { ProgramPayloadV2 } from "../program/types";
 import type { RecordCandidate } from "../training/records";
 import type { ExerciseMeta } from "../exercise";
 import type { ExerciseLog } from "../day/schema";
+import type { UnitSystem } from "../units";
 
 export type Rank = "E" | "D" | "C" | "B" | "A" | "S";
 
@@ -191,6 +192,8 @@ export interface ProgressInput {
   utcOffsetMinutes?: number;
   /** The caller's clock; the domain never reads one. Defaults to the end of todayKey. */
   nowMs?: number;
+  /** Display units for prescription text (loads are always kg). */
+  units?: UnitSystem;
   metaFor: (log: ExerciseLog) => ExerciseMeta;
 }
 
