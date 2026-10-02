@@ -1,3 +1,0 @@
-Source zip: /opt/data/cache/documents/doc_1e47b697556c_0VERTRAINED-v12_1-hardening.zip
-SHA256: 53889f6b3d93b5fcf1dd879a445bf89f301c3efad93c572130a8967e6a161143
-Extracted to: /opt/data/projects/0vertrained-source-of-truth-v12_1-hardening
