@@ -43,6 +43,69 @@ export async function loadAllEntries() {
   return map;
 }
 
+// v19.2.1 · Full backup. Every entry straight from the server (not the boot
+// window held in memory), plus program and settings, in one versioned
+// envelope that both this app and the v20 importer read. Unlike
+// loadAllEntries it fails instead of returning a partial map, so an
+// incomplete backup is never mistaken for a complete one.
+export const BACKUP_FORMAT = "0vertrained-backup";
+
+export async function loadBackupSnapshot() {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated." };
+  const PAGE = 1000;
+  const entries = {};
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("entries")
+      .select("entry_date, payload")
+      .order("entry_date", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) return { error: error.message || "Couldn't read your entries." };
+    for (const row of data) entries[row.entry_date] = row.payload;
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  const [programRes, profileRes] = await Promise.all([
+    supabase.from("program").select("payload").eq("user_id", userId).single(),
+    supabase.from("profiles").select("settings, username").eq("id", userId).single(),
+  ]);
+  if (programRes.error && programRes.error.code !== "PGRST116") {
+    return { error: programRes.error.message || "Couldn't read your program." };
+  }
+  if (profileRes.error) return { error: profileRes.error.message || "Couldn't read your settings." };
+  return {
+    ok: true,
+    entries,
+    program: programRes.data?.payload ?? null,
+    settings: profileRes.data?.settings ?? {},
+    username: profileRes.data?.username ?? null,
+  };
+}
+
+export function buildBackupEnvelope({ entries, program, settings, username, appVersion, exportedAt }) {
+  return {
+    format: BACKUP_FORMAT,
+    v: 1,
+    exportedAt,
+    appVersion,
+    username: username ?? null,
+    counts: { days: Object.keys(entries || {}).length },
+    entries: entries || {},
+    program: program ?? null,
+    settings: settings ?? {},
+  };
+}
+
+// Import accepts the full-backup envelope or the older raw {date: payload} map.
+export function entriesFromImport(parsed) {
+  if (parsed && parsed.format === BACKUP_FORMAT && parsed.entries && typeof parsed.entries === "object") {
+    return parsed.entries;
+  }
+  return parsed;
+}
+
 // V14.3 · The boot window. YYYY-MM-DD cutoff for "recent", local-date based so
 // the window matches what the user sees as "the last N days".
 export function entriesWindowCutoff(days = 180) {
@@ -152,6 +215,14 @@ export async function importEntries(dataMap) {
 
 // ─── Program ───────────────────────────────────────────────────────────────────
 
+// v19.2.1 · Same whole-payload hazard as settings: a failed read used to look
+// like "no program", the app fell back to DEFAULT_PROGRAM, and the next edit
+// saved defaults over the athlete's real program. "No row yet" (PGRST116) is
+// a normal new-user state; any other error blocks program writes until a read
+// succeeds.
+let programLoadedForUser = null;
+let programLoadFailedForUser = null;
+
 export async function loadProgram() {
   const userId = await getUserId();
   if (!userId) return null;
@@ -160,13 +231,30 @@ export async function loadProgram() {
     .select("payload")
     .eq("user_id", userId)
     .single();
-  if (error || !data) return null;
+  if (error && error.code !== "PGRST116") {
+    if (programLoadedForUser === userId) programLoadedForUser = null;
+    programLoadFailedForUser = userId;
+    console.error("loadProgram failed:", error);
+    return null;
+  }
+  programLoadedForUser = userId;
+  programLoadFailedForUser = null;
+  if (!data) return null;
   return data.payload;
+}
+
+// True when the most recent loadProgram() for this user hit a real error (as
+// opposed to "no program saved yet"), so callers keep their cached copy.
+export function programLoadFailed(userId) {
+  return Boolean(userId) && programLoadFailedForUser === userId;
 }
 
 export async function saveProgram(programPayload) {
   const userId = await getUserId();
   if (!userId) return { error: "Not authenticated." };
+  if (programLoadedForUser !== userId) {
+    return { error: "Your program hasn't loaded yet — reconnect and try again." };
+  }
   const { error } = await supabase.from("program").upsert(
     { user_id: userId, payload: programPayload },
     { onConflict: "user_id" }
@@ -282,6 +370,14 @@ export const DEFAULT_SETTINGS = {
   coachPreferences: { ...DEFAULT_COACH_PREFERENCES },
 };
 
+// v19.2.1 · Settings are one JSONB blob written whole, so a write is only safe
+// once this session has read the server copy. Before this guard, a failed read
+// returned DEFAULT_SETTINGS, the app cached it, and the next save overwrote the
+// athlete's real settings with defaults.
+let settingsLoadedForUser = null;
+
+// Returns the normalized settings, or null when the server read fails (the
+// caller keeps whatever it already has). Signed-out callers get defaults.
 export async function loadSettings() {
   const userId = await getUserId();
   if (!userId) return { ...DEFAULT_SETTINGS, username: null };
@@ -290,7 +386,12 @@ export async function loadSettings() {
     .select("settings, username")
     .eq("id", userId)
     .single();
-  if (error) return { ...DEFAULT_SETTINGS, username: null };
+  if (error) {
+    if (settingsLoadedForUser === userId) settingsLoadedForUser = null;
+    console.error("loadSettings failed:", error);
+    return null;
+  }
+  settingsLoadedForUser = userId;
   const s = data?.settings || {};
   return {
     // Spread first so any stored field the app relies on (ouraConnected,
@@ -322,6 +423,9 @@ export async function loadSettings() {
 export async function saveSettings(settings) {
   const userId = await getUserId();
   if (!userId) return { error: "Not authenticated." };
+  if (settingsLoadedForUser !== userId) {
+    return { error: "Settings haven't loaded yet — reconnect and try again." };
+  }
   const { error } = await supabase.from("profiles").update({ settings }).eq("id", userId);
   if (error) { console.error("saveSettings failed:", error); return { error: error.message }; }
   return { ok: true };

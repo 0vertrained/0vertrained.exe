@@ -286,6 +286,24 @@ async function handleDisconnect(req) {
   return json({ ok: true });
 }
 
+// v19.2.1 · Strava webhook events are unsigned and owner_id is a public
+// athlete id, so a forged "deauthorized" or "delete" event could wipe someone's
+// data. Destructive actions are confirmed with Strava using the athlete's own
+// token first; anything unverifiable is logged and skipped (the in-app
+// Disconnect still purges).
+async function stravaRevocationConfirmed(account) {
+  if (!account || account.status !== "connected") return true;
+  let accessToken;
+  try { accessToken = await getAccessTokenForAccount(account); } catch { return false; }
+  if (!accessToken) return false;
+  try {
+    const r = await fetch(`${STRAVA_API_BASE}/athlete`, { headers: { "authorization": `Bearer ${accessToken}`, "accept": "application/json" } });
+    return r.status === 401;
+  } catch {
+    return false;
+  }
+}
+
 async function handleWebhook(req) {
   const url = new URL(req.url);
   if (req.method === "GET") {
@@ -297,6 +315,11 @@ async function handleWebhook(req) {
   }
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const body = await req.json().catch(() => ({}));
+  // Optional defense in depth: reject events for any other subscription.
+  const expectedSubscription = process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID;
+  if (expectedSubscription && String(body.subscription_id ?? "") !== String(expectedSubscription)) {
+    return json({ error: "Unknown subscription" }, 403);
+  }
   const ownerId = body.owner_id ? String(body.owner_id) : null;
   await fetch(`${process.env.SUPABASE_URL}/rest/v1/provider_webhook_events`, {
     method: "POST",
@@ -315,6 +338,11 @@ async function handleWebhook(req) {
       const authorizedFlag = body?.updates?.authorized;
       const isDeauth = body.object_type === "athlete" && (authorizedFlag === "false" || authorizedFlag === false);
       if (isDeauth) {
+        const account = await getConnectedAccount(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA).catch(() => null);
+        if (!(await stravaRevocationConfirmed(account))) {
+          console.warn("strava webhook: deauthorization not confirmed by Strava; purge skipped");
+          return json({ ok: true });
+        }
         try {
           await deleteProviderData(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA);
           await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "deauthorized_purged", status: "success", message: "Athlete revoked access on Strava; tokens and imported data deleted." });
@@ -329,6 +357,13 @@ async function handleWebhook(req) {
       if (body.object_type === "activity" && body.object_id) {
         try {
           if (body.aspect_type === "delete") {
+            const account = await getConnectedAccount(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA);
+            const accessToken = account ? await getAccessTokenForAccount(account) : null;
+            const check = accessToken
+              ? await fetch(`${STRAVA_API_BASE}/activities/${encodeURIComponent(String(body.object_id))}`, { headers: { "authorization": `Bearer ${accessToken}`, "accept": "application/json" } })
+              : null;
+            // Only drop the row when Strava agrees the activity is gone.
+            if (!check || check.status !== 404) throw new Error("delete not confirmed");
             await fetch(`${supabaseUrl}/rest/v1/activities?user_id=eq.${encodeURIComponent(userId)}&source_provider=eq.strava&provider_activity_id=eq.${encodeURIComponent(String(body.object_id))}`, {
               method: "DELETE",
               headers: serviceHeaders(serviceKey, { "Prefer": "return=minimal" }),

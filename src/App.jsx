@@ -8,14 +8,14 @@ import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } fro
 import { ThemeProvider, useTheme } from "./theme";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName, PROGRAM_PRESETS } from "./constants";
 import { applyRaceBuild } from "./raceBuild";
-import { detectDayZero } from "./dayZero";
 import { logFunnelEvent } from "./funnel";
 import { logOut, ensureProfileExists } from "./auth";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { CommandPalette } from "./ui/CommandPalette";
 import { supabase } from "./supabaseClient";
-import { loadAllEntries, loadRecentEntries, loadOlderEntries, entriesWindowCutoff, saveEntry, importEntries, loadProgram, saveProgram, loadSettings, saveSettings, DEFAULT_SETTINGS, setCachedUserId, clearCachedUserId } from "./data";
+import { loadAllEntries, loadRecentEntries, loadOlderEntries, entriesWindowCutoff, saveEntry, importEntries, loadProgram, saveProgram, programLoadFailed, loadSettings, saveSettings, DEFAULT_SETTINGS, setCachedUserId, clearCachedUserId, loadBackupSnapshot, buildBackupEnvelope, entriesFromImport } from "./data";
 import { readCache, writeCache, clearCache, getCacheStatus } from "./appDataCache";
+import { APP_VERSION } from "./appMeta";
 import { readPendingSaves, writePendingSaves } from "./pendingSavesStore";
 import { clearRecoveryDashboardCache } from "./recoveryDashboardSessionCache";
 import AuthScreen from "./AuthScreen";
@@ -52,7 +52,6 @@ const MoreTab = lazy(() => import("./MoreTab").then(m => ({ default: m.MoreTab }
 const RecoveryDashboard = lazy(() => import("./RecoveryDashboard").then(m => ({ default: m.RecoveryDashboard })));
 const SettingsScreen = lazy(() => import("./SettingsScreen").then(m => ({ default: m.SettingsScreen })));
 const Tutorial = lazy(() => import("./Tutorial").then(m => ({ default: m.Tutorial })));
-const DayZeroSpecimen = lazy(() => import("./DayZeroSpecimen").then(m => ({ default: m.DayZeroSpecimen })));
 const Coach = lazy(() => import("./Coach").then(m => ({ default: m.Coach })));
 
 // The app shell reserves room for the persistent bottom dock during normal tab
@@ -141,6 +140,13 @@ function AppInner({ onThemeChange }) {
 
   const saveTimers = useRef({});
   const hasLoadedRef = useRef(null); // stores the user id that was last loaded
+  // v19.2.1 · The load effect reads the current theme through a ref. With
+  // themeId in its deps, the effect's own onThemeChange() call re-ran it: the
+  // cleanup cancelled the in-flight revalidation and the hasLoadedRef guard
+  // stopped it restarting, so users whose saved theme differed from the OS
+  // never received fresh data ("Refreshing…" forever).
+  const themeIdRef = useRef(themeId);
+  useEffect(() => { themeIdRef.current = themeId; }, [themeId]);
 
   // Keep the keyboard focus-ring colour in step with the active theme's ink,
   // and sync the document background/colour so the gutters outside the
@@ -272,7 +278,7 @@ function AppInner({ onThemeChange }) {
       setProgram(DEFAULT_PROGRAM);
       setMyUsername(DEMO_SETTINGS.username);
       setSettings(DEMO_SETTINGS);
-      if (themeId !== DEMO_SETTINGS.theme) onThemeChange(DEMO_SETTINGS.theme);
+      if (themeIdRef.current !== DEMO_SETTINGS.theme) onThemeChange(DEMO_SETTINGS.theme);
       setShowTutorial(false);
       setLoaded(true);
       return;
@@ -313,7 +319,7 @@ function AppInner({ onThemeChange }) {
       setProgram(cachedData.program || DEFAULT_PROGRAM);
       setMyUsername(cachedData.myUsername || null);
       setSettings(cachedData.settings || DEFAULT_SETTINGS);
-      if (cachedData.settings?.theme && cachedData.settings.theme !== themeId) {
+      if (cachedData.settings?.theme && cachedData.settings.theme !== themeIdRef.current) {
         onThemeChange(cachedData.settings.theme);
       }
       // For now, assume cached data is already onboarded (we only cache after initial load)
@@ -364,24 +370,33 @@ function AppInner({ onThemeChange }) {
         let mergedEntries = { ...cachedHistory, ...recent, ...storedPending };
         setData(mergedEntries);
         perfMark("boot", "revalidate-done");
-        setProgram(prog || DEFAULT_PROGRAM);
-        setMyUsername(userSettings.username);
-        setSettings(userSettings);
-        if (userSettings.theme && userSettings.theme !== themeId) {
-          onThemeChange(userSettings.theme);
-        }
-        if (userSettings.onboarded !== true) {
-          setShowTutorial(true);
+        // v19.2.1 · A failed program read keeps the cached program instead of
+        // swapping in DEFAULT_PROGRAM (saveProgram is blocked until a read works).
+        const freshProgram = prog || (programLoadFailed(user.id) ? cachedData?.program : null) || DEFAULT_PROGRAM;
+        setProgram(freshProgram);
+        // v19.2.1 · loadSettings returns null when the server read fails. Keep
+        // the cached settings (never defaults) and leave the onboarding state
+        // alone; saveSettings refuses whole-blob writes until a read succeeds,
+        // so a flaky boot can no longer overwrite real settings with defaults.
+        const freshSettings = userSettings || cachedData?.settings || DEFAULT_SETTINGS;
+        const freshUsername = userSettings ? userSettings.username : (cachedData?.myUsername || null);
+        setMyUsername(freshUsername);
+        setSettings(freshSettings);
+        if (userSettings) {
+          if (userSettings.theme && userSettings.theme !== themeIdRef.current) {
+            onThemeChange(userSettings.theme);
+          }
+          setShowTutorial(userSettings.onboarded !== true);
         } else {
-          setShowTutorial(false);
+          showToast("Couldn't load your settings — settings changes are paused until you reconnect");
         }
 
         // Update cache with fresh data
         writeCache(user.id, {
           entries: mergedEntries,
-          program: prog || DEFAULT_PROGRAM,
-          settings: userSettings,
-          myUsername: userSettings.username,
+          program: freshProgram,
+          settings: freshSettings,
+          myUsername: freshUsername,
         });
 
         // Update cache status to reflect the fresh load
@@ -404,9 +419,9 @@ function AppInner({ onThemeChange }) {
           if (count > 0) {
             writeCache(user.id, {
               entries: mergedEntries,
-              program: prog || DEFAULT_PROGRAM,
-              settings: userSettings,
-              myUsername: userSettings.username,
+              program: freshProgram,
+              settings: freshSettings,
+              myUsername: freshUsername,
             });
           }
         }).catch(() => {});
@@ -415,7 +430,7 @@ function AppInner({ onThemeChange }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [user, authReady, demoMode, themeId, onThemeChange]);
+  }, [user, authReady, demoMode, onThemeChange]);
 
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(null), 2200); }, []);
@@ -784,7 +799,29 @@ function AppInner({ onThemeChange }) {
     setExportModal({ text, filename, label });
   };
 
-  const exportJSON = () => deliver(JSON.stringify(data, null, 2), `athlete_data_${getTodayKey()}.json`, "application/json", "JSON Backup");
+  // v19.2.1 · Full backup: all history from the server (not just the window
+  // held in memory) plus program and settings, with unsynced local days on
+  // top. The day count in the label lets the athlete confirm it is complete.
+  const exportJSON = async () => {
+    const exportedAt = new Date().toISOString();
+    if (demoMode) {
+      const envelope = buildBackupEnvelope({ entries: data, program, settings, username: myUsername, appVersion: APP_VERSION, exportedAt });
+      deliver(JSON.stringify(envelope, null, 2), `0vertrained_backup_${getTodayKey()}.json`, "application/json", `Full backup · ${envelope.counts.days} days`);
+      return;
+    }
+    showToast("Preparing full backup…");
+    const snapshot = await loadBackupSnapshot();
+    if (snapshot.error) { showToast("Backup needs a connection — try again online"); return; }
+    const envelope = buildBackupEnvelope({
+      entries: { ...snapshot.entries, ...pendingSaves },
+      program: snapshot.program,
+      settings: snapshot.settings,
+      username: snapshot.username,
+      appVersion: APP_VERSION,
+      exportedAt,
+    });
+    deliver(JSON.stringify(envelope, null, 2), `0vertrained_backup_${getTodayKey()}.json`, "application/json", `Full backup · ${envelope.counts.days} days`);
+  };
   const exportCSV  = () => {
     const rows = [["Date","Weight","Calories","Protein","Carbs","Fats","Water","Sleep","Energy","Soreness","Miles","Workout Done"]];
     Object.entries(data).sort().forEach(([date, d]) => {
@@ -795,6 +832,7 @@ function AppInner({ onThemeChange }) {
 
   const importFromText = async (text) => {
     let parsed; try { parsed = JSON.parse(text); } catch { showToast("Invalid JSON"); return; }
+    parsed = entriesFromImport(parsed);
     if (demoMode) {
       setData(parsed);
       setImportOpen(false);
@@ -858,10 +896,10 @@ function AppInner({ onThemeChange }) {
   // First-week baseline state for the additive per-tab guidance banners. Gated on
   // `loaded` so a tab never flashes a banner before its real data resolves.
   const ouraConnected = settings?.ouraConnected === true || ouraRecovery != null;
-  // V17.0 · Day Zero — per-tab zero states. Computed every render (cheap:
-  // key scans over the entries map); gated on `loaded` at the render sites so
-  // specimens never flash during boot. Demo mode counts as real data.
-  const dayZero = detectDayZero({ data, settings, ouraConnected, demoMode });
+  // v19.2.1 · The V17.0 Day Zero specimens used to replace every tab while it
+  // had no data, and their CTAs could not clear them — a new manual user could
+  // never reach Session Mode, the check-in or the meal ledger. Tabs now always
+  // render; the first-week banners still guide new users.
   const firstWeek = loaded && isFirstWeekUser(settings, data);
   const appLoadState = resolveLoadState({ loaded, refreshing });
   const coachEnabled = isCoachEnabled(user?.id);
@@ -937,18 +975,10 @@ function AppInner({ onThemeChange }) {
               land. Below 1440px this wrapper is display:contents — the DOM
               gains a node but layout is byte-identical to V14. */}
           <div style={isBroadsheet && !["Today", "Fuel", "Recovery", "Progress"].includes(tab) ? { maxWidth: "var(--ovt-content-width)", margin: "0 auto", width: "100%" } : { display: "contents" }}>
-          {tab === "Today"   && (loaded && dayZero.today.isZero
-            ? <Suspense fallback={null}><DayZeroSpecimen tab="Today" onAction={() => setOverlay("profile")} /></Suspense>
-            : <TodayTab   todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} />)}
-          {tab === "Fuel"    && (loaded && dayZero.fuel.isZero
-            ? <Suspense fallback={null}><DayZeroSpecimen tab="Fuel" onAction={() => setOverlay("profile")} /></Suspense>
-            : <><BaselineBanner tab="Fuel" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><FuelTab settings={settings} todayData={todayData} updateToday={updateToday} showToast={showToast} todayKey={todayKey} loaded={loaded} data={data} /></>)}
-          {tab === "Recovery" && (loaded && dayZero.recovery.isZero
-            ? <Suspense fallback={null}><DayZeroSpecimen tab="Recovery" onAction={() => setOverlay("profile")} /></Suspense>
-            : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} updateToday={updateToday} /></>)}
-          {tab === "Progress"&& (loaded && dayZero.progress.isZero
-            ? <Suspense fallback={null}><DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} /></Suspense>
-            : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} /></>)}
+          {tab === "Today"   && (<TodayTab   todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} />)}
+          {tab === "Fuel"    && (<><BaselineBanner tab="Fuel" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><FuelTab settings={settings} todayData={todayData} updateToday={updateToday} showToast={showToast} todayKey={todayKey} loaded={loaded} data={data} /></>)}
+          {tab === "Recovery" && (<><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} updateToday={updateToday} /></>)}
+          {tab === "Progress"&& (<><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} /></>)}
           </div>
           </Suspense>
           </ErrorBoundary>

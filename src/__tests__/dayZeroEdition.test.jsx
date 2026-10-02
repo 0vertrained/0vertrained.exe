@@ -116,14 +116,14 @@ describe("V17.0 specimens (mounted) — stamp, caption, one action", () => {
 describe("V17.0 App wiring (source guards)", () => {
   const app = read("src/App.jsx");
 
-  it("every tab swap gates on loaded && its zero flag — no boot flash, whole-tab swap", () => {
-    for (const t of ["today", "fuel", "recovery", "progress"]) {
-      expect(app).toContain(`loaded && dayZero.${t}.isZero`);
-    }
-  });
-
-  it("populated layouts are untouched: the original tab renders live in the false branch", () => {
-    expect(app).toMatch(/dayZero\.recovery\.isZero[\s\S]{0,220}DayZeroSpecimen[\s\S]{0,420}RecoveryDashboard/);
+  // v19.2.1 · The V17.0 whole-tab swap locked new manual users out: the
+  // specimens replaced every tab while it had no data, and their CTAs could
+  // not clear them. Tabs now always render; these guards keep it that way.
+  it("tabs always render their real screen — no Day Zero whole-tab swap", () => {
+    expect(app).not.toContain("DayZeroSpecimen");
+    expect(app).not.toMatch(/dayZero\.(today|fuel|recovery|progress)\.isZero/);
+    expect(app).toMatch(/tab === "Today"\s+&& \(<TodayTab /);
+    expect(app).toMatch(/tab === "Recovery" && \(<><BaselineBanner tab="Recovery"[\s\S]{0,240}<RecoveryDashboard/);
   });
 
   it("the setup wizard survives — specimens complement it, they don't replace it", () => {
