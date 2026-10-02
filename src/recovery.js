@@ -283,7 +283,7 @@ export function calcWeeklyReview(data, goals) {
 
   const targetLabels = [
     `${workoutsDone}/${workoutTarget} workouts`,
-    `${totalMiles}/${milesTarget} miles`,
+    `${Math.round(totalMiles * 10) / 10}/${milesTarget} miles`,
     `${proteinDays}/5d protein ≥ ${proteinTarget}g`,
     `${avgSleep}/7h avg sleep`,
     `${waterDays}/5d water goal`,

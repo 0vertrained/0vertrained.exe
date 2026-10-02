@@ -99,3 +99,7 @@ export default async (req) => {
   if (!r.ok) return json({ error: "Failed to store error" }, 502);
   return json({ ok: true });
 };
+
+// v19.2.1 · Without a route, /api/log-error fell through netlify.toml's SPA
+// rewrite and returned index.html, so these calls never reached the function.
+export const config = { path: "/api/log-error" };

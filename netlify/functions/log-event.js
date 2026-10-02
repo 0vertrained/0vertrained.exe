@@ -78,3 +78,7 @@ export default async (req) => {
 
   return json({ ok: true });
 };
+
+// v19.2.1 · Without a route, /api/log-event fell through netlify.toml's SPA
+// rewrite and returned index.html, so these calls never reached the function.
+export const config = { path: "/api/log-event" };

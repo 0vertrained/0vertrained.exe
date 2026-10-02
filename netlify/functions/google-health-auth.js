@@ -442,7 +442,9 @@ async function handleDisconnect(req) {
 async function handleWebhook(req) {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const token = req.headers.get("x-google-health-webhook-token") || req.headers.get("x-webhook-token") || new URL(req.url).searchParams.get("token");
-  if (process.env.GOOGLE_HEALTH_WEBHOOK_SECRET && token !== process.env.GOOGLE_HEALTH_WEBHOOK_SECRET) return json({ error: "Invalid webhook token" }, 403);
+  // v19.2.1 · Fail closed: with no secret configured, anyone could write rows.
+  const secret = process.env.GOOGLE_HEALTH_WEBHOOK_SECRET;
+  if (!secret || token !== secret) return json({ error: "Invalid webhook token" }, 403);
   const body = await req.json().catch(() => ({}));
   await fetch(`${process.env.SUPABASE_URL}/rest/v1/provider_webhook_events`, {
     method: "POST",

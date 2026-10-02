@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildCoachingCalibrationProfile, collectWeeklyRecommendationSamples } from "../coachingCalibration";
 
 function day({ response = null, weekly = null, weight = 190, sleep = 7, protein = 200, workout = true } = {}) {
@@ -60,27 +60,35 @@ function day({ response = null, weekly = null, weight = 190, sleep = 7, protein 
   });
 
   it("advances to calibrated authority after enough daily and weekly outcomes", () => {
-    const data = {};
-    const start = new Date("2026-05-01T12:00:00");
-    for (let i = 0; i < 10; i += 1) {
-      const date = new Date(start);
-      date.setDate(date.getDate() + i);
-      const next = new Date(date);
-      next.setDate(next.getDate() + 1);
-      data[date.toISOString().slice(0, 10)] = day({ response: { response: "followed", decisionCall: "maintain" }, weight: 192 - i * 0.1 });
-      data[next.toISOString().slice(0, 10)] = day({ weight: 191.9 - i * 0.1 });
+    // The daily window is the last 90 days from "now"; pin the clock just
+    // after the fixture so it stays inside the window on any real date.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-30T12:00:00"));
+    try {
+      const data = {};
+      const start = new Date("2026-05-01T12:00:00");
+      for (let i = 0; i < 10; i += 1) {
+        const date = new Date(start);
+        date.setDate(date.getDate() + i);
+        const next = new Date(date);
+        next.setDate(next.getDate() + 1);
+        data[date.toISOString().slice(0, 10)] = day({ response: { response: "followed", decisionCall: "maintain" }, weight: 192 - i * 0.1 });
+        data[next.toISOString().slice(0, 10)] = day({ weight: 191.9 - i * 0.1 });
+      }
+      for (let week = 0; week < 4; week += 1) {
+        const review = new Date("2026-05-20T12:00:00");
+        review.setDate(review.getDate() + week * 8);
+        const future = new Date(review);
+        future.setDate(future.getDate() + 7);
+        data[review.toISOString().slice(0, 10)] = day({ weekly: { response: "approved", recommendationKind: "continue", baseline: { weight: 190 - week, protein: 200, sleep: 7, workouts: 5 } }, weight: 190 - week });
+        data[future.toISOString().slice(0, 10)] = day({ weight: 189.5 - week, protein: 205 });
+      }
+      const profile = buildCoachingCalibrationProfile({ data });
+      expect(profile.daily.sampleCount).toBeGreaterThanOrEqual(8);
+      expect(profile.weekly.followedCount).toBeGreaterThanOrEqual(4);
+      expect(profile.authority).toBe("calibrated");
+    } finally {
+      vi.useRealTimers();
     }
-    for (let week = 0; week < 4; week += 1) {
-      const review = new Date("2026-05-20T12:00:00");
-      review.setDate(review.getDate() + week * 8);
-      const future = new Date(review);
-      future.setDate(future.getDate() + 7);
-      data[review.toISOString().slice(0, 10)] = day({ weekly: { response: "approved", recommendationKind: "continue", baseline: { weight: 190 - week, protein: 200, sleep: 7, workouts: 5 } }, weight: 190 - week });
-      data[future.toISOString().slice(0, 10)] = day({ weight: 189.5 - week, protein: 205 });
-    }
-    const profile = buildCoachingCalibrationProfile({ data });
-    expect(profile.daily.sampleCount).toBeGreaterThanOrEqual(8);
-    expect(profile.weekly.followedCount).toBeGreaterThanOrEqual(4);
-    expect(profile.authority).toBe("calibrated");
   });
 });
