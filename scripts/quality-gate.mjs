@@ -14,10 +14,11 @@ const run = (label, command, args, options = {}) => {
   checks.push(`✅ ${label}`);
 };
 
-run("tests passed", "npm", ["run", "test"]);
+run("tests passed (with domain coverage floor)", "npm", ["run", "test:coverage"]);
 // V12.1 · Static analysis. Rule ERRORS fail the gate (no-undef caught two
 // real ReferenceErrors on its first run); warnings inform but don't block.
 run("lint passed", "npm", ["run", "lint"]);
+run("typecheck passed", "npm", ["run", "typecheck"]);
 run("production build passed", "npm", ["run", "build"]);
 run("demo build passed", "npm", ["run", "build"], { env: { VITE_DEMO_MODE: "true" } });
 
