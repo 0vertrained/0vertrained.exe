@@ -210,4 +210,90 @@ v20 turns 0VERTRAINED into a streamlined, **gamified workout tracker**: *"Level 
   - Offline-first sync with conflict merge.
   - CI-gated deploys.
 
+### Game rules
+
+<!-- game-rules:start -->
+_Generated from `src/domain/game/config.ts` (rules v1) by `npm run gen:rules`. Do not edit by hand._
+
+**XP**
+
+| Source | XP |
+|---|---|
+| Status check (3 of 4 rows answered) | +10 per day |
+| Training quest | a weekly pool of 360 split across planned days: 2 days → 180, 3 days → 120, 4 days → 90, 5 days → 70, 6 days → 60 |
+| …paid as | 60% pro rata by completion, plus 40% once completion reaches 80% (cleared) |
+| Engine-issued REDUCED day | the same share as FULL |
+| Engine-issued RECOVER day | the full share for the first 1 in any 7 days, then +20 |
+| Scheduled rest day, recovery done | +20 |
+| Illness day | +10 check-in only; streak protected |
+| Record | +25, at most 1 a day and 2 in any 7 days, after 3 prior exposures; never from extra sets or on a recovery day |
+| Weekly quest | +50 per objective, +50 for both |
+| Rank Trial passed | +300, once per rank |
+| Imported v19 day with work | +100 flat |
+| Extra sets, second sessions, training while ill or on a recovery day | 0 (records still saved) |
+| Sets logged more than | 48 h after the day ends earn nothing |
+
+**Reduced day**
+
+One set less per lift (never below 1); cardio × 0.7, rounded to 5 min.
+
+**Levels**
+
+XP from level L to L+1 is 60 × L (cumulative 30 × L × (L−1)), capped at 99.
+
+| Level | Total XP |
+|---|---|
+| 2 | 60 |
+| 5 | 600 |
+| 10 | 2,700 |
+| 22 | 13,860 |
+| 35 | 35,700 |
+| 50 | 73,500 |
+| 99 | 291,060 |
+
+**Streak and shields**
+
+A kept day is a cleared training quest, a scheduled rest day or a cleared recovery day. A shield is earned every 7 kept days in a row (2 at most) and is spent automatically on a missed day. Illness and paused days are protected and share an allowance of 14 days per 90. Missing a day never costs XP, level or rank.
+
+**Ranks**
+
+| Rank | Title | Level | Qualifying weeks | STR or END | VIT | Rank Trial |
+|---|---|---|---|---|---|---|
+| E | Recruit | 1 | 0 | 0 | 0 | no |
+| D | Initiate | 5 | 7 kept days | 0 | 0 | no |
+| C | Contender | 12 | 4 | 25 | 0 | yes |
+| B | Veteran | 22 | 12 | 40 | 50 | yes |
+| A | Elite | 35 | 30 | 55 | 60 | yes |
+| S | Paragon | 50 | 60 | 70 | 70 | yes |
+
+A Rank Trial is sub-maximal: 5 reps at 80% of your best estimated max (loaded lifts), reps at 80% of your best set plus a plank capped at 180 s (bodyweight), or 20 continuous minutes (cardio). At most one every 7 days, on a full-condition day. The displayed rank never decreases.
+
+**Stats (0–100)**
+
+- **STR**: best estimated max per strength group over 90 days, as a share of bodyweight, against elite ratios of squat 2.5, hinge 3, push 1.75, pull 1.75; the mean of the four groups.
+- **END**: 60% weekly cardio minutes (450/week scores 100) + 40% longest session (180 min scores 100).
+- **VIT**: over 28 days, 40 × check-in rate + 35 × sleep score + 25 × honoured rest. Calibrating for the first 7 days.
+- A change within ±3 of the value 28 days ago reads as steady; drops are shown neutrally.
+
+**Titles**
+
+18 titles: one per rank above E and one per achievement.
+
+| Achievement | Requirement | XP |
+|---|---|---|
+| First Quest | Clear your first training quest. | +50 |
+| Calibrated | Check in 7 times. | +50 |
+| Rest Is Training | Complete 10 rest-day recovery objectives. | +100 |
+| Listener | Clear 5 reduced quests as issued, with the training done. | +100 |
+| Full Week | Clear both weekly objectives in one week. | +100 |
+| Unbroken I | A 7-day streak. | +50 |
+| Unbroken II | A 30-day streak. | +150 |
+| Unbroken III | A 100-day streak. | +400 |
+| Record Breaker I | Set a record. | +50 |
+| Record Breaker II | Set 10 records. | +100 |
+| Record Breaker III | Set 50 records. | +250 |
+| Long Haul | One cardio session of 60 minutes or more. | +100 |
+| Century | Clear 100 training quests. | +250 |
+<!-- game-rules:end -->
+
 Each phase lands on this branch with the build, lint and full test suite green.
