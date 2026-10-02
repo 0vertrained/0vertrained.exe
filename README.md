@@ -220,8 +220,8 @@ _Generated from `src/domain/game/config.ts` (rules v1) by `npm run gen:rules`. D
 | Source | XP |
 |---|---|
 | Status check (3 of 4 rows answered) | +10 per day |
-| Training quest | a weekly pool of 360 split across planned days: 2 days → 180, 3 days → 120, 4 days → 90, 5 days → 70, 6 days → 60 |
-| …paid as | 60% pro rata by completion, plus 40% once completion reaches 80% (cleared) |
+| Training quest | a weekly pool of 360 split across planned days: 2 days → 180, 3 days → 120, 4 days → 90, 5 days → 72, 6 days → 60 |
+| …paid as | 60% pro rata by completion, plus 40% once completion reaches 80% (cleared). A full week is 360 training XP on any plan. |
 | Engine-issued REDUCED day | the same share as FULL |
 | Engine-issued RECOVER day | the full share for the first 1 in any 7 days, then +20 |
 | Scheduled rest day, recovery done | +20 |

@@ -19,9 +19,9 @@ export const RULES_VERSION = 1;
 export const XP = Object.freeze({
   /** Once per day, when at least 3 of the 4 check-in rows are answered. */
   checkin: 10,
-  /** Split evenly across the plan's training days (rounded to trainingShareStep). */
+  /** Split evenly across the plan's training days (rounded to trainingShareStep; 1 keeps the pool exact). */
   weeklyTrainingPool: 360,
-  trainingShareStep: 5,
+  trainingShareStep: 1,
   /** share × 0.6 × completion, plus share × 0.4 once completion reaches the cleared threshold. */
   completionWeight: 0.6,
   clearBonusWeight: 0.4,
