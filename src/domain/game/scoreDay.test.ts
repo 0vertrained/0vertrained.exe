@@ -22,8 +22,8 @@ function score(partial: Partial<ScoreDayInput>) {
 const fullSession = (): [string, DayV2["workout"]["exercises"][string]][] => [logged("bench", { sets: doneSets(3) }), logged("row", { sets: doneSets(3) })];
 
 describe("training share and XP", () => {
-  it("splits the weekly pool across planned days, rounded to 5", () => {
-    expect([2, 3, 4, 5, 6].map(trainingShare)).toEqual([180, 120, 90, 70, 60]);
+  it("splits the weekly pool across planned days exactly", () => {
+    expect([2, 3, 4, 5, 6].map(trainingShare)).toEqual([180, 120, 90, 72, 60]);
     expect(trainingShare(0)).toBe(360);
   });
 

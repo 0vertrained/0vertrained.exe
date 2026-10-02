@@ -20,7 +20,7 @@ export function renderRulesMarkdown(): string {
   lines.push("**XP**", "", "| Source | XP |", "|---|---|");
   row("Status check (3 of 4 rows answered)", `+${XP.checkin} per day`);
   row("Training quest", `a weekly pool of ${XP.weeklyTrainingPool} split across planned days: ${[2, 3, 4, 5, 6].map((d) => `${d} days → ${share(d)}`).join(", ")}`);
-  row("…paid as", `${Math.round(XP.completionWeight * 100)}% pro rata by completion, plus ${Math.round(XP.clearBonusWeight * 100)}% once completion reaches ${Math.round(XP.clearedThreshold * 100)}% (cleared)`);
+  row("…paid as", `${Math.round(XP.completionWeight * 100)}% pro rata by completion, plus ${Math.round(XP.clearBonusWeight * 100)}% once completion reaches ${Math.round(XP.clearedThreshold * 100)}% (cleared). A full week is ${XP.weeklyTrainingPool} training XP on any plan.`);
   row("Engine-issued REDUCED day", "the same share as FULL");
   row("Engine-issued RECOVER day", `the full share for the first ${XP.recoverFullPayPer7Days} in any 7 days, then +${XP.restDay}`);
   row("Scheduled rest day, recovery done", `+${XP.restDay}`);
