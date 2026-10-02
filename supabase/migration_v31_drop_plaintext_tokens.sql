@@ -1,0 +1,47 @@
+-- ============================================================
+--  V14 (v31) — Drop plaintext token tables    ⚠ DEFERRED — read first
+-- ============================================================
+--  DO NOT run this with the V14.0 deploy. Run it AFTER:
+--
+--   1. V14.0 has been live for at least one healthy release cycle, AND
+--   2. the verification query below returns ZERO rows for both tables.
+--
+--  Context: V14.0 made encrypted connected_accounts (AES-256-GCM,
+--  TOKEN_ENCRYPTION_KEY) the sole runtime token store. The legacy plaintext
+--  tables survive only as a one-shot read fallback — the first time each
+--  user's tokens are resolved post-deploy (any sync, status check, or
+--  refresh), the plaintext row is encrypted into connected_accounts and
+--  DELETED. Active users therefore drain out of these tables on their own
+--  within hours (the hourly wearable-prefetch alone touches every connected
+--  user). Rows that remain after a full cycle belong to abandoned or revoked
+--  connections; dropping them costs nothing but a 30-second re-connect if
+--  that user ever returns.
+--
+--  All V14.0 code paths already tolerate the drop: legacy reads/deletes treat
+--  a missing table as "no row" (readLegacyTokenRow swallows errors; disconnect
+--  handlers treat 404 as success), so no code change accompanies this
+--  migration.
+--
+--  ── Verification (run BEFORE this migration) ────────────────────────────────
+--
+--    select 'oura_tokens' as tbl, count(*) from public.oura_tokens
+--    union all
+--    select 'whoop_tokens', count(*) from public.whoop_tokens;
+--
+--  Both counts must be 0 — or you must be satisfied that the remaining rows
+--  are dead connections you're willing to sever. To see WHO remains:
+--
+--    select p.username, t.updated_at
+--      from public.oura_tokens t join public.profiles p on p.id = t.user_id
+--    union all
+--    select p.username, t.updated_at
+--      from public.whoop_tokens t join public.profiles p on p.id = t.user_id;
+--
+--  ── Rollback note ────────────────────────────────────────────────────────────
+--  There is deliberately no down-migration: recreating plaintext token tables
+--  would defeat the point. If a connection breaks post-drop, the fix is the
+--  provider's OAuth flow (Settings → Integrations → Connect), not a restore.
+-- ============================================================
+
+drop table if exists public.oura_tokens;
+drop table if exists public.whoop_tokens;
