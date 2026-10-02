@@ -12,19 +12,37 @@ export type Weekday = (typeof WEEKDAYS)[number];
 const KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DAY_MS = 86_400_000;
 
-export function isDateKey(value: unknown): value is DateKey {
-  if (typeof value !== "string") return false;
+/**
+ * Parsed keys are memoised: buildProgress touches the same few hundred keys
+ * thousands of times per fold, and validating each one (regex + Date) was
+ * its single largest cost. The cache only ever holds valid keys.
+ */
+const MS_BY_KEY = new Map<DateKey, number>();
+const MS_CACHE_LIMIT = 8192;
+
+function parseKey(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const hit = MS_BY_KEY.get(value);
+  if (hit !== undefined) return hit;
   const m = KEY_RE.exec(value);
-  if (!m) return false;
+  if (!m) return null;
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const t = new Date(Date.UTC(y, mo - 1, d));
-  return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d;
+  const ms = Date.UTC(y, mo - 1, d);
+  const t = new Date(ms);
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return null;
+  if (MS_BY_KEY.size >= MS_CACHE_LIMIT) MS_BY_KEY.clear();
+  MS_BY_KEY.set(value, ms);
+  return ms;
+}
+
+export function isDateKey(value: unknown): value is DateKey {
+  return parseKey(value) !== null;
 }
 
 function toUtcMs(key: DateKey): number {
-  const m = KEY_RE.exec(key);
-  if (!m || !isDateKey(key)) throw new RangeError(`Invalid date key: ${key}`);
-  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const ms = parseKey(key);
+  if (ms === null) throw new RangeError(`Invalid date key: ${key}`);
+  return ms;
 }
 
 function fromUtcMs(ms: number): DateKey {
@@ -59,7 +77,8 @@ export function weekStart(key: DateKey): DateKey {
 /** Inclusive list of keys from `from` to `to`; empty when `to` is before `from`. */
 export function dateRange(from: DateKey, to: DateKey): DateKey[] {
   const n = diffDays(from, to);
-  return n < 0 ? [] : Array.from({ length: n + 1 }, (_, i) => addDays(from, i));
+  const base = toUtcMs(from);
+  return n < 0 ? [] : Array.from({ length: n + 1 }, (_, i) => fromUtcMs(base + i * DAY_MS));
 }
 
 export function compareKeys(a: DateKey, b: DateKey): number {

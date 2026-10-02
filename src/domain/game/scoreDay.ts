@@ -20,7 +20,7 @@ import type { ExerciseMeta } from "../exercise";
 import type { ProgramDay } from "../program/types";
 import { isCheckinCounted } from "../readiness/checkin";
 import { didTrain } from "../readiness/loadGuard";
-import { detectRecords, type RecordCandidate } from "../training/records";
+import { detectRecords, type RecordCandidate, type RecordHistory } from "../training/records";
 import { completedPlannedSets } from "../training/sets";
 import { XP } from "./config";
 import { synthesizeQuest } from "./quest";
@@ -44,6 +44,8 @@ export interface ScoreDayInput {
   plannedDaysPerWeek: number;
   /** Days strictly before dateKey, for records. */
   history: DayMap;
+  /** Prior work already summarised (a RecordLedger the caller advances); `history` is then ignored. */
+  prior?: RecordHistory;
   context: ScoreContext;
   legacy: boolean;
   paused: boolean;
@@ -156,7 +158,7 @@ function total(lines: XpLine[]): number {
 
 function recordsFor(input: ScoreDayInput, tier: DayResult["tier"], lines: XpLine[]): Pick<DayResult, "records" | "recordXp"> {
   if (!input.day) return { records: [], recordXp: [] };
-  const records = detectRecords({ dateKey: input.dateKey, day: input.day, history: input.history, metaFor: input.metaFor, units: "metric" });
+  const records = detectRecords({ dateKey: input.dateKey, day: input.day, history: input.history, ...(input.prior ? { prior: input.prior } : {}), metaFor: input.metaFor, units: "metric" });
   if (!input.historyComplete || (tier !== "FULL" && tier !== "REDUCED")) return { records, recordXp: [] };
   const weekUsed = withinWindow(input.context.recordXpOn, input.dateKey, 7);
   let budget = Math.max(0, Math.min(XP.recordsPerDay, XP.recordsPer7Days - weekUsed));

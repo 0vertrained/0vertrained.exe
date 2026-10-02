@@ -18,7 +18,7 @@ describe("issueDailyQuest", () => {
     expect(q).toMatchObject({ rulesVersion: RULES_VERSION, tier: "FULL", engineIssued: true, issuedAt: "2026-10-05T06:00:00Z" });
     expect(q.planned).toEqual({
       exercises: [
-        { id: "bench", name: "bench", sets: 4, reps: "8", trackingMode: "loaded_reps" },
+        { id: "bench", name: "bench", libraryId: "barbell-bench-press", sets: 4, reps: "8", trackingMode: "loaded_reps" },
         { id: "row", name: "row", sets: 3, reps: "8", trackingMode: "loaded_reps" },
         { id: "curl", name: "curl", sets: 1, reps: "8", trackingMode: "loaded_reps" },
       ],

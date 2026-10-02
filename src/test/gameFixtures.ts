@@ -5,6 +5,7 @@ import { WEEKDAYS, type Weekday } from "../domain/dates";
 import { emptyDay, type CheckIn, type DayV2, type ExerciseLog, type QuestSnapshot, type SetLog, type TrackingMode } from "../domain/day/schema";
 import { guessMeta } from "../domain/exercise";
 import type { ExerciseMeta } from "../domain/exercise";
+import { metaFor as libraryMeta, resolveExercise } from "../domain/program/library";
 import { restDay, type PlannedCardio, type PlannedLift, type ProgramDay, type ProgramPayloadV2, type ProgramWeek } from "../domain/program/types";
 
 export interface LiftSpec {
@@ -18,10 +19,11 @@ export interface LiftSpec {
 
 export function lift(spec: LiftSpec): PlannedLift {
   const name = spec.name ?? spec.id;
+  const libraryId = spec.libraryId ?? resolveExercise(name)?.id;
   return {
     id: spec.id,
     name,
-    ...(spec.libraryId ? { libraryId: spec.libraryId } : {}),
+    ...(libraryId ? { libraryId } : {}),
     sets: spec.sets ?? 3,
     reps: spec.reps ?? "8",
     trackingMode: spec.mode ?? guessMeta(name).trackingMode,
@@ -141,4 +143,5 @@ export const CHECKIN_ROUGH: CheckIn = { sleepQuality: 3, soreness: 8, stress: 5,
 export const CHECKIN_ALL_BAD: CheckIn = { sleepQuality: 3, soreness: 8, stress: 8, energy: 3 };
 export const CHECKIN_ILL: CheckIn = { ...CHECKIN_FINE, illness: true };
 
-export const metaFor = (log: ExerciseLog): ExerciseMeta => guessMeta(log.performedName ?? log.name);
+/** Library metadata (movement pattern, bodyweight share), as the app resolves it. */
+export const metaFor = (log: ExerciseLog): ExerciseMeta => libraryMeta(log.libraryId ?? log.performedName ?? log.name);
