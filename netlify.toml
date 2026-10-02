@@ -6,7 +6,10 @@
 [build]
   publish = "dist"
   # Tests gate every deploy (production and previews): a red suite never ships.
+  # The suite ignores the site's environment variables (src/test/hermeticEnv.js).
   command = "npm test && npm run build"
+  # Dependency-bump PRs are verified by GitHub CI; they don't need deploy previews.
+  ignore = "bash -c 'case \"$HEAD\" in dependabot/*) exit 0;; *) exit 1;; esac'"
 
 # ── Secrets Scanner — omit only intentionally public browser env values ─
 [build.environment]

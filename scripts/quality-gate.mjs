@@ -27,7 +27,9 @@ const secretPatterns = [
   /SUPABASE_SERVICE_ROLE_KEY/i,
   /OURA_CLIENT_SECRET/i,
   /ANTHROPIC_API_KEY/i,
-  /refresh_token/i,
+  // A literal token value, not the field name: supabase-js's own auth code
+  // reads `e.refresh_token` and is bundled whenever Supabase is configured.
+  /refresh_token["']?\s*[:=]\s*["'`][A-Za-z0-9._-]{20,}["'`]/i,
   /sk-ant/i,
   // \b: require a boundary before "sk-" — the self-hosted Space Grotesk font
   // files ("...grotesk-latin-400-normal-<hash>.woff2") otherwise match this
