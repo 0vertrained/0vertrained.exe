@@ -5,7 +5,8 @@
 
 [build]
   publish = "dist"
-  command = "npm run build"
+  # Tests gate every deploy (production and previews): a red suite never ships.
+  command = "npm test && npm run build"
 
 # ── Secrets Scanner — omit only intentionally public browser env values ─
 [build.environment]
