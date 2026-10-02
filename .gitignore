@@ -7,3 +7,6 @@ dist/
 .netlify/
 coverage/
 *.log
+artifacts/
+playwright-report/
+test-results/

@@ -7,9 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node scripts/test-suite.mjs",
-    "quality:gate": "node scripts/quality-gate.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint .",
+    "verify": "npm run lint && npm test && npm run build",
+    "quality:gate": "node scripts/quality-gate.mjs",
     "sync:version": "node scripts/sync-version.mjs",
     "prebuild": "node scripts/sync-version.mjs",
     "eval:coach": "node scripts/coach-eval.mjs"
