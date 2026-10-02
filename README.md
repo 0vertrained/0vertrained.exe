@@ -170,6 +170,7 @@ Client errors land in `client_errors`: Supabase Table Editor, sort by `created_a
 
 ## Testing notes
 
+- Tests never see the deploy's configuration. Netlify hands every site variable to the build command (including `npm test`), and a local `.env` reaches Vitest too, so `src/test/hermeticEnv.js` clears every variable the app reads before each test file; a test sets what it needs.
 - Vitest runs without globals, so React Testing Library files call `afterEach(cleanup)` themselves.
 - Code that reads the current date must be tested with a pinned clock (`vi.useFakeTimers({ toFake: ["Date"] })` + `vi.setSystemTime`). Hard-coded fixture dates otherwise expire.
 

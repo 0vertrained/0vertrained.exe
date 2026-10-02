@@ -4,8 +4,19 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # One PR for routine updates instead of one per package.
+    groups:
+      npm-minor-and-patch:
+        update-types: ["minor", "patch"]
+    # Major upgrades (e.g. vitest 4 → 5) change APIs; do them deliberately.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    open-pull-requests-limit: 3
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

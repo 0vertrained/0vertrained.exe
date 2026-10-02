@@ -13,6 +13,7 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    setupFiles: ["./src/test/hermeticEnv.js"],
     coverage: {
       provider: "v8",
       // v20 domain logic is held to a coverage floor; legacy v19 code is not.

@@ -23,5 +23,17 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      # tests → lint → production build → demo build → dist secret scan
+      # tests → lint → typecheck → production build → demo build → dist secret scan
       - run: npm run quality:gate
+        # Placeholder config, like a configured Netlify site: the build must
+        # work with it, and the test suite must not be affected by it.
+        env:
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          SUPABASE_URL: https://ci-placeholder.supabase.co
+          SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+          COACH_ALLOWED_USER_ID: 00000000-0000-0000-0000-000000000000
+          OLLAMA_API_KEY: ci-placeholder
+          STRAVA_WEBHOOK_SUBSCRIPTION_ID: "999"
+          TOKEN_ENCRYPTION_KEY: Y2ktcGxhY2Vob2xkZXItY2ktcGxhY2Vob2xkZXItMDA=
