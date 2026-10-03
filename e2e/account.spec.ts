@@ -70,8 +70,15 @@ test("guest progress is kept on sign-up when the athlete chooses Keep", async ({
   await sheet.getByRole("switch", { name: /saved my recovery phrase/ }).click();
   await sheet.getByRole("button", { name: "Create account" }).click();
   await page.getByRole("alertdialog", { name: "Keep guest progress?" }).getByRole("button", { name: "Keep" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Quest" })).toBeVisible();
+  // The sign-up started on Profile, so that is where the athlete stays: now
+  // as an account, with the guest's program carried over and synced.
+  await expect(page.getByText(/^Signed in as /)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("heading", { level: 1, name: "Profile" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Week" }).getByRole("listitem")).toHaveCount(7);
+  await expect(page.getByRole("status", { name: "Synced" })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("Guest")).toHaveCount(0);
+  await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Quest" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Quest" })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "What are you training for?" })).toHaveCount(0);
 });
 
