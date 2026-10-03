@@ -20,6 +20,9 @@ run("tests passed (with domain coverage floor)", "npm", ["run", "test:coverage"]
 run("lint passed", "npm", ["run", "lint"]);
 run("typecheck passed", "npm", ["run", "typecheck"]);
 run("production build passed", "npm", ["run", "build"]);
+run("size budgets", "npm", ["run", "check:budgets"]);
+run("style discipline (v20 tree)", "npm", ["run", "check:styles"]);
+run("tokens.css current", "node", ["scripts/gen-tokens.mjs", "--check"]);
 run("demo build passed", "npm", ["run", "build"], { env: { VITE_DEMO_MODE: "true" } });
 
 process.stdout.write("\n▶ secret scan\n");

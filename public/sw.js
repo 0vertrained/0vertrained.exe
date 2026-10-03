@@ -21,7 +21,10 @@ async function cacheCurrentShell() {
   const html = await response.clone().text();
   await cache.put("/", response.clone());
   const assetUrls = [...html.matchAll(/(?:src|href)=["'](\/assets\/[^"']+)["']/g)].map((match) => match[1]);
-  await Promise.allSettled([...new Set([...CORE_URLS.slice(1), ...assetUrls])].map(async (url) => {
+  // Every built chunk, emitted by the Vite build (see vite.config.js), so lazy
+  // routes open offline too. A missing list degrades to the shell's own assets.
+  const chunkUrls = await fetch("/sw-assets.json", { cache: "no-store" }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+  await Promise.allSettled([...new Set([...CORE_URLS.slice(1), ...assetUrls, ...(Array.isArray(chunkUrls) ? chunkUrls : [])])].map(async (url) => {
     const asset = await fetch(url, { cache: "no-store" });
     if (asset.ok) await cache.put(url, asset);
   }));

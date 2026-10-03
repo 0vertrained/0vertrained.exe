@@ -68,10 +68,12 @@ export default [
   ...tseslint.configs.recommended.map((config) => ({ ...config, files: ["src/**/*.{ts,tsx}"] })),
   {
     files: ["src/**/*.{ts,tsx}"],
+    plugins: { "react-hooks": reactHooks },
     languageOptions: {
       globals: { ...globals.browser, ...globals.es2024, __APP_VERSION__: "readonly" },
     },
     rules: {
+      ...reactHooks.configs.recommended.rules,
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none" }],
     },
   },

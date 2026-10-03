@@ -17,7 +17,11 @@
     "gen:rules": "node scripts/gen-rules.mjs",
     "sync:version": "node scripts/sync-version.mjs",
     "prebuild": "node scripts/sync-version.mjs",
-    "eval:coach": "node scripts/coach-eval.mjs"
+    "eval:coach": "node scripts/coach-eval.mjs",
+    "gen:tokens": "node scripts/gen-tokens.mjs",
+    "test:e2e": "playwright test",
+    "check:budgets": "node scripts/check-budgets.mjs",
+    "check:styles": "node scripts/check-styles.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.7",
@@ -31,13 +35,19 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.20.5",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.9",
+    "axe-core": "^4.13.0",
     "eslint": "^10.6.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "fast-check": "^4.10.2",

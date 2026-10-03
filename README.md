@@ -27,7 +27,11 @@ npm run dev
 | `npm run test:watch` | Vitest in watch mode |
 | `npm run lint` | ESLint (errors fail, warnings inform) |
 | `npm run verify` | lint → test → build |
-| `npm run quality:gate` | tests, lint, production build, demo build, secret scan of `dist/`, artifact check (what CI runs; the last build is the demo build, so `dist/` ends up as the demo) |
+| `npm run quality:gate` | tests (with the domain coverage floor), lint, typecheck, production build, size budgets, style discipline, generated-file checks, demo build, secret scan of `dist/`, artifact check (what CI runs; the last build is the demo build, so `dist/` ends up as the demo) |
+| `npm run test:e2e` | Playwright browser specs against the production build (`npm run build` first); phone and desktop viewports, guest mode only |
+| `npm run check:budgets` | Size budgets on the last build: `/next` initial JS ≤ 120 KB gzip, total ≤ 250 KB, fonts ≤ 120 KB |
+| `npm run check:styles` | v20 tree only: no hex outside the tokens, no static inline styles, no text under 12px |
+| `npm run gen:tokens` | Recompiles `src/design/tokens.css` from `src/design/tokens.json` (tests fail when it is stale) |
 | `npm run eval:coach` | Offline routing/safety checks for the AI coach (`-- --live` calls the model; needs `OLLAMA_API_KEY`, writes to `artifacts/`) |
 
 CI (`.github/workflows/ci.yml`) runs the quality gate on every push and pull request. Netlify runs `npm test && npm run build`, so a failing suite never deploys.
@@ -209,6 +213,14 @@ v20 turns 0VERTRAINED into a streamlined, **gamified workout tracker**: *"Level 
   - CSS-module design system.
   - Offline-first sync with conflict merge.
   - CI-gated deploys.
+
+#### Where the new app lives today
+
+The v20 app is served **beside** the live app until cutover: `src/main.jsx` is a ten-line router that loads `src/app/main.tsx` at `/next` and the untouched v19 entry (`src/legacy/boot.jsx`) everywhere else. Each side is its own lazy chunk, so `/next` never loads the legacy fonts, CSS, error reporting or Supabase client. `/next` carries an `X-Robots-Tag: noindex` header, and the service worker precaches every built chunk (`sw-assets.json`) so both apps open offline after one visit.
+
+- **Design system.** "Chalk & Brass": `src/design/tokens.json` (copied verbatim from the design-system artifact) compiles to `tokens.css`; `kit.css` is the reference stylesheet (`ot-` classes); every component in `src/design/` is a typed port of the reference bundle with an RTL + axe test. Dark theme ships; the light theme is defined and contrast-checked (`tokens.test.ts`) but not wired.
+- **Guest mode.** `src/data/localSource.ts` keeps everything under the localStorage key `ovt-v20-guest`; nothing leaves the device. "Try the demo" seeds the ten-week character from `src/data/demo/seed.ts`; "Start fresh" runs onboarding. Accounts and sync arrive with the new backend.
+- **What works at `/next` now.** Landing with the live tier playground, onboarding, the Quest tab with today's issued quest, the check-in sheet, and the status strip (rank, level, XP, streak, shields). The session runner, Stats and Profile are the next phases.
 
 ### Game rules
 
