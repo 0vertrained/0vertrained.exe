@@ -1,0 +1,9 @@
+/* The rank tile as a button: a 44px hit area around the 24px tile, bled into
+   the strip's padding so the tile sits where the plain badge does. */
+.rank {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: var(--hit-min); height: var(--strip);
+  margin: 0 calc((24px - var(--hit-min)) / 2);
+  padding: 0; background: none; border: 0; color: inherit; cursor: pointer;
+  border-radius: var(--radius-sm);
+}
