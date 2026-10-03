@@ -58,3 +58,41 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  db:
+    name: Database and accounts (local Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # The new schema: start a local stack from supabase/v20 and run its pgTAP tests.
+      - run: supabase start --workdir supabase/v20/cli
+      - run: supabase test db --workdir supabase/v20/cli
+      # Build the app against the local project and run the account specs.
+      - name: Read the local keys
+        run: |
+          supabase status --workdir supabase/v20/cli -o env >> "$GITHUB_ENV"
+      - run: npm run build
+        env:
+          VITE_NEXT_SUPABASE_URL: ${{ env.API_URL }}
+          VITE_NEXT_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+      - run: npm run test:e2e -- e2e/account.spec.ts --project=mobile
+        env:
+          E2E_ACCOUNTS: "1"
+      - run: supabase stop --workdir supabase/v20/cli
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-db
+          path: playwright-report/
+          retention-days: 7

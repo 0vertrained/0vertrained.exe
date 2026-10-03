@@ -8,6 +8,7 @@ import { useGame } from "../../app/useGame";
 import { Panel } from "../../design/Panel";
 import type { DateKey } from "../../domain/dates";
 import { allowanceLeft } from "../quest/questView";
+import { AccountPanel } from "./AccountPanel";
 import { DataPanel } from "./DataPanel";
 import styles from "./ProfileScreen.module.css";
 import { ProgramPanel } from "./ProgramPanel";
@@ -26,6 +27,7 @@ export function ProfileScreen({ todayKey }: ProfileScreenProps) {
       </div>
       <ProgramPanel todayKey={todayKey} />
       <SettingsPanel todayKey={todayKey} allowance={allowanceLeft(progress, todayKey)} />
+      <AccountPanel />
       <DataPanel todayKey={todayKey} />
       <AboutPanel />
     </>

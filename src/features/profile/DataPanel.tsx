@@ -1,12 +1,14 @@
 // Panel "Data": export (a JSON download), import (a hidden file input, then
 // the preview sheet) and the danger button behind a danger Dialog. The
 // import never touches the store until the sheet's Import.
-import { useRef, useState, type ChangeEvent } from "react";
+import { useContext, useRef, useState, type ChangeEvent } from "react";
+import { AuthContext } from "../../auth/authContext";
 import { useHashRoute } from "../../app/useHashRoute";
 import { useToast } from "../../app/ToastProvider";
 import { Button } from "../../design/Button";
 import { Dialog } from "../../design/Dialog";
 import { Panel } from "../../design/Panel";
+import { clearDemo } from "../../data/guestFlags";
 import { buildExport, exportFileName, mergeImport, newDayKeys, parseImport, type ImportMode, type ImportParse } from "../../data/legacyImport";
 import { useAppData } from "../../data/useAppData";
 import type { DateKey } from "../../domain/dates";
@@ -43,6 +45,7 @@ const describe = (err: unknown): string => (err instanceof Error ? err.message :
 
 export function DataPanel({ todayKey }: DataPanelProps) {
   const { state, exportSnapshot, importSnapshot, reset } = useAppData();
+  const guest = useContext(AuthContext)?.status !== "signed-in";
   const { sheet, openSheet, closeSheet, navigate } = useHashRoute();
   const toast = useToast();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -88,6 +91,7 @@ export function DataPanel({ todayKey }: DataPanelProps) {
   const doReset = async () => {
     setConfirmReset(false);
     await reset();
+    clearDemo();
     navigate("/", { replace: true });
   };
 
@@ -96,7 +100,7 @@ export function DataPanel({ todayKey }: DataPanelProps) {
       <div className={styles.actions}>
         <Button full onClick={exportBackup}>Export backup</Button>
         <Button full onClick={() => fileInput.current?.click()}>Import backup</Button>
-        <Button full variant="danger" onClick={() => setConfirmReset(true)}>Reset guest data</Button>
+        {guest ? <Button full variant="danger" onClick={() => setConfirmReset(true)}>Reset guest data</Button> : null}
       </div>
       <input ref={fileInput} type="file" accept="application/json,.json" hidden tabIndex={-1} aria-label="Backup file" onChange={onFile} />
       <Dialog
