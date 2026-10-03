@@ -220,7 +220,7 @@ The v20 app is served **beside** the live app until cutover: `src/main.jsx` is a
 
 - **Design system.** "Chalk & Brass": `src/design/tokens.json` (copied verbatim from the design-system artifact) compiles to `tokens.css`; `kit.css` is the reference stylesheet (`ot-` classes); every component in `src/design/` is a typed port of the reference bundle with an RTL + axe test. Dark theme ships; the light theme is defined and contrast-checked (`tokens.test.ts`) but not wired.
 - **Guest mode.** `src/data/localSource.ts` keeps everything under the localStorage key `ovt-v20-guest`; nothing leaves the device. "Try the demo" seeds the ten-week character from `src/data/demo/seed.ts`; "Start fresh" runs onboarding. Accounts and sync arrive with the new backend.
-- **What works at `/next` now.** Landing with the live tier playground, onboarding, the Quest tab with today's issued quest, the check-in sheet, and the status strip (rank, level, XP, streak, shields). The session runner, Stats and Profile are the next phases.
+- **What works at `/next` now.** The whole core loop in guest mode: landing with the live tier playground, onboarding, the Quest tab with today's issued quest, the check-in sheet, the session runner (one exercise at a time, steppers, set dots, a drift-free rest timer, swap / skip / flag pain / unwell / plate math, records as toasts, the Rank Trial set), the cardio runner, "Mark recovery done" on rest days, "Train anyway", and the Quest cleared sheet with the level-up and promotion moments. Stats and Profile are the next phase.
 
 ### Game rules
 

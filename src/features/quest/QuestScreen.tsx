@@ -15,6 +15,9 @@ import type { CheckIn, QuestSnapshot } from "../../domain/day/schema";
 import type { Progress } from "../../domain/game/types";
 import { useHashRoute } from "../../app/useHashRoute";
 import { useToast } from "../../app/ToastProvider";
+import { synthesizeQuest } from "../../domain/game/quest";
+import { ClearSheetContainer } from "../clear/ClearSheetContainer";
+import { startSession } from "../session/sessionModel";
 import { CheckinSheet } from "./CheckinSheet";
 import styles from "./QuestScreen.module.css";
 import { questView } from "./questView";
@@ -31,7 +34,7 @@ function longDate(key: DateKey): string {
 
 export function QuestScreen({ progress, todayKey }: QuestScreenProps) {
   const { state, updateDay } = useAppData();
-  const { sheet, openSheet, closeSheet } = useHashRoute();
+  const { sheet, openSheet, closeSheet, navigate } = useHashRoute();
   const toast = useToast();
   const [closing, setClosing] = useState(false);
   const day = state.days[todayKey];
@@ -43,13 +46,26 @@ export function QuestScreen({ progress, todayKey }: QuestScreenProps) {
     closeSheet();
   }, [closeSheet, todayKey, updateDay]);
 
-  const claim = () => {
+  /** Shows the reward sheet; the day is marked claimed when it is dismissed. */
+  const claim = () => openSheet("cleared");
+
+  const claimed = () => {
     const at = new Date().toISOString();
     updateDay(todayKey, (d) => (d.quest ? { ...d, quest: { ...d.quest, claimedAt: at } } : d));
+    closeSheet();
   };
 
   const recovery = () => {
     updateDay(todayKey, (d) => (d.quest ? { ...d, quest: { ...d.quest, recoveryDone: true } } : d));
+  };
+
+  /** Freezes the quest on the day, stamps the start, and opens the runner. */
+  const begin = () => {
+    const quest = day?.quest ?? (view.planned ? synthesizeQuest(view.planned, todayKey) : null);
+    if (!quest) return;
+    const at = new Date().toISOString();
+    updateDay(todayKey, (d) => startSession(d, quest, at));
+    navigate("/session");
   };
 
   const act = () => {
@@ -66,13 +82,18 @@ export function QuestScreen({ progress, todayKey }: QuestScreenProps) {
         return;
       case "begin":
       case "continue":
+        begin();
+        return;
       case "cardio":
-        toast.show({ tag: "QUEST", text: "The session runner arrives with the next release. Your quest is issued and waiting." });
+        navigate("/cardio");
         return;
       default:
         return;
     }
   };
+
+  const restDay = view.tier === "REST" || view.tier === "RECOVER";
+  const canTrainAnyway = restDay && !progress.today.illness && !progress.today.paused && view.planned !== null && !day?.workout.startedAt;
 
   const showCheckin = sheet === "checkin" && !closing && view.planned && state.program;
 
@@ -91,12 +112,21 @@ export function QuestScreen({ progress, todayKey }: QuestScreenProps) {
         <p className={`ot-body ot-ink-2 ${styles.reason}`}>{view.reason}</p>
         <div>
           {view.objectives.map((o) => (
-            <ObjectiveRow key={o.key} label={o.label} {...(o.sublabel ? { sublabel: o.sublabel } : {})} state={o.state} {...(o.progress !== undefined ? { progress: o.progress } : {})} {...(o.xp !== undefined ? { xp: o.xp } : {})} />
+            <ObjectiveRow
+              key={o.key}
+              label={o.label}
+              {...(o.sublabel ? { sublabel: o.sublabel } : {})}
+              state={o.state}
+              {...(o.progress !== undefined ? { progress: o.progress } : {})}
+              {...(o.xp !== undefined ? { xp: o.xp } : {})}
+              {...(o.key === "cardio" && o.state !== "done" && view.issued ? { onClick: () => navigate("/cardio") } : {})}
+            />
           ))}
         </div>
         {view.action.key !== "none" ? (
           <div className={styles.action}>
             <Button variant="primary" full disabled={!view.action.primary} onClick={act}>{view.action.label}</Button>
+            {canTrainAnyway ? <Button variant="ghost" full onClick={() => { toast.show({ tag: "REST", text: "Training on a rest day earns no XP. The recovery objective still pays." }); begin(); }}>Train anyway</Button> : null}
           </div>
         ) : null}
       </Panel>
@@ -106,6 +136,8 @@ export function QuestScreen({ progress, todayKey }: QuestScreenProps) {
       </Panel>
 
       {view.notice ? <Notice tag={view.notice.tag}>{view.notice.text}</Notice> : null}
+
+      {sheet === "cleared" && day?.quest ? <ClearSheetContainer todayKey={todayKey} onDone={claimed} /> : null}
 
       {showCheckin && view.planned && state.program ? (
         <CheckinSheet todayKey={todayKey} day={day} days={state.days} program={state.program} planned={view.planned} allowanceLeft={view.allowanceLeft} trial={progress.trial} onClose={closeSheet} onDone={onCheckin} />

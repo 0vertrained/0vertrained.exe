@@ -10,6 +10,8 @@ import { LandingScreen } from "../features/landing/LandingScreen";
 import { OnboardingFlow } from "../features/onboarding/OnboardingFlow";
 import { firstProgram, type OnboardingAnswers } from "../features/onboarding/plan";
 import { QuestScreen } from "../features/quest/QuestScreen";
+import { CardioScreen } from "../features/cardio/CardioScreen";
+import { SessionScreen } from "../features/session/SessionScreen";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { installErrorReporting, reportError } from "./errorReporting";
 import { Shell, type Tab } from "./Shell";
@@ -34,6 +36,7 @@ export function App() {
 }
 
 const TABS: Tab[] = ["quest", "stats", "profile"];
+const FULL_SCREEN = ["session", "cardio"];
 
 function Routes() {
   const { state } = useAppData();
@@ -46,7 +49,7 @@ function Routes() {
     if (state.status !== "ready") return;
     if (first === "" && hasCharacter) navigate("/quest", { replace: true });
     if (first !== "" && first !== "onboarding" && !hasCharacter) navigate("/", { replace: true });
-    if (first !== "" && first !== "onboarding" && !TABS.includes(first as Tab)) navigate("/quest", { replace: true });
+    if (first !== "" && first !== "onboarding" && !TABS.includes(first as Tab) && !FULL_SCREEN.includes(first)) navigate("/quest", { replace: true });
   }, [first, hasCharacter, navigate, state.status]);
 
   if (state.status === "booting") return <BootSkeleton />;
@@ -56,6 +59,8 @@ function Routes() {
   if (first === "") return <Landing todayKey={todayKey} onFresh={() => navigate("/onboarding")} />;
   if (first === "onboarding") return <Onboarding todayKey={todayKey} />;
   if (!hasCharacter) return <BootSkeleton />;
+  if (first === "session") return <SessionScreen todayKey={todayKey} />;
+  if (first === "cardio") return <CardioScreen todayKey={todayKey} />;
   return <Tabs tab={(TABS.includes(first as Tab) ? first : "quest") as Tab} todayKey={todayKey} />;
 }
 

@@ -104,9 +104,12 @@ export function questView({ progress, todayKey, day, program }: QuestViewInput):
   const tier: Tier = quest?.tier ?? result.tier ?? "REST";
   const action = nextAction(result, day);
 
-  const objectives: QuestObjective[] = [{ key: "checkin", label: "Status check", state: result.checkinCounted ? "done" : "not-started", xp: XP.checkin }];
-  let potentialXp = XP.checkin;
-  if ((tier === "FULL" || tier === "REDUCED") && quest) {
+  const ill = result.illness || day?.checkin.illness === true;
+  const objectives: QuestObjective[] = [{ key: "checkin", label: "Status check", state: result.checkinCounted || ill ? "done" : "not-started", ...(ill && !result.checkinCounted ? {} : { xp: XP.checkin }) }];
+  let potentialXp = ill && !result.checkinCounted ? 0 : XP.checkin;
+  if (ill) {
+    // Protected: nothing else is asked of the day.
+  } else if ((tier === "FULL" || tier === "REDUCED") && quest) {
     const plannedSets = quest.planned.plannedSets;
     if (plannedSets > 0) {
       objectives.push({

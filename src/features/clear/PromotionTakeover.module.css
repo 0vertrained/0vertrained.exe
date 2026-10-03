@@ -1,0 +1,31 @@
+/* The one takeover: surface-0 over everything, the new rank's badge scaling
+   in, a brass hairline drawn from the centre, the rank name and title rising
+   under it. Transform and opacity only; reduced motion makes it a cut, from
+   the media query and from the data-reduced flag the component sets. */
+.takeover {
+  position: fixed; inset: 0; z-index: var(--z-takeover);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-6);
+  padding: var(--space-6) var(--space-4) calc(var(--space-16) + var(--control-md) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-0); color: var(--ink); text-align: center;
+}
+.badge { animation: ot-promote-badge 400ms var(--ot-ease) both; }
+.hairline {
+  width: 240px; max-width: 70%; height: 1px; background: var(--brass); transform-origin: 50% 50%;
+  animation: ot-promote-draw 500ms var(--ot-ease) 400ms both;
+}
+.text { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); animation: ot-promote-rise 240ms var(--ot-ease) 900ms both; }
+.rank { margin: 0; outline: none; }
+.title { margin: 0; color: var(--ink-2); }
+.foot { position: absolute; left: var(--space-4); right: var(--space-4); bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px)); }
+.done[hidden] { display: none; }
+
+@keyframes ot-promote-badge { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
+@keyframes ot-promote-draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes ot-promote-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .badge, .hairline, .text { animation: none; }
+}
+.takeover[data-reduced="true"] .badge,
+.takeover[data-reduced="true"] .hairline,
+.takeover[data-reduced="true"] .text { animation: none; }

@@ -118,4 +118,16 @@ describe("nextAction", () => {
   it("reads the check-in from the day when the result predates it", () => {
     expect(nextAction(base({ checkinCounted: false }), day({ checkin: CHECKIN_FINE }))).toMatchObject({ key: "begin" });
   });
+
+  it("asks nothing more on an ill or injured day, even from an illness-only check-in", () => {
+    expect(nextAction(base({ tier: "RECOVER", illness: true, status: "protected" }), undefined)).toEqual({ key: "none", label: "", primary: false });
+    expect(nextAction(base({ checkinCounted: false }), day({ checkin: { illness: true } }))).toEqual({ key: "none", label: "", primary: false });
+  });
+
+  it("claims a finished session before cardio, and cardio before claiming an unfinished one", () => {
+    const finished = { ...day(), workout: { exercises: {}, cardio: [], completedAt: "2026-10-05T18:00:00Z" } };
+    expect(nextAction(base({ completedSets: 12, plannedCardioMinutes: 20 }), finished)).toMatchObject({ key: "claim" });
+    expect(nextAction(base({ completedSets: 12, plannedCardioMinutes: 20 }), undefined)).toMatchObject({ key: "cardio" });
+    expect(nextAction(base({ completedSets: 5 }), finished)).toMatchObject({ key: "claim" });
+  });
 });
