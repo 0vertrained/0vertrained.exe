@@ -100,10 +100,10 @@ contract is that it never reads them.
 
    | Netlify variable | Value | Scope |
    |---|---|---|
-   | `VITE_NEXT_SUPABASE_URL` | Project URL | build (public, in the bundle) |
+   | `VITE_NEXT_SUPABASE_URL` | Project URL, the origin only (`https://<ref>.supabase.co`; a pasted `…/rest/v1/` is tolerated) | build (public, in the bundle) |
    | `VITE_NEXT_SUPABASE_ANON_KEY` | anon key | build (public, in the bundle) |
    | `VITE_NEXT_AUTH_EMAIL_DOMAIN` | e.g. `users.0vertrained.app` | build (public) |
-   | `NEXT_SUPABASE_URL` | Project URL | functions |
+   | `NEXT_SUPABASE_URL` | Project URL, same value | functions |
    | `NEXT_SUPABASE_ANON_KEY` | anon key | functions |
    | `NEXT_SUPABASE_SERVICE_ROLE_KEY` | service_role key | functions, **secret** |
 

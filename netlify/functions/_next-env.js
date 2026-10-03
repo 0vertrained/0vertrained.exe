@@ -8,10 +8,21 @@
 
 import { createHash } from "node:crypto";
 
+// The project URL as an origin. The dashboard also offers per-service URLs
+// (…/rest/v1, …/auth/v1); pasted as-is they would double every path this
+// module builds, so a trailing service segment and slashes are dropped.
+export function normalizeSupabaseUrl(value) {
+  return String(value ?? "")
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/(?:rest|auth|storage|realtime|functions)\/v1$/i, "")
+    .replace(/\/+$/, "");
+}
+
 // Required server env for every /api/next/* function. Returns null when any
 // value is missing so callers can answer 500 instead of calling a half-set URL.
 export function readNextEnv(env = process.env) {
-  const url = String(env.NEXT_SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
+  const url = normalizeSupabaseUrl(env.NEXT_SUPABASE_URL);
   const anonKey = String(env.NEXT_SUPABASE_ANON_KEY ?? "").trim();
   const serviceRoleKey = String(env.NEXT_SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
   if (!url || !anonKey || !serviceRoleKey) return null;

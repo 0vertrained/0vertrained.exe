@@ -5,8 +5,21 @@ const env = import.meta.env as Record<string, string | undefined>;
 
 const clean = (v: string | undefined): string => (v ?? "").trim();
 
+/**
+ * The project URL as supabase-js wants it: origin only. The dashboard also
+ * offers per-service URLs (…/rest/v1, …/auth/v1), and pasting one of those
+ * would make every request double its path, so a trailing service segment
+ * and trailing slashes are dropped.
+ */
+export function normalizeSupabaseUrl(v: string | undefined): string {
+  return clean(v)
+    .replace(/\/+$/, "")
+    .replace(/\/(?:rest|auth|storage|realtime|functions)\/v1$/i, "")
+    .replace(/\/+$/, "");
+}
+
 export const backendConfig = Object.freeze({
-  supabaseUrl: clean(env["VITE_NEXT_SUPABASE_URL"]),
+  supabaseUrl: normalizeSupabaseUrl(env["VITE_NEXT_SUPABASE_URL"]),
   supabaseAnonKey: clean(env["VITE_NEXT_SUPABASE_ANON_KEY"]),
   /** Accounts are username + password; Supabase needs an email, so one is synthesised on this domain. */
   authEmailDomain: clean(env["VITE_NEXT_AUTH_EMAIL_DOMAIN"]).toLowerCase() || "users.0vertrained.app",
