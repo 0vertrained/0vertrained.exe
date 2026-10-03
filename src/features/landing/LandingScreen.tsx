@@ -14,12 +14,14 @@ import { PLAYGROUND_DEFAULTS, playgroundDecision, playgroundSentence, type Playg
 export interface LandingScreenProps {
   onDemo: () => void;
   onFresh: () => void;
+  /** Opens the sign-in sheet; absent when the build has no backend. */
+  onSignIn?: () => void;
   busy?: boolean;
 }
 
 const BENEFITS = ["Daily quests sized to how you feel", "Rest days pay XP too", "Works offline, at the rack"];
 
-export function LandingScreen({ onDemo, onFresh, busy }: LandingScreenProps) {
+export function LandingScreen({ onDemo, onFresh, onSignIn, busy }: LandingScreenProps) {
   const [answers, setAnswers] = useState<PlaygroundAnswers>(PLAYGROUND_DEFAULTS);
   const decision = playgroundDecision(answers);
   return (
@@ -58,8 +60,17 @@ export function LandingScreen({ onDemo, onFresh, busy }: LandingScreenProps) {
         <Button variant="primary" full size="lg" onClick={onDemo} loading={busy}>Try the demo</Button>
         <Button variant="secondary" full onClick={onFresh} disabled={busy}>Start fresh</Button>
         <p className={`ot-caption ot-ink-3 ${styles.signin}`}>
-          <button type="button" className="ot-link" disabled aria-describedby="signin-note">Sign in</button>
-          <span id="signin-note"> Accounts arrive with the next release. Guest progress stays on this device.</span>
+          {onSignIn ? (
+            <>
+              <button type="button" className="ot-link" onClick={onSignIn}>Sign in</button>
+              <span> Already have an account, or want one? Guest progress can come along.</span>
+            </>
+          ) : (
+            <>
+              <button type="button" className="ot-link" disabled aria-describedby="signin-note">Sign in</button>
+              <span id="signin-note"> Accounts are not available in this build. Guest progress stays on this device.</span>
+            </>
+          )}
         </p>
       </div>
 

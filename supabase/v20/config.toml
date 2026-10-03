@@ -1,0 +1,150 @@
+# supabase/v20/config.toml — the local Supabase stack for the v20 schema
+#
+# Read only by the Supabase CLI (`supabase start`, `supabase db reset`,
+# `supabase test db`, `supabase db push`). The hosted project is configured in
+# the dashboard; each comment names the dashboard setting a value mirrors.
+#
+# The CLI insists on <workdir>/supabase/config.toml, so the real files stay
+# here and cli/supabase/ holds symlinks to them. Point the CLI at the shim:
+#
+#   supabase start   --workdir supabase/v20/cli
+#   supabase test db --workdir supabase/v20/cli
+#
+# Every service the v20 app does not use is switched off so `supabase start`
+# pulls fewer images and boots faster.
+
+# Names the local containers (supabase_db_overtrained-v20, ...). Distinct from
+# the v19 project so both stacks can run side by side.
+project_id = "overtrained-v20"
+
+[api]
+enabled = true
+# http://127.0.0.1:54321 is VITE_NEXT_SUPABASE_URL for local development.
+port = 54321
+# Only `public` is exposed over REST: every table and RPC the app uses lives
+# there. graphql_public is left out because nothing queries GraphQL.
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+# No request ever needs more: the history loader pages days 1000 at a time
+# (an account holds at most 4000) and everything else is a single row.
+max_rows = 1000
+
+[api.tls]
+enabled = false
+
+[db]
+# postgresql://postgres:postgres@127.0.0.1:54322/postgres
+port = 54322
+shadow_port = 54320
+# Must match the hosted project's Postgres major version (Dashboard →
+# Settings → Infrastructure), or `db push` / `db pull` refuse to run. New
+# projects are created on 17. The schema itself is plain SQL that also runs
+# on 15 and 16; tests/run-local.sh proves it on whichever is installed.
+major_version = 17
+
+[db.pooler]
+# The app only ever talks REST through PostgREST; nothing connects to
+# Postgres directly, so no pooler.
+enabled = false
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+# seed.sql is intentionally empty. Left enabled so `db reset` already runs
+# the seed step the day there is something to seed.
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[realtime]
+# v20 syncs by explicit save/load (save_day, patch_settings); no subscriptions.
+enabled = false
+
+[studio]
+# Table viewer at http://127.0.0.1:54323. Useful locally; nothing depends on it.
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[local_smtp]
+# The local mail catcher. Accounts are username-based and every confirmation
+# is off (see [auth.email]), so no mail is ever generated; nothing to catch.
+enabled = false
+
+[storage]
+# No file uploads in v20.
+enabled = false
+
+[auth]
+enabled = true
+# Where auth redirects land. `vite preview` serves the built app on 4173 and
+# the dev server on 5173; both origins are listed. Hosted: Dashboard → Auth →
+# URL Configuration → Site URL = the production origin.
+site_url = "http://127.0.0.1:4173"
+additional_redirect_urls = [
+  "http://localhost:4173",
+  "http://127.0.0.1:5173",
+  "http://localhost:5173",
+]
+# Access tokens live an hour and refresh tokens rotate: the hosted defaults.
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+# Sign-up stays open: the sign-up form is the only way an account is made,
+# and handle_new_user() + username_taken() guard the username.
+enable_signup = true
+enable_anonymous_sign_ins = false
+enable_manual_linking = false
+# Hosted: Dashboard → Auth → Providers → Email → Minimum password length.
+minimum_password_length = 8
+# No character-class rules: length is what protects the account, and the
+# recovery phrase is the second credential for resets.
+password_requirements = ""
+
+[auth.rate_limit]
+# Local-only throttles; hosted limits live in Dashboard → Auth → Rate Limits.
+# Sign-in/sign-up at 30 per 5 minutes per IP is the CLI default and plenty
+# for one developer. The mail/SMS/anonymous limits never apply (no mail, no
+# SMS, no anonymous users) and keep their defaults.
+email_sent = 2
+sms_sent = 30
+anonymous_users = 30
+token_refresh = 150
+sign_in_sign_ups = 30
+token_verifications = 30
+
+[auth.email]
+# Email + password is the only provider, with a synthesised address
+# <username>@<VITE_NEXT_AUTH_EMAIL_DOMAIN>. No mail can ever reach it, so:
+enable_signup = true
+# ...no confirmation mail on sign-up (hosted: Auth → Providers → Email →
+# "Confirm email" OFF). With this ON nobody could ever sign in.
+enable_confirmations = false
+# ...no confirmation mail on an email change. The app never changes the
+# synthetic address, but this setting must not be able to strand an account.
+double_confirm_changes = false
+# ...no re-authentication mail for a password change: a signed-in user
+# changes their password directly, and resets go through the recovery phrase
+# and the Netlify function (service role), never through a mail link.
+secure_password_change = false
+max_frequency = "1s"
+otp_length = 6
+otp_expiry = 3600
+
+[auth.sms]
+enable_signup = false
+enable_confirmations = false
+
+[auth.mfa.totp]
+# No second factor beyond the recovery phrase.
+enroll_enabled = false
+verify_enabled = false
+
+[edge_runtime]
+# Server-side code is Netlify Functions (netlify/functions), not Edge Functions.
+enabled = false
+
+[analytics]
+# The log/analytics stack is the heaviest container and nothing reads it.
+enabled = false

@@ -36,5 +36,9 @@ describe("Netlify functions directory", () => {
     for (const name of ["log-error", "log-event", "push-subscribe"]) {
       expect(readFileSync(join(dir, `${name}.js`), "utf8")).toContain(`export const config = { path: "/api/${name}" };`);
     }
+    // v20 · The /next app's sinks live under /api/next/* until cutover.
+    for (const name of ["log-error", "account-recovery"]) {
+      expect(readFileSync(join(dir, `${name}-next.js`), "utf8")).toContain(`export const config = { path: "/api/next/${name}" };`);
+    }
   });
 });
