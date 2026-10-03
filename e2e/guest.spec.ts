@@ -54,3 +54,56 @@ test("Start fresh runs onboarding and the first check-in issues a Daily Quest", 
   await expect(page.getByRole("img", { name: /^Tier: (Full|Reduced|Recover|Rest)$/ }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Begin quest|Mark recovery done/ })).toBeVisible();
 });
+
+test("the demo loop: begin, bank every set, finish, claim", async ({ page }) => {
+  await openNext(page);
+  await page.getByRole("button", { name: "Try the demo" }).click();
+  await page.getByRole("button", { name: "Begin quest" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Full Body C" })).toBeVisible();
+  const complete = page.getByRole("button", { name: /^Complete set/ });
+  await expect(complete).toBeInViewport();
+  for (let i = 0; i < 10; i += 1) {
+    await page.getByRole("button", { name: /^Complete set/ }).click();
+    if (i === 0) await expect(page.getByRole("region", { name: "Rest timer" })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Finish session" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Quest" })).toBeVisible();
+  await expect(page.getByText("10/10 sets")).toBeVisible();
+  await page.getByRole("button", { name: "Claim rewards" }).click();
+  const sheet = page.getByRole("dialog", { name: /Quest cleared/ });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText(/^\+\d+ XP$/).first()).toBeVisible();
+  await expect(sheet.getByText("Training")).toBeVisible();
+  await sheet.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByRole("button", { name: /^Quest (cleared|claimed) · \+\d+ XP$/ })).toBeDisabled();
+});
+
+test("an illness check-in protects the day and keeps the streak", async ({ page }) => {
+  await openNext(page);
+  await page.getByRole("button", { name: "Start fresh" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.getByRole("button", { name: "Check in" }).click();
+  const sheet = page.getByRole("dialog", { name: "How do you feel today?" });
+  await sheet.getByRole("switch", { name: /Ill or injured/ }).click();
+  await sheet.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByText(/Ill or injured: (rest today|streak protected)/i).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check in" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /today: protected/ })).toBeVisible();
+});
+
+test("sets banked offline survive a reload", async ({ page, context }) => {
+  await openNext(page);
+  await page.getByRole("button", { name: "Try the demo" }).click();
+  await page.getByRole("button", { name: "Begin quest" }).click();
+  await page.getByRole("button", { name: "Complete set 1 of 2" }).click();
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "Complete set 2 of 2" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Push-Up" })).toBeVisible();
+  await context.setOffline(false);
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 2, name: "Push-Up" })).toBeVisible();
+  await page.getByRole("button", { name: "Exit session" }).click();
+  await expect(page.getByText("2/10 sets")).toBeVisible();
+});

@@ -12,14 +12,16 @@ export interface PanelProps {
   /** The element rendered; `section` by default. */
   as?: keyof JSX.IntrinsicElements;
   className?: string;
+  /** Names the panel as a landmark region (for the set card, the quest card). */
+  "aria-label"?: string;
   style?: CSSProperties;
   children?: ReactNode;
 }
 
-export function Panel({ title, sunken, as = "section", className, style, children }: PanelProps) {
+export function Panel({ title, sunken, as = "section", className, style, children, "aria-label": label }: PanelProps) {
   const Tag: ElementType = as;
   return (
-    <Tag className={cx("ot-panel", sunken && "ot-panel-sunken", className)} style={style}>
+    <Tag className={cx("ot-panel", sunken && "ot-panel-sunken", className)} style={style} aria-label={label} role={label ? "region" : undefined}>
       {title ? <h2 className="ot-heading ot-panel-title">{title}</h2> : null}
       {children}
     </Tag>

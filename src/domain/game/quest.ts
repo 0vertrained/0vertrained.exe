@@ -128,17 +128,25 @@ export function synthesizeQuest(day: ProgramDay, dateKey: DateKey): QuestSnapsho
 export function nextAction(result: DayResult, day: DayV2 | undefined): NextAction {
   if (result.paused) return { key: "paused", label: "Training paused", primary: false };
   if (result.status === "neutral" && !result.isTrainingDay && result.tier === null) return { key: "none", label: "", primary: false };
-  if (!result.checkinCounted && !isCheckinCounted(day?.checkin)) return { key: "checkin", label: "Check in", primary: true };
+  const ill = result.illness || day?.checkin.illness === true;
+  if (!result.checkinCounted && !isCheckinCounted(day?.checkin) && !ill) return { key: "checkin", label: "Check in", primary: true };
+  // Ill or injured: the day is protected and asks nothing more.
+  if (ill) return { key: "none", label: "", primary: false };
   const claimed = day?.quest?.claimedAt !== undefined;
+  const claimedLabel = { key: "cleared" as const, label: `${result.cleared ? "Quest cleared" : "Quest claimed"} · +${result.xp} XP`, primary: false };
   if (result.tier === "REST" || result.tier === "RECOVER") {
-    if (result.recoveryDone) return claimed ? { key: "cleared", label: `Quest cleared · +${result.xp} XP`, primary: false } : { key: "claim", label: "Claim rewards", primary: true };
+    if (result.recoveryDone) return claimed ? claimedLabel : { key: "claim", label: "Claim rewards", primary: true };
     return { key: "recovery", label: "Mark recovery done", primary: true };
   }
-  if (result.cleared) return claimed ? { key: "cleared", label: `Quest cleared · +${result.xp} XP`, primary: false } : { key: "claim", label: "Claim rewards", primary: true };
-  if (result.plannedSets > 0) {
+  if (claimed) return claimedLabel;
+  if (result.cleared) return { key: "claim", label: "Claim rewards", primary: true };
+  const finished = day?.workout.completedAt !== undefined;
+  if (result.plannedSets > 0 && result.completedSets < result.plannedSets && !finished) {
     if (result.completedSets === 0) return { key: "begin", label: "Begin quest", primary: true };
     return { key: "continue", label: `Continue · ${result.completedSets} / ${result.plannedSets}`, primary: true };
   }
+  if (result.plannedCardioMinutes > 0 && result.cardioMinutes < result.plannedCardioMinutes && !finished) return { key: "cardio", label: "Log cardio", primary: true };
+  if (finished || result.completedSets > 0 || result.cardioMinutes > 0) return { key: "claim", label: "Claim rewards", primary: true };
   if (result.plannedCardioMinutes > 0) return { key: "cardio", label: "Log cardio", primary: true };
   return { key: "none", label: "", primary: false };
 }

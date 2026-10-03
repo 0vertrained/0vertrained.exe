@@ -39,6 +39,16 @@ describe("questView", () => {
     expect(v.objectives[1]).toMatchObject({ key: "training", xp: 120 });
   });
 
+  it("asks nothing more on an illness day", () => {
+    const s = scenario({ program: threeDayProgram(), startedOn: "2026-09-28", todayKey: TODAY, illnessOn: [TODAY], todayUntouched: true });
+    const progress = buildProgress({ days: s.days, program: s.program, settings: s.settings, todayKey: TODAY, metaFor });
+    const v = questView({ progress, todayKey: TODAY, day: s.days[TODAY], days: s.days, program: s.program });
+    expect(v.action.key).toBe("none");
+    expect(v.objectives).toEqual([{ key: "checkin", label: "Status check", state: "done", xp: 10 }]);
+    expect(v.potentialXp).toBe(10);
+    expect(v.days.find((d) => d.today)?.state).toBe("protected");
+  });
+
   it("shows a rest day's recovery objective and notice", () => {
     const sunday = "2026-10-04";
     const s = scenario({ program: threeDayProgram(), startedOn: "2026-09-28", todayKey: sunday, todayUntouched: true });

@@ -1,0 +1,19 @@
+.screen { min-height: 100dvh; display: flex; flex-direction: column; background: var(--surface-0); color: var(--ink); }
+.body { flex: 1; width: 100%; max-width: var(--column); margin: 0 auto; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); }
+.exHead { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.exTitle { margin: 0; }
+.cue { margin: 2px 0 0; }
+.target { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); color: var(--ink-2); min-height: 36px; }
+.dotsRow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-3); }
+.hint { margin: var(--space-2) 0 0; }
+.menu { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.menu li { border-top: 1px solid var(--line); }
+.menu li:first-child { border-top: 0; }
+.menuBtn { width: 100%; min-height: var(--control-md); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); background: none; border: 0; padding: var(--space-2) 0; color: var(--ink); text-align: left; cursor: pointer; border-radius: var(--radius-xs); }
+.menuBtn[aria-current="true"] { color: var(--chalk); }
+.menuBtn:focus-visible { outline: 2px solid transparent; box-shadow: var(--focus-ring); }
+.menuSub { display: block; color: var(--ink-2); }
+.plates { display: flex; flex-direction: column; gap: var(--space-2); }
+.plateRow { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--line); }
+.plateRow:first-child { border-top: 0; }
+.swapInput { margin-top: var(--space-3); }
