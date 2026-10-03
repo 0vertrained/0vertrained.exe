@@ -1,0 +1,27 @@
+/* The quest log's own layout: the row buttons, the screen head, the sheet
+   title and the detail blocks. Type and colour come from kit.css; nothing
+   here animates. */
+.head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.more { margin-top: var(--space-2); }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list > li { border-top: 1px solid var(--line); }
+.list > li:first-child { border-top: 0; }
+.row {
+  width: 100%; min-height: var(--hit-min); display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) 0; background: none; border: 0; color: var(--ink); text-align: left; cursor: pointer;
+  border-radius: var(--radius-xs); -webkit-tap-highlight-color: transparent;
+}
+.row:focus-visible { outline: 2px solid transparent; outline-offset: 2px; box-shadow: var(--focus-ring); }
+.row > :global(.ot-tier) { flex: none; }
+.date { flex: none; min-width: 6.5em; }
+.status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xp { flex: none; margin-left: auto; text-align: right; }
+
+.title { display: inline-flex; align-items: center; gap: var(--space-3); }
+.detail { display: flex; flex-direction: column; gap: var(--space-4); }
+.blockTag { margin: 0 0 var(--space-1); }
+.plain { list-style: none; margin: 0; padding: 0; }
+.plain > li { padding: var(--space-2) 0; border-top: 1px solid var(--line); }
+.plain > li:first-child { border-top: 0; padding-top: 0; }
+.cardio { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }

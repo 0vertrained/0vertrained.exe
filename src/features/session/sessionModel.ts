@@ -199,8 +199,12 @@ export function finishSession(day: DayV2, nowIso: string): DayV2 {
   return { ...day, workout: { ...day.workout, completedAt: nowIso } };
 }
 
-/** Banks set `index` (planned or extra) with the values entered. */
-export function logSet(day: DayV2, e: PlannedExercise, index: number, values: SetValues, nowIso: string, options: { trial?: boolean } = {}): DayV2 {
+/**
+ * Banks set `index` (planned or extra) with the values entered. In edit mode
+ * (a past day) a set that was already banked keeps its original timestamp,
+ * so an edit never moves it outside the late-logging window.
+ */
+export function logSet(day: DayV2, e: PlannedExercise, index: number, values: SetValues, nowIso: string, options: { trial?: boolean; keepCompletedAt?: boolean } = {}): DayV2 {
   return withLog(day, e, (log) => {
     const sets = reconcileSets(e.sets, log.sets);
     while (sets.length <= index) sets.push({ ...blankSet(`s${sets.length + 1}`), extra: true });
@@ -210,7 +214,7 @@ export function logSet(day: DayV2, e: PlannedExercise, index: number, values: Se
       weightKg: values.weightKg ?? null,
       reps: values.reps ?? null,
       done: true,
-      completedAt: nowIso,
+      completedAt: options.keepCompletedAt && existing.completedAt ? existing.completedAt : nowIso,
     };
     if (values.seconds != null) next.seconds = values.seconds;
     else delete next.seconds;

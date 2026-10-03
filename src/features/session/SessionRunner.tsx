@@ -43,6 +43,8 @@ export interface SessionRunnerProps {
   restSeconds: number;
   haptics: boolean;
   historyComplete: boolean;
+  /** A past day opened from the quest log: timestamps are kept, no rest timer. */
+  editing?: boolean;
   updateDay: (fn: (day: DayV2) => DayV2) => void;
   onExit: () => void;
   onFinished: () => void;
@@ -103,15 +105,15 @@ export function SessionRunner(p: SessionRunnerProps) {
     const at = new Date().toISOString();
     let banked: DayV2 | null = null;
     p.updateDay((d) => {
-      let next = logSet(d, planned, index, values, at, { trial: isTrialSet });
+      let next = logSet(d, planned, index, values, at, { trial: isTrialSet, keepCompletedAt: p.editing === true });
       if (isTrialSet && p.trial) next = judgeTrialOnDay(next, p.trial);
       banked = next;
       return next;
     });
     triggerHaptic("set", p.haptics);
-    p.rest.start(p.restSeconds || current.restSeconds);
+    if (!p.editing) p.rest.start(p.restSeconds || current.restSeconds);
     const after = banked as DayV2 | null;
-    if (after && p.historyComplete) {
+    if (after && p.historyComplete && !p.editing) {
       const record = detectRecords({ dateKey: p.todayKey, day: after, history: p.days, metaFor: p.metaFor, units: p.units }).find((r) => r.exerciseId === current.id);
       if (record?.isRecord && !record.baseline && !record.fromExtraWork) toast.show({ tag: "RECORD", text: `${record.name} ${record.label}.` });
     }
@@ -167,7 +169,7 @@ export function SessionRunner(p: SessionRunnerProps) {
     <div className={styles.screen}>
       <header className="ot-runner-head">
         <IconButton name="exit" label="Exit session" onClick={p.onExit} />
-        <h1 className="ot-title ot-m0">{view.title}</h1>
+        <h1 className="ot-title ot-m0">{p.editing ? `Edit · ${view.title}` : view.title}</h1>
         <Button variant="secondary" size="sm" aria-label={`Exercise ${view.currentIndex + 1} of ${view.exercises.length}. Open exercise list`} onClick={() => openSheet("exercises")}>
           Exercise {view.currentIndex + 1}/{view.exercises.length}
           <Icon name="chevron" size={16} rotate={90} />
