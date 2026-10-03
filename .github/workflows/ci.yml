@@ -52,6 +52,13 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run build
       - run: npm run test:e2e
+      - name: Page snapshots of failed specs
+        if: failure()
+        run: |
+          for f in test-results/*/error-context.md; do
+            [ -e "$f" ] || continue
+            echo "::group::$f"; cat "$f"; echo "::endgroup::"
+          done
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -92,6 +99,7 @@ jobs:
             sed 's/=.*//' "$RUNNER_TEMP/supabase.env" >&2
             exit 1
           fi
+          echo "client key taken from ${ANON_KEY:+ANON_KEY}${ANON_KEY:-PUBLISHABLE_KEY}"
           echo "LOCAL_API_URL=$API_URL" >> "$GITHUB_ENV"
           echo "LOCAL_CLIENT_KEY=$key" >> "$GITHUB_ENV"
       - run: npm run build
@@ -101,6 +109,13 @@ jobs:
       - run: npm run test:e2e -- e2e/account.spec.ts --project=mobile
         env:
           E2E_ACCOUNTS: "1"
+      - name: Page snapshots of failed specs
+        if: failure()
+        run: |
+          for f in test-results/*/error-context.md; do
+            [ -e "$f" ] || continue
+            echo "::group::$f"; cat "$f"; echo "::endgroup::"
+          done
       - run: supabase stop --workdir supabase/v20/cli
         if: always()
       - uses: actions/upload-artifact@v4

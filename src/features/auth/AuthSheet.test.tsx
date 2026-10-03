@@ -5,6 +5,7 @@ import { AUTH_COPY } from "../../auth/authErrors";
 import { AuthProvider } from "../../auth/AuthProvider";
 import { createFakeAuthClient, type FakeAuthClient } from "../../auth/fakeAuthClient";
 import { RECOVERY_WORDS } from "../../auth/recoveryWords";
+import { clearJustSignedUp, isJustSignedUp } from "../../data/guestFlags";
 import { expectNoA11yViolations } from "../../test/axe";
 import { AuthSheet, type AuthSheetProps } from "./AuthSheet";
 import { PHRASE_NOTE } from "./CreateForm";
@@ -25,7 +26,10 @@ function renderSheet(client: FakeAuthClient = createFakeAuthClient(), props: Par
 const primaries = (container: HTMLElement) => container.querySelectorAll("[data-primary]");
 const field = (name: string) => screen.getByLabelText(name);
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  clearJustSignedUp();
+});
 
 describe("AuthSheet sign-in", () => {
   it("submits the username and password and reports the session", async () => {
@@ -94,6 +98,18 @@ describe("AuthSheet create", () => {
     expect(client.calls.rpc.filter((c) => c.fn === "username_taken").map((c) => c.args)).toEqual([{ p_username: "new.user" }, { p_username: "new.user" }]);
     expect(client.calls.rpc.at(-1)?.fn).toBe("set_recovery_phrase");
     expect(client.accounts.get("new.user")?.phrase?.salt).toMatch(/^[0-9a-f]{32}$/);
+    // The data root reads this marker when the session arrives, which is before sign-up resolves.
+    expect(isJustSignedUp()).toBe(true);
+  });
+
+  it("clears the sign-up marker when the account is not created", async () => {
+    renderSheet(createFakeAuthClient({ accounts: { alex: PASSWORD } }), { initialMode: "create" });
+    await userEvent.type(field("Username"), "alex");
+    await userEvent.type(field("Password"), PASSWORD);
+    await userEvent.click(screen.getByRole("switch", { name: "I have saved my recovery phrase" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByText(AUTH_COPY.usernameTaken)).toBeInTheDocument();
+    expect(isJustSignedUp()).toBe(false);
   });
 
   it("checks a taken username on blur and copies the phrase", async () => {

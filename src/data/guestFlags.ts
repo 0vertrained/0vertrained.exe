@@ -39,3 +39,28 @@ export function isDemo(storage: Storage = window.localStorage): boolean {
 export function clearDemo(storage: Storage = window.localStorage): void {
   write(storage, GUEST_DEMO_KEY, false);
 }
+
+/**
+ * Set by the create-account form just before it calls sign-up, so the data
+ * root can tell a brand-new account from a sign-in by the time the session
+ * arrives (which is before sign-up itself resolves: the recovery hash is
+ * derived after the session exists). Session-scoped: one tab, one sign-up.
+ */
+export const JUST_SIGNED_UP_KEY = "ovt-v20-just-signed-up";
+
+function session(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+export function markJustSignedUp(storage: Storage | null = session()): void {
+  if (storage) write(storage, JUST_SIGNED_UP_KEY, true);
+}
+export function isJustSignedUp(storage: Storage | null = session()): boolean {
+  return storage ? read(storage, JUST_SIGNED_UP_KEY) : false;
+}
+export function clearJustSignedUp(storage: Storage | null = session()): void {
+  if (storage) write(storage, JUST_SIGNED_UP_KEY, false);
+}

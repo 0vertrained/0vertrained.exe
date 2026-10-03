@@ -20,7 +20,7 @@ const ProfileScreen = lazy(() => import("../features/profile/ProfileScreen").the
 const AuthSheet = lazy(() => import("../features/auth/AuthSheet").then((m) => ({ default: m.AuthSheet })));
 import { SessionScreen } from "../features/session/SessionScreen";
 import { hasBackend } from "./config";
-import { BootSkeleton, DataRoot, JUST_SIGNED_UP_KEY } from "./DataRoot";
+import { BootSkeleton, DataRoot } from "./DataRoot";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { installErrorReporting, reportError } from "./errorReporting";
 import { Shell, type Tab } from "./Shell";
@@ -87,16 +87,8 @@ function Landing({ todayKey, onFresh }: { todayKey: string; onFresh: () => void 
     }
   };
   const canSignIn = hasBackend() && auth.status !== "unavailable";
-  const onSignedIn = (mode: "signed-in" | "signed-up") => {
-    if (mode === "signed-up") {
-      try {
-        window.sessionStorage.setItem(JUST_SIGNED_UP_KEY, "1");
-      } catch {
-        // nicety
-      }
-    }
-    closeSheet();
-  };
+  // The create form marks a sign-up itself (before the call); here only the sheet closes.
+  const onSignedIn = () => closeSheet();
   return (
     <>
       <LandingScreen onDemo={() => void demo()} onFresh={onFresh} {...(canSignIn ? { onSignIn: () => openSheet("auth") } : {})} busy={busy} />
@@ -114,16 +106,8 @@ export function ProfileAuthSheet() {
   const { sheet, closeSheet } = useHashRoute();
   const auth = useAuth();
   if (sheet !== "auth" || !hasBackend() || auth.status === "unavailable") return null;
-  const onSignedIn = (mode: "signed-in" | "signed-up") => {
-    if (mode === "signed-up") {
-      try {
-        window.sessionStorage.setItem(JUST_SIGNED_UP_KEY, "1");
-      } catch {
-        // nicety
-      }
-    }
-    closeSheet();
-  };
+  // The create form marks a sign-up itself (before the call); here only the sheet closes.
+  const onSignedIn = () => closeSheet();
   return (
     <Suspense fallback={null}>
       <AuthSheet onClose={closeSheet} onSignedIn={onSignedIn} />
