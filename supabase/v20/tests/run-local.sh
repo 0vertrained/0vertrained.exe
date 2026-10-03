@@ -5,7 +5,7 @@
 # no Supabase CLI:
 #   1. initdb + start a cluster on a private port and socket dir
 #   2. apply tests/_local_stub.sql   (auth schema, auth.uid(), API roles)
-#   3. apply migrations/0001_init.sql TWICE  (the second run proves idempotency)
+#   3. apply every migrations/*.sql in order, each TWICE (the second run proves idempotency)
 #   4. run tests/*.sql through pg_prove (pgTAP)
 #   5. stop the cluster and delete its data directory, always
 #
@@ -89,10 +89,15 @@ echo "== stub: auth schema, auth.uid(), API roles"
 psql "${psql_args[@]}" -f "$here/_local_stub.sql" 2>&1 | grep -v -E '^\s*$|1\.\.0' || true
 psql "${psql_args[@]}" -c "create extension if not exists pgtap with schema extensions;" 2>&1 | grep -v -E '^\s*$' || true
 
-echo "== migration 0001_init.sql (run 1)"
-psql "${psql_args[@]}" -f "$root/migrations/0001_init.sql" >/dev/null
-echo "== migration 0001_init.sql (run 2: idempotency)"
-psql "${psql_args[@]}" -f "$root/migrations/0001_init.sql" >/dev/null
+# Every migration in order, as `supabase db push` would apply them; each one
+# twice, because the second run proves it is idempotent.
+for migration in "$root"/migrations/*.sql; do
+  name="$(basename "$migration")"
+  echo "== migration $name (run 1)"
+  psql "${psql_args[@]}" -f "$migration" >/dev/null
+  echo "== migration $name (run 2: idempotency)"
+  psql "${psql_args[@]}" -f "$migration" >/dev/null
+done
 
 echo "== pgTAP tests"
 cd "$root"

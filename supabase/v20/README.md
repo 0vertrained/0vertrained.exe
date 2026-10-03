@@ -7,6 +7,7 @@ run side by side until cutover.
 ```
 supabase/v20/
 ├── migrations/0001_init.sql   the whole schema, idempotent (paste or push it)
+├── migrations/0002_tighten_grants.sql   authenticated's table grants trimmed to the exact set
 ├── config.toml                local stack settings for the Supabase CLI
 ├── seed.sql                   empty on purpose
 ├── tests/
@@ -68,8 +69,10 @@ contract is that it never reads them.
 1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard)
    (any region; note the database password, you need it for the CLI only).
 2. Apply the schema, either way:
-   - **Dashboard → SQL Editor** → paste the whole of `migrations/0001_init.sql`
-     → Run. It is idempotent: running it again is harmless.
+   - **Dashboard → SQL Editor** → paste the whole of each file in `migrations/`,
+     in order (`0001_init.sql`, then `0002_tighten_grants.sql`) → Run. Every
+     file is idempotent: running one again is harmless. A project that already
+     has `0001` applied only needs the files after it.
    - **CLI**:
      ```sh
      supabase login
@@ -165,7 +168,7 @@ supabase/v20/tests/run-local.sh
 The script starts a throwaway cluster on port 5433 (socket in a temp dir),
 loads `tests/_local_stub.sql` (the `auth` schema, `auth.users`, `auth.uid()`
 and the `anon` / `authenticated` / `service_role` roles), applies
-`0001_init.sql` **twice** to prove idempotency, runs the pgTAP files with
+every file in `migrations/` in order, each **twice** to prove idempotency, runs the pgTAP files with
 `pg_prove`, then stops and deletes the cluster. `KEEP=1` leaves it running
 for a look; `PG_PORT`, `PG_BIN` and `PG_DATA` override the defaults.
 Extra arguments go to `pg_prove` (`--verbose` shows every assertion).

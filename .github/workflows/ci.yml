@@ -78,13 +78,26 @@ jobs:
       - run: supabase start --workdir supabase/v20/cli
       - run: supabase test db --workdir supabase/v20/cli
       # Build the app against the local project and run the account specs.
+      # `status -o env` prints KEY="value" lines: source them (the shell strips
+      # the quotes) rather than appending them to GITHUB_ENV verbatim. Newer
+      # CLIs issue sb_publishable_ keys and may omit the legacy anon JWT, so
+      # take whichever is present.
       - name: Read the local keys
         run: |
-          supabase status --workdir supabase/v20/cli -o env >> "$GITHUB_ENV"
+          supabase status --workdir supabase/v20/cli -o env > "$RUNNER_TEMP/supabase.env"
+          set -a; . "$RUNNER_TEMP/supabase.env"; set +a
+          key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
+          if [ -z "${API_URL:-}" ] || [ -z "$key" ]; then
+            echo "status output lacks API_URL or a client key; variables printed:" >&2
+            sed 's/=.*//' "$RUNNER_TEMP/supabase.env" >&2
+            exit 1
+          fi
+          echo "LOCAL_API_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "LOCAL_CLIENT_KEY=$key" >> "$GITHUB_ENV"
       - run: npm run build
         env:
-          VITE_NEXT_SUPABASE_URL: ${{ env.API_URL }}
-          VITE_NEXT_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+          VITE_NEXT_SUPABASE_URL: ${{ env.LOCAL_API_URL }}
+          VITE_NEXT_SUPABASE_ANON_KEY: ${{ env.LOCAL_CLIENT_KEY }}
       - run: npm run test:e2e -- e2e/account.spec.ts --project=mobile
         env:
           E2E_ACCOUNTS: "1"

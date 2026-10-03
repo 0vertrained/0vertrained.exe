@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 
 begin;
 set local search_path = public, extensions;
-select plan(111);
+select plan(112);
 
 -- ── tables ──────────────────────────────────────────────────────────────────
 select has_table('public', 'profiles',      'profiles exists');
@@ -145,6 +145,7 @@ select table_privs_are('public', 'program',       'anon',          '{}'::text[],
 select table_privs_are('public', 'entries',       'anon',          '{}'::text[], 'anon has no rights on entries');
 select table_privs_are('public', 'profiles', 'authenticated', array['SELECT', 'INSERT', 'UPDATE', 'DELETE'], 'authenticated may read/write profiles (rows limited by RLS)');
 select table_privs_are('public', 'entries',  'authenticated', array['SELECT', 'INSERT', 'UPDATE', 'DELETE'], 'authenticated may read/write entries (rows limited by RLS)');
+select table_privs_are('public', 'program',  'authenticated', array['SELECT', 'INSERT', 'UPDATE', 'DELETE'], 'authenticated may read/write program (rows limited by RLS)');
 
 select function_privs_are('public', 'bump_recovery_attempt', array['text', 'bigint', 'bigint', 'integer'], 'anon',          '{}'::text[], 'anon cannot execute bump_recovery_attempt');
 select function_privs_are('public', 'bump_recovery_attempt', array['text', 'bigint', 'bigint', 'integer'], 'authenticated', '{}'::text[], 'authenticated cannot execute bump_recovery_attempt');
