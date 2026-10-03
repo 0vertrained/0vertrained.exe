@@ -1,0 +1,168 @@
+{
+  "format": "0vertrained-backup",
+  "v": 1,
+  "exportedAt": "2025-12-10T08:00:00.000Z",
+  "appVersion": "19.2.1",
+  "username": "lifter",
+  "counts": { "days": 7 },
+  "entries": {
+    "2025-12-01": {
+      "workout": {
+        "exercises": {
+          "Barbell Bench Press": {
+            "sets": [
+              { "weight": "175", "reps": "8", "rir": "2", "done": true, "completedAt": "2025-12-01T17:01:00.000Z" },
+              { "weight": "175", "reps": "8", "rir": "1", "done": true, "completedAt": "2025-12-01T17:04:00.000Z" },
+              { "weight": "175", "reps": "7", "rir": "0", "done": true, "completedAt": "2025-12-01T17:07:00.000Z" }
+            ],
+            "progressionDecision": { "status": "accepted", "targetWeight": 175 }
+          },
+          "Seated Cable Row": {
+            "sets": [
+              { "weight": "120", "reps": "10", "done": true, "completedAt": "2025-12-01T17:15:00.000Z" },
+              { "weight": "120", "reps": "10", "done": true, "completedAt": "2025-12-01T17:18:00.000Z" },
+              { "weight": "120", "reps": "10", "done": true, "completedAt": "2025-12-01T17:21:00.000Z" }
+            ]
+          }
+        },
+        "cardio": { "miles": "", "time": "", "pace": "", "notes": "" }
+      },
+      "nutrition": { "calories": "2500", "protein": "180" },
+      "body": { "weight": "184.0", "sleepQuality": "7", "energy": "6" }
+    },
+    "2025-12-02": {
+      "workout": {
+        "exercises": {
+          "Back Squat": {
+            "sets": [
+              { "weight": "205", "reps": "8", "done": true, "completedAt": "2025-12-02T17:00:00.000Z" },
+              { "weight": "205", "reps": "8", "done": true, "completedAt": "2025-12-02T17:04:00.000Z" },
+              { "weight": "205", "reps": "8", "done": true, "completedAt": "2025-12-02T17:08:00.000Z" }
+            ]
+          },
+          "Leg Ext. Machine": {
+            "sets": [
+              { "weight": "80", "reps": "12", "done": true, "completedAt": "2025-12-02T17:15:00.000Z" },
+              { "weight": "80", "reps": "12", "done": true, "completedAt": "2025-12-02T17:18:00.000Z" },
+              { "weight": "80", "reps": "12", "done": true, "completedAt": "2025-12-02T17:21:00.000Z" }
+            ]
+          }
+        }
+      },
+      "body": { "weight": "183.6", "sleepQuality": "6", "energy": "6" }
+    },
+    "2025-12-03": {
+      "workout": { "exercises": {}, "cardio": { "miles": "", "time": "", "pace": "", "notes": "" } },
+      "body": { "weight": "183.4", "sleepQuality": "8", "energy": "7" }
+    },
+    "2025-12-04": {
+      "workout": {
+        "exercises": {
+          "Deadlift": {
+            "sets": [
+              { "weight": "295", "reps": "5", "done": true, "completedAt": "2025-12-04T17:00:00.000Z" },
+              { "weight": "295", "reps": "5", "done": true, "completedAt": "2025-12-04T17:05:00.000Z" },
+              { "weight": "295", "reps": "5", "done": true, "completedAt": "2025-12-04T17:10:00.000Z" }
+            ]
+          },
+          "Pull-Ups": {
+            "sets": [
+              { "weight": "", "reps": "6", "done": true, "completedAt": "2025-12-04T17:20:00.000Z" },
+              { "weight": "", "reps": "6", "done": true, "completedAt": "2025-12-04T17:23:00.000Z" },
+              { "weight": "", "reps": "5", "done": true, "completedAt": "2025-12-04T17:26:00.000Z" }
+            ]
+          }
+        }
+      },
+      "body": { "sleepQuality": "7", "energy": "7" }
+    },
+    "2025-12-05": {
+      "workout": {
+        "exercises": {
+          "Plank": {
+            "sets": [
+              { "weight": "", "reps": "", "duration": "45", "done": true, "completedAt": "2025-12-05T08:20:00.000Z" },
+              { "weight": "", "reps": "", "duration": "45", "done": true, "completedAt": "2025-12-05T08:23:00.000Z" }
+            ]
+          }
+        },
+        "cardio": { "miles": "4", "time": "36:00", "pace": "9:00", "notes": "zone 2" }
+      },
+      "body": { "sleepQuality": "7", "energy": "8" }
+    },
+    "2025-12-08": {
+      "workout": {
+        "exercises": {
+          "Barbell Bench Press": {
+            "sets": [
+              { "weight": "180", "reps": "8", "done": true, "completedAt": "2025-12-08T17:01:00.000Z" },
+              { "weight": "180", "reps": "8", "done": true, "completedAt": "2025-12-08T17:04:00.000Z" },
+              { "weight": "180", "reps": "7", "done": true, "completedAt": "2025-12-08T17:07:00.000Z" }
+            ]
+          },
+          "Rope Tricep Pushdown": {
+            "sets": [
+              { "weight": "45", "reps": "12", "done": true, "completedAt": "2025-12-08T17:15:00.000Z" },
+              { "weight": "45", "reps": "12", "done": true, "completedAt": "2025-12-08T17:18:00.000Z" },
+              { "weight": "45", "reps": "12", "done": true, "completedAt": "2025-12-08T17:21:00.000Z" }
+            ]
+          }
+        }
+      },
+      "body": { "weight": "183.0", "sleepQuality": "7", "energy": "7" }
+    },
+    "2025-12-09": {
+      "workout": {
+        "exercises": {
+          "Back Squat": {
+            "sets": [
+              { "weight": "215", "reps": "8", "done": true, "completedAt": "2025-12-09T17:00:00.000Z" },
+              { "weight": "215", "reps": "8", "done": true, "completedAt": "2025-12-09T17:04:00.000Z" },
+              { "weight": "215", "reps": "7", "done": true, "completedAt": "2025-12-09T17:08:00.000Z" }
+            ]
+          }
+        }
+      },
+      "body": { "weight": "182.8", "sleepQuality": "8", "energy": "7" }
+    }
+  },
+  "program": {
+    "Monday": {
+      "type": "Upper A — Push + Triceps", "code": "UPPER A",
+      "lifting": [
+        { "name": "Barbell Bench Press", "sets": 4, "reps": 6, "notes": "Anchor compound." },
+        { "name": "Pec Deck / Cable Fly", "sets": 3, "reps": 12, "notes": "Chest isolation." },
+        { "name": "Rope Tricep Pushdown", "sets": 3, "reps": 15, "notes": "" }
+      ],
+      "cardio": null
+    },
+    "Tuesday": {
+      "type": "Lower A — Squat Pattern", "code": "LOWER A",
+      "lifting": [{ "name": "Back Squat", "sets": 4, "reps": 6 }, { "name": "Leg Ext. Machine", "sets": 3, "reps": 12 }],
+      "cardio": null
+    },
+    "Wednesday": { "type": "Full Rest", "code": "REST", "lifting": [], "cardio": null },
+    "Thursday": {
+      "type": "Lower B — Hinge Pattern", "code": "LOWER B",
+      "lifting": [{ "name": "Deadlift", "sets": 4, "reps": 5 }, { "name": "Pull-Ups", "sets": 3, "reps": 8 }],
+      "cardio": null
+    },
+    "Friday": {
+      "type": "Cardio A — Zone 2 + Core", "code": "CARDIO A",
+      "lifting": [{ "name": "Plank", "sets": 3, "reps": 45, "notes": "45 seconds." }],
+      "cardio": { "type": "Zone 2 Run", "miles": 4, "effort": "Zone 2", "notes": "Conversational." }
+    },
+    "Saturday": { "type": "Full Rest", "code": "REST", "lifting": [], "cardio": null },
+    "Sunday": { "type": "Full Rest", "code": "REST", "lifting": [], "cardio": null }
+  },
+  "settings": {
+    "goals": { "calories": 2800, "protein": 190, "carbs": 300, "fats": 90, "water": 100 },
+    "supplements": ["Creatine"],
+    "dietaryRestrictions": [],
+    "socialOptIn": false,
+    "theme": "whitepaperLight",
+    "trainingCues": { "haptics": true, "restAudio": false },
+    "onboarded": true,
+    "setup": { "goal": "strength", "dataMode": "manual", "macroPreset": null, "completedAt": "2025-11-30T10:00:00.000Z" }
+  }
+}

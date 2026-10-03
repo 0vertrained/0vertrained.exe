@@ -1,0 +1,24 @@
+/* Record rows divide by hairline inside a Panel; title tiles are sunken
+   (surface-0 inside the surface-1 panel), two across at 390px, three from
+   640px. Type and colour come from kit.css. */
+.list { list-style: none; margin: 0; padding: 0; }
+.record { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--line); }
+.record:first-child { border-top: 0; padding-top: 0; }
+.recordText { display: flex; flex-direction: column; min-width: 0; }
+.spark { width: 96px; flex: none; }
+.spark :global(.ot-stat-spark) { margin-top: 0; }
+
+.titles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+.tile {
+  display: flex; flex-direction: column; justify-content: center; gap: var(--space-1);
+  width: 100%; min-height: var(--hit-min); padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-0); text-align: left;
+}
+.unlocked { color: var(--ink); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.unlocked:focus-visible { outline: 2px solid transparent; outline-offset: 2px; box-shadow: var(--focus-ring); }
+.unlocked[aria-pressed="true"] { border-color: var(--line-control); }
+.locked { color: var(--ink-3); }
+.lockRow { display: flex; align-items: center; gap: var(--space-2); }
+@media (min-width: 640px) {
+  .titles { grid-template-columns: repeat(3, 1fr); }
+}

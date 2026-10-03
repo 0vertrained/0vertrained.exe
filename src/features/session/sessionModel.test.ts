@@ -57,6 +57,15 @@ describe("sessionView", () => {
     expect(d.workout.completedAt).toBe("2026-10-07T17:40:00.000Z");
   });
 
+  it("editing a past day keeps a banked set's original timestamp", () => {
+    const { day, first } = demo();
+    let d = logSet(day, first, 0, { weightKg: 22, reps: 10 }, "2026-10-07T17:02:00.000Z");
+    d = logSet(d, first, 0, { weightKg: 24, reps: 9 }, "2026-10-12T09:00:00.000Z", { keepCompletedAt: true });
+    expect(d.workout.exercises["goblet-squat"]?.sets[0]).toMatchObject({ weightKg: 24, reps: 9, completedAt: "2026-10-07T17:02:00.000Z" });
+    d = logSet(d, first, 1, { weightKg: 24, reps: 9 }, "2026-10-12T09:01:00.000Z", { keepCompletedAt: true });
+    expect(d.workout.exercises["goblet-squat"]?.sets[1]?.completedAt).toBe("2026-10-12T09:01:00.000Z");
+  });
+
   it("pain on a banked set marks it; pain on the set in hand ends the exercise for pain", () => {
     const { day, first, view } = demo();
     let d = logSet(day, first, 0, { weightKg: 22, reps: 10 }, "2026-10-07T17:02:00.000Z");

@@ -1,6 +1,6 @@
 // The v20 app: providers, the hash router and the screens of this phase.
 // Guest data only until the new backend lands; the entry is /next.
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { AppDataProvider } from "../data/AppDataProvider";
 import { createLocalSource } from "../data/localSource";
 import { useAppData } from "../data/useAppData";
@@ -11,6 +11,13 @@ import { OnboardingFlow } from "../features/onboarding/OnboardingFlow";
 import { firstProgram, type OnboardingAnswers } from "../features/onboarding/plan";
 import { QuestScreen } from "../features/quest/QuestScreen";
 import { CardioScreen } from "../features/cardio/CardioScreen";
+
+// Stats, the quest log and Profile load on demand: the Quest tab and the
+// runners are the critical path.
+const StatsScreen = lazy(() => import("../features/stats/StatsScreen").then((m) => ({ default: m.StatsScreen })));
+const QuestLogPanel = lazy(() => import("../features/log/QuestLogPanel").then((m) => ({ default: m.QuestLogPanel })));
+const QuestLogScreen = lazy(() => import("../features/log/QuestLogScreen").then((m) => ({ default: m.QuestLogScreen })));
+const ProfileScreen = lazy(() => import("../features/profile/ProfileScreen").then((m) => ({ default: m.ProfileScreen })));
 import { SessionScreen } from "../features/session/SessionScreen";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { installErrorReporting, reportError } from "./errorReporting";
@@ -61,7 +68,7 @@ function Routes() {
   if (!hasCharacter) return <BootSkeleton />;
   if (first === "session") return <SessionScreen todayKey={todayKey} />;
   if (first === "cardio") return <CardioScreen todayKey={todayKey} />;
-  return <Tabs tab={(TABS.includes(first as Tab) ? first : "quest") as Tab} todayKey={todayKey} />;
+  return <Tabs tab={(TABS.includes(first as Tab) ? first : "quest") as Tab} sub={route.parts[1] ?? ""} todayKey={todayKey} />;
 }
 
 function BootSkeleton() {
@@ -97,22 +104,28 @@ function Onboarding({ todayKey }: { todayKey: string }) {
   const complete = (answers: OnboardingAnswers) => {
     const { program, startedOn } = firstProgram(answers, todayKey);
     replaceProgram(program);
-    patchSettings({ onboarded: true, units: answers.units, ...(answers.bodyweightKg ? { bodyweightKg: answers.bodyweightKg } : {}), game: { startedOn } });
+    // The STR stat reads the bodyweight from the game settings; the profile field edits both.
+    patchSettings({ onboarded: true, units: answers.units, ...(answers.bodyweightKg ? { bodyweightKg: answers.bodyweightKg } : {}), game: { startedOn, ...(answers.bodyweightKg ? { bodyweightKg: answers.bodyweightKg } : {}) } });
     navigate("/quest", { replace: true });
   };
   return <OnboardingFlow onComplete={complete} onCancel={() => navigate("/", { replace: true })} />;
 }
 
-function Tabs({ tab, todayKey }: { tab: Tab; todayKey: string }) {
+function Tabs({ tab, sub, todayKey }: { tab: Tab; sub: string; todayKey: string }) {
   const { state } = useAppData();
   const { navigate } = useHashRoute();
   const progress = useGame(todayKey);
   const sync = state.sync.state === "offline" ? { state: "offline" as const, count: state.sync.queued } : { state: state.sync.state };
   return (
     <Shell tab={tab} progress={progress} sync={sync} guest onTab={(t) => navigate(`/${t}`)}>
-      {tab === "quest" ? <QuestScreen progress={progress} todayKey={todayKey} /> : null}
-      {tab === "stats" ? <EmptyState tag="STATS" title="Stats arrive in a later phase." body="Your XP, rank and streak are already counting." action={{ label: "Back to quest", variant: "secondary", onClick: () => navigate("/quest") }} /> : null}
-      {tab === "profile" ? <EmptyState tag="PROFILE" title="Profile arrives in a later phase." body="Program edits and settings come with it." action={{ label: "Back to quest", variant: "secondary", onClick: () => navigate("/quest") }} /> : null}
+      <Suspense fallback={<BootSkeleton />}>
+        {tab === "quest" ? <QuestScreen progress={progress} todayKey={todayKey} /> : null}
+        {tab === "stats" && sub === "log" ? <QuestLogScreen todayKey={todayKey} /> : null}
+        {tab === "stats" && sub !== "log" ? (
+          <StatsScreen todayKey={todayKey} questLog={<QuestLogPanel todayKey={todayKey} onOpen={(d) => navigate(`/stats/log/${d}`)} onViewAll={() => navigate("/stats/log")} />} />
+        ) : null}
+        {tab === "profile" ? <ProfileScreen todayKey={todayKey} /> : null}
+      </Suspense>
     </Shell>
   );
 }
