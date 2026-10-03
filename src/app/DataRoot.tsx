@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../auth/useAuth";
 import { AppDataProvider } from "../data/AppDataProvider";
-import { clearDemo, clearGuestUploadPending, isDemo, isGuestUploadPending, markGuestUploadPending } from "../data/guestFlags";
+import { clearDemo, clearGuestUploadPending, clearJustSignedUp, isDemo, isGuestUploadPending, isJustSignedUp, markGuestUploadPending } from "../data/guestFlags";
 import { createLocalSource } from "../data/localSource";
 import type { DayMerge, SupabaseSource } from "../data/supabaseSource";
 import type { DbClient } from "../data/supabaseTypes";
@@ -19,25 +19,6 @@ type AccountModule = typeof import("./accountData");
 let accountModule: Promise<AccountModule> | null = null;
 /** The account-only code, fetched once, only when someone signs in. */
 const loadAccountModule = (): Promise<AccountModule> => (accountModule ??= import("./accountData"));
-
-/** Set by the landing page the moment a sign-up succeeds, read once here. */
-export const JUST_SIGNED_UP_KEY = "ovt-v20-just-signed-up";
-
-function readFlag(key: string): boolean {
-  try {
-    return window.sessionStorage.getItem(key) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function clearFlag(key: string): void {
-  try {
-    window.sessionStorage.removeItem(key);
-  } catch {
-    // nicety
-  }
-}
 
 export function BootSkeleton({ caption }: { caption?: string }) {
   return (
@@ -83,9 +64,10 @@ export function DataRoot({ children }: { children: (guest: boolean) => ReactNode
   const remote = account && account.userId === userId && client ? account.remote : null;
   const mod = account?.mod ?? null;
 
-  // Right after a sign-up in this browser, ask once whether guest progress
-  // comes along. The answer is state; everything else is derived from it.
-  const justSignedUp = useMemo(() => remote !== null && readFlag(JUST_SIGNED_UP_KEY), [remote]);
+  // Right after a sign-up in this browser (the create form sets the marker
+  // before it calls sign-up), ask once whether guest progress comes along.
+  // The answer is state; everything else is derived from it.
+  const justSignedUp = useMemo(() => remote !== null && isJustSignedUp(), [remote]);
   const [answer, setAnswer] = useState<{ remote: object; decision: "ask" | "none" } | null>(null);
   const question: "pending" | "ask" | "none" = !remote || !justSignedUp ? "none" : answer && answer.remote === remote ? answer.decision : "pending";
   useEffect(() => {
@@ -94,7 +76,7 @@ export function DataRoot({ children }: { children: (guest: boolean) => ReactNode
     local.load().then(
       (snapshot) => {
         if (cancelled) return;
-        clearFlag(JUST_SIGNED_UP_KEY);
+        clearJustSignedUp();
         const hasGuestData = Object.keys(snapshot.days).length > 0 || snapshot.program !== null || snapshot.settings.onboarded;
         setAnswer({ remote, decision: hasGuestData && !isDemo() ? "ask" : "none" });
       },

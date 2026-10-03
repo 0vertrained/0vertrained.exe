@@ -7,6 +7,7 @@ import { PASSWORD_RULE, sanitizeUsername, USERNAME_RULE, validatePassword, valid
 import { generateRecoveryPhrase } from "../../auth/recoveryWords";
 import { AUTH_COPY } from "../../auth/authErrors";
 import { useAuth } from "../../auth/useAuth";
+import { clearJustSignedUp, markJustSignedUp } from "../../data/guestFlags";
 import { Button } from "../../design/Button";
 import { Panel } from "../../design/Panel";
 import { Switch } from "../../design/Switch";
@@ -72,11 +73,15 @@ export function CreateForm({ onClose, onMode, onSignedIn }: AuthFormProps) {
     }
     setErrors({});
     setBusy(true);
+    // Before the call, not after: the session (and with it the account's
+    // data root) appears while sign-up is still storing the recovery hash.
+    markJustSignedUp();
     const result = await auth.signUp({ username: name, password, recoveryPhrase: phrase, ...(captcha.token ? { captchaToken: captcha.token } : {}) });
     if (result.ok) {
       onSignedIn();
       return;
     }
+    clearJustSignedUp();
     setBusy(false);
     setErrors(result.error === AUTH_COPY.usernameTaken ? { username: result.error } : { form: result.error });
   };
@@ -98,7 +103,7 @@ export function CreateForm({ onClose, onMode, onSignedIn }: AuthFormProps) {
       <TextInput id="auth-username" label="Username" value={username} autoComplete="username" hint={USERNAME_RULE} error={errors.username} onChange={(v) => setUsername(sanitizeUsername(v))} onBlur={() => void checkUsername()} onKeyDown={onKey} />
       <TextInput id="auth-password" label="Password" type="password" value={password} autoComplete="new-password" hint={PASSWORD_RULE} error={errors.password} onChange={setPassword} onKeyDown={onKey} />
       <Panel sunken as="div" aria-label="Recovery phrase">
-        <p className={`ot-numeral ${styles.phrase}`}>{phrase}</p>
+        <p className={`ot-numeral ${styles.phrase}`} data-testid="recovery-phrase">{phrase}</p>
         <div className={styles.phraseRow}>
           <p className={`ot-small ot-ink-2 ${styles.phraseNote}`}>{copied === "unavailable" ? "Copy is not available here. Write the phrase down." : PHRASE_NOTE}</p>
           <Button variant="ghost" size="sm" onClick={() => void copy()}>{copied === "copied" ? "Copied" : "Copy"}</Button>
