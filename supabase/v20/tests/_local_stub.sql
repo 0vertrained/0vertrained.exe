@@ -50,6 +50,16 @@ begin
   grant usage on schema auth to anon, authenticated, service_role;
   grant usage on schema extensions to anon, authenticated, service_role;
 
+  -- ── Default privileges ─────────────────────────────────────────────────
+  -- supabase/postgres hands the API roles ALL on every new table, function
+  -- and sequence in public. Mirrored here so a migration that forgets to
+  -- revoke fails this runner the way it fails a hosted project (the pgTAP
+  -- privilege tests assert the exact sets). The migration runs as the same
+  -- role as this stub, so no FOR ROLE clause is needed.
+  alter default privileges in schema public grant all on tables    to anon, authenticated, service_role;
+  alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+  alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+
   -- ── auth.users ─────────────────────────────────────────────────────────
   -- Only the columns the migration and tests touch. The real table has many
   -- more (encrypted_password, confirmed_at, ...) but all of them are nullable

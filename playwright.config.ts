@@ -20,8 +20,11 @@ export default defineConfig({
     trace: "retain-on-failure",
     ...(executablePath ? { launchOptions: { executablePath } } : {}),
   },
+  // --host 127.0.0.1: Vite binds `localhost`, which Node resolves to ::1 on
+  // GitHub's runners, while the url below polls IPv4. Pin both to the same
+  // address or the smoke job times out waiting for a server that is up.
   webServer: {
-    command: `npx vite preview --port ${PORT} --strictPort`,
+    command: `npx vite preview --host 127.0.0.1 --port ${PORT} --strictPort`,
     url: `http://127.0.0.1:${PORT}/`,
     reuseExistingServer: !process.env["CI"],
     timeout: 60_000,
