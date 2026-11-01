@@ -1,7 +1,7 @@
 {
   "name": "hybrid-athlete-tracker",
   "private": true,
-  "version": "19.6.0",
+  "version": "19.6.1",
   "type": "module",
   "scripts": {
     "dev": "vite",

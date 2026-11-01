@@ -169,7 +169,9 @@ export function buildRecoveryVerdict({
     });
   }
   if (hasType("sleep_limited") || debt >= 2) {
-    if (call === "push") call = demote(call, "capped");
+    // A day the score alone would push stays capped, even when another limiter has already
+    // stepped it down: one limiter must never switch another one off.
+    if (call === "push" || (score !== null && score >= 85)) call = demote(call, "capped");
     limiters.push({
       key: "sleep",
       label: `Ceiling · sleep debt ${formatDebtHours(debt || 2)}`,

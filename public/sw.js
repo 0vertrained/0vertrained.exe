@@ -3,7 +3,7 @@
 // a short timeout so an installed app can cold-open in a gym basement without
 // silently living on an old shell forever.
 
-const CACHE_NAME = "ovt-shell-v19.6.0";
+const CACHE_NAME = "ovt-shell-v19.6.1";
 const NAV_TIMEOUT_MS = 3000;
 const CORE_URLS = [
   "/",
