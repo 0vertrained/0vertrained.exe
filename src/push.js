@@ -82,6 +82,28 @@ export async function enablePush() {
   return true;
 }
 
+// V19.4 · Re-register this device's existing subscription with the server.
+// Before v19.4 the registration POST never reached push-subscribe (the
+// endpoint wasn't routed), so a device that turned notifications on holds a
+// subscription the server never stored: the card says "On" and nothing ever
+// arrives. Once per page load, a device with permission granted and a
+// subscription in hand sends it again. The function upserts on the endpoint,
+// and preferences already stored are left alone (none are sent here).
+let resyncStarted = false;
+export async function resyncPushSubscription() {
+  if (resyncStarted) return false;
+  resyncStarted = true;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return false;
+  const sub = await getExistingSubscription();
+  if (!sub) return false;
+  await authedFetch("/api/push-subscribe", {
+    action: "subscribe",
+    subscription: sub.toJSON(),
+    tz_offset_minutes: new Date().getTimezoneOffset(),
+  });
+  return true;
+}
+
 export async function disablePush() {
   const sub = await getExistingSubscription();
   if (sub) {

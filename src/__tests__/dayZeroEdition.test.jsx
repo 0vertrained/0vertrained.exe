@@ -11,6 +11,13 @@
 // gates on `loaded` and swaps the whole tab; (5) the wizard (Tutorial)
 // survives — it collects goals/macros at signup; specimens are the per-tab
 // activation layer after it. Complementary, not duplicates.
+// V19.4 · (6) A specimen never hides the only way past it. V17 cleared Today
+// on a logged workout and Fuel on a logged meal (or a macroTargets key nothing
+// wrote), but those loggers live inside the tabs the specimens replace, so a
+// new account could never reach one. Finished setup now clears Today and
+// Fuel, a check-in or a connection clears Recovery (manual setups never see
+// it), and each action opens the step that clears it. The app-level walk
+// through signup → setup → first banked set is frontDoorV19_4.test.jsx.
 // ─────────────────────────────────────────────────────────────────────────────
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, fireEvent } from "@testing-library/react";
@@ -41,24 +48,52 @@ describe("V17.0 detector — meaningful content, not key existence", () => {
     expect(z.progress.daysHave).toBe(0);
   });
 
-  it("one logged set flips Today; one meal or target flips Fuel; a weigh-in counts a day", () => {
+  it("one logged set flips Today; one meal flips Fuel; a weigh-in counts a day", () => {
     const set = { ...defaultDay(), workout: { exercises: { Bench: { sets: [{ done: true }] } }, cardio: {} } };
     expect(detectDayZero({ data: { d: set } }).today.isZero).toBe(false);
 
     const meal = { ...defaultDay(), nutrition: { meals: [{ name: "eggs" }], calories: "" } };
     expect(detectDayZero({ data: { d: meal } }).fuel.isZero).toBe(false);
-    expect(detectDayZero({ data: {}, settings: { macroTargets: { protein: 200 } } }).fuel.isZero).toBe(false);
-    expect(detectDayZero({ data: {}, settings: { macroTargets: { protein: "" } } }).fuel.isZero).toBe(true);
 
     const weigh = { ...defaultDay(), body: { ...defaultDay().body, weight: "184.5" } };
     expect(countLoggedDays({ d: weigh })).toBe(1);
     expect(detectDayZero({ data: { d: weigh } }).today.isZero).toBe(true); // a weigh-in is not a workout
   });
 
-  it("Recovery zero requires BOTH wearables absent; either connection clears it", () => {
+  it("V19.4 · finished setup clears Today and Fuel: setup is where the program and targets are chosen", () => {
+    const before = detectDayZero({ data: {}, settings: { onboarded: false } });
+    expect(before.today.isZero).toBe(true);
+    expect(before.fuel.isZero).toBe(true);
+    const after = detectDayZero({ data: {}, settings: { onboarded: true, setup: { dataMode: "manual" } } });
+    expect(after.today.isZero).toBe(false);
+    expect(after.fuel.isZero).toBe(false);
+    // Default goals ride on every account, so goals alone are no signal, and
+    // the V17 macroTargets key was never written by anything.
+    expect(detectDayZero({ data: {}, settings: { goals: { protein: 200, calories: 2600 } } }).fuel.isZero).toBe(true);
+    expect(detectDayZero({ data: {}, settings: { macroTargets: { protein: 200 } } }).fuel.isZero).toBe(true);
+  });
+
+  it("Recovery: either connection clears it", () => {
     expect(detectDayZero({ data: {}, settings: {} }).recovery.isZero).toBe(true);
     expect(detectDayZero({ data: {}, settings: {}, ouraConnected: true }).recovery.isZero).toBe(false);
     expect(detectDayZero({ data: {}, settings: { whoopConnected: true } }).recovery.isZero).toBe(false);
+  });
+
+  it("V19.4 · Recovery: manual setups get the live manual view; a wearable setup keeps the sample until a connection or a check-in", () => {
+    for (const dataMode of ["manual", "later"]) {
+      expect(detectDayZero({ data: {}, settings: { onboarded: true, setup: { dataMode } } }).recovery.isZero).toBe(false);
+    }
+    // Onboarded before setup recorded an answer: manual is the default.
+    expect(detectDayZero({ data: {}, settings: { onboarded: true } }).recovery.isZero).toBe(false);
+
+    const wearable = { onboarded: true, setup: { dataMode: "oura" } };
+    expect(detectDayZero({ data: { d: defaultDay() }, settings: wearable }).recovery.isZero).toBe(true);
+    const checkin = { ...defaultDay(), body: { ...defaultDay().body, sleep: "7.5", energy: "7" } };
+    expect(detectDayZero({ data: { d: checkin }, settings: wearable }).recovery.isZero).toBe(false);
+    expect(detectDayZero({ data: {}, settings: wearable, ouraConnected: true }).recovery.isZero).toBe(false);
+    // A weigh-in isn't a check-in.
+    const weigh = { ...defaultDay(), body: { ...defaultDay().body, weight: "184.5" } };
+    expect(detectDayZero({ data: { d: weigh }, settings: wearable }).recovery.isZero).toBe(true);
   });
 
   it("Progress counts logged days honestly toward its unlock", () => {
@@ -116,14 +151,21 @@ describe("V17.0 specimens (mounted) — stamp, caption, one action", () => {
 describe("V17.0 App wiring (source guards)", () => {
   const app = read("src/App.jsx");
 
-  // v19.2.1 · The V17.0 whole-tab swap locked new manual users out: the
-  // specimens replaced every tab while it had no data, and their CTAs could
-  // not clear them. Tabs now always render; these guards keep it that way.
-  it("tabs always render their real screen — no Day Zero whole-tab swap", () => {
-    expect(app).not.toContain("DayZeroSpecimen");
-    expect(app).not.toMatch(/dayZero\.(today|fuel|recovery|progress)\.isZero/);
-    expect(app).toMatch(/tab === "Today"\s+&& \(<TodayTab /);
-    expect(app).toMatch(/tab === "Recovery" && \(<><BaselineBanner tab="Recovery"[\s\S]{0,240}<RecoveryDashboard/);
+  it("every tab swap gates on loaded && its zero flag — no boot flash, whole-tab swap", () => {
+    for (const t of ["today", "fuel", "recovery", "progress"]) {
+      expect(app).toContain(`loaded && dayZero.${t}.isZero`);
+    }
+  });
+
+  it("populated layouts are untouched: the original tab renders live in the false branch", () => {
+    expect(app).toMatch(/dayZero\.recovery\.isZero[\s\S]{0,220}DayZeroSpecimen[\s\S]{0,420}RecoveryDashboard/);
+  });
+
+  it("V19.4 · each action opens the step that clears its specimen (setup, or Integrations), never Profile", () => {
+    expect(app).toContain('<DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />');
+    expect(app).toContain('<DayZeroSpecimen tab="Fuel" onAction={() => setShowTutorial(true)} />');
+    expect(app).toContain('<DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} />');
+    expect(app).not.toMatch(/DayZeroSpecimen tab="\w+" onAction=\{\(\) => setOverlay\("profile"\)\}/);
   });
 
   it("the setup wizard survives — specimens complement it, they don't replace it", () => {

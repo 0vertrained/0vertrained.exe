@@ -15,6 +15,10 @@
 //     full fake environment; specimens would fight it).
 //   · Progress is honest about its unlock: it reports how many logged days
 //     exist and how many remain, in the Morning Edition calibration voice.
+//   · V19.4 · A specimen never hides the only way past it. A specimen
+//     replaces its whole tab, so what clears it can't be something only that
+//     tab can log: Today and Fuel clear when setup finishes, Recovery when a
+//     wearable connects or a check-in is logged on Today.
 //   · Pure module. No React, no theme, no network.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -60,9 +64,31 @@ function hasNutritionContent(data) {
   });
 }
 
-function hasFuelTargets(settings) {
-  const t = settings?.macroTargets || {};
-  return Object.values(t).some((v) => (num(v) || 0) > 0);
+// A manual check-in: the readiness inputs Recovery reads, logged on Today's
+// body row or with Recovery's tap row.
+const CHECKIN_FIELDS = ["sleep", "sleepQuality", "energy", "soreness", "stress", "motivation"];
+function hasRecoveryCheckin(data) {
+  return Object.values(data || {}).some((day) => {
+    const b = day?.body || {};
+    return CHECKIN_FIELDS.some((k) => num(b[k])) || b.illnessOrInjury === true;
+  });
+}
+
+// V19.4 · Setup (Tutorial.jsx) is what picks the program and the macro
+// targets, so a finished setup is the honest "chosen" signal. The V17
+// detector waited for a logged workout or meal instead, but the loggers live
+// inside the very tabs the specimens replaced, so neither could ever arrive:
+// Today and Fuel stayed samples forever. (A default program and default goals
+// are assigned at load, which is why neither is detectable by absence.)
+export function isOnboarded(settings) {
+  return settings?.onboarded === true || settings?.onboarded === "true";
+}
+
+// Setup's recovery answer. "oura" is the "Wearable connected" choice (Oura or
+// Whoop). Manual and "connect later" start on manual check-ins, and so does an
+// account onboarded before setup recorded an answer (manual is the default).
+export function expectsWearable(settings) {
+  return settings?.setup?.dataMode === "oura";
 }
 
 /**
@@ -76,15 +102,20 @@ export function detectDayZero({ data = {}, settings = {}, ouraConnected = false,
     return { today: none, recovery: none, fuel: none, progress: { isZero: false, daysHave: PROGRESS_UNLOCK_DAYS, daysNeeded: 0 } };
   }
   const whoopConnected = settings?.whoopConnected === true;
+  const onboarded = isOnboarded(settings);
   const loggedDays = countLoggedDays(data);
   return {
-    // A default program is auto-assigned at load, so "no program" is
-    // undetectable by absence — the honest zero signal for Today is that no
-    // workout has ever been logged. The one action is still "pick your
-    // program": choosing consciously is the right first move either way.
-    today: { isZero: !hasWorkoutContent(data) },
-    recovery: { isZero: !ouraConnected && !whoopConnected },
-    fuel: { isZero: !hasFuelTargets(settings) && !hasNutritionContent(data) },
+    // Cleared by finishing setup (the program is chosen there) or by any
+    // logged workout. The action opens setup.
+    today: { isZero: !onboarded && !hasWorkoutContent(data) },
+    // Manual check-ins are first-class: only someone who hasn't set up, or who
+    // said they'd connect a wearable and hasn't yet, sees the sample. Any
+    // connection or check-in clears it. The action opens Integrations.
+    recovery: {
+      isZero: !ouraConnected && !whoopConnected && !hasRecoveryCheckin(data) && (!onboarded || expectsWearable(settings)),
+    },
+    // Cleared by finishing setup (targets are set there) or by any logged meal.
+    fuel: { isZero: !onboarded && !hasNutritionContent(data) },
     progress: {
       isZero: loggedDays < PROGRESS_UNLOCK_DAYS,
       daysHave: loggedDays,
@@ -93,4 +124,4 @@ export function detectDayZero({ data = {}, settings = {}, ouraConnected = false,
   };
 }
 
-export default { detectDayZero, dayHasContent, countLoggedDays, PROGRESS_UNLOCK_DAYS };
+export default { detectDayZero, dayHasContent, countLoggedDays, isOnboarded, expectsWearable, PROGRESS_UNLOCK_DAYS };

@@ -163,8 +163,8 @@ function normalizeGoals(input, fallback) {
 
 // ─── Program preset resolution ──────────────────────────────────────────────
 // Maps a training goal to a starter PROGRAM_PRESETS id. Used to pre-select the
-// program step; the user can still override. Falls back to "hybrid" (which the
-// app already treats as "use DEFAULT_PROGRAM").
+// program step; the user can still override. Falls back to "hybrid", the
+// Hybrid Athlete preset.
 const GOAL_TO_PROGRAM_PRESET = {
   hybrid: "hybrid",
   muscle: "bodybuilding",

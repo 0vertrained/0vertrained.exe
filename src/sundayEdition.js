@@ -188,8 +188,11 @@ export function buildSundayEdition({ data = {}, ouraData = {}, whoopData = {}, s
   const avg = (arr) => (arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null);
   const avgCalories = avg(nutritionDays.map((x) => x.cal).filter((v) => v !== null));
   const avgProtein = avg(nutritionDays.map((x) => x.pro).filter((v) => v !== null));
-  const proteinTarget = num(settings?.macroTargets?.protein);
-  const calorieTarget = num(settings?.macroTargets?.calories);
+  // V19.4 · The targets Fuel shows (settings.goals, written by setup and
+  // Settings → Macros). This read settings.macroTargets, which nothing writes,
+  // so protein adherence never appeared.
+  const proteinTarget = num(settings?.goals?.protein);
+  const calorieTarget = num(settings?.goals?.calories);
   const proteinAdherencePct = avgProtein !== null && proteinTarget ? Math.round((avgProtein / proteinTarget) * 100) : null;
   const tdee = computeAdaptiveTDEE(data);
   const fuelWeek = {

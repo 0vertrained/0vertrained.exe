@@ -100,6 +100,7 @@ export default async (req) => {
   return json({ ok: true });
 };
 
-// v19.2.1 · Without a route, /api/log-error fell through netlify.toml's SPA
-// rewrite and returned index.html, so these calls never reached the function.
+// V19.4 · Routed. Without a path the client's POST to /api/log-error fell through
+// to the SPA rewrite (/* → /index.html, 200), so nothing ever reached this
+// function. Same pattern as coach.js.
 export const config = { path: "/api/log-error" };

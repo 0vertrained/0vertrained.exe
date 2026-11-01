@@ -34,11 +34,21 @@ export const MUSCLE_LANDMARKS = {
 // primary counts 1.0 set, secondary counts 0.5. Ordered specific → general so
 // "incline bench" hits the bench rule, not a generic one.
 const EXERCISE_MAP = [
+  // V19.5 · Named exceptions first. Each contains a chest keyword ("pec deck",
+  // "cable fly", "incline db", "push-up") but trains something else: Reverse Pec
+  // Deck and Rear Delt Cable Fly are rear delts, Incline DB Curl is biceps, Pike
+  // Push-Up and handstand work are shoulders.
+  { match: ["reverse pec", "rear delt", "reverse fly", "rear fly"],
+    primary: ["rear_delt"], secondary: [] },
+  { match: ["db curl", "dumbbell curl", "incline curl"],
+    primary: ["biceps"], secondary: [] },
+  { match: ["pike push", "handstand"],
+    primary: ["front_delt"], secondary: ["side_delt", "triceps"] },
   { match: ["bench", "chest press", "incline press", "incline db", "incline dumbbell", "push-up", "pushup", "chest fly", "pec deck", "cable fly", "dip"],
     primary: ["chest"], secondary: ["front_delt", "triceps"] },
   { match: ["overhead press", "ohp", "shoulder press", "military", "push press", "arnold"],
     primary: ["front_delt"], secondary: ["side_delt", "triceps"] },
-  { match: ["lateral raise", "side raise", "upright row"],
+  { match: ["lateral raise", "side raise", "upright row", "y-raise"],
     primary: ["side_delt"], secondary: [] },
   { match: ["rear delt", "reverse fly", "face pull", "reverse pec"],
     primary: ["rear_delt"], secondary: [] },
@@ -58,7 +68,7 @@ const EXERCISE_MAP = [
     primary: ["triceps"], secondary: [] },
   { match: ["calf"],
     primary: ["calves"], secondary: [] },
-  { match: ["crunch", "plank", "ab ", "abs", "leg raise", "hanging raise", "rollout", "woodchop", "pallof", "sit-up", "situp"],
+  { match: ["crunch", "plank", "ab ", "abs", "leg raise", "hanging raise", "rollout", "woodchop", "pallof", "sit-up", "situp", "hollow", " l-sit", "dead bug"],
     primary: ["abs"], secondary: [] },
 ];
 

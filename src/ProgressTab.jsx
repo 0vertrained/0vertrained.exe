@@ -343,7 +343,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
 
         {/* ── V7 · Race block — countdown, taper flag, station benchmarks ── */}
         <Suspense fallback={<div style={S.block}><div style={S.annotation}>Loading race block…</div></div>}>
-          <RaceBlockSection />
+          <RaceBlockSection program={program} />
         </Suspense>
 
         {/* ── Edit mode ── */}

@@ -9,17 +9,21 @@ import { copyToClipboard } from "./clipboard";
 // ReferenceError on the legacy subView === "form" path, caught by ESLint's
 // first run. Lazy so the 80 KB analyzer chunk stays out of this chunk too.
 const FormCheck = lazy(() => import("./FormCheck").then(m => ({ default: m.FormCheck })));
-import { DEFAULT_PROGRAM, DAYS, PROGRAM_PRESETS } from "./constants";
+import { DEFAULT_PROGRAM, DAYS, PROGRAM_PRESETS, PRESET_LINEUP, presetProgram, getTodayKey } from "./constants";
+import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
 import { seedSupersetPrefsFromProgram } from "./liftLogPrefs";
 import { buildSplitSessionsFromLegacy, getProgramSessions, usesProgramSessions } from "./programSessions";
 import { loadLeaderboard, loadLiftingPRs, loadRunningPRs, loadSocialSummary, listMyCircles, createCircle, joinCircle, loadCircleSummary } from "./data";
 import { summarizeProgramForHub } from "./moreHub";
-import { countLoggedDays, buildBetaFeedbackText } from "./firstWeekJourney";
 import { buildLeaderboardHero, getBoardAverages, buildHighlights, buildPRComparison, getGapToNext, normalizeSocialSummary, buildDeltaBadge } from "./socialSummary";
 import { DEFAULT_COACH_PREFERENCES, normalizeCoachPreferences, mergeCoachPreferences, buildCoachMemoryExport, summarizeRecentTrend } from "./coachMemory";
 import { ProgramBuilderPanel } from "./ProgramBuilderPanel";
 import { NotificationsCard } from "./NotificationsCard";
 import { useConfirm } from "./ui/ConfirmDialog";
+import { RacePlanPanel } from "./RacePlanPanel";
+import { isRunPlanSpec } from "./runPlanGenerator";
+import { describeBuildWeek, keepRacePlan } from "./raceBuild";
+import { formatPlanDate, raceWeekCopy } from "./RaceWeekLine";
 
 function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings, initialAction }) {
   const { C, S } = useTheme();
@@ -36,6 +40,8 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
   const [showPresets, setShowPresets] = useState(initialAction === "switch");
   const [previewPreset, setPreviewPreset] = useState(null); // preset id being previewed
   const [builderOpen, setBuilderOpen] = useState(initialAction === "generate"); // V2.3 Program Builder panel
+  const [racePlanOpen, setRacePlanOpen] = useState(initialAction === "race");   // V19.3 race plan panel
+  const hasRacePlan = isRunPlanSpec(program?.__raceBuild);
 
   const enterEdit = () => {
     setDraft(JSON.parse(JSON.stringify(program || DEFAULT_PROGRAM)));
@@ -55,9 +61,11 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
 
   const loadPreset = async (presetId) => {
     const preset = PROGRAM_PRESETS[presetId];
-    if (!(await confirm({ message: `Switch to "${preset.name}"? This will replace your current program.`, confirmLabel: "Switch program" }))) return;
+    const basePreset = presetProgram(presetId);
+    const keepsPlan = hasRacePlan && !basePreset.__raceBuild;
+    if (!(await confirm({ message: `Switch to "${preset.name}"? This will replace your current program.${keepsPlan ? " Your race plan stays." : ""}`, confirmLabel: "Switch program" }))) return;
     setBusy(true);
-    const programToSave = (presetId === "hybrid" || !preset?.program) ? DEFAULT_PROGRAM : preset.program;
+    const programToSave = keepRacePlan(program, basePreset);
     const ok = await onSaveProgram(programToSave);
     setBusy(false);
     if (ok) {
@@ -79,8 +87,32 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
         initialGoal={settings?.programBuilder?.goal || undefined}
         onCancel={() => setBuilderOpen(false)}
         onApply={async (payload) => {
-          const ok = await onApplyGeneratedProgram(payload);
+          const ok = await onApplyGeneratedProgram({ ...payload, program: keepRacePlan(program, payload.program) });
           if (ok !== false) setBuilderOpen(false);
+        }}
+      />
+    );
+  }
+
+  // ── Race plan (V19.3) — Save writes the spec into the program's marker;
+  // End removes it. Both go through the normal program save path. ──
+  if (racePlanOpen) {
+    return (
+      <RacePlanPanel
+        program={program || DEFAULT_PROGRAM}
+        todayKey={getTodayKey()}
+        onCancel={() => setRacePlanOpen(false)}
+        onSave={async (spec) => {
+          const ok = await onSaveProgram({ ...(program || DEFAULT_PROGRAM), __raceBuild: spec });
+          if (ok) setRacePlanOpen(false);
+          return ok;
+        }}
+        onEnd={async () => {
+          const next = { ...(program || DEFAULT_PROGRAM) };
+          delete next.__raceBuild;
+          const ok = await onSaveProgram(next);
+          if (ok) setRacePlanOpen(false);
+          return ok;
         }}
       />
     );
@@ -105,7 +137,7 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
         {!previewPreset && (
           <div style={{ padding:"12px 16px" }}>
             <div style={{ fontSize:11, color:C.textDim, letterSpacing:"0.08em", marginBottom:14 }}>Tap a program to preview it before switching.</div>
-            {Object.values(PROGRAM_PRESETS).map(p => (
+            {PRESET_LINEUP.map(id => PROGRAM_PRESETS[id]).filter(Boolean).map(p => (
               <button key={p.id} onClick={() => setPreviewPreset(p.id)}
                 style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", background:C.block, border:`1px solid ${C.lineBright}`, padding:"14px 16px", marginBottom:8, cursor:"pointer", fontFamily:mono, textAlign:"left" }}>
                 <div>
@@ -125,7 +157,7 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
 
         {/* Preset preview */}
         {previewPreset && preview && (() => {
-          const previewProg = (previewPreset === "hybrid" || !preview.program) ? DEFAULT_PROGRAM : preview.program;
+          const previewProg = presetProgram(previewPreset);
           return (
             <div>
               <div style={{ padding:"12px 16px", borderBottom:`1px solid ${C.line}`, background:C.block }}>
@@ -175,12 +207,26 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
     return <>{confirmDialog}<ProgramEditor draft={draft} setDraft={setDraft} openDay={openDay} setOpenDay={setOpenDay} onCancel={cancelEdit} onSave={commitEdit} busy={busy} /></>;
   }
 
+  const todayKey = getTodayKey();
+  const planCopy = hasRacePlan ? raceWeekCopy(describeBuildWeek(program, todayKey)) : null;
   return (
     <div>
+      {hasRacePlan && (
+        <div style={S.block} data-plate="race-plan">
+          <div style={S.blockHead}>
+            <span style={S.blockTitle}>{"> "}Race plan</span>
+            <button style={S.smallBtn} onClick={() => setRacePlanOpen(true)}>[ EDIT ]</button>
+          </div>
+          <div style={S.ruledRow}><span style={S.ruledLabel}>Race</span><span style={S.ruledValue}>{program.__raceBuild.raceName} · {formatPlanDate(program.__raceBuild.raceDate)}</span></div>
+          <div style={S.ruledRow}><span style={S.ruledLabel}>{planCopy ? planCopy.eyebrow.replace(/^Race plan · /i, "") : "Status"}</span><span style={S.ruledValue}>{planCopy ? planCopy.main : "Race done. Set the next one"}</span></div>
+          <div style={{ ...S.annotation, marginTop: 8 }}>runs come from the plan and show on Today. The list below is your base template: lifting as written.</div>
+        </div>
+      )}
       <div style={S.block}>
         <div style={S.blockHead}>
           <span style={S.blockTitle}>{"> "}Weekly Program</span>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"flex-end" }}>
+            {!hasRacePlan && <button style={S.smallBtn} onClick={() => setRacePlanOpen(true)}>[ RACE PLAN ]</button>}
             <button style={S.smallBtn} onClick={() => setBuilderOpen(true)}>[ GENERATE ]</button>
             <button style={S.smallBtn} onClick={() => setShowPresets(true)}>[ SWITCH ]</button>
             <button style={S.smallBtn} onClick={enterEdit}>[ EDIT ]</button>
@@ -217,7 +263,25 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
   );
 }
 
+// V19.5 · Structured steps (what the cardio timer pre-fills from) describe the
+// same workout as the type and notes. Rewriting either here makes them stale,
+// so they're dropped and the timer goes back to reading the notes.
+function editCardio(cardio, field, val) {
+  const next = { ...cardio, [field]: field === "miles" ? parseFloat(val) || 0 : val };
+  if (field === "type" || field === "notes") delete next.steps;
+  return next;
+}
+
 // ─── Program session display ──────────────────────────────────────────────────
+// V19.5 · A hold's target is seconds and a carry's is yards (the set composer
+// already reads them that way), so "3×45" on a plank reads as "3×45s".
+function targetUnit(exercise) {
+  const mode = resolveTrackingMode(exercise);
+  if (mode === TRACKING_MODES.TIMED_HOLD) return "s";
+  if (mode === TRACKING_MODES.CARRY) return " yd";
+  return "";
+}
+
 function ProgramSessionBlock({ session, compact = false }) {
   const { C } = useTheme();
   const mono = C.fontFamily;
@@ -235,7 +299,7 @@ function ProgramSessionBlock({ session, compact = false }) {
       {(session.lifting || []).map((ex, i) => (
         <div key={`${ex.name}-${i}`} style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", gap:8 }}>
           <span style={{ fontSize: compact ? 9 : 10, color:C.textDim }}>{ex.name}</span>
-          <span style={{ fontSize: compact ? 8 : 9, color:C.text, whiteSpace:"nowrap" }}>{ex.sets}×{ex.reps}</span>
+          <span style={{ fontSize: compact ? 8 : 9, color:C.text, whiteSpace:"nowrap" }}>{ex.sets}×{ex.reps}{targetUnit(ex)}</span>
         </div>
       ))}
       {session.cardio && (
@@ -282,7 +346,7 @@ function ProgramEditor({  draft, setDraft, openDay, setOpenDay, onCancel, onSave
   };
 
   const setCardio = (field, val) => {
-    const cardio = { ...(p.cardio || { type:"", miles:0, effort:"", notes:"" }), [field]: field==="miles"?parseFloat(val)||0:val };
+    const cardio = editCardio(p.cardio || { type:"", miles:0, effort:"", notes:"" }, field, val);
     setDay("cardio", cardio);
   };
 
@@ -432,7 +496,7 @@ function SessionProgramEditor({ draft, setDraft, openDay, setOpenDay, onCancel, 
     updateSession(activeIndex, { lifting });
   };
   const setCardio = (field, val) => {
-    const cardio = { ...(active.cardio || { type:"", miles:0, effort:"", notes:"" }), [field]: field==="miles" ? parseFloat(val)||0 : val };
+    const cardio = editCardio(active.cardio || { type:"", miles:0, effort:"", notes:"" }, field, val);
     updateSession(activeIndex, { cardio });
   };
   const toggleCardio = () => updateSession(activeIndex, { cardio: active.cardio ? null : { type:"Run", miles:2, effort:"Zone 2", notes:"" } });
@@ -1046,6 +1110,9 @@ function CoachPreferencesCard({ settings, allData, onSave, showToast }) {
   const prefs = normalizeCoachPreferences(settings?.coachPreferences || DEFAULT_COACH_PREFERENCES);
   const [draft, setDraft] = useState(prefs);
   const [fallbackText, setFallbackText] = useState(null);
+  // V19.6 · Collapsed on the hub: a four-select form with a textarea was the
+  // biggest thing on the Profile screen, for an optional preference.
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setDraft(normalizeCoachPreferences(settings?.coachPreferences || DEFAULT_COACH_PREFERENCES));
@@ -1073,11 +1140,13 @@ function CoachPreferencesCard({ settings, allData, onSave, showToast }) {
 
   return (
     <div style={{ marginTop:12, paddingTop:10, borderTop:`1px solid ${C.line}` }}>
-      <div style={S.blockHead}>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, background:"none", border:"none", padding:0, cursor:"pointer", fontFamily:mono, textAlign:"left" }}>
         <span style={S.blockTitle}>{"> "}Coach Memory</span>
-        <span style={S.blockStat}>{draft.enabled ? "enabled" : "off"}</span>
-      </div>
-      <div style={{ fontSize:11, color:C.textDim, lineHeight:1.6, marginBottom:10 }}>
+        <span style={S.blockStat}>{draft.enabled ? "enabled" : "off"} · {open ? "▲ hide" : "▾ edit"}</span>
+      </button>
+      {open && (<>
+      <div style={{ fontSize:11, color:C.textDim, lineHeight:1.6, marginBottom:10, marginTop:8 }}>
         Optional, local coaching preferences only. Suggest-only: it changes tone/context, not your program, scores, or privacy boundaries.
       </div>
       <label style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, fontSize:11.5, color:C.text }}>
@@ -1106,6 +1175,7 @@ function CoachPreferencesCard({ settings, allData, onSave, showToast }) {
       {fallbackText && (
         <textarea readOnly value={fallbackText} onFocus={(e)=>e.target.select()} rows={7} style={{ ...S.notesInput, marginTop:8, fontSize:11.5, fontFamily:mono }} />
       )}
+      </>)}
     </div>
   );
 }
@@ -1115,23 +1185,6 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
   const mono = C.fontFamily;
   const [subView, setSubView] = useState("hub"); // "hub" | "program" | "form" | "social"
   const [programAction, setProgramAction] = useState(null); // "generate" | "switch" | "edit" | null
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedbackNote, setFeedbackNote] = useState("");
-  const [feedbackFallback, setFeedbackFallback] = useState(null);
-
-  const copyBetaFeedback = async () => {
-    const text = buildBetaFeedbackText({
-      tab: "Profile",
-      settings,
-      loggedDays: countLoggedDays(allData),
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
-      note: feedbackNote,
-    });
-    const ok = await copyToClipboard(text);
-    if (ok) { setFeedbackFallback(null); showToast?.("Beta note copied"); }
-    else { setFeedbackFallback(text); showToast?.("Select all + copy"); }
-  };
-
   const backToHub = () => { setSubView("hub"); setProgramAction(null); };
   const openProgram = (action) => { setProgramAction(action); setSubView("program"); };
 
@@ -1184,6 +1237,7 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
         <HubAction label="Generate plan" sublabel="Build a fresh weekly program" onClick={() => openProgram("generate")} variant="primary" />
         <HubAction label="Edit weekly program" sublabel="Adjust days, exercises, and cardio" onClick={() => openProgram("edit")} variant="primary" />
         <HubAction label="Switch preset" sublabel="Preview and load a ready-made split" onClick={() => openProgram("switch")} />
+        <HubAction label="Race plan" sublabel={isRunPlanSpec(program?.__raceBuild) ? `${program.__raceBuild.raceName} · edit or end it` : "Train for a 5K, 10K or half, built around your lifting"} onClick={() => openProgram("race")} />
         <div style={note}>Block and periodization guidance lives in Progress → Block.</div>
       </div>
 
@@ -1218,29 +1272,6 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
           </div>
         )}
 
-        {/* Beta feedback — privacy-safe plain-text note (no logs, no identifiers). */}
-        <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
-          {!feedbackOpen ? (
-            <HubAction label="Copy beta feedback note" sublabel="Version, tab, and setup mode only — no personal data" onClick={() => setFeedbackOpen(true)} />
-          ) : (
-            <div>
-              <div style={{ fontSize: 11, color: C.textFaint, lineHeight: 1.6, marginBottom: 6 }}>
-                Copies app version, current tab, logged-day count, setup goal/mode, and browser. No entries or account details are included.
-              </div>
-              <textarea value={feedbackNote} onChange={(e) => setFeedbackNote(e.target.value)} rows={2}
-                placeholder="What worked, what was confusing, what you'd change…"
-                style={{ ...S.notesInput, marginTop: 0, fontSize: 13.5 }} />
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button style={{ ...S.foodBtn, marginTop: 0, flex: 1 }} onClick={copyBetaFeedback}>Copy Beta Feedback Note</button>
-                <button style={{ ...S.smallBtn }} onClick={() => { setFeedbackOpen(false); setFeedbackFallback(null); }}>Close</button>
-              </div>
-              {feedbackFallback && (
-                <textarea readOnly value={feedbackFallback} onFocus={(e) => e.target.select()} rows={7}
-                  style={{ ...S.notesInput, marginTop: 8, fontSize: 11.5, fontFamily: mono }} />
-              )}
-            </div>
-          )}
-        </div>
       </div>
 
       {/* 4 — App */}
@@ -1249,15 +1280,12 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
           <span style={S.blockTitle}>{"> "}App</span>
           <span style={S.blockStat}>Beta build</span>
         </div>
-        <div style={groupDesc}>Preferences, sharing, and this build.</div>
-        <HubAction label="Theme & preferences" sublabel="Managed in Settings" onClick={onSettings} />
+        <div style={groupDesc}>Notifications, coach memory, and the social boards. Theme lives in Settings.</div>
         <NotificationsCard showToast={showToast} />
         <CoachPreferencesCard settings={settings} allData={allData} onSave={onSaveCoachPreferences} showToast={showToast} />
-        <HubAction label="Social sharing" sublabel="Leaderboard and PR board" onClick={() => setSubView("social")} />
-        <div style={note}>Beta feedback is welcome — use the privacy-safe feedback note above when something feels confusing.</div>
+        <HubAction label="Social boards" sublabel="Leaderboard, PR board and circles · sharing is opt-in under Settings" onClick={() => setSubView("social")} />
+        <div style={note}>Something confusing? Settings → About has a privacy-safe beta feedback note.</div>
       </div>
-
-      <a href="#/demo" style={{ display: "block", textAlign: "center", padding: "12px 4px", borderTop: `1px solid ${C.line}`, background: C.bg, fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textDim, textDecoration: "none" }}>View / share demo page →</a>
     </div>
   );
 }

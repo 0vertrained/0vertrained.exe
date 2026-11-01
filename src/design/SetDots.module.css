@@ -1,3 +1,0 @@
-/* The list item around each dot button: a flex box so the 44px hit area sets
-   the row height without an inline baseline gap beneath it. */
-.item { display: flex; }

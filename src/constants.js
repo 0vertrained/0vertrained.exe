@@ -47,7 +47,7 @@ export const DEFAULT_PROGRAM = {
     lifting: [
       { name: "Hanging Leg Raises", sets: 3, reps: 12, notes: "Full hang. Raise legs to parallel or above. Control the descent — don't swing." },
       { name: "Plank",              sets: 3, reps: 45, notes: "45 seconds. Hips in line with shoulders, no sagging. Brace like you're about to be punched." },
-      { name: "Dead Bug",           sets: 3, reps: 10, notes: "10 per side. Lower back pressed into the floor at all times. Slow and controlled — anti-extension, not just leg movement." },
+      { name: "Dead Bug",           sets: 3, reps: 10, trackingMode: "bodyweight_reps", notes: "10 per side. Lower back pressed into the floor at all times. Slow and controlled — anti-extension, not just leg movement." },
     ],
     cardio: { type: "Intervals", miles: 5, effort: "High", notes: "1 mile easy warm-up jog. Main set: 4×4 min at ~85–90% max HR — hard but sustainable, not a sprint. 3 min easy jog recovery between each interval. 1 mile easy cool-down. Alternate weekly: Week B → 6×800m at 5K effort, 2 min jog rest. Core circuit above after the run." },
   },
@@ -241,13 +241,95 @@ export function scoreFoods(q) {
 }
 
 // ── Workout Presets ────────────────────────────────────────────────────────────
+// V19.5 · A bodyweight movement the logger can't recognize by name (Inverted
+// Row, Pistol Squat, Dead Bug…) declares its tracking mode, or the set can't be
+// banked without a weight. Same string as TRACKING_MODES.BODYWEIGHT_REPS in
+// workoutLogging.js; presetLineupV19_5.test.js pins every mode a preset uses.
+const BODYWEIGHT = "bodyweight_reps";
+
 export const PROGRAM_PRESETS = {
   hybrid: {
     id: "hybrid",
-    name: "Hybrid Athlete — PPL + Hyrox",
-    desc: "Polarized 80/20 running. Heavy low-rep compounds + explosive work. Push/Pull/Legs + dedicated Hyrox engine day. Deload every 5th week.",
-    tags: ["Strength", "Hyrox", "PPL", "Polarized"],
-    program: null, // signals: use DEFAULT_PROGRAM
+    name: "Hybrid Athlete",
+    desc: "Four strength sessions and three runs a week: easy, intervals, long. Heavy compounds stop 2 reps short of failure and most miles stay conversational, so lifting and running both move forward. Every 4th week, deload: same days, 30–40% fewer sets, every run easy.",
+    tags: ["Hybrid", "4 Lifts + 3 Runs", "Strength", "Polarized"],
+    program: {
+      // Lower days sit away from the runs they'd hurt: Monday follows the rest
+      // day, the only hard run (Wednesday) is 48h after Monday's squats, and
+      // Thursday's hinge work is 48h clear of Saturday's long run.
+      Monday: {
+        type: "Lower A — Squat + Power", code: "LOWER A",
+        lifting: [
+          { name: "Box Jump",              sets: 3, reps: 3,  trackingMode: BODYWEIGHT, notes: "Power primer before the squat. A box you can land on quietly; step down and reset every rep. Quality, not conditioning." },
+          { name: "Back Squat",            sets: 4, reps: 5,  notes: "The week's main lower lift. Hard brace, at least parallel, 2 reps in reserve. When all four sets hit 5 with that reserve, add 5–10 lb next week." },
+          { name: "Romanian Deadlift",     sets: 3, reps: 8,  notes: "6–8 reps. Hips back, soft knees, bar close to the legs. Stop where the hamstrings stretch, not where the back rounds." },
+          { name: "Bulgarian Split Squat", sets: 3, reps: 8,  notes: "Per side, DBs at your sides. Rear foot on a bench, front shin close to vertical. Single-leg strength is running strength." },
+          { name: "Lying Leg Curl",        sets: 3, reps: 10, notes: "8–10 reps with a 3-second lowering. Hamstring insurance for the run days." },
+          { name: "Standing Calf Raise",   sets: 3, reps: 12, notes: "Heavy, 1-second pause in the stretch. Calves and Achilles take every stride." },
+          { name: "Hanging Leg Raise",     sets: 3, reps: 10, notes: "Controlled, no swinging. Knees bent until straight legs are clean." },
+        ],
+        cardio: null,
+      },
+      Tuesday: {
+        // Named for the lifting alone: a race plan can move this run, and a
+        // lifting day keeps its name when it does (raceBuild.js relabels only
+        // run-only days).
+        type: "Upper A — Strength", code: "UPPER A",
+        lifting: [
+          { name: "Barbell Bench Press",     sets: 4, reps: 5,  notes: "Main press. Shoulder blades pinned, bar to the lower chest, 2 reps in reserve. All four sets at 5 → add 5 lb." },
+          { name: "Weighted Pull-Up",        sets: 4, reps: 6,  notes: "4–6 reps, full hang to chin over the bar. Bodyweight until 4×6 is easy, then add load (a vest works). Lat pulldown until pull-ups are there." },
+          { name: "Standing Overhead Press", sets: 3, reps: 6,  notes: "Glutes and abs locked, press up and slightly back. Stop 2 reps short." },
+          { name: "Chest-Supported Row",     sets: 3, reps: 10, notes: "8–10 reps. Chest stays on the pad, no heaving. Squeeze the shoulder blades." },
+          { name: "Cable Lateral Raise",     sets: 3, reps: 15, notes: "12–15. Lead with the elbow, slow lowering." },
+          { name: "Face Pull",               sets: 2, reps: 15, notes: "Rope to eye level, thumbs back. Keeps the shoulders healthy under the pressing." },
+        ],
+        cardio: { type: "Easy Run", miles: 3.5, effort: "Zone 2", notes: "35 min at a pace you could hold a conversation at. Run before the lift or later in the day; easy miles don't cost upper-body strength. Finish with four 20-second strides: quick, relaxed, walk back between them." },
+      },
+      Wednesday: {
+        type: "Intervals", code: "QUALITY",
+        lifting: [],
+        cardio: {
+          type: "Intervals", miles: 5, effort: "Hard",
+          notes: "Warm up 15 min, then 5 × 3 min hard w/ 2 min easy jog. Controlled: the last rep as quick as the first. Cool down 10 min. Every other week, run 20 min of tempo instead (comfortably hard, 3–4 words at a time) between the same warm-up and cool-down.",
+          // The cardio timer reads these before the notes (V19.3 race-plan format).
+          steps: [
+            { kind: "warmup", minutes: 15, intensity: "easy" },
+            { kind: "repeat", reps: 5, work: { minutes: 3, intensity: "interval" }, recovery: { minutes: 2, intensity: "jog" } },
+            { kind: "cooldown", minutes: 10, intensity: "easy" },
+          ],
+        },
+      },
+      Thursday: {
+        type: "Lower B — Hinge + Single Leg", code: "LOWER B",
+        lifting: [
+          { name: "Trap Bar Deadlift", sets: 4, reps: 4,  notes: "Heavy and fast: end every set with 2 reps in reserve. All four sets at 4 → add 10 lb. A conventional deadlift works too; pick one and keep it for the block." },
+          { name: "Leg Press",         sets: 3, reps: 10, notes: "8–10 reps, full range, no bounce at the bottom. Quad volume without loading the spine." },
+          { name: "Walking Lunge",     sets: 3, reps: 10, notes: "Per side, DBs at your sides. Long strides, upright torso." },
+          { name: "Hip Thrust",        sets: 3, reps: 10, notes: "Pause 1 second at the top. Glutes drive every hill and every finish." },
+          { name: "Seated Calf Raise", sets: 3, reps: 15, notes: "Soleus: the calf muscle that does most of the running work. Full stretch." },
+          { name: "Pallof Press",      sets: 3, reps: 10, notes: "Per side. Anti-rotation, the core job running actually asks for." },
+        ],
+        cardio: null,
+      },
+      Friday: {
+        type: "Upper B — Hypertrophy", code: "UPPER B",
+        lifting: [
+          { name: "Incline DB Press", sets: 3, reps: 10, notes: "8–10 reps, deep stretch, controlled lowering. 1–2 reps in reserve." },
+          { name: "Neutral-Grip Lat Pulldown", sets: 3, reps: 10, notes: "8–10 reps. Neutral grip, elbows down to the ribs, full stretch at the top." },
+          { name: "Seated Cable Row", sets: 3, reps: 12, notes: "10–12 reps. Constant tension; let the shoulders reach forward." },
+          { name: "DB Lateral Raise", sets: 3, reps: 15, notes: "12–15, strict. Stop the swing before it starts." },
+          { name: "EZ-Bar Curl",      sets: 3, reps: 12, pairNext: true, notes: "10–12. Superset with the pushdown: straight from one to the other." },
+          { name: "Rope Pushdown",    sets: 3, reps: 12, notes: "10–12. Spread the rope at the bottom." },
+        ],
+        cardio: null,
+      },
+      Saturday: {
+        type: "Long Run", code: "LONG",
+        lifting: [],
+        cardio: { type: "Long Run", miles: 7, effort: "Zone 2", notes: "70 min fully conversational. Add 5–10 min a week up to 90 min, then hold. Past 75 min, take 30–60 g of carbs an hour." },
+      },
+      Sunday: { type: "Full Rest", code: "REST", lifting: [], cardio: null },
+    },
   },
   highIntensityHybrid: {
     id: "highIntensityHybrid",
@@ -431,8 +513,8 @@ export const PROGRAM_PRESETS = {
   doubleEdition: {
     id: "doubleEdition",
     name: "The Double Edition",
-    desc: "Six single-focus heavy mornings + evening pump editions for ~2\u00d7/week frequency. Every working set 0\u20132 RIR; final isolations to true failure. Polarized running and daily walks woven into both sessions. Governed by the Morning Edition states \u2014 Accumulating trims the PM, Deload advised halves the day.",
-    tags: ["2x/day", "Hypertrophy", "Aesthetic", "Polarized", "Advanced"],
+    desc: "The aggressive one: two-a-day bodybuilding and running for advanced athletes. Six heavy single-focus mornings and six pump evenings hit every muscle about twice a week; four runs (a weekly quality session and an 8-mile long run) plus daily walks build the engine. Working sets 0\u20132 RIR, final isolations to true failure. Governed by the Morning Edition states \u2014 Accumulating trims the PM, Deload advised halves the day.",
+    tags: ["2x/day", "Hypertrophy", "Running", "Polarized", "Advanced"],
     program: {
       Monday: {
         type: "Chest Heavy + Arms Pump", code: "AM/PM", lifting: [], cardio: null,
@@ -488,7 +570,7 @@ export const PROGRAM_PRESETS = {
             { name: "Machine Incline Press", sets: 3, reps: 12, notes: "10\u201315, lighter than Monday \u2014 chase the pump." },
             { name: "Cable Fly High-to-Low", sets: 3, reps: 13, notes: "12\u201315. Superset with the push-ups.", pairNext: true },
             { name: "Deficit Push-Up", sets: 3, reps: 15, notes: "To failure each set." },
-            { name: "Hanging Knee Raise", sets: 3, reps: 15, notes: "" },
+            { name: "Hanging Knee Raise", sets: 3, reps: 15, trackingMode: BODYWEIGHT, notes: "" },
           ], cardio: { type: "Walk", miles: 1.6, effort: "Very Easy", notes: "30 min. Quad day \u2014 no running." } },
         ],
       },
@@ -525,7 +607,7 @@ export const PROGRAM_PRESETS = {
           { id: "pm", label: "PM", title: "Evening Edition \u2014 Hams/Glutes", timeOfDay: "evening", emphasis: "Posterior preview + easy run", lifting: [
             { name: "Seated Leg Curl", sets: 3, reps: 13, notes: "12\u201315, lighter preview of Saturday." },
             { name: "Hip Thrust", sets: 3, reps: 11, notes: "10\u201312, pause at top." },
-            { name: "Back Extension", sets: 3, reps: 15, notes: "Glute bias, rounded upper back." },
+            { name: "Back Extension", sets: 3, reps: 15, trackingMode: BODYWEIGHT, notes: "Glute bias, rounded upper back." },
             { name: "Standing Calf Raise", sets: 3, reps: 17, notes: "15\u201320." },
           ], cardio: { type: "Zone 2 Run", miles: 3.1, effort: "Easy", notes: "~30 min, conversational." } },
         ],
@@ -589,16 +671,76 @@ export const PROGRAM_PRESETS = {
   bodybuilding: {
     id: "bodybuilding",
     name: "Bodybuilding",
-    desc: "Classic bro split. High volume per muscle group, 5 days.",
-    tags: ["Hypertrophy", "Volume", "Aesthetics"],
+    desc: "Five days (Push, Pull, Legs, Upper, Lower) train every major muscle group twice a week, with 12–18 hard sets for chest, back, quads and hamstrings. Double progression: work up to the top of each rep range on every set, then add weight. Last sets 0–2 reps from failure. Cardio is 8–10k steps a day.",
+    tags: ["Hypertrophy", "5 Days", "2×/Week Per Muscle", "Gym"],
     program: {
-      Monday:    { type:"Chest Day",           code:"CHEST",    lifting:[{name:"Barbell Bench Press",sets:4,reps:8},{name:"Incline DB Press",sets:3,reps:10},{name:"Cable Fly",sets:3,reps:12},{name:"Dips",sets:3,reps:12},{name:"Pushdowns",sets:3,reps:15}], cardio:null },
-      Tuesday:   { type:"Back Day",            code:"BACK",     lifting:[{name:"Deadlift",sets:4,reps:6},{name:"Barbell Row",sets:4,reps:8},{name:"Lat Pulldown",sets:3,reps:10},{name:"Cable Row",sets:3,reps:12},{name:"Face Pulls",sets:3,reps:15}], cardio:null },
-      Wednesday: { type:"Shoulder Day",        code:"SHOULDERS",lifting:[{name:"Seated DB Press",sets:4,reps:8},{name:"Lateral Raises",sets:4,reps:12},{name:"Front Raises",sets:3,reps:12},{name:"Rear Delt Fly",sets:3,reps:15},{name:"Shrugs",sets:3,reps:12}], cardio:null },
-      Thursday:  { type:"Rest",                code:"REST",     lifting:[], cardio:null },
-      Friday:    { type:"Legs Day",            code:"LEGS",     lifting:[{name:"Squat",sets:4,reps:8},{name:"Leg Press",sets:3,reps:10},{name:"Romanian Deadlift",sets:3,reps:10},{name:"Leg Curl",sets:3,reps:12},{name:"Calf Raises",sets:4,reps:15}], cardio:null },
-      Saturday:  { type:"Arms Day",            code:"ARMS",     lifting:[{name:"Barbell Curl",sets:4,reps:10},{name:"Incline DB Curl",sets:3,reps:12},{name:"Hammer Curls",sets:3,reps:12},{name:"Skull Crushers",sets:4,reps:10},{name:"Tricep Pushdowns",sets:3,reps:12},{name:"Overhead Extension",sets:3,reps:12}], cardio:null },
-      Sunday:    { type:"Rest",                code:"REST",     lifting:[], cardio:null },
+      Monday: {
+        type: "Push — Chest, Shoulders, Triceps", code: "PUSH",
+        lifting: [
+          { name: "Barbell Bench Press",               sets: 4, reps: 8,  notes: "6–8 reps, 1–2 in reserve. Work up to 8 on every set, then add 5 lb; expect 6s again after the jump. Shoulder blades pinned, controlled descent." },
+          { name: "Incline DB Press",                  sets: 3, reps: 10, notes: "8–10. 30–45° bench. Lower into a deep stretch; don't clang the DBs at the top." },
+          { name: "Seated DB Shoulder Press",          sets: 3, reps: 10, notes: "8–10. Stop just outside the ears at the bottom, no leaning back." },
+          { name: "Cable Lateral Raise",               sets: 4, reps: 15, notes: "12–15. Lead with the elbow. Last set: drop the weight and keep going to failure." },
+          { name: "Pec Deck",                          sets: 3, reps: 12, notes: "10–12. 1-second squeeze, slow return." },
+          { name: "Overhead Cable Triceps Extension",  sets: 3, reps: 12, notes: "10–12. Long-head stretch behind the head." },
+          { name: "Rope Pushdown",                     sets: 2, reps: 15, notes: "12–15. Spread the rope, elbows pinned." },
+        ],
+        cardio: null,
+      },
+      Tuesday: {
+        type: "Pull — Back, Rear Delts, Biceps", code: "PULL",
+        lifting: [
+          { name: "Pull-Up",               sets: 4, reps: 8,  notes: "6–8, full hang to chin over the bar. Under 6? Lat pulldown at the same effort. Every set at 8? Add load." },
+          { name: "Barbell Row",           sets: 3, reps: 8,  notes: "6–8. Overhand, bar to the lower ribs, flat back. Every set at 8 → add 5 lb." },
+          { name: "Chest-Supported Row",   sets: 3, reps: 10, notes: "8–10. Pause at the squeeze: mid-back thickness." },
+          { name: "Straight-Arm Pulldown", sets: 2, reps: 15, notes: "12–15. Lats without the biceps: long arms, slight hinge." },
+          { name: "Reverse Pec Deck",      sets: 3, reps: 15, notes: "12–15. Rear delts: lead with the pinkies." },
+          { name: "Cable Y-Raise",         sets: 2, reps: 15, notes: "12–15. Light; thumbs up, arms out in a Y. Side and rear delts." },
+          { name: "EZ-Bar Curl",           sets: 3, reps: 10, notes: "8–10, strict. No hip drive." },
+          { name: "Incline DB Curl",       sets: 2, reps: 12, notes: "10–12. Arms hang behind the body for the long-head stretch." },
+        ],
+        cardio: null,
+      },
+      Wednesday: {
+        type: "Legs — Quads, Hamstrings, Calves", code: "LEGS",
+        lifting: [
+          { name: "Back Squat",          sets: 4, reps: 8,  notes: "6–8, 1–2 in reserve. Depth before load. Every set at 8 → add 5–10 lb." },
+          { name: "Leg Press",           sets: 3, reps: 12, notes: "10–12. Feet mid-plate, full range, no bounce." },
+          { name: "Romanian Deadlift",   sets: 3, reps: 10, notes: "8–10. Hips back, long hamstrings, bar close." },
+          { name: "Leg Extension",       sets: 3, reps: 15, notes: "12–15. 1-second squeeze at the top. Last set: drop set." },
+          { name: "Lying Leg Curl",      sets: 3, reps: 12, notes: "10–12. 3-second lowering." },
+          { name: "Standing Calf Raise", sets: 4, reps: 12, notes: "10–12. 2-second pause in the stretch." },
+        ],
+        cardio: null,
+      },
+      Thursday: { type: "Rest", code: "REST", lifting: [], cardio: null },
+      Friday: {
+        type: "Upper — Chest, Back, Arms", code: "UPPER",
+        lifting: [
+          { name: "Incline Bench Press",   sets: 3, reps: 8,  notes: "6–8. The upper-chest anchor. Every set at 8 → add 5 lb." },
+          { name: "Neutral-Grip Lat Pulldown", sets: 3, reps: 10, notes: "8–10. Neutral grip, elbows to the ribs, full stretch at the top." },
+          { name: "DB Bench Press",        sets: 3, reps: 10, notes: "8–10. A deeper stretch than the barbell allows." },
+          { name: "One-Arm DB Row",        sets: 3, reps: 10, notes: "Per side, 8–10. Pull to the hip, not the chest." },
+          { name: "DB Lateral Raise",      sets: 4, reps: 15, notes: "12–15. Raise to shoulder height with no swing; slow on the way down." },
+          { name: "Cable Curl",            sets: 3, reps: 12, pairNext: true, notes: "10–12. Superset with the pushdown: no rest between." },
+          { name: "Straight-Bar Pushdown", sets: 3, reps: 12, notes: "10–12. Elbows pinned to your sides." },
+        ],
+        cardio: null,
+      },
+      Saturday: {
+        type: "Lower — Glutes, Hamstrings, Quads", code: "LOWER",
+        lifting: [
+          { name: "Hip Thrust",        sets: 4, reps: 10, notes: "8–10, 1-second pause at lockout. Every set at 10 → add 10 lb." },
+          { name: "Hack Squat",        sets: 3, reps: 10, notes: "8–10. Deep and controlled. A Smith machine squat if there's no hack squat." },
+          { name: "Seated Leg Curl",   sets: 3, reps: 12, notes: "10–12. Lean forward for a bigger hamstring stretch." },
+          { name: "Walking Lunge",     sets: 3, reps: 12, notes: "Per side, 10–12. Long strides bias the glutes." },
+          { name: "Back Extension",    sets: 3, reps: 12, trackingMode: BODYWEIGHT, notes: "10–12. Round the upper back and squeeze the glutes at the top. Hold a plate once every set reaches 12." },
+          { name: "Seated Calf Raise", sets: 4, reps: 15, notes: "12–15. Full stretch." },
+          { name: "Cable Crunch",      sets: 3, reps: 12, notes: "10–12. Exhale and curl the ribs toward the hips." },
+        ],
+        cardio: null,
+      },
+      Sunday: { type: "Rest", code: "REST", lifting: [], cardio: null },
     },
   },
   powerlifting: {
@@ -618,17 +760,72 @@ export const PROGRAM_PRESETS = {
   },
   running: {
     id: "running",
-    name: "Running Focus",
-    desc: "Race training with strength support. 3 runs + 2 lift days.",
-    tags: ["Cardio", "Endurance", "5K/10K"],
+    name: "Runner",
+    desc: "Running first: five runs a week (two easy, intervals, tempo and a long run) and two short strength sessions on the hard days, so the easy days stay easy. Most miles are conversational. Training for a race? Add a race plan: it takes over the runs and keeps the strength.",
+    tags: ["Running", "5 Runs", "5K–Half", "Strength Support", "Polarized"],
     program: {
-      Monday:    { type:"Easy Run",            code:"EASY",     lifting:[], cardio:{type:"Easy Run",miles:4,effort:"Zone 2",notes:"Conversational pace. Base building."} },
-      Tuesday:   { type:"Full Body Strength",  code:"LIFT",     lifting:[{name:"Squat",sets:3,reps:8},{name:"Romanian Deadlift",sets:3,reps:8},{name:"Bench Press",sets:3,reps:8},{name:"Barbell Row",sets:3,reps:8},{name:"Core Plank",sets:3,reps:60}], cardio:null },
-      Wednesday: { type:"Tempo Run",           code:"TEMPO",    lifting:[], cardio:{type:"Tempo Run",miles:4,effort:"85%",notes:"Comfortably hard. 1mi warm-up, 2mi tempo, 1mi cool-down."} },
-      Thursday:  { type:"Rest / Cross Train",  code:"REST",     lifting:[], cardio:null },
-      Friday:    { type:"Full Body Strength",  code:"LIFT",     lifting:[{name:"Deadlift",sets:3,reps:6},{name:"Pull-Ups",sets:3,reps:8},{name:"DB Lunges",sets:3,reps:10},{name:"Shoulder Press",sets:3,reps:8},{name:"Calf Raises",sets:3,reps:15}], cardio:null },
-      Saturday:  { type:"Long Run",            code:"LONG",     lifting:[], cardio:{type:"Long Run",miles:8,effort:"Zone 2",notes:"Easy conversational pace. This is your weekly mileage anchor."} },
-      Sunday:    { type:"Rest",                code:"REST",     lifting:[], cardio:null },
+      // Hard days hard, easy days easy: both strength sessions ride on the
+      // quality-run days, and the day before the long run is a rest day. Days
+      // with lifting are named for the lifting alone: a race plan can move or
+      // drop their run but keeps the name, and fuel and readiness advice read
+      // run words in a day's name as a run (raceBuild.js relabels only run-only
+      // days).
+      Monday: {
+        type: "Easy Run", code: "EASY",
+        lifting: [],
+        cardio: { type: "Easy Run", miles: 3.5, effort: "Zone 2", notes: "35 min fully conversational. If you can't talk in full sentences, slow down. Easy days are where the aerobic engine gets built." },
+      },
+      Tuesday: {
+        type: "Strength A — Lower Body", code: "STRENGTH A",
+        lifting: [
+          { name: "Back Squat",            sets: 3, reps: 5,  notes: "3–5 reps, 2–3 in reserve, never to failure. Heavy, low-rep strength is what improves running economy. Goblet squat while you learn the pattern." },
+          { name: "DB Single-Leg RDL",     sets: 3, reps: 8,  notes: "Per side, 6–8. Hips back, flat back, DB in the opposite hand. Hamstrings and balance." },
+          { name: "Bulgarian Split Squat", sets: 3, reps: 8,  notes: "Per side, 6–8, DBs at your sides. Single-leg strength for every stride." },
+          { name: "Standing Calf Raise",   sets: 3, reps: 12, notes: "Heavy and slow: 2 s up, 2 s down, pause at the bottom. Achilles insurance." },
+          { name: "Copenhagen Plank",      sets: 2, reps: 20, notes: "Seconds per side. Top leg on a bench, hips up. Adductors, the most-skipped running muscle. Start with the knee on the bench, progress to the foot." },
+        ],
+        cardio: {
+          type: "Intervals", miles: 5, effort: "Hard",
+          notes: "Warm up 15 min, then 6 × 3 min hard w/ 2 min easy jog at about 5K effort, even splits. Cool down 10 min. Lift after the run or later in the day.",
+          steps: [
+            { kind: "warmup", minutes: 15, intensity: "easy" },
+            { kind: "repeat", reps: 6, work: { minutes: 3, intensity: "interval" }, recovery: { minutes: 2, intensity: "jog" } },
+            { kind: "cooldown", minutes: 10, intensity: "easy" },
+          ],
+        },
+      },
+      Wednesday: {
+        type: "Easy Run + Strides", code: "EASY",
+        lifting: [],
+        cardio: { type: "Easy Run", miles: 4, effort: "Zone 2", notes: "35–40 min conversational, then six 20-second strides: quick and relaxed, full walk-back recovery. Strides keep the legs sharp without adding fatigue." },
+      },
+      Thursday: {
+        type: "Strength B — Full Body", code: "STRENGTH B",
+        lifting: [
+          { name: "Box Jump",              sets: 3, reps: 5,  trackingMode: BODYWEIGHT, notes: "Explosive; full reset each rep, step down. Plyometrics improve running economy too." },
+          { name: "Romanian Deadlift",     sets: 3, reps: 6,  notes: "4–6, 2–3 in reserve. Hips back, bar close. Posterior-chain strength without heavy-deadlift soreness." },
+          { name: "Push-Up",               sets: 3, reps: 15, notes: "10–15, body rigid. Upper-body strength holds your form late in a run. Feet on a bench once 15 is easy." },
+          { name: "One-Arm DB Row",        sets: 3, reps: 10, notes: "Per side, 8–10. Pull to the hip." },
+          { name: "Nordic Hamstring Curl", sets: 2, reps: 5,  trackingMode: BODYWEIGHT, notes: "3–5. Lower as slowly as you can, push back up with your hands. One of the best-studied hamstring-injury preventers; partial range to start." },
+          { name: "Dead Bug",              sets: 2, reps: 10, trackingMode: BODYWEIGHT, notes: "Per side. Low back pressed into the floor." },
+        ],
+        cardio: {
+          type: "Tempo Run", miles: 4.5, effort: "Threshold",
+          notes: "Warm up 10 min, then 20 min at tempo: comfortably hard, 3–4 words at a time, an effort you could hold for about an hour. Cool down 10 min. Add 5 min every other week, up to 30.",
+          steps: [
+            { kind: "warmup", minutes: 10, intensity: "easy" },
+            { kind: "repeat", reps: 1, work: { minutes: 20, intensity: "threshold" }, recovery: { minutes: 0, intensity: "jog" } },
+            { kind: "cooldown", minutes: 10, intensity: "easy" },
+          ],
+        },
+      },
+      Friday: { type: "Rest", code: "REST", lifting: [], cardio: null },
+      Saturday: {
+        type: "Long Run", code: "LONG",
+        lifting: [],
+        cardio: { type: "Long Run", miles: 7, effort: "Zone 2", notes: "70 min conversational. Add 5–10 min a week, up to 90 min for a 10K or 2 hours for a half, then hold. Past 75 min, take 30–60 g of carbs an hour." },
+      },
+      Sunday: { type: "Rest", code: "REST", lifting: [], cardio: null },
     },
   },
   beginner: {
@@ -648,35 +845,81 @@ export const PROGRAM_PRESETS = {
   },
   calisthenics: {
     id: "calisthenics",
-    name: "Calisthenics — Absolute Beginner",
-    desc: "No equipment needed. Build strength from zero using only your bodyweight. 3 days per week, short sessions, full rest between.",
-    tags: ["Beginner", "Bodyweight", "No Equipment"],
+    name: "Calisthenics",
+    desc: "Bodyweight strength for every level. Each exercise lists a ladder from easiest to hardest: work at the hardest step you can do for the target, and move up a step when every set is clean. Needs a pull-up bar; dip bars or two sturdy chairs help. 4 days, about 45 min.",
+    tags: ["Bodyweight", "All Levels", "Progressions", "4 Days", "Pull-Up Bar"],
     program: {
-      Monday:    { type:"Push Day",            code:"PUSH",     lifting:[
-        {name:"Incline Push-Ups",       sets:3, reps:10, notes:"Hands on a counter or bench — easier than floor."},
-        {name:"Wall Sit",               sets:3, reps:30, notes:"Hold 30 seconds. Thighs parallel to floor."},
-        {name:"Shoulder Taps",          sets:3, reps:10, notes:"In push-up position, tap opposite shoulder. Counts each side."},
-        {name:"Glute Bridges",          sets:3, reps:12, notes:"Lie on back, feet flat, drive hips up. Squeeze at the top."},
-        {name:"Dead Bug",               sets:3, reps:8,  notes:"Slow and controlled. Lower opposite arm/leg together."},
-      ], cardio:{type:"Brisk Walk",miles:1,effort:"Easy",notes:"10–15 minute walk to finish. Focus on breathing."} },
-      Tuesday:   { type:"Rest",                code:"REST",     lifting:[], cardio:null },
-      Wednesday: { type:"Pull & Hinge Day",    code:"PULL",     lifting:[
-        {name:"Australian Pull-Ups",    sets:3, reps:8,  notes:"Lie under a table edge, pull chest to it. Angle your body to adjust difficulty."},
-        {name:"Good Mornings",          sets:3, reps:12, notes:"Hands behind head, hinge at the hip, slight knee bend. Feel the hamstrings."},
-        {name:"Reverse Lunges",         sets:3, reps:8,  notes:"Step backward, not forward — much easier on the knees."},
-        {name:"Superman Hold",          sets:3, reps:10, notes:"Lie face down, lift arms and chest slightly. Hold 2 seconds each."},
-        {name:"Plank",                  sets:3, reps:20, notes:"Hold 20 seconds. Elbows under shoulders, flat back, don't hold your breath."},
-      ], cardio:{type:"Brisk Walk",miles:1,effort:"Easy",notes:"10–15 minute walk. Keep it comfortable."} },
-      Thursday:  { type:"Rest",                code:"REST",     lifting:[], cardio:null },
-      Friday:    { type:"Full Body Day",       code:"FULL",     lifting:[
-        {name:"Squat (bodyweight)",     sets:3, reps:12, notes:"Feet shoulder-width, toes slightly out. Sit back into it, keep chest up."},
-        {name:"Push-Ups (floor)",       sets:3, reps:6,  notes:"If 6 is too many, go back to incline for now. Never sacrifice form."},
-        {name:"Step-Ups",               sets:3, reps:10, notes:"Use a sturdy chair or low step. Drive through the heel of the lead foot."},
-        {name:"Scapular Rows",          sets:3, reps:10, notes:"Arms out in front, pinch shoulder blades together. Can use a resistance band."},
-        {name:"Hollow Body Hold",       sets:3, reps:15, notes:"Lie on back, lower back pressed to floor, legs slightly lifted. Hold 15 sec."},
-      ], cardio:{type:"Brisk Walk",miles:1.5,effort:"Easy",notes:"Slightly longer walk today — you've earned it."} },
-      Saturday:  { type:"Active Recovery",     code:"ACTIVE",   lifting:[], cardio:{type:"Easy Walk",miles:1,effort:"Very Light",notes:"Optional. Just move — 10 minutes of walking is enough."} },
-      Sunday:    { type:"Rest",                code:"REST",     lifting:[], cardio:null },
+      // Every movement banks without a weight: holds by name (plank, hold, wall
+      // sit, dead hang), bodyweight reps by name (push-up, pull-up, chin-up,
+      // dip, hanging leg raise) or by a declared trackingMode. Added load (vest,
+      // backpack) still logs in the optional + lb field.
+      Monday: {
+        type: "Upper A — Pull + Push", code: "UPPER A",
+        lifting: [
+          { name: "Pull-Up",          sets: 4, reps: 6,  pairNext: true, notes: "3–6 reps, 1–2 in reserve. Ladder: negatives (jump up, 5 s down) → band-assisted → full pull-up → weighted. Friday's dead hangs build the grip for it. Superset with the dips." },
+          { name: "Parallel Bar Dip", sets: 4, reps: 8,  notes: "5–8. Ladder: bench dip → negatives (5 s down) → full dip → weighted. Shoulders down, slight forward lean." },
+          { name: "Inverted Row",     sets: 3, reps: 10, pairNext: true, trackingMode: BODYWEIGHT, notes: "8–10. Under a low bar, rings or a sturdy table, body rigid. Ladder: bar chest-high → hip-high → feet on a box → one arm. Superset with the push-ups." },
+          { name: "Push-Up",          sets: 3, reps: 12, notes: "8–12, chest to the floor, body rigid. Ladder: hands on a bench → floor → feet on a bench → feet up with a vest or backpack." },
+          { name: "Hollow Body Hold", sets: 3, reps: 30, notes: "Seconds. Low back glued to the floor. Ladder: knees tucked → one leg out → arms and legs long → holding a light weight overhead." },
+        ],
+        cardio: null,
+      },
+      Tuesday: {
+        type: "Lower A — Squat + Calves", code: "LOWER A",
+        lifting: [
+          { name: "Pistol Squat",            sets: 4, reps: 5,  trackingMode: BODYWEIGHT, notes: "Per side, 3–5. Ladder: sit to a high box on one leg → lower box → holding a post → full pistol → holding a weight." },
+          { name: "Bulgarian Split Squat",   sets: 3, reps: 12, trackingMode: BODYWEIGHT, notes: "Per side, 8–12, rear foot on a bench or chair. Ladder: bodyweight → backpack or vest → slow 3-second lowering." },
+          { name: "Nordic Hamstring Curl",   sets: 3, reps: 5,  trackingMode: BODYWEIGHT, notes: "3–5. Heels anchored under a couch or a partner's hands; lower as slowly as you can, push back up with your hands. Ladder: partial range → full lowering → full rep." },
+          { name: "Single-Leg Glute Bridge", sets: 3, reps: 12, trackingMode: BODYWEIGHT, notes: "Per side, 10–12, 2-second squeeze at the top. Ladder: both legs → one leg → shoulders on a bench." },
+          { name: "Single-Leg Calf Raise",   sets: 3, reps: 15, trackingMode: BODYWEIGHT, notes: "Per side, 12–15, on a step. Full stretch, 1-second pause at the bottom. Ladder: both legs → one leg → holding a weight." },
+          { name: "Side Plank",              sets: 2, reps: 30, notes: "Seconds per side. Ladder: from the knees → full → top leg raised." },
+        ],
+        cardio: null,
+      },
+      Wednesday: { type: "Rest", code: "REST", lifting: [], cardio: null },
+      Thursday: {
+        type: "Upper B — Overhead + Skill", code: "UPPER B",
+        lifting: [
+          { name: "Wall Handstand Hold", sets: 3, reps: 30, notes: "Seconds. Skill goes first, while you're fresh. Ladder: pike hold with feet on a box → back-to-wall handstand → chest-to-wall handstand → freestanding." },
+          { name: "Pike Push-Up",        sets: 3, reps: 8,  notes: "6–8. Hips up, head to the floor in front of the hands. Ladder: floor pike → feet on a box → wall handstand push-up negatives → full handstand push-up." },
+          { name: "Chin-Up",             sets: 4, reps: 6,  pairNext: true, notes: "3–6, palms facing you. Same ladder as Monday's pull-ups. Superset with the archer push-ups." },
+          { name: "Archer Push-Up",      sets: 4, reps: 6,  notes: "Per side, 4–6. Ladder: wide push-up → archer with the straight hand on a ball → full archer → one-arm push-up negatives." },
+          { name: "Scapular Pull-Up",    sets: 2, reps: 10, notes: "8–10. From a dead hang, pull the shoulder blades down without bending the elbows. Shoulder health and pull-up strength. Ladder: feet on the floor → feet off the floor → 2-second pause at the top." },
+          { name: "L-Sit Hold",          sets: 3, reps: 20, notes: "Seconds, on parallettes, chairs or the floor. Ladder: feet on the floor → tuck → one leg straight → full L." },
+        ],
+        cardio: null,
+      },
+      Friday: {
+        type: "Lower B — Hinge + Power", code: "LOWER B",
+        lifting: [
+          { name: "Jump Squat",                   sets: 3, reps: 5,  trackingMode: BODYWEIGHT, notes: "Explosive: jump as tall as you can, land soft, reset every rep. Ladder: quick bodyweight squat → jump squat → tuck jump." },
+          { name: "Step-Up",                      sets: 3, reps: 10, trackingMode: BODYWEIGHT, notes: "Per side, 8–10. Drive through the front heel; don't push off the back foot. Ladder: low step → knee-height box → wearing a backpack." },
+          { name: "Single-Leg Romanian Deadlift", sets: 3, reps: 10, trackingMode: BODYWEIGHT, notes: "Per side, 8–10. Reach the hips back, slight knee bend, flat back. Ladder: fingertips on a wall → hands-free → holding a backpack." },
+          { name: "Wall Sit",                     sets: 3, reps: 45, notes: "Seconds, thighs parallel. Ladder: higher on the wall → parallel → one leg." },
+          { name: "Hanging Leg Raise",            sets: 3, reps: 10, notes: "8–10, no swinging. Ladder: hanging knee raise → straight legs to parallel → toes to the bar." },
+          { name: "Dead Hang",                    sets: 2, reps: 45, notes: "Seconds. Grip and shoulder health, the base every pull-up stands on. Ladder: two hands → alternating one-arm hangs." },
+        ],
+        cardio: null,
+      },
+      Saturday: {
+        type: "Easy Run or Walk", code: "EASY",
+        lifting: [],
+        cardio: { type: "Easy Run or Brisk Walk", miles: 2.5, effort: "Easy", notes: "25–35 min, optional. Easy enough to talk the whole way; walk if you don't run. Conditioning without stealing from the strength days." },
+      },
+      Sunday: { type: "Rest", code: "REST", lifting: [], cardio: null },
     },
   },
 };
+
+// V19.5 · What Switch preset lists, in this order: one plan per kind of
+// athlete. Presets left out stay defined. A loaded preset is copied into the
+// account's program, so nobody already on one is affected; onboarding's legacy
+// path and the presets' own tests still read them, and any can come back by
+// adding its id here.
+export const PRESET_LINEUP = ["hybrid", "bodybuilding", "calisthenics", "running", "doubleEdition"];
+
+// The program a preset loads. A preset without one of its own loads
+// DEFAULT_PROGRAM.
+export function presetProgram(id) {
+  return PROGRAM_PRESETS[id]?.program || DEFAULT_PROGRAM;
+}

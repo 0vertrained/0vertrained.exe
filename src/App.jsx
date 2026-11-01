@@ -6,16 +6,17 @@
 // first paint, so they load on demand and stay out of the initial bundle.
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { ThemeProvider, useTheme } from "./theme";
-import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName, PROGRAM_PRESETS } from "./constants";
+import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName, presetProgram } from "./constants";
 import { applyRaceBuild } from "./raceBuild";
+import { detectDayZero } from "./dayZero";
+import { readOAuthReturn, cleanOAuthReturnUrl } from "./oauthReturn";
 import { logFunnelEvent } from "./funnel";
 import { logOut, ensureProfileExists } from "./auth";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { CommandPalette } from "./ui/CommandPalette";
 import { supabase } from "./supabaseClient";
-import { loadAllEntries, loadRecentEntries, loadOlderEntries, entriesWindowCutoff, saveEntry, importEntries, loadProgram, saveProgram, programLoadFailed, loadSettings, saveSettings, DEFAULT_SETTINGS, setCachedUserId, clearCachedUserId, loadBackupSnapshot, buildBackupEnvelope, entriesFromImport } from "./data";
+import { loadAllEntries, loadAllEntriesChecked, loadRecentEntries, loadOlderEntries, entriesWindowCutoff, saveEntry, importEntries, loadProgramChecked, saveProgram, loadSettingsChecked, saveSettings, patchSettings, DEFAULT_SETTINGS, setCachedUserId, clearCachedUserId } from "./data";
 import { readCache, writeCache, clearCache, getCacheStatus } from "./appDataCache";
-import { APP_VERSION } from "./appMeta";
 import { readPendingSaves, writePendingSaves } from "./pendingSavesStore";
 import { clearRecoveryDashboardCache } from "./recoveryDashboardSessionCache";
 import AuthScreen from "./AuthScreen";
@@ -31,7 +32,7 @@ import { Header } from "./AppHeader";
 import { BottomNav, QuickActionSheet, QUICK_ACTIONS, TABS_ORDER } from "./AppBottomNav";
 import { RefreshingBar } from "./ui/primitives";
 import { resolveLoadState } from "./uiStability";
-import { isFirstWeekUser, buildNewUserEmptyState } from "./firstWeekJourney";
+import { isFirstWeekUser, buildNewUserEmptyState, countLoggedDays } from "./firstWeekJourney";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TodayTab } from "./TodayTab";
 
@@ -52,6 +53,7 @@ const MoreTab = lazy(() => import("./MoreTab").then(m => ({ default: m.MoreTab }
 const RecoveryDashboard = lazy(() => import("./RecoveryDashboard").then(m => ({ default: m.RecoveryDashboard })));
 const SettingsScreen = lazy(() => import("./SettingsScreen").then(m => ({ default: m.SettingsScreen })));
 const Tutorial = lazy(() => import("./Tutorial").then(m => ({ default: m.Tutorial })));
+const DayZeroSpecimen = lazy(() => import("./DayZeroSpecimen").then(m => ({ default: m.DayZeroSpecimen })));
 const Coach = lazy(() => import("./Coach").then(m => ({ default: m.Coach })));
 
 // The app shell reserves room for the persistent bottom dock during normal tab
@@ -97,8 +99,34 @@ function AppInner({ onThemeChange }) {
   const [settings, setSettings]       = useState(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
+  // V19.4 · Where Settings opens and the one status line it shows there
+  // (Recovery's links and the wearable OAuth return land on Integrations).
+  const [settingsLanding, setSettingsLanding] = useState({ section: null, notice: null });
+  const openSettings = (section = null, notice = null) => {
+    setSettingsLanding({ section, notice });
+    setSettingsOpen(true);
+    setSheetOpen(false);
+  };
+  // Latest settings for async merges that outlive the render that started them.
+  const settingsRef = useRef(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
   const [showTutorial, setShowTutorial] = useState(false);
+  // V19.4 · null, or why this account can't be shown: "unreachable" (the
+  // settings read failed and nothing is cached on this device), "missing" (no
+  // profile row) or "cap" (no profile row, and signup is at its user limit).
+  // While set, the tabs and Profile show a retry panel instead: setup and the
+  // Day Zero samples would otherwise run off default settings, and any
+  // settings or program save would write those defaults over the account.
+  const [accountUnavailable, setAccountUnavailable] = useState(null);
+  const [bootAttempt, setBootAttempt] = useState(0);
   const [loaded, setLoaded]       = useState(false);
+  // V19.4 · This account's settings are known: from a successful read or from
+  // its own cache. Until then the in-memory settings are defaults, so nothing
+  // may write them anywhere: edits and queued saves skip the cache, the queue
+  // waits, and Profile and Settings stay closed.
+  const accountReady = loaded && !accountUnavailable;
+  const accountReadyRef = useRef(accountReady);
+  useEffect(() => { accountReadyRef.current = accountReady; }, [accountReady]);
   // True while a background stale-while-revalidate fetch runs on top of already
   // shown (cached) content. Drives the quiet RefreshingBar so a cached tab never
   // blanks between the cache paint and the network refresh.
@@ -140,13 +168,10 @@ function AppInner({ onThemeChange }) {
 
   const saveTimers = useRef({});
   const hasLoadedRef = useRef(null); // stores the user id that was last loaded
-  // v19.2.1 · The load effect reads the current theme through a ref. With
-  // themeId in its deps, the effect's own onThemeChange() call re-ran it: the
-  // cleanup cancelled the in-flight revalidation and the hasLoadedRef guard
-  // stopped it restarting, so users whose saved theme differed from the OS
-  // never received fresh data ("Refreshing…" forever).
-  const themeIdRef = useRef(themeId);
-  useEffect(() => { themeIdRef.current = themeId; }, [themeId]);
+  // V13.5 · The user whose durable offline queue has been flushed (see the
+  // flush effect below). V19.4 · Declared up here so the logged-out branch of
+  // the load effect can reset it.
+  const pendingFlushedRef = useRef(null);
 
   // Keep the keyboard focus-ring colour in step with the active theme's ink,
   // and sync the document background/colour so the gutters outside the
@@ -278,13 +303,27 @@ function AppInner({ onThemeChange }) {
       setProgram(DEFAULT_PROGRAM);
       setMyUsername(DEMO_SETTINGS.username);
       setSettings(DEMO_SETTINGS);
-      if (themeIdRef.current !== DEMO_SETTINGS.theme) onThemeChange(DEMO_SETTINGS.theme);
+      if (themeId !== DEMO_SETTINGS.theme) onThemeChange(DEMO_SETTINGS.theme);
       setShowTutorial(false);
       setLoaded(true);
       return;
     }
     if (!user) {
       setData({}); setProgram(null); setLoaded(false); setRefreshing(false);
+      // V19.4 · Nothing from the last account carries into the next one on this
+      // page: its settings and username, its in-memory save queue (persisted
+      // under its own key, it flushes when that account signs back in), and
+      // any save still waiting on its debounce timer.
+      setSettings(DEFAULT_SETTINGS); setMyUsername(null); setPendingSaves({});
+      setShowTutorial(false); setAccountUnavailable(null);
+      // Any way of being signed out (Log out, or another tab), not just Log out:
+      // close what was open (the export screen holds the last account's whole
+      // history) and start the next sign-in on Today.
+      setOverlay(null); setSettingsOpen(false); setTab("Today");
+      setExportModal(null); setImportOpen(false); setLogDate(null); setCoachOpen(false);
+      Object.values(saveTimers.current).forEach((t) => clearTimeout(t));
+      saveTimers.current = {};
+      pendingFlushedRef.current = null;
       hasLoadedRef.current = null;
       setCacheStatus({ cached: false });
       return;
@@ -312,14 +351,17 @@ function AppInner({ onThemeChange }) {
       setPendingSaves(prev => ({ ...storedPending, ...prev }));
     }
 
-    if (cachedData) {
+    // V19.4 · A cache without settings can't stand in for the account (the
+    // paint would run on defaults with Profile and Settings open), so it gets
+    // the skeleton like no cache at all.
+    if (cachedData?.settings) {
       // Cache hit — hydrate immediately (fast perceived load)
       setData({ ...(cachedData.entries || {}), ...storedPending });
       perfMark("boot", "cache-paint");
       setProgram(cachedData.program || DEFAULT_PROGRAM);
       setMyUsername(cachedData.myUsername || null);
       setSettings(cachedData.settings || DEFAULT_SETTINGS);
-      if (cachedData.settings?.theme && cachedData.settings.theme !== themeIdRef.current) {
+      if (cachedData.settings?.theme && cachedData.settings.theme !== themeId) {
         onThemeChange(cachedData.settings.theme);
       }
       // For now, assume cached data is already onboarded (we only cache after initial load)
@@ -336,13 +378,16 @@ function AppInner({ onThemeChange }) {
 
     // Step 2: Revalidate in background regardless (stale-while-revalidate)
     (async () => {
+      let unavailable = false;
       try {
         // V14.1 · Signup-orphan self-heal: a session with no profiles row (auth
         // succeeded, profile insert failed) finishes setting itself up here.
         // Runs before the loads so profile-dependent reads see the healed row.
+        let healReason = null;
         if (!demoMode) {
           const healed = await ensureProfileExists();
           if (cancelled) return;
+          healReason = healed.ok ? null : healed.reason;
           if (healed.ok && healed.existed === false) {
             showToast(healed.needsRecoveryPhrase
               ? "Account setup finished — set a recovery phrase in Settings → Account"
@@ -360,8 +405,32 @@ function AppInner({ onThemeChange }) {
         // merges UNDER current state, so fresher keys always win; (3) the
         // final cache write persists the fully merged map for the next boot.
         const HISTORY_CUTOFF = entriesWindowCutoff(180);
-        const [recent, prog, userSettings] = await Promise.all([loadRecentEntries(180), loadProgram(), loadSettings()]);
+        const [recent, programRead, settingsRead] = await Promise.all([loadRecentEntries(180), loadProgramChecked(), loadSettingsChecked()]);
         if (cancelled) return;
+
+        // V19.4 · A failed read is not a new account. The plain loaders answer
+        // defaults when the server can't be reached, so opening the app offline
+        // swapped in the default program, put the setup wizard in front of an
+        // existing athlete, and wrote both into the cache. When a read fails,
+        // keep this account's cached copy; the next launch reads again. Never
+        // fall back to what's in memory: it can be another account's.
+        const programReadFailed = Boolean(programRead.error);
+        const settingsReadFailed = Boolean(settingsRead.error);
+        const prog = programReadFailed ? (cachedData?.program ?? null) : programRead.program;
+        const userSettings = settingsRead.missing ? null : settingsReadFailed ? (cachedData?.settings ?? null) : settingsRead.settings;
+        const username = settingsReadFailed ? (cachedData?.myUsername ?? null) : settingsRead.settings.username;
+        if (!userSettings || (programReadFailed && !prog)) {
+          // Nothing trustworthy to show: no profile row, or no answer and
+          // nothing cached (for settings or for the program, which would
+          // otherwise show and cache the default plan as this athlete's).
+          // Show the retry panel rather than setup and the samples running
+          // off defaults.
+          unavailable = true;
+          setAccountUnavailable(settingsRead.missing ? (healReason === "cap" ? "cap" : "missing") : "unreachable");
+          setLoaded(true);
+          return;
+        }
+        setAccountUnavailable(null);
 
         // Update state with fresh data. Merge order (lowest → highest
         // precedence): cached history · fresh recent window · queued offline
@@ -370,33 +439,28 @@ function AppInner({ onThemeChange }) {
         let mergedEntries = { ...cachedHistory, ...recent, ...storedPending };
         setData(mergedEntries);
         perfMark("boot", "revalidate-done");
-        // v19.2.1 · A failed program read keeps the cached program instead of
-        // swapping in DEFAULT_PROGRAM (saveProgram is blocked until a read works).
-        const freshProgram = prog || (programLoadFailed(user.id) ? cachedData?.program : null) || DEFAULT_PROGRAM;
-        setProgram(freshProgram);
-        // v19.2.1 · loadSettings returns null when the server read fails. Keep
-        // the cached settings (never defaults) and leave the onboarding state
-        // alone; saveSettings refuses whole-blob writes until a read succeeds,
-        // so a flaky boot can no longer overwrite real settings with defaults.
-        const freshSettings = userSettings || cachedData?.settings || DEFAULT_SETTINGS;
-        const freshUsername = userSettings ? userSettings.username : (cachedData?.myUsername || null);
-        setMyUsername(freshUsername);
-        setSettings(freshSettings);
-        if (userSettings) {
-          if (userSettings.theme && userSettings.theme !== themeIdRef.current) {
-            onThemeChange(userSettings.theme);
+        setProgram(prog || DEFAULT_PROGRAM);
+        setMyUsername(username);
+        setSettings(userSettings);
+        // Set unconditionally: the launch value of themeId is stale once the
+        // cached paint has switched themes, so comparing against it could skip
+        // a switch back (setting the theme it already has is a no-op).
+        if (userSettings.theme) onThemeChange(userSettings.theme);
+        // Setup opens only when the server says this account hasn't done it.
+        if (!settingsReadFailed) {
+          if (userSettings.onboarded !== true) {
+            setShowTutorial(true);
+          } else {
+            setShowTutorial(false);
           }
-          setShowTutorial(userSettings.onboarded !== true);
-        } else {
-          showToast("Couldn't load your settings — settings changes are paused until you reconnect");
         }
 
         // Update cache with fresh data
         writeCache(user.id, {
           entries: mergedEntries,
-          program: freshProgram,
-          settings: freshSettings,
-          myUsername: freshUsername,
+          program: prog || DEFAULT_PROGRAM,
+          settings: userSettings,
+          myUsername: username,
         });
 
         // Update cache status to reflect the fresh load
@@ -419,18 +483,37 @@ function AppInner({ onThemeChange }) {
           if (count > 0) {
             writeCache(user.id, {
               entries: mergedEntries,
-              program: freshProgram,
-              settings: freshSettings,
-              myUsername: freshUsername,
+              program: prog || DEFAULT_PROGRAM,
+              settings: userSettings,
+              myUsername: username,
             });
           }
         }).catch(() => {});
       } finally {
         if (!cancelled) setRefreshing(false);
+        // V19.4 · Back from a wearable's OAuth screen (or an old /settings
+        // link): once this account's settings are fresh, open Integrations
+        // with the result, then take the markers out of the address so a
+        // reload doesn't replay it.
+        // Not while the account is unavailable: Settings would show defaults,
+        // and a save from there would write them over the profile. The markers
+        // stay in the address for the retry.
+        const landing = cancelled || unavailable ? null : readOAuthReturn(window.location);
+        if (landing) {
+          try { window.history.replaceState(window.history.state, "", cleanOAuthReturnUrl(window.location)); } catch { /* best-effort */ }
+          openSettings(landing.section, landing.notice);
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, [user, authReady, demoMode, onThemeChange]);
+    // V19.4 · themeId is read above but deliberately not a dependency. The
+    // cached boot switches to the saved theme, and as a dependency that change
+    // cancelled this run before the revalidation (and the OAuth return) could
+    // finish, leaving stale data and the refresh bar up whenever the saved
+    // theme differed from the phone's light/dark setting. (In demo mode it also
+    // rebuilt the demo data on every theme change.) bootAttempt is the retry
+    // panel's "Try again".
+  }, [user, authReady, demoMode, onThemeChange, bootAttempt]);
 
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(null), 2200); }, []);
@@ -464,7 +547,7 @@ function AppInner({ onThemeChange }) {
         // successful saves reached appDataCache, so a reload mid-outage
         // dropped the entry from the UI even though it was queued. Belt and
         // suspenders with the pendingSavesStore overlay on boot.
-        if (user?.id) {
+        if (user?.id && accountReadyRef.current) { // V19.4 · only once the account's settings are known
           writeCache(user.id, {
             entries: { ...data, [dateKey]: dayPayload },
             program,
@@ -481,7 +564,7 @@ function AppInner({ onThemeChange }) {
         });
         // Keep cache warm with the saved entry. Use the payload directly so the
         // cache cannot lag behind React state captured by this debounced closure.
-        if (user?.id) {
+        if (user?.id && accountReadyRef.current) { // V19.4 · only once the account's settings are known
           writeCache(user.id, {
             entries: { ...data, [dateKey]: dayPayload },
             program,
@@ -500,14 +583,15 @@ function AppInner({ onThemeChange }) {
   // ref makes the scheduleSave dependency churn harmless (re-runs no-op).
   // Declared AFTER scheduleSave — the dependency array evaluates at render
   // time, so referencing the const above avoids a temporal-dead-zone crash.
-  const pendingFlushedRef = useRef(null);
+  // V19.4 · Gated on accountReady, not just loaded: behind the retry panel the
+  // account's settings are unknown.
   useEffect(() => {
     const uid = user?.id;
-    if (!uid || demoMode || !loaded) return;
+    if (!uid || demoMode || !accountReady) return;
     if (pendingFlushedRef.current === uid) return;
     pendingFlushedRef.current = uid;
     Object.entries(readPendingSaves(uid)).forEach(([dateKey, payload]) => scheduleSave(dateKey, payload));
-  }, [user?.id, demoMode, loaded, scheduleSave]);
+  }, [user?.id, demoMode, accountReady, scheduleSave]);
 
   // V13.5 · Write-through: every queue change persists, so an iOS suspend or
   // app close mid-outage no longer loses queued workouts. The empty-pre-flush
@@ -526,6 +610,16 @@ function AppInner({ onThemeChange }) {
       Object.values(saveTimers.current).forEach(t => clearTimeout(t));
     };
   }, []);
+
+  // V19.4 · A device that turned notifications on before the push endpoint was
+  // routed holds a subscription the server never stored. Send it again once
+  // the account is loaded (push.js runs it once per page load). Only devices
+  // with permission granted load the push module at all.
+  useEffect(() => {
+    if (!loaded || !user?.id || demoMode) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    import("./push").then((m) => m.resyncPushSubscription()).catch(() => {});
+  }, [loaded, user?.id, demoMode]);
 
   // Monitor online/offline status and retry pending saves
   useEffect(() => {
@@ -570,8 +664,9 @@ function AppInner({ onThemeChange }) {
       const updated = setPath(current, path.split("."), value);
       const next = { ...prev, [dateKey]: updated };
       // Optimistically cache local edits so a reload does not drop visible work
-      // while a debounced/offline save is still pending.
-      if (!demoMode && user?.id) {
+      // while a debounced/offline save is still pending. V19.4 · Only once the
+      // account's settings are known (accountReady).
+      if (!demoMode && user?.id && accountReadyRef.current) {
         writeCache(user.id, { entries: next, program, settings, myUsername });
       }
       scheduleSave(dateKey, updated);
@@ -608,6 +703,25 @@ function AppInner({ onThemeChange }) {
     }
     setSettingsOpen(false);
     showToast("Settings saved");
+  };
+
+  // V19.4 · Quiet patch for Integrations: it persists a connection flag the
+  // moment the server confirms the connection. The Save path above closes
+  // Settings and toasts, which would shut the screen right after an OAuth
+  // return lands there. This keeps you on Integrations and only speaks up on
+  // failure.
+  // The write is a server-side merge (patchSettings), never this device's whole
+  // settings object: right after an OAuth return the device copy can be the
+  // defaults (a failed read), and saving those would wipe the profile.
+  const handlePatchSettings = async (patch) => {
+    if (!demoMode) {
+      const res = await patchSettings(patch);
+      if (res?.error) { showToast("Settings save error"); return { ok: false, error: res.error }; }
+    }
+    setSettings((prev) => ({ ...prev, ...patch }));
+    // Gated: a sign-out during the save resets settingsRef to the defaults.
+    if (!demoMode && user?.id && accountReadyRef.current) writeCache(user.id, { entries: data, program, settings: { ...settingsRef.current, ...patch }, myUsername });
+    return { ok: true };
   };
 
   // V18.6 · Persist coaching-system changes without opening or closing the
@@ -649,7 +763,6 @@ function AppInner({ onThemeChange }) {
   // Handle tutorial completion — apply full V2.2 setup payload + mark onboarded.
   // Backward compatible: older callers pass a bare program-preset id string.
   const handleTutorialComplete = async (payload) => {
-    setShowTutorial(false);
     const setup = typeof payload === "string" ? { programPreset: payload } : (payload || {});
 
     // Merge onboarding fields over existing settings without clobbering
@@ -683,17 +796,39 @@ function AppInner({ onThemeChange }) {
     } else {
       // Legacy preset path: explicit choice wins, else derive from goal.
       const programPreset = setup.programPreset || resolveOnboardingProgramPreset(setup.goal);
-      const preset = PROGRAM_PRESETS[programPreset];
-      // hybrid signals "use DEFAULT_PROGRAM"; all others carry their own program object
-      programToSave = (programPreset === "hybrid" || !preset?.program) ? DEFAULT_PROGRAM : preset.program;
+      // V19.5 · Every listed preset carries its own program (hybrid included);
+      // an unknown id still falls back to DEFAULT_PROGRAM.
+      programToSave = presetProgram(programPreset);
     }
 
     if (!demoMode) {
-      await saveProgram(programToSave);
-      // Save the full merged object (not a single-key patch) so setup + goals
-      // land together and nothing already in settings is lost.
-      await saveSettings(mergedSettings);
+      // V19.4 · Setup only counts once it's saved. These results used to be
+      // ignored: a failed save closed the wizard as if all was well, and it
+      // came back on the next launch. Now the wizard stays on its last step
+      // and Finish retries. Settings (the onboarded flag) only save after the
+      // program does, so a half-saved setup never marks the account set up.
+      // Setup's own fields land together in one server-side merge
+      // (patchSettings), so the account's other stored settings are kept even
+      // when this device's copy is stale or the defaults (a failed read).
+      const onboardingPatch = {
+        setup: mergedSettings.setup,
+        onboarded: mergedSettings.onboarded,
+        goals: mergedSettings.goals,
+        ...(setup.builderPrefs ? { programBuilder: mergedSettings.programBuilder } : {}),
+      };
+      let programRes, settingsRes;
+      try {
+        programRes = await saveProgram(programToSave);
+        settingsRes = programRes?.error ? null : await patchSettings(onboardingPatch);
+      } catch (e) {
+        programRes = { error: e?.message || "save failed" };
+      }
+      if (programRes?.error || settingsRes?.error) {
+        showToast("Setup didn't save. Check your connection and tap Finish again.");
+        return;
+      }
     }
+    setShowTutorial(false);
     setProgram(programToSave);
     setSettings(mergedSettings);
     if (!demoMode && user?.id) {
@@ -780,12 +915,15 @@ function AppInner({ onThemeChange }) {
   };
 
   // Export / import helpers
-  const deliver = async (text, filename, mime, label) => {
+  // V19.4 · note: one line about what the file holds (an incomplete export),
+  // shown on the export screen and in the "Shared" toast. A separate toast
+  // would sit under the full-screen export screen, or be replaced by "Shared".
+  const deliver = async (text, filename, mime, label, note = null) => {
     try {
       const file = new File([text], filename, { type: mime });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: filename });
-        showToast("Shared"); return;
+        showToast(note ? `Shared. ${note}` : "Shared"); return;
       }
     } catch (e) {}
     try {
@@ -796,43 +934,40 @@ function AppInner({ onThemeChange }) {
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {}
-    setExportModal({ text, filename, label });
+    setExportModal({ text, filename, label, note });
   };
 
-  // v19.2.1 · Full backup: all history from the server (not just the window
-  // held in memory) plus program and settings, with unsynced local days on
-  // top. The day count in the label lets the athlete confirm it is complete.
-  const exportJSON = async () => {
-    const exportedAt = new Date().toISOString();
-    if (demoMode) {
-      const envelope = buildBackupEnvelope({ entries: data, program, settings, username: myUsername, appVersion: APP_VERSION, exportedAt });
-      deliver(JSON.stringify(envelope, null, 2), `0vertrained_backup_${getTodayKey()}.json`, "application/json", `Full backup · ${envelope.counts.days} days`);
-      return;
-    }
-    showToast("Preparing full backup…");
-    const snapshot = await loadBackupSnapshot();
-    if (snapshot.error) { showToast("Backup needs a connection — try again online"); return; }
-    const envelope = buildBackupEnvelope({
-      entries: { ...snapshot.entries, ...pendingSaves },
-      program: snapshot.program,
-      settings: snapshot.settings,
-      username: snapshot.username,
-      appVersion: APP_VERSION,
-      exportedAt,
-    });
-    deliver(JSON.stringify(envelope, null, 2), `0vertrained_backup_${getTodayKey()}.json`, "application/json", `Full backup · ${envelope.counts.days} days`);
+  // V19.4 · Exports cover the whole history. In-memory `data` is the 180-day
+  // boot window plus whatever older history the background hydrate merged, so
+  // after a failed hydrate a "Full Backup" was quietly short. Page everything
+  // from the server and lay the in-memory map over it: queued or unsaved local
+  // edits win, and nothing in memory is lost if the fetch comes back partial.
+  const loadFullHistory = async () => {
+    if (demoMode) return { history: data, note: null };
+    let server = {};
+    let complete = false;
+    try { ({ entries: server, complete } = await loadAllEntriesChecked()); } catch { /* keep what's in memory */ }
+    const merged = { ...(server || {}), ...data };
+    return {
+      history: Object.fromEntries(Object.keys(merged).sort().map((key) => [key, merged[key]])),
+      note: complete ? null : "The server couldn't be reached, so this has only what's on this device.",
+    };
   };
-  const exportCSV  = () => {
+  const exportJSON = async () => {
+    const { history, note } = await loadFullHistory();
+    return deliver(JSON.stringify(history, null, 2), `athlete_data_${getTodayKey()}.json`, "application/json", "JSON Backup", note);
+  };
+  const exportCSV  = async () => {
+    const { history, note } = await loadFullHistory();
     const rows = [["Date","Weight","Calories","Protein","Carbs","Fats","Water","Sleep","Energy","Soreness","Miles","Workout Done"]];
-    Object.entries(data).sort().forEach(([date, d]) => {
+    Object.entries(history).sort().forEach(([date, d]) => {
       rows.push([date, d.body?.weight||"", d.nutrition?.calories||"", d.nutrition?.protein||"", d.nutrition?.carbs||"", d.nutrition?.fats||"", d.nutrition?.water||"", d.body?.sleep||"", d.body?.energy||"", d.body?.soreness||"", d.workout?.cardio?.miles||"", d.workout?.completed?"Yes":"No"]);
     });
-    deliver(rows.map(r => r.join(",")).join("\n"), `athlete_stats_${getTodayKey()}.csv`, "text/csv", "CSV Export");
+    deliver(rows.map(r => r.join(",")).join("\n"), `athlete_stats_${getTodayKey()}.csv`, "text/csv", "CSV Export", note);
   };
 
   const importFromText = async (text) => {
     let parsed; try { parsed = JSON.parse(text); } catch { showToast("Invalid JSON"); return; }
-    parsed = entriesFromImport(parsed);
     if (demoMode) {
       setData(parsed);
       setImportOpen(false);
@@ -845,8 +980,8 @@ function AppInner({ onThemeChange }) {
     if (res.error) { showToast(res.error || "Import failed"); return; }
     const all = await loadAllEntries();
     setData(all); 
-    // Keep cache warm after successful import
-    if (user?.id) {
+    // Keep cache warm after successful import (V19.4 · once the account is known)
+    if (user?.id && accountReadyRef.current) {
       writeCache(user.id, {
         entries: all,
         program,
@@ -896,10 +1031,15 @@ function AppInner({ onThemeChange }) {
   // First-week baseline state for the additive per-tab guidance banners. Gated on
   // `loaded` so a tab never flashes a banner before its real data resolves.
   const ouraConnected = settings?.ouraConnected === true || ouraRecovery != null;
-  // v19.2.1 · The V17.0 Day Zero specimens used to replace every tab while it
-  // had no data, and their CTAs could not clear them — a new manual user could
-  // never reach Session Mode, the check-in or the meal ledger. Tabs now always
-  // render; the first-week banners still guide new users.
+  // V17.0 · Day Zero — per-tab zero states. Computed every render (cheap:
+  // key scans over the entries map); gated on `loaded` at the render sites so
+  // specimens never flash during boot. Demo mode counts as real data.
+  const dayZero = detectDayZero({ data, settings, ouraConnected, demoMode });
+  // V19.4 · The retry panel's "Try again": run the launch again for this account.
+  // Loading state first, so the tabs show their skeletons, not samples built
+  // from the defaults, until the account answers.
+  const retryBoot = () => { hasLoadedRef.current = null; setLoaded(false); setAccountUnavailable(null); setBootAttempt((n) => n + 1); };
+  const handleLogout = async () => { if (!demoMode) { const id = user?.id || hasLoadedRef.current; await logOut(); clearCache(id); clearRecoveryDashboardCache(id); clearAlertHistory(id); } setUser(demoMode ? DEMO_USER : null); hasLoadedRef.current = null; };
   const firstWeek = loaded && isFirstWeekUser(settings, data);
   const appLoadState = resolveLoadState({ loaded, refreshing });
   const coachEnabled = isCoachEnabled(user?.id);
@@ -932,6 +1072,7 @@ function AppInner({ onThemeChange }) {
             <button type="button" style={S.overlayBackBtn} onClick={() => setOverlay(null)}>← Back</button>
             <span style={S.overlayBackTitle}>Profile</span>
           </div>
+          {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} onLogout={handleLogout} /> : !loaded ? <AccountLoading /> : (<>
           <BaselineBanner tab="More" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} />
           <ErrorBoundary label="Profile">
           <Suspense fallback={null}>
@@ -940,8 +1081,8 @@ function AppInner({ onThemeChange }) {
             onApplyGeneratedProgram={handleApplyGeneratedProgram}
             exportJSON={exportJSON} exportCSV={exportCSV} fileRef={fileRef}
             onPasteImport={() => setImportOpen(true)}
-            onSettings={() => { setSettingsOpen(true); setSheetOpen(false); setOverlay(null); }}
-            onLogout={async () => { if (!demoMode) { const id = user?.id || hasLoadedRef.current; await logOut(); clearCache(id); clearRecoveryDashboardCache(id); clearAlertHistory(id); } setUser(demoMode ? DEMO_USER : null); hasLoadedRef.current = null; }}
+            onSettings={() => { openSettings(); setOverlay(null); }}
+            onLogout={handleLogout}
             myUsername={myUsername}
             settings={settings}
             allData={data}
@@ -950,6 +1091,7 @@ function AppInner({ onThemeChange }) {
           />
           </Suspense>
           </ErrorBoundary>
+          </>)}
         </div>
       )}
       {overlay === "formcheck" && (
@@ -975,10 +1117,20 @@ function AppInner({ onThemeChange }) {
               land. Below 1440px this wrapper is display:contents — the DOM
               gains a node but layout is byte-identical to V14. */}
           <div style={isBroadsheet && !["Today", "Fuel", "Recovery", "Progress"].includes(tab) ? { maxWidth: "var(--ovt-content-width)", margin: "0 auto", width: "100%" } : { display: "contents" }}>
-          {tab === "Today"   && (<TodayTab   todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} />)}
-          {tab === "Fuel"    && (<><BaselineBanner tab="Fuel" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><FuelTab settings={settings} todayData={todayData} updateToday={updateToday} showToast={showToast} todayKey={todayKey} loaded={loaded} data={data} /></>)}
-          {tab === "Recovery" && (<><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} updateToday={updateToday} /></>)}
-          {tab === "Progress"&& (<><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} /></>)}
+          {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /> : (<>
+          {tab === "Today"   && (loaded && dayZero.today.isZero
+            ? <Suspense fallback={null}><DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} /></Suspense>
+            : <TodayTab   todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} />)}
+          {tab === "Fuel"    && (loaded && dayZero.fuel.isZero
+            ? <Suspense fallback={null}><DayZeroSpecimen tab="Fuel" onAction={() => setShowTutorial(true)} /></Suspense>
+            : <><BaselineBanner tab="Fuel" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><FuelTab settings={settings} todayData={todayData} updateToday={updateToday} showToast={showToast} todayKey={todayKey} loaded={loaded} data={data} /></>)}
+          {tab === "Recovery" && (loaded && dayZero.recovery.isZero
+            ? <Suspense fallback={null}><DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} /></Suspense>
+            : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} updateToday={updateToday} onOpenIntegrations={() => openSettings("integrations")} /></>)}
+          {tab === "Progress"&& (loaded && dayZero.progress.isZero
+            ? <Suspense fallback={null}><DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} /></Suspense>
+            : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} /></>)}
+          </>)}
           </div>
           </Suspense>
           </ErrorBoundary>
@@ -1018,7 +1170,7 @@ function AppInner({ onThemeChange }) {
       {toast && !appUpdateReady && <div role="status" aria-live="polite" style={{ position:"fixed", bottom:76, left:"50%", transform:"translateX(-50%)", width:"max-content", maxWidth:"calc(min(var(--ovt-content-width), 100vw) - 32px)", background:C.bg, color:C.text, padding:"7px 16px", border:`1px solid ${C.line}`, fontSize:11, letterSpacing:"0.12em", textTransform:"uppercase", zIndex:999, fontFamily:mono, whiteSpace:"normal", textAlign:"center", overflowWrap:"anywhere" }}>{toast}</div>}
       <input ref={fileRef} type="file" accept=".json" aria-label="Import data from JSON file" style={{ display:"none" }} onChange={importFile} />
       {exportModal && <ExportModal modal={exportModal} onClose={() => setExportModal(null)} showToast={showToast} />}
-      {settingsOpen && <Suspense fallback={null}><SettingsScreen settings={settings} onSave={handleSaveSettings} onClose={() => setSettingsOpen(false)} busy={settingsBusy} onThemeChange={handleThemeChange} currentTheme={themeId} /></Suspense>}
+      {settingsOpen && accountReady && <Suspense fallback={null}><SettingsScreen settings={settings} onSave={handleSaveSettings} onPatch={handlePatchSettings} onClose={() => setSettingsOpen(false)} busy={settingsBusy} onThemeChange={handleThemeChange} currentTheme={themeId} initialSection={settingsLanding.section} notice={settingsLanding.notice} loggedDays={countLoggedDays(data)} currentTab={tab} /></Suspense>}
       {importOpen  && <ImportModal onImport={importFromText} onClose={() => setImportOpen(false)} />}
       {/* Coach stays always-mounted (it manages its own open/close animation and
           in-flight request state); lazy just moves its code out of the entry
@@ -1032,6 +1184,34 @@ function AppInner({ onThemeChange }) {
 
 // ─── Today Tab ────────────────────────────────────────────────────────────────
 // ─── Daily Coach Hero ──────────────────────────────────────────────────────────
+// V19.4 · Shown in place of the tabs and Profile while the account can't be
+// loaded (see accountUnavailable in AppInner). Nothing behind it may run off
+// default settings: no setup, no samples, no settings or program saves.
+const ACCOUNT_UNAVAILABLE_COPY = {
+  unreachable: { title: "Couldn't reach your account", body: "The server didn't answer, and nothing from this account is saved on this device yet. Your data is safe. Check your connection and try again." },
+  missing: { title: "Your account isn't set up yet", body: "Signing up didn't finish on the server, so there's nothing to load yet. Try again in a moment." },
+  cap: { title: "Your account isn't set up yet", body: "The beta is at its user limit, so account setup is paused. Nothing is lost. Try again later." },
+};
+function AccountUnavailable({ reason, onRetry, onLogout }) {
+  const { C, S } = useTheme();
+  const copy = ACCOUNT_UNAVAILABLE_COPY[reason] || ACCOUNT_UNAVAILABLE_COPY.unreachable;
+  return (
+    <section role="alert" data-testid="account-unavailable" style={S.block}>
+      <div style={{ fontFamily: S.fontSerif, fontSize: 22, color: C.text, lineHeight: 1.2, marginBottom: 8 }}>{copy.title}</div>
+      <p style={{ fontSize: 13, color: C.textDim, lineHeight: 1.6, margin: "0 0 12px" }}>{copy.body}</p>
+      <button type="button" onClick={onRetry} style={{ ...S.foodBtn, marginTop: 0, borderColor: C.text }}>Try again</button>
+      {onLogout && <button type="button" onClick={onLogout} style={{ ...S.foodBtn, background: "none" }}>Log out</button>}
+    </section>
+  );
+}
+
+// V19.4 · Profile while the account is still loading: its settings aren't
+// known yet, so Settings and the program editors wait.
+function AccountLoading() {
+  const { C, S } = useTheme();
+  return <section role="status" style={S.block}><div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.6 }}>Loading your account…</div></section>;
+}
+
 function BaselineBanner({ tab, firstWeek, settings, entries, program, ouraConnected }) {
   const { C, S } = useTheme();
   if (!firstWeek) return null;
@@ -1070,6 +1250,7 @@ function ExportModal({  modal, onClose, showToast }) {
         <button style={S.smallBtn} onClick={onClose}>✕ Close</button>
       </div>
       <div style={{ fontSize:11, color:C.textDim, marginBottom:8, lineHeight:1.6 }}>Copy and save this anywhere. Restore it later via Import.</div>
+      {modal.note && <div role="status" style={{ fontSize:11, color:C.red, marginBottom:8, lineHeight:1.6 }}>{modal.note}</div>}
       <textarea ref={taRef} readOnly value={modal.text} onFocus={e => e.target.select()} style={{ flex:1, background:C.cell, border:`1px solid ${C.lineBright}`, color:C.text, fontFamily:mono, fontSize:11.5, padding:10, resize:"none", outline:"none", width:"100%", boxSizing:"border-box" }} />
       <button style={{ ...S.foodBtn, marginTop:10 }} onClick={copyAll}>Copy All to Clipboard</button>
     </div>

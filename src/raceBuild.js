@@ -12,6 +12,14 @@
 // for everything else, and the editor always sees the raw template.
 //
 // Pure module: no React, no network, no clocks — dates are passed in.
+//
+// V19.3 · `__raceBuild` may also be an OBJECT: a generated race-plan spec
+// (runPlanGenerator.js, kind "runPlan"). It is expanded on read, and its weeks
+// use plan patches — { run } / { cross } / { clearRuns } — that own running on
+// all seven days, reach into AM/PM sessions, and never touch lifting. The
+// registry-string path (the 50K) is unchanged.
+
+import { generateRunPlan, isRunPlanSpec } from "./runPlanGenerator";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -102,16 +110,50 @@ export const RACE_BUILDS = {
   [RACE_BUILD_50K.id]: RACE_BUILD_50K,
 };
 
+// Generated plans are pure functions of their spec; keep the last few so a
+// re-render never regenerates.
+const generatedCache = new Map();
+function generatedConfig(spec) {
+  const key = JSON.stringify(spec);
+  if (generatedCache.has(key)) return generatedCache.get(key);
+  const config = generateRunPlan(spec);
+  generatedCache.set(key, config);
+  if (generatedCache.size > 8) generatedCache.delete(generatedCache.keys().next().value);
+  return config;
+}
+
+/**
+ * Swapping a program's lifting (preset switch, Program Builder apply) keeps an
+ * active generated race plan — unless the incoming program brings a race
+ * build of its own (e.g. the 50K preset).
+ */
+export function keepRacePlan(current, incoming) {
+  if (!isRunPlanSpec(current?.__raceBuild) || !incoming || incoming.__raceBuild) return incoming;
+  return { ...incoming, __raceBuild: current.__raceBuild };
+}
+
+/** The ladder a program's `__raceBuild` marker points at, or null. */
+export function resolveRaceBuildConfig(marker) {
+  if (typeof marker === "string") return RACE_BUILDS[marker] || null;
+  if (isRunPlanSpec(marker)) return generatedConfig(marker);
+  return null;
+}
+
 // ─── Resolution ─────────────────────────────────────────────────────────────
 
 // Maps a date to a ladder week. Dates before the ladder clamp to week 0
-// (early joiners just start at the base week); dates after race week resolve
-// to phase "complete" and the caller leaves the program untouched.
+// (early joiners just start at the base week) — except for generated plans,
+// which carry a startDate and resolve to "pending" until it arrives. Dates
+// after race week resolve to phase "complete" and the caller leaves the
+// program untouched.
 export function resolveBuildWeek(config, todayKey) {
   if (!config?.raceDate || !Array.isArray(config?.weeks) || config.weeks.length === 0) return null;
   const raceMonday = mondayKeyOf(config.raceDate);
   const todayMonday = mondayKeyOf(todayKey);
   if (!raceMonday || !todayMonday) return null;
+  if (config.startDate && todayMonday < mondayKeyOf(config.startDate)) {
+    return { phase: "pending", index: null, week: null, totalWeeks: config.weeks.length, startsOn: config.startDate, raceDate: config.raceDate };
+  }
   const weeksToRaceWeek = weeksBetweenMondays(todayMonday, raceMonday);
   const rawIndex = (config.weeks.length - 1) - weeksToRaceWeek;
   if (rawIndex > config.weeks.length - 1) {
@@ -130,38 +172,141 @@ export function resolveBuildWeek(config, todayKey) {
 }
 
 // Small descriptor for UI/coach surfaces. Null when the program carries no
-// active build (or the race is done).
+// active build (or the race is done). A generated plan that hasn't started
+// yet describes itself as pending, with its start date.
 export function describeBuildWeek(program, todayKey) {
-  const config = RACE_BUILDS[program?.__raceBuild];
+  const config = resolveRaceBuildConfig(program?.__raceBuild);
   if (!config) return null;
   const resolved = resolveBuildWeek(config, todayKey);
   if (!resolved || resolved.phase === "complete") return null;
   const race = new Date(`${config.raceDate}T12:00:00`);
   const today = new Date(`${todayKey}T12:00:00`);
   const daysToRace = Math.round((race - today) / (24 * 60 * 60 * 1000));
+  if (resolved.phase === "pending") {
+    return {
+      pending: true,
+      startsOn: resolved.startsOn,
+      totalWeeks: resolved.totalWeeks,
+      daysToRace,
+      raceName: config.raceName,
+      raceDate: config.raceDate,
+      generated: Boolean(config.generated),
+    };
+  }
   return {
     label: resolved.label,
     weekIndex: resolved.index,
     totalWeeks: resolved.totalWeeks,
+    phase: resolved.phase,
+    cutback: Boolean(resolved.week?.cutback),
+    benchmark: Boolean(resolved.week?.benchmark),
+    totalRunMinutes: resolved.week?.totalRunMinutes ?? null,
     daysToRace,
     raceName: config.raceName,
     raceDate: config.raceDate,
+    generated: Boolean(config.generated),
   };
+}
+
+// ─── Plan patches (generated plans only) ────────────────────────────────────
+
+const RUN_HINT = /\b(run|runs|running|jog|jogging|intervals?|tempo|threshold|strides?|fartlek|track|hill repeats?|shakeout|race|5k|10k|half marathon|marathon|zone\s*2|long zone)\b/i;
+const NON_RUN = /\b(walk|walking|hike|hiking|bike|ride|cycling|cycle|row|rowing|elliptical|swim|ski|erg|stair|sled)\b/i;
+const EXPLICIT_RUN = /\b(run|runs|running|jog|jogging)\b/i;
+
+/**
+ * Is this prescribed cardio a run? Walks, bike, row etc. are not — unless the
+ * type also says run ("Zone 2 Bike/Run", "Long Run/Walk"), in which case the
+ * plan claims it so running is never doubled up.
+ */
+export function isRunCardio(cardio) {
+  const text = String(cardio?.type || "");
+  if (!cardio || !RUN_HINT.test(text)) return false;
+  return !NON_RUN.test(text) || EXPLICIT_RUN.test(text);
+}
+
+// Cardio the plan itself placed — stripped first on every resolve, so the
+// overlay is idempotent and self-heals if a resolved program is ever saved.
+const isPlanOwned = (cardio) => Boolean(cardio && cardio.planRole);
+const strippable = (cardio) => isRunCardio(cardio) || isPlanOwned(cardio);
+
+const ROLE_CODE = { easy: "EASY", quality: "QUALITY", long: "LONG", benchmark: "TEST", cross: "WALK", race: "RACE" };
+const REST_DAY = { type: "Rest", code: "REST", lifting: [], cardio: null };
+
+function hasLifting(day) {
+  const own = Array.isArray(day?.lifting) && day.lifting.length > 0;
+  const inSessions = Array.isArray(day?.sessions) && day.sessions.some((s) => (s?.lifting || []).length > 0);
+  return own || inSessions;
+}
+
+function applyPlanPatch(day, patch) {
+  const original = day || REST_DAY;
+  const placed = patch.run || patch.cross || null;
+  // A day left with no lifting is named for what's on it: the plan's session,
+  // or Rest when nothing remains.
+  const relabel = (d) => {
+    if (hasLifting(d)) return d;
+    const sessionDay = Array.isArray(d.sessions) && d.sessions.length > 0;
+    const cardios = sessionDay ? d.sessions.map((s) => s.cardio).filter(Boolean) : [d.cardio].filter(Boolean);
+    if (!cardios.length) return sessionDay ? { ...d, ...REST_DAY, sessions: [] } : { ...d, ...REST_DAY };
+    if (placed && cardios.length === 1 && isPlanOwned(cardios[0])) return { ...d, type: placed.type, code: ROLE_CODE[placed.planRole] || "RUN" };
+    return d;
+  };
+
+  // AM/PM days: strip runs from every session, keep the slot the old run lived
+  // in, drop sessions left empty, then put the plan's session back in place.
+  if (Array.isArray(original.sessions) && original.sessions.length) {
+    let slot = null; // { index, id, label, timeOfDay, keepsLifting }
+    const kept = [];
+    original.sessions.forEach((s) => {
+      const strip = strippable(s?.cardio);
+      const next = strip ? { ...s, cardio: null } : s;
+      const empty = !(next?.lifting || []).length && !next?.cardio;
+      if (strip && !slot) slot = { index: kept.length, id: s.id, label: s.label, timeOfDay: s.timeOfDay, keepsLifting: !empty };
+      if (!empty) kept.push(next);
+    });
+    if (placed) {
+      if (slot?.keepsLifting) {
+        kept[slot.index] = { ...kept[slot.index], cardio: { ...placed } };
+      } else {
+        const session = {
+          id: slot?.id || (patch.cross ? "walk" : "run"),
+          label: slot?.label || (patch.cross ? "WALK" : "RUN"),
+          title: placed.type,
+          timeOfDay: slot?.timeOfDay || "morning",
+          emphasis: placed.effort || null,
+          lifting: [],
+          cardio: { ...placed },
+        };
+        kept.splice(slot ? slot.index : 0, 0, session);
+      }
+    }
+    return relabel({ ...original, sessions: kept });
+  }
+
+  // Single-session days: one cardio slot beside the lifting. The plan's
+  // session takes the slot (a walk the template had there sits out that day —
+  // it stays in the template). Never split into AM/PM sessions here: most
+  // readers only see workout.cardio, so the logged run must land there.
+  const current = original.cardio && !strippable(original.cardio) ? original.cardio : null;
+  return relabel({ ...original, cardio: placed ? { ...placed } : current });
 }
 
 // Returns the program with the current build week's patches applied, or the
 // exact same reference when there is nothing to do (no marker, unknown id,
-// race complete) so React consumers don't re-render for nothing.
+// not started, race complete) so React consumers don't re-render for nothing.
 export function applyRaceBuild(program, todayKey) {
-  const config = RACE_BUILDS[program?.__raceBuild];
+  const config = resolveRaceBuildConfig(program?.__raceBuild);
   if (!config) return program;
   const resolved = resolveBuildWeek(config, todayKey);
-  if (!resolved || resolved.phase === "complete" || !resolved.week) return program;
+  if (!resolved || resolved.phase === "complete" || resolved.phase === "pending" || !resolved.week) return program;
   const next = { ...program };
   for (const [dayName, patch] of Object.entries(resolved.week.days || {})) {
     if (!patch || !program[dayName]) continue;
     if (patch.day) {
       next[dayName] = { ...patch.day };
+    } else if (patch.run || patch.cross || patch.clearRuns) {
+      next[dayName] = applyPlanPatch(program[dayName], patch);
     } else if (Object.prototype.hasOwnProperty.call(patch, "cardio")) {
       next[dayName] = { ...program[dayName], cardio: patch.cardio ? { ...patch.cardio } : null };
     }

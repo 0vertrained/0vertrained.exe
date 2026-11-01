@@ -35,9 +35,9 @@ describe("normalizePeriodizationSettings", () => {
   });
 
   it("falls back empty name to default and empty goal to preset goal", () => {
-    const s = normalizePeriodizationSettings({ name: "   ", goal: "", goalPreset: "hyrox_prep" });
+    const s = normalizePeriodizationSettings({ name: "   ", goal: "", goalPreset: "race_prep" });
     expect(s.name).toBe("Current Block");
-    expect(s.goal).toBe(PERIODIZATION_GOAL_PRESETS.hyrox_prep.goal);
+    expect(s.goal).toBe(PERIODIZATION_GOAL_PRESETS.race_prep.goal);
   });
 
   it("uses fallback start date when input date is invalid", () => {
@@ -88,7 +88,7 @@ describe("periodizationSettingsChanged", () => {
 describe("buildPeriodizationStoragePatch", () => {
   it("keeps only whitelisted keys and drops unrelated fields", () => {
     const patch = buildPeriodizationStoragePatch({
-      name: "Hyrox Base",
+      name: "Race Base",
       blockLengthWeeks: 6,
       deloadWeek: 5,
       // unrelated / unsafe fields that must NOT be persisted:
@@ -97,7 +97,7 @@ describe("buildPeriodizationStoragePatch", () => {
       SUPABASE_SERVICE_ROLE_KEY: "secret",
       onSave: () => {},
     });
-    expect(patch.name).toBe("Hyrox Base");
+    expect(patch.name).toBe("Race Base");
     expect(patch.blockLengthWeeks).toBe(6);
     expect(patch.deloadWeek).toBe(5);
     expect(patch).not.toHaveProperty("program");
@@ -112,11 +112,11 @@ describe("buildPeriodizationStoragePatch", () => {
 describe("buildNextBlockSettings", () => {
   it("starts the day after the current block ends and keeps length, deload last", () => {
     const plan = {
-      name: "Hyrox Base",
+      name: "Race Base",
       endDate: "2026-08-04",
       blockLengthWeeks: 6,
       goal: "Build aerobic base",
-      goalPreset: "hyrox_prep",
+      goalPreset: "race_prep",
       emphasis: { run: "build", strength: "maintain" },
     };
     const next = buildNextBlockSettings(plan);
@@ -131,7 +131,7 @@ describe("buildNextBlockSettings", () => {
 describe("block history helpers", () => {
   it("buildBlockSnapshot excludes workout/program data", () => {
     const snap = buildBlockSnapshot({
-      name: "Hyrox Base",
+      name: "Race Base",
       startDate: "2026-06-24",
       endDate: "2026-08-04",
       blockLengthWeeks: 6,
@@ -140,8 +140,8 @@ describe("block history helpers", () => {
       weeks: [{ guidance: "x" }],
     }, "2026-08-04");
     expect(snap).toEqual({
-      id: "2026-06-24-hyrox-base",
-      name: "Hyrox Base",
+      id: "2026-06-24-race-base",
+      name: "Race Base",
       startDate: "2026-06-24",
       endDate: "2026-08-04",
       blockLengthWeeks: 6,

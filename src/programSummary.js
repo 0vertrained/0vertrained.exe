@@ -26,12 +26,20 @@ export function summarizeProgramDay(day = null) {
   const type = typeof day.type === "string" && day.type.trim() ? day.type.trim() : null;
   const cardioType = typeof cardio?.type === "string" && cardio.type.trim() ? cardio.type.trim() : null;
   const miles = finiteNumber(cardio?.miles);
+  const minutes = finiteNumber(cardio?.minutes);
   const effort = typeof cardio?.effort === "string" && cardio.effort.trim() ? cardio.effort.trim() : null;
 
   const cardioParts = [];
   if (cardioType) cardioParts.push(cardioType);
-  if (miles !== null && miles > 0) cardioParts.push(`${miles}mi`);
-  if (effort) cardioParts.push(effort);
+  if (minutes !== null && minutes > 0) {
+    // V19.3 · Race-plan runs are prescribed in minutes (their miles are an
+    // estimate), and their type already names the effort ("Threshold Run").
+    cardioParts.push(`${minutes} min`);
+    if (effort && !(cardioType || "").toLowerCase().includes(effort.toLowerCase())) cardioParts.push(effort);
+  } else {
+    if (miles !== null && miles > 0) cardioParts.push(`${miles}mi`);
+    if (effort) cardioParts.push(effort);
+  }
   const cardioLabel = hasCardio ? (cardioParts.join(" · ") || "Cardio") : null;
 
   let label;

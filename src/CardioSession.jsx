@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useTheme } from "./theme";
-import { CARDIO_PRESETS, normalizePlan, buildSegments, totalPlannedSeconds, fmtSeconds, suggestPlanFromNotes } from "./cardioSession";
+import { CARDIO_PRESETS, normalizePlan, buildSegments, totalPlannedSeconds, fmtSeconds, suggestPlanFromNotes, suggestPlanFromSteps } from "./cardioSession";
 import { triggerHaptic, useScreenWakeLock } from "./sessionDevice";
 
 function Stepper({ label, value, display, onChange, step, min, max }) {
@@ -30,7 +30,8 @@ function Stepper({ label, value, display, onChange, step, min, max }) {
 export function CardioSession({ open, onClose, cardio, onLogTime, showToast, settings }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
-  const suggested = useMemo(() => suggestPlanFromNotes(cardio?.notes), [cardio]);
+  // V19.3 · Structured race-plan steps win; prose parsing stays the fallback.
+  const suggested = useMemo(() => suggestPlanFromSteps(cardio?.steps) || suggestPlanFromNotes(cardio?.notes), [cardio]);
   const hapticsEnabled = settings?.trainingCues?.haptics !== false;
   useScreenWakeLock(open);
 

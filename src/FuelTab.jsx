@@ -13,8 +13,6 @@ import { FoodSearch } from "./FoodSearch";
 import { LoadingShell, SectionHeader } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
 import { EnergyIntelligence } from "./EnergyIntelligence";
-import { FACTOR_PLAN_DAYS, FACTOR_SCAFFOLD, FACTOR_TARGETS, factorDayPlan, factorFlexSuggestion, getFactorDayIndex } from "./factorCutPlan";
-import { buildNutritionAutopilot, buildInventoryAdjustment, readLatestNutritionAutopilotState } from "./nutritionAutopilot";
 
 // Shared meal check circle (○ / ✓). Same 26px ledger checkbox used by the Next
 // Meal preview and each full-plan row — one definition so the two never drift.
@@ -214,190 +212,6 @@ function NextMealPreview({ plan, nextMeal, checkedMeals, progressLabel, slotLabe
 }
 
 
-function FactorCutView({ todayKey, todayData, updateToday, showToast, data, goals }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-  const activeIndex = getFactorDayIndex(todayKey);
-  const [selectedDay, setSelectedDay] = useState(activeIndex >= 0 ? activeIndex : 0);
-  const [rescueOpen, setRescueOpen] = useState(false);
-  const [inventoryOpen, setInventoryOpen] = useState(false);
-  const day = factorDayPlan(selectedDay);
-  const logged = todayData?.nutrition?.factorPlan || {};
-  const autopilot = buildNutritionAutopilot({
-    data,
-    todayKey,
-    nutrition: todayData?.nutrition || {},
-    goals,
-    hour: new Date().getHours(),
-  });
-  const latestState = readLatestNutritionAutopilotState(data);
-  const isTodayPlan = selectedDay === activeIndex;
-  const flexLabel = day?.flex?.[1] === 0 ? "Optional" : `${day?.flex?.[0] ?? 0}–${day?.flex?.[1] ?? 0} kcal`;
-  const scheduledMeals = day ? [
-    ...FACTOR_SCAFFOLD.slice(0, 2).map((meal) => ({ ...meal, kind: "scaffold", verified: true })),
-    { id: day.lunch.id, slot: "factorLunch", label: "Lunch · Factor", name: day.lunch.name, calories: day.lunch.calories, protein: day.lunch.protein, verified: day.lunch.verified, kind: "factor" },
-    { id: day.dinner.id, slot: "factorDinner", label: "Dinner · Factor", name: day.dinner.name, calories: day.dinner.calories, protein: day.dinner.protein, verified: day.dinner.verified, kind: "factor" },
-    { ...FACTOR_SCAFFOLD[2], kind: "scaffold", verified: true },
-  ] : [];
-  const meals = isTodayPlan ? autopilot.sequence : scheduledMeals;
-
-  const toggle = (meal) => {
-    if (!Number.isFinite(meal.calories) || !Number.isFinite(meal.protein)) {
-      showToast("Verify the tray label before logging this meal");
-      return;
-    }
-    const isLogged = logged[meal.slot] === meal.id;
-    const nut = todayData?.nutrition || {};
-    const sign = isLogged ? -1 : 1;
-    updateToday("nutrition.calories", String(Math.max(0, Math.round((parseFloat(nut.calories)||0) + sign * meal.calories))));
-    updateToday("nutrition.protein", String(Math.max(0, Math.round((parseFloat(nut.protein)||0) + sign * meal.protein))));
-    updateToday(`nutrition.factorPlan.${meal.slot}`, isLogged ? null : meal.id);
-    showToast(isLogged ? `${meal.name} removed` : `${meal.name} logged ✓`);
-  };
-
-  const addRescue = (option) => {
-    const nut = todayData?.nutrition || {};
-    updateToday("nutrition", {
-      ...nut,
-      calories: String(Math.round((parseFloat(nut.calories)||0) + option.calories)),
-      protein: String(Math.round((parseFloat(nut.protein)||0) + option.protein)),
-      carbs: String(Math.round((parseFloat(nut.carbs)||0) + option.carbs)),
-      fats: String(Math.round((parseFloat(nut.fats)||0) + option.fats)),
-      water: String(Math.round((parseFloat(nut.water)||0) + (option.water || 0))),
-    });
-    updateToday("nutrition.autopilot.lastRescue", { id: option.id, label: option.label, loggedAt: new Date().toISOString() });
-    showToast(`${option.label} logged`);
-  };
-
-  const adjustInventory = (mealId, delta) => {
-    updateToday("nutrition.autopilot", buildInventoryAdjustment(latestState, mealId, delta));
-    showToast(delta > 0 ? "Tray added to inventory" : "Tray removed from inventory");
-  };
-
-  const gapColor = autopilot.rescueMode ? C.amber : autopilot.onTarget ? C.green : C.text;
-
-  return (
-    <div>
-      <div style={{ padding:"16px", borderBottom:`1px solid ${C.line}`, background:C.block }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:12 }}>
-          <div>
-            <div style={{ fontSize:10, color:C.textDim, letterSpacing:"0.16em", textTransform:"uppercase" }}>Nutrition autopilot · prepared meals</div>
-            <div style={{ fontFamily:S.fontSerif, fontSize:24, fontWeight:600, marginTop:4, color:gapColor }}>{isTodayPlan ? autopilot.headline : `Factor Cut · Day ${day?.day || selectedDay + 1}`}</div>
-          </div>
-          <span style={{ fontFamily:mono, fontSize:10, color:isTodayPlan ? C.green : C.textDim }}>{isTodayPlan ? "TODAY" : `DAY ${day?.day || selectedDay + 1}`}</span>
-        </div>
-        <div style={{ fontSize:12.5, color:C.textDim, lineHeight:1.55, marginTop:8 }}>
-          {isTodayPlan ? autopilot.summary : day?.training}
-        </div>
-
-        {isTodayPlan && (
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:1, background:C.lineBright, border:`1px solid ${C.lineBright}`, marginTop:12 }}>
-            {[
-              ["Protein left", `${autopilot.macros.gaps.protein}g`, `${autopilot.macros.current.protein}/${autopilot.macros.target.protein || "—"}`],
-              ["Calories left", autopilot.macros.gaps.calories, `${autopilot.macros.current.calories}/${autopilot.macros.target.calories || "—"}`],
-              ["Trays left", autopilot.traysRemaining, autopilot.useFirst.length ? `${autopilot.useFirst.length} use first` : "inventory live"],
-            ].map(([label, value, sub]) => (
-              <div key={label} style={{ background:C.bg, padding:"9px 6px", textAlign:"center" }}>
-                <div style={{ fontFamily:mono, fontSize:17, fontWeight:600, color:label === "Protein left" && autopilot.macros.gaps.protein > 40 ? C.amber : C.text }}>{value}</div>
-                <div style={{ fontSize:9, color:C.textFaint, letterSpacing:"0.1em", textTransform:"uppercase", marginTop:3 }}>{label}</div>
-                <div style={{ fontSize:9.5, color:C.textDim, marginTop:3 }}>{sub}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div style={{ marginTop:12, padding:"10px 12px", border:`1px solid ${C.lineBright}`, background:C.bg }}>
-          <div style={{ fontSize:9.5, color:C.textFaint, letterSpacing:"0.14em", textTransform:"uppercase" }}>{isTodayPlan ? "Next action" : "Training pairing"}</div>
-          <div style={{ fontSize:14, fontWeight:600, marginTop:4 }}>{isTodayPlan ? (autopilot.nextMeal?.name || "Scheduled meals complete") : day?.training}</div>
-          {isTodayPlan && autopilot.nextMeal && <div style={{ fontFamily:mono, fontSize:10, color:C.textDim, marginTop:4 }}>{autopilot.nextMeal.calories ?? "TBD"} kcal · {autopilot.nextMeal.protein ?? "TBD"}g protein</div>}
-        </div>
-
-        {!isTodayPlan && day && (
-          <>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8, marginTop:10 }}>
-              <div style={{ border:`1px solid ${C.line}`, padding:9, background:C.bg }}><div style={{ fontSize:9, color:C.textFaint, letterSpacing:"0.12em" }}>PRE-FLEX</div><div style={{ fontFamily:mono, fontSize:17, marginTop:4 }}>{day.preFlexCalories ?? "TBD"}</div><div style={{ fontSize:9.5, color:C.textDim }}>kcal</div></div>
-              <div style={{ border:`1px solid ${C.line}`, padding:9, background:C.bg }}><div style={{ fontSize:9, color:C.textFaint, letterSpacing:"0.12em" }}>PROTEIN</div><div style={{ fontFamily:mono, fontSize:17, marginTop:4 }}>{day.preFlexProtein ?? "TBD"}</div><div style={{ fontSize:9.5, color:C.textDim }}>grams</div></div>
-              <div style={{ border:`1px solid ${C.line}`, padding:9, background:C.bg }}><div style={{ fontSize:9, color:C.textFaint, letterSpacing:"0.12em" }}>FLEX</div><div style={{ fontFamily:mono, fontSize:17, marginTop:4 }}>{flexLabel}</div><div style={{ fontSize:9.5, color:C.textDim }}>training carbs</div></div>
-            </div>
-            <div style={{ marginTop:10, fontSize:12, color:C.textDim, lineHeight:1.55 }}>{factorFlexSuggestion(day)}</div>
-          </>
-        )}
-      </div>
-
-      <div style={{ display:"flex", gap:6, overflowX:"auto", padding:"10px 16px", borderBottom:`1px solid ${C.line}`, background:C.panel }}>
-        {Array.from({length: FACTOR_PLAN_DAYS}, (_, i) => (
-          <button key={i} onClick={() => setSelectedDay(i)} style={{ minWidth:34, height:30, border:`1px solid ${selectedDay===i ? C.text : C.lineBright}`, background:selectedDay===i ? C.text : "none", color:selectedDay===i ? C.bg : C.textDim, fontFamily:mono, cursor:"pointer" }}>{i+1}</button>
-        ))}
-      </div>
-
-      <div style={{ borderBottom:`1px solid ${C.line}` }}>
-        <div style={{ padding:"12px 16px", background:C.panel, borderBottom:`1px solid ${C.line}` }}>
-          <div style={{ fontSize:10, color:C.textDim, letterSpacing:"0.16em", textTransform:"uppercase" }}>Meal sequence</div>
-          <div style={{ fontSize:12, color:C.textFaint, marginTop:3 }}>Tap a circle to add or remove the meal from today’s totals.</div>
-        </div>
-        {meals.map((meal) => {
-          const isLogged = logged[meal.slot] === meal.id;
-          const unknown = !Number.isFinite(meal.calories);
-          return <div key={meal.slot} style={{ padding:"12px 16px", display:"flex", gap:11, alignItems:"center", borderBottom:`1px solid ${C.line}`, background:C.bg }}>
-            <button type="button" onClick={() => toggle(meal)} style={mealCheckBtn(C, isLogged)}>{isLogged ? "✓" : "○"}</button>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:9.5, color:isLogged ? C.greenMid : C.textDim, letterSpacing:"0.12em", textTransform:"uppercase" }}>{meal.label}</div>
-              <div style={{ fontSize:14, fontWeight:600, color:isLogged ? C.green : C.text, marginTop:2 }}>{meal.name}</div>
-              <div style={{ fontFamily:mono, fontSize:9.5, color:C.textFaint, marginTop:3 }}>{unknown ? "VERIFY LABEL" : `${meal.calories} kcal · ${meal.protein}g protein`}</div>
-            </div>
-            {meal.verified === false && <span style={{ border:`1px solid ${C.amber}`, color:C.amber, padding:"3px 5px", fontSize:8.5, letterSpacing:"0.1em" }}>EST.</span>}
-          </div>;
-        })}
-      </div>
-
-      {isTodayPlan && (
-        <div style={S.block}>
-          <button type="button" onClick={() => setRescueOpen((value) => !value)} style={{ width:"100%", padding:0, display:"flex", justifyContent:"space-between", background:"none", border:"none", color:C.text, fontFamily:mono, cursor:"pointer" }}>
-            <span style={S.blockTitle}>{"> "}{autopilot.rescueMode ? "Rescue mode recommended" : "Rescue options"}</span>
-            <span style={{ fontSize:10, color:autopilot.rescueMode ? C.amber : C.textFaint }}>{rescueOpen ? "▲" : "▼"}</span>
-          </button>
-          {rescueOpen && <div style={{ display:"grid", gap:7, marginTop:10 }}>
-            {autopilot.rescueOptions.map((option) => (
-              <button key={option.id} type="button" onClick={() => addRescue(option)} style={{ ...S.smallBtn, textAlign:"left", padding:"10px 11px", display:"flex", justifyContent:"space-between", gap:10 }}>
-                <span><span style={{ color:C.text }}>{option.category} · {option.label}</span><span style={{ display:"block", color:C.textFaint, fontSize:9.5, marginTop:3 }}>{option.note}</span></span>
-                <span style={{ color:C.textDim, fontSize:9.5, whiteSpace:"nowrap" }}>{option.calories} kcal · {option.protein}P</span>
-              </button>
-            ))}
-          </div>}
-        </div>
-      )}
-
-      <div style={S.block}>
-        <button type="button" onClick={() => setInventoryOpen((value) => !value)} style={{ width:"100%", padding:0, display:"flex", justifyContent:"space-between", background:"none", border:"none", color:C.text, fontFamily:mono, cursor:"pointer" }}>
-          <span style={S.blockTitle}>{"> "}Live box inventory</span>
-          <span style={{ fontSize:10, color:C.textFaint }}>{autopilot.traysRemaining} trays · {inventoryOpen ? "▲" : "▼"}</span>
-        </button>
-        {inventoryOpen && <div style={{ display:"grid", gap:4, marginTop:10 }}>
-          {autopilot.inventory.map((meal) => <div key={meal.id} style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:10, alignItems:"center", padding:"7px 0", borderBottom:`1px solid ${C.line}` }}>
-            <div style={{ minWidth:0 }}><div style={{ fontSize:11.5, color:C.text }}>{meal.name}</div><div style={{ fontSize:9.5, color:meal.urgency === "use_first" ? C.amber : C.textFaint, marginTop:2 }}>{meal.urgency === "use_first" ? "use first · refrigerated" : meal.freeze ? "freezer-safe" : "refrigerated"} · used {meal.consumed}</div></div>
-            <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-              <button type="button" aria-label={`Remove one ${meal.name}`} onClick={() => adjustInventory(meal.id, -1)} style={{ ...S.smallBtn, padding:"3px 7px" }}>−</button>
-              <span style={{ fontFamily:mono, fontSize:12, color:C.text, minWidth:26, textAlign:"center" }}>×{meal.remaining}</span>
-              <button type="button" aria-label={`Add one ${meal.name}`} onClick={() => adjustInventory(meal.id, 1)} style={{ ...S.smallBtn, padding:"3px 7px" }}>+</button>
-            </div>
-          </div>)}
-        </div>}
-      </div>
-
-      {isTodayPlan && <div style={S.block}>
-        <SectionHeader title="> Grocery support" />
-        {autopilot.groceryPrompts.map((item) => <div key={item.id} style={{ padding:"7px 0", borderBottom:`1px solid ${C.line}` }}>
-          <div style={{ fontSize:11.5, color:C.text }}>{item.label}</div>
-          <div style={{ fontSize:9.5, color:C.textFaint, marginTop:2 }}>{item.why}</div>
-        </div>)}
-      </div>}
-
-      <div style={{ padding:"12px 16px", fontSize:10.5, color:C.textFaint, lineHeight:1.55 }}>
-        Target: ~{FACTOR_TARGETS.calories} kcal and {FACTOR_TARGETS.protein}g+ protein. {autopilot.caveat}
-      </div>
-    </div>
-  );
-}
 
 export function FuelTab({ settings, todayData, updateToday, showToast, todayKey, loaded, data }) {
   const { C, S } = useTheme();
@@ -406,8 +220,9 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
   // Progress). "Log what I just ate" and "what should I eat this week" are
   // different tasks on different time horizons; interleaving them forced the
   // three logging surfaces (quick add, ledger, search) apart. Display-only.
-  const factorDayIndex = getFactorDayIndex(todayKey);
-  const [fuelView, setFuelView] = useState(factorDayIndex >= 0 ? "factor" : "log"); // "log" | "factor" | "plan"
+  // V19.6 · The Factor tab (a personal 12-day prepared-meal block) is gone;
+  // Fuel is Log and Recipes.
+  const [fuelView, setFuelView] = useState("log"); // "log" | "plan"
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // V15.1 · docked-ledger spread
   const goals        = settings?.goals || { calories: 3600, protein: 200, carbs: 400, fats: 100, water: 128 };
   const restrictions = settings?.dietaryRestrictions || [];
@@ -544,7 +359,6 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
       {/* Log / Plan sub-tabs — underline pattern shared with Progress */}
       <div style={{ display: "flex", borderBottom: `1px solid ${C.line}`, background: C.panel }}>
         <button onClick={() => setFuelView("log")} style={{ flex: 1, padding: "10px 6px", background: "none", border: "none", borderBottom: fuelView === "log" ? `1px solid ${C.text}` : "1px solid transparent", marginBottom: -1, color: fuelView === "log" ? C.text : C.textFaint, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer" }}>Log</button>
-        <button onClick={() => setFuelView("factor")} style={{ flex: 1, padding: "10px 6px", background: "none", border: "none", borderBottom: fuelView === "factor" ? `1px solid ${C.text}` : "1px solid transparent", marginBottom: -1, color: fuelView === "factor" ? C.text : C.textFaint, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer" }}>Factor</button>
         <button onClick={() => setFuelView("plan")} style={{ flex: 1, padding: "10px 6px", background: "none", border: "none", borderBottom: fuelView === "plan" ? `1px solid ${C.text}` : "1px solid transparent", marginBottom: -1, color: fuelView === "plan" ? C.text : C.textFaint, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer" }}>Recipes</button>
       </div>
 
@@ -555,8 +369,7 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
           display:contents: layout byte-identical to V14. The mockup's
           per-item meal ledger needs a logged-items data model that doesn't
           exist yet — out of "no feature moves" scope, tracked in the plan. */}
-      {fuelView === "factor" && <FactorCutView todayKey={todayKey} todayData={todayData} updateToday={updateToday} showToast={showToast} data={data} goals={goals} />}
-      <div style={isBroadsheet && fuelView === "log" ? { display: "grid", gridTemplateColumns: "1fr var(--ovt-rail-s)", gap: 20, alignItems: "start" } : isBroadsheet ? { maxWidth: "var(--ovt-content-width)", margin: "0 auto", width: "100%" } : { display: fuelView === "factor" ? "none" : "contents" }}>
+      <div style={isBroadsheet && fuelView === "log" ? { display: "grid", gridTemplateColumns: "1fr var(--ovt-rail-s)", gap: 20, alignItems: "start" } : isBroadsheet ? { maxWidth: "var(--ovt-content-width)", margin: "0 auto", width: "100%" } : { display: "contents" }}>
       {fuelView === "log" && (<section data-section="fuel-main" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
       {/* 1 · Still Needed Hero — execution-first lead */}
       <FuelHero hero={fuelHero} needs={stillNeeded} onAddSuggestion={addNutrition} />

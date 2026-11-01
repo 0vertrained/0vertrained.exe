@@ -140,6 +140,18 @@ const getRawRecoveryMetrics = (ouraData, sleepDebt) => {
   };
 };
 
+// V19.4 · Settings → Integrations, in the app. These were href="/settings"
+// links: a full page load that came back up on Today. The link stays as the
+// fallback when no shell action is passed (the app also reads /settings on
+// boot now).
+function SettingsLink({ label, onOpen }) {
+  const { S } = useTheme();
+  if (onOpen) {
+    return <button type="button" onClick={onOpen} style={{ ...S.foodBtn, display: "block", textAlign: "center" }}>{label}</button>;
+  }
+  return <a href="/settings" style={{ ...S.foodBtn, display: "block", textAlign: "center", textDecoration: "none" }}>{label}</a>;
+}
+
 // V4.5 · Compact, display-only wearable readiness status. Explains what the
 // athlete's wearables (or manual-only setup) are showing and why — it never
 // changes the recovery score or re-derives any data. Manual-only is a valid,
@@ -232,7 +244,7 @@ export function ReadinessMethodToggle({ open, onToggle }) {
   );
 }
 
-export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, updateToday = null }) {
+export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, updateToday = null, onOpenIntegrations = null }) {
   const { S, C } = useTheme();
   // Hydrate synchronously from the fastest available last-known snapshot:
   //   1) the in-memory session cache (survives tab switches this session), else
@@ -775,7 +787,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
           <div style={{ fontSize: 11.5, color: C.textFaint, lineHeight: 1.55, marginTop: 8 }}>
             HRV/RHR are treated as context until a personal baseline exists. Convenient numbers are not a baseline. Annoying, but correct.
           </div>
-          <a href="/settings" style={{ ...S.foodBtn, display: "block", textAlign: "center", textDecoration: "none" }}>Open Settings</a>
+          <SettingsLink label="Open Settings" onOpen={onOpenIntegrations} />
         </FigureSection>
 
         {/* Whoop context also surfaces when Oura is not connected but Whoop is.
@@ -1036,8 +1048,26 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
 
       {provenance && <AdvisoryNote>{provenance}</AdvisoryNote>}
   </>);
+  // V19.6 · The reconnect banner is an action, so it stays up top. The alert
+  // list is evidence the verdict already weighed (its most severe limiter is
+  // the LimiterRule inside the verdict), so it reads under Technical details.
+  const blkReconnect = (<>
+      {tokenStatus?.isExpired && (
+        <FigureSection title="Connection" right="reconnect">
+          <AlertCard
+            severity="error"
+            title="reconnect-needed"
+            markers={["reconnect_needed"]}
+            message="Oura needs reconnecting to resume syncing. Data shown may be stale."
+            recommendation="Reconnect Oura in Settings to resume syncing."
+          />
+          <div style={{ marginTop: 10 }}>
+            <SettingsLink label="Reconnect Oura" onOpen={onOpenIntegrations} />
+          </div>
+        </FigureSection>
+      )}
+  </>);
   const blkSignals = (<>
-      {/* Critical banners stay at the very top. Token-expired remains prominent. */}
       {alerts.length > 0 && (
         <FigureSection title="Signals" right={`${alerts.length} alert${alerts.length === 1 ? "" : "s"}`}>
           {alerts.map((alert, i) => (
@@ -1050,21 +1080,6 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
               recommendation={alert.recommendation}
             />
           ))}
-        </FigureSection>
-      )}
-
-      {tokenStatus?.isExpired && (
-        <FigureSection title="Connection" right="reconnect">
-          <AlertCard
-            severity="error"
-            title="reconnect-needed"
-            markers={["reconnect_needed"]}
-            message="Oura needs reconnecting to resume syncing. Data shown may be stale."
-            recommendation="Reconnect Oura in Settings to resume syncing."
-          />
-          <div style={{ marginTop: 10 }}>
-            <a href="/settings" style={{ ...S.foodBtn, display: "block", textAlign: "center", textDecoration: "none" }}>Reconnect Oura</a>
-          </div>
         </FigureSection>
       )}
 
@@ -1207,7 +1222,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
       >
         <span style={{ fontSize: 10.5, color: C.textDim, letterSpacing: "0.14em", textTransform: "uppercase" }}>Technical details</span>
         <span style={{ fontSize: 10, color: C.text, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-          {techOpen ? "▲ hide" : "▾ intelligence · ledger · quality · load"}
+          {techOpen ? "▲ hide" : "▾ signals · score · interpretation · ledger · load"}
         </span>
       </button>
 
@@ -1425,11 +1440,18 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
 
       {isBroadsheet ? (
         <div style={{ display: "grid", gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)", gap: 20, alignItems: "start" }}>
-          <section data-section="rec-verdict" style={{ minWidth: 0 }}>{blkSliceC}{blkCoachinterpretation}{blkWhatchangedtoday}{blkWhatchangedtoday2}{blkContext}</section>
+          <section data-section="rec-verdict" style={{ minWidth: 0 }}>{blkReconnect}{blkSliceC}{blkCoachinterpretation}{blkWhatchangedtoday}{blkWhatchangedtoday2}{blkContext}</section>
           <section data-section="rec-plates" style={{ minWidth: 0 }}>{blkReadiness}{blkWearableintelligence}{blkComponentledger}{blkTrainingLoad}{blkAlerthistory}</section>
           <section data-section="rec-audit" style={{ minWidth: 0 }}>{blkSignals}{blkMixedsignalday}{blkWearablereadinesscheck}{blkDatatrust}{blkWearablesourcesummary}{blkOuradataquality}{blkWearablecontextWhoop}</section>
         </div>
-      ) : (<>{blkSliceC}{blkSignals}{blkMixedsignalday}{blkWearablereadinesscheck}{blkDatatrust}{blkCoachinterpretation}{blkReadiness}{blkWhatchangedtoday}{blkTechnicaldetailsdisclosure}{techOpen && (<>{blkWearableintelligence}{blkWhatchangedtoday2}{blkWearablesourcesummary}{blkComponentledger}{blkOuradataquality}{blkTrainingLoad}{blkAlerthistory}{blkContext}{blkWearablecontextWhoop}</>)}</>)}
+      ) : (<>
+        {/* V19.6 · One verdict. The morning used to be read four times on the
+            way down (verdict, Signals, Coach interpretation, Readiness score);
+            now the check-in and verdict stand alone, with what changed and the
+            data-trust strip under them, and every other reading of the same
+            numbers waits under Technical details. Nothing is removed. */}
+        {blkReconnect}{blkSliceC}{blkWhatchangedtoday}{blkDatatrust}{blkTechnicaldetailsdisclosure}{techOpen && (<>{blkSignals}{blkMixedsignalday}{blkWearablereadinesscheck}{blkReadiness}{blkCoachinterpretation}{blkWearableintelligence}{blkWhatchangedtoday2}{blkWearablesourcesummary}{blkComponentledger}{blkOuradataquality}{blkTrainingLoad}{blkAlerthistory}{blkContext}{blkWearablecontextWhoop}</>)}
+      </>)}
     </div>
   );
 }

@@ -10,7 +10,6 @@ export const CARDIO_PRESETS = [
   { key: "8x1",    label: "8×1min · 1min rest", work: 60,  rest: 60,  rounds: 8,  warmup: 300 },
   { key: "30_30",  label: "30/30 × 10",         work: 30,  rest: 30,  rounds: 10, warmup: 300 },
   { key: "emom10", label: "EMOM 10",            work: 60,  rest: 0,   rounds: 10, warmup: 180 },
-  { key: "hyrox8", label: "Hyrox 8 stations",   work: 240, rest: 60,  rounds: 8,  warmup: 300 },
 ];
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(v) || lo));
@@ -45,6 +44,27 @@ export function fmtSeconds(totalSeconds) {
   const s = Math.max(0, Math.round(totalSeconds));
   const m = Math.floor(s / 60);
   return `${m}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// ─── Structured steps (V19.3) ────────────────────────────────────────────────
+// Race-plan runs carry their workout as steps: warmup → repeat { work,
+// recovery } → cooldown. Read the interval block straight from them instead of
+// parsing prose (whose "10 min easy" warm-up the notes parser would mistake
+// for the rest interval). The runner ends on the last rep — the cool-down is
+// run as written in the notes (Phase 2 plays every step).
+export function suggestPlanFromSteps(steps) {
+  if (!Array.isArray(steps)) return null;
+  const repeat = steps.find((s) => s?.kind === "repeat");
+  const workMin = Number(repeat?.work?.minutes);
+  const reps = Number(repeat?.reps);
+  if (!(workMin > 0) || !(reps >= 1)) return null;
+  const warmup = steps.find((s) => s?.kind === "warmup");
+  return normalizePlan({
+    work: workMin * 60,
+    rest: (Number(repeat.recovery?.minutes) || 0) * 60,
+    rounds: reps,
+    warmup: (Number(warmup?.minutes) || 0) * 60,
+  });
 }
 
 // ─── Notes parser — deliberately conservative ─────────────────────────────────

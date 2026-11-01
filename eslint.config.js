@@ -9,10 +9,9 @@
 import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
-import tseslint from "typescript-eslint";
 
 export default [
-  { ignores: ["dist/**", "node_modules/**", "coverage/**"] },
+  { ignores: ["dist/**", "node_modules/**"] },
 
   // ── App source (browser, JSX) ─────────────────────────────────────────────
   {
@@ -55,43 +54,12 @@ export default [
 
   // ── Test files (vitest, jsdom) ────────────────────────────────────────────
   {
-    files: ["src/__tests__/**/*.{js,jsx}", "src/test/**/*.{js,jsx}"],
+    files: ["src/__tests__/**/*.{js,jsx}"],
     languageOptions: {
       globals: { ...globals.browser, ...globals.node },
     },
     rules: {
       "no-unused-vars": ["error", { args: "none", caughtErrors: "none", varsIgnorePattern: "^_" }],
-    },
-  },
-
-  // ── v20 TypeScript ────────────────────────────────────────────────────────
-  ...tseslint.configs.recommended.map((config) => ({ ...config, files: ["src/**/*.{ts,tsx}"] })),
-  {
-    files: ["src/**/*.{ts,tsx}"],
-    plugins: { "react-hooks": reactHooks },
-    languageOptions: {
-      globals: { ...globals.browser, ...globals.es2024, __APP_VERSION__: "readonly" },
-    },
-    rules: {
-      ...reactHooks.configs.recommended.rules,
-      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none" }],
-    },
-  },
-
-  // ── Domain purity: pure, deterministic, framework-free ─────────────────────
-  // The domain never reads the wall clock (callers pass todayKey / explicit
-  // timestamps), so no test can become a date bomb. Imports outside
-  // src/domain are blocked by src/domain/purity.test.ts.
-  {
-    files: ["src/domain/**/*.ts"],
-    rules: {
-      "@typescript-eslint/no-explicit-any": "error",
-      "no-restricted-imports": ["error", { patterns: ["react", "react-dom", "react/*", "@supabase/*"] }],
-      "no-restricted-syntax": ["error",
-        { selector: "NewExpression[callee.name='Date'][arguments.length=0]", message: "Domain code must not read the clock; pass todayKey or a timestamp in." },
-        { selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']", message: "Domain code must not read the clock; pass todayKey or a timestamp in." },
-        { selector: "CallExpression[callee.object.name='Math'][callee.property.name='random']", message: "Domain code must be deterministic; pass a seed in." },
-      ],
     },
   },
 

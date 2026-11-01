@@ -14,15 +14,11 @@ const run = (label, command, args, options = {}) => {
   checks.push(`✅ ${label}`);
 };
 
-run("tests passed (with domain coverage floor)", "npm", ["run", "test:coverage"]);
+run("tests passed", "npm", ["run", "test"]);
 // V12.1 · Static analysis. Rule ERRORS fail the gate (no-undef caught two
 // real ReferenceErrors on its first run); warnings inform but don't block.
 run("lint passed", "npm", ["run", "lint"]);
-run("typecheck passed", "npm", ["run", "typecheck"]);
 run("production build passed", "npm", ["run", "build"]);
-run("size budgets", "npm", ["run", "check:budgets"]);
-run("style discipline (v20 tree)", "npm", ["run", "check:styles"]);
-run("tokens.css current", "node", ["scripts/gen-tokens.mjs", "--check"]);
 run("demo build passed", "npm", ["run", "build"], { env: { VITE_DEMO_MODE: "true" } });
 
 process.stdout.write("\n▶ secret scan\n");
@@ -30,9 +26,7 @@ const secretPatterns = [
   /SUPABASE_SERVICE_ROLE_KEY/i,
   /OURA_CLIENT_SECRET/i,
   /ANTHROPIC_API_KEY/i,
-  // A literal token value, not the field name: supabase-js's own auth code
-  // reads `e.refresh_token` and is bundled whenever Supabase is configured.
-  /refresh_token["']?\s*[:=]\s*["'`][A-Za-z0-9._-]{20,}["'`]/i,
+  /refresh_token/i,
   /sk-ant/i,
   // \b: require a boundary before "sk-" — the self-hosted Space Grotesk font
   // files ("...grotesk-latin-400-normal-<hash>.woff2") otherwise match this

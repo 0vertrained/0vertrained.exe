@@ -39,6 +39,7 @@ import { buildWearableLoadRows } from "./wearableWorkoutLoad";
 import { TRACKING_MODES, completedSetCount, isCompletedSet, isExerciseHandled, reconcileExerciseSets, resolveTrackingMode, validateSet } from "./workoutLogging";
 import { isFirstWeekUser, countLoggedDays, buildFirstWeekChecklist, summarizeChecklist, buildFirstWeekCoachCopy, buildBetaFeedbackText, resolveDataMode } from "./firstWeekJourney";
 import { PhysiqueOSPanel } from "./PhysiqueOSPanel";
+import { RaceWeekLine } from "./RaceWeekLine";
 
 // V8 · SessionMode is lazy — it only loads when a session actually starts,
 // keeping it out of the initial bundle.
@@ -641,6 +642,10 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       </section>
       <section data-section="session-ledger" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
 
+      {/* V19.3 · Race plan line — week of the plan, phase, countdown. Renders
+             nothing without a plan; resolves against the displayed day. */}
+      <RaceWeekLine program={activeProgram} dateKey={todayKey} />
+
       {/* ── 3 · Workout — a collapsed disclosure row on the front page
              (V13). The row carries plan + completion; expanding reveals the
              exact same session blocks and loggers as before, same write
@@ -736,7 +741,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
               <div style={{ marginTop:(session.lifting||[]).length?12:0, paddingTop:(session.lifting||[]).length?10:0, borderTop:(session.lifting||[]).length?`1px solid ${C.line}`:"none" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                   <span style={{ fontSize:11.5, color:C.text, letterSpacing:"0.08em", textTransform:"uppercase" }}>{session.cardio.type}</span>
-                  <span style={{ fontSize:11, color:C.textDim }}>{(session.cardio.effort||"").toUpperCase()}</span>
+                  <span style={{ fontSize:11, color:C.textDim }}>{cardioMeta(session.cardio)}</span>
                 </div>
                 {!isLoggingPast && <button type="button" onClick={() => { setActiveCardioSessionId(session.id); setCardioSessionOpen(true); }} style={{ width: "100%", background: "transparent", color: C.text, border: `1px solid ${C.lineBright}`, padding: "11px", fontFamily: mono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500, cursor: "pointer", marginBottom: 12 }}>Start {session.label} cardio →</button>}
                 {session.cardio.notes && <CardioNotes notes={session.cardio.notes} C={C} mono={mono} />}
@@ -782,7 +787,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
         <div style={S.block}>
           <div style={S.blockHead}>
             <span style={S.blockTitle}>{"> "}{p.cardio.type}</span>
-            <span style={S.blockStat}>{(p.cardio.effort||"").toUpperCase()}</span>
+            <span style={S.blockStat}>{cardioMeta(p.cardio)}</span>
           </div>
           {/* V10 · Cardio session runner — interval counterpart to Session
               Mode. Pre-fills from the plan's notes when unambiguous; logs
@@ -1052,6 +1057,17 @@ export { epley1RM };
 // Collapsible coaching notes block shown above the cardio inputs.
 // Long notes (Hyrox circuits, alternating interval weeks) are collapsed by default
 // so the Today viewport prioritizes the call, next action, and logging inputs.
+// V19.3 · Cardio header data: planned minutes (race-plan runs carry them),
+// effort, and the pace target when the plan has one. Old programs show the
+// effort alone, exactly as before.
+function cardioMeta(cardio) {
+  return [
+    Number(cardio?.minutes) > 0 ? `${cardio.minutes} MIN` : null,
+    (cardio?.effort || "").toUpperCase() || null,
+    cardio?.targetPace || null,
+  ].filter(Boolean).join(" · ");
+}
+
 function CardioNotes({ notes, C, mono }) {
   const [open, setOpen] = useState(false);
   const SHORT = notes.length <= 60;

@@ -1,3 +1,0 @@
-# The CLI writes its link/state files here; none of them belong in git.
-.temp/
-.branches/

@@ -1,20 +1,26 @@
-// Entry router for the strangler period: the v20 app lives at /next and the
-// v19 app everywhere else. Each side is a lazy chunk, so /next never loads
-// the legacy fonts, CSS, error reporting or Supabase client, and vice versa.
-// A stale chunk after a deploy (the hashed file is gone) reloads the page
-// once instead of leaving a blank screen.
-const isNext = window.location.pathname === "/next" || window.location.pathname.startsWith("/next/");
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
+import "./fonts";
+import "./index.css";
+import { initErrorReporting } from "./errorReporting";
+import { registerAppServiceWorker } from "./pwa";
 
-const boot = isNext ? import("./app/main.tsx") : import("./legacy/boot.jsx");
 
-boot.catch((error) => {
-  const key = "ovt-chunk-reload";
-  const failedChunk = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(String(error?.message ?? error));
-  if (failedChunk && !sessionStorage.getItem(key)) {
-    sessionStorage.setItem(key, "1");
-    window.location.reload();
-    return;
-  }
-  sessionStorage.removeItem(key);
-  throw error;
-});
+// Focused number inputs should not mutate when the desktop page is scrolled.
+document.addEventListener("wheel", (event) => {
+  const target = event.target;
+  if (target instanceof HTMLInputElement && target.type === "number" && document.activeElement === target) target.blur();
+}, { capture: true, passive: true });
+
+// V9 · Wire global error capture before the app mounts so even render-time
+// failures on first paint are reported.
+initErrorReporting();
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+registerAppServiceWorker();

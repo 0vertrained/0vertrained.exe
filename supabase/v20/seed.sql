@@ -1,6 +1,0 @@
--- supabase/v20/seed.sql
--- Intentionally empty. `supabase start` / `supabase db reset` run this after
--- the migrations; v20 has no reference data (settings default to {} and the
--- program catalogue lives in the client), and accounts are created through
--- Supabase Auth so they must not be seeded here. Test fixtures live in
--- tests/*.sql and are rolled back.

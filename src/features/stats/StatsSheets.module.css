@@ -1,9 +1,0 @@
-/* The Stats sheets' own layout; type and colour come from kit.css. */
-.title { display: inline-flex; align-items: center; gap: var(--space-3); }
-.title :global(.ot-tag) { font-size: 14px; }
-.line { margin: 0 0 var(--space-3); }
-.inputs { list-style: none; margin: var(--space-4) 0 0; padding: 0; }
-.input { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--line); }
-.input:first-child { border-top: 0; }
-.spark { margin-top: var(--space-4); }
-.spark :global(.ot-stat-spark) { height: 48px; margin-top: 0; }

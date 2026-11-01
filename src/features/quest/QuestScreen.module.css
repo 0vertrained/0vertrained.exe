@@ -1,4 +1,0 @@
-.head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
-.cardHead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.reason { margin: var(--space-3) 0 var(--space-1); }
-.action { margin-top: var(--space-5); }

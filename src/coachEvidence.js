@@ -7,6 +7,7 @@
 import { buildNutritionAutopilot } from "./nutritionAutopilot";
 import { buildOutcomeLoop, shiftDate, summarizeWindow } from "./coachingOutcomeLoop";
 import { getExerciseSessions } from "./progressionEngine";
+import { flattenProgramLifting } from "./programSessions";
 
 const MAX_EVIDENCE = 18;
 const MAX_EXERCISES = 3;
@@ -82,6 +83,21 @@ function collectExerciseNames(data = {}, program = {}) {
     }
   }
   return [...names].filter(Boolean);
+}
+
+// V19.5 · A program exercise can declare how it's logged (bodyweight reps for
+// an Inverted Row, a Nordic curl…). Read by name alone, a bodyweight set logged
+// without a weight looks like a loaded set missing its weight and drops out of
+// the history the coach sees, so the program's own exercise is passed along.
+function programExercisesByName(program = {}) {
+  const byName = new Map();
+  for (const day of Object.values(program || {})) {
+    for (const exercise of flattenProgramLifting(day && typeof day === "object" ? day : {})) {
+      const key = String(exercise?.name || "").trim().toLowerCase();
+      if (key && !byName.has(key)) byName.set(key, exercise);
+    }
+  }
+  return byName;
 }
 
 function mentionedExercises(question, names) {
@@ -309,8 +325,10 @@ export function buildCoachEvidencePacket({
   const fallbackProgramNames = (program?.[todayName]?.lifting || []).map((exercise) => exercise?.name).filter(Boolean);
   const selectedExercises = mentions.length ? mentions : fallbackProgramNames.slice(0, MAX_EXERCISES);
   if (shouldIncludeExercise) {
+    const programExercises = programExercisesByName(program);
     for (const exerciseName of selectedExercises.slice(0, MAX_EXERCISES)) {
-      const sessions = getExerciseSessions(data, exerciseName, shiftDate(todayKey, 1), { lookbackDays: 120, limit: 5 });
+      const exercise = programExercises.get(String(exerciseName).trim().toLowerCase()) || null;
+      const sessions = getExerciseSessions(data, exerciseName, shiftDate(todayKey, 1), { lookbackDays: 120, limit: 5, exercise });
       if (!sessions.length) continue;
       collector.add("exercise_history", `${exerciseName} recent exposures`, {
         exerciseName: cleanText(exerciseName, 80),

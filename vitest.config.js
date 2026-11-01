@@ -13,16 +13,6 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    exclude: ["e2e/**", "node_modules/**", "dist/**"],
-    setupFiles: ["./src/test/hermeticEnv.js", "./src/test/setup.ts"],
-    coverage: {
-      provider: "v8",
-      // v20 domain logic is held to a coverage floor; legacy v19 code is not.
-      include: ["src/domain/**/*.ts"],
-      exclude: ["src/domain/**/*.test.ts"],
-      reporter: ["text-summary", "html"],
-      thresholds: { lines: 90, functions: 90, statements: 90, branches: 85 },
-    },
   },
   build: {
     outDir: "dist",

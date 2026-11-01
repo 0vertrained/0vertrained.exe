@@ -1,0 +1,9 @@
+# 0VERTRAINED V16.2 — Tier Correctness (UX audit U1–U5)
+
+First slice of the UX consistency plan. Mobile stays byte-identical throughout — every change is tier-gated.
+
+**U1 · `insufficient_data` handled end-to-end.** The verdict caption now renders "Insufficient data — no wearable signals reported" instead of falling through the legacy band map, and the hero numeral guards null with an em-dash. **U2 · Non-happy-path states get tier treatment.** Fuel's Plan view centers at content-width instead of spanning the 1856px shell (confirmed live bug); Recovery's manual-only branch centers likewise; and `LoadingShell` itself centers at the tier — killing the single-column-snaps-into-spread layout shift uniformly for every tab at once. **U3 · Sticky masthead** at the tier — long spreads keep their nav, context strip, and + Log. **U4 · One desktop idiom.** "+ Log" opens the ⌘K palette at the tier (the bottom sheet remains the mobile idiom untouched), and a quiet ⌘K hint chip sits beside it — the palette stops being a secret. **U5 · Keyboard access.** Timeline date-groups gain real button semantics (role, tabIndex, Enter/Space, aria-label) so the master–detail works without a mouse; Escape closes the Coach slide-over, matching the palette's model.
+
+**Mounted debt paid.** `broadsheetSurfaces.test.jsx`: the palette mounts for real (number key fires the action, Escape closes) and Settings mounts as a two-pane. Session's spread keeps static guards — a meaningful mount needs a ten-prop fixture project, deferred honestly rather than faked.
+
+Full gate green, 125 test files (+1). One live catch during the slice: the ⌘K chip initially landed inside the + Log conditional's single expression and the disconnected-branch splice dropped a `>` — both caught by lint/bundler pre-commit, both in the notes because that's the log. No migrations; static deploy.

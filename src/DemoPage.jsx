@@ -223,7 +223,7 @@ function CoachMock({ C }) {
 
 const HYBRID = [
   ["Strength", "PPL + Arms splits, double progression, two-a-day AM/PM sessions."],
-  ["Hyrox", "Sled push, wall balls, farmers carry and engine work scored as real load."],
+  ["Race plan", "Set a 5K, 10K or half and the weeks to race day build themselves around your lifting."],
   ["Running", "Polarized programming — easy volume protected, hard days earned."],
   ["Recovery", "Deloads triggered by your acute : chronic ratio, not a fixed week four."],
   ["Fuel", "Daily macros, protein from bodyweight, and a supplement checklist."],

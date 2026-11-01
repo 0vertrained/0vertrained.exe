@@ -79,7 +79,10 @@ function summarizeSession({ date, exercise, sets, plannedName, performedName }) 
     bestE1RM: bestE1RM || null,
     label: mode === TRACKING_MODES.ASSISTED_REPS
       ? `${completed[0]?.assistance || 0} lb assist · ${reps.join("/")}`
-      : `${Math.max(...weights, 0)}×${reps.join("/")}`,
+      : mode === TRACKING_MODES.BODYWEIGHT_REPS
+        // V19.5 · "0×10/9/8" read as a 0-lb load.
+        ? `${Math.max(...weights, 0) > 0 ? `+${Math.max(...weights, 0)}` : "BW"}×${reps.join("/")}`
+        : `${Math.max(...weights, 0)}×${reps.join("/")}`,
   };
 }
 
@@ -126,6 +129,11 @@ function detectStall(sessions, targetSets) {
   // Newest is index 0. Require no meaningful rep or strength improvement over
   // three exposures; one bad workout alone can never trigger this branch.
   const totalReps = sample.map((session) => session.totalReps);
+  // V19.5 · At bodyweight the "load" never changes, so a sharp drop in reps is
+  // a harder variation (a calisthenics ladder step), not a plateau. Only a flat
+  // run of exposures counts as a stall there.
+  const atBodyweight = sample.every((session) => session.mode === TRACKING_MODES.BODYWEIGHT_REPS && session.weight <= 0);
+  if (atBodyweight && Math.min(...totalReps) < 0.75 * Math.max(...totalReps)) return null;
   const e1rms = sample.map((session) => session.bestE1RM || 0);
   const repGain = totalReps[0] - Math.min(totalReps[1], totalReps[2]);
   const strengthGain = e1rms[0] - Math.max(e1rms[1], e1rms[2]);
@@ -183,8 +191,11 @@ export function formatPrescription(prescription) {
   if (prescription.kind === "timed_progress") return `${reps} sec across ${prescription.targetSets} sets`;
   if (prescription.kind === "carry_progress") return `${prescription.targetWeight} lb · ${reps} yd`;
   if (prescription.targetWeight == null) return `${prescription.targetSets} sets · ${reps}`;
-  const prefix = prescription.mode === TRACKING_MODES.BODYWEIGHT_REPS && prescription.targetWeight > 0 ? "+" : "";
-  return `${prefix}${prescription.targetWeight} lb · ${reps}`;
+  if (prescription.mode === TRACKING_MODES.BODYWEIGHT_REPS) {
+    // V19.5 · Nothing added reads as bodyweight, not "0 lb".
+    return prescription.targetWeight > 0 ? `+${prescription.targetWeight} lb · ${reps}` : `Bodyweight · ${reps}`;
+  }
+  return `${prescription.targetWeight} lb · ${reps}`;
 }
 
 export function buildExercisePrescription({ data, exercise, todayKey, currentSession = null } = {}) {
@@ -253,22 +264,32 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
   }
 
   const lastWeight = last.weight;
+  // V19.5 · A bodyweight movement steps back to bodyweight, never below it,
+  // and with nothing added "one step back" means an easier variation. The
+  // loaded floor (one increment) used to prescribe "+5 lb" there, after a
+  // pain flag or a stall.
+  const bodyweightMode = mode === TRACKING_MODES.BODYWEIGHT_REPS;
+  const atBodyweight = bodyweightMode && lastWeight <= 0;
+  const stepBackWeight = roundToIncrement(Math.max(bodyweightMode ? 0 : increment, lastWeight - increment), increment);
   if (adverseTechnique) {
-    const targetWeight = roundToIncrement(Math.max(increment, lastWeight - increment), increment);
+    const rationale = atBodyweight
+      ? (last.pain ? "Discomfort was flagged. Use an easier variation and only pain-free, controlled reps." : "Form broke down. Use an easier variation and rebuild clean reps.")
+      : (last.pain ? "Discomfort was flagged. Reduce load and use only pain-free, controlled reps." : "Form broke down. Reduce one load step and rebuild clean reps.");
     return { ...prescriptionBase({
-      kind: "reduce_load", exercise, sessions, range, targetSets, targetWeight,
+      kind: "reduce_load", exercise, sessions, range, targetSets, targetWeight: stepBackWeight,
       targetReps: Array(targetSets).fill(range.min),
-      rationale: last.pain ? "Discomfort was flagged. Reduce load and use only pain-free, controlled reps." : "Form broke down. Reduce one load step and rebuild clean reps.",
+      rationale,
       caution: last.pain ? "Stop the movement if pain persists or worsens; use an appropriate substitution instead." : null,
     }), mode };
   }
 
   if (stall) {
-    const targetWeight = roundToIncrement(Math.max(increment, lastWeight - increment), increment);
     return { ...prescriptionBase({
-      kind: "reset", exercise, sessions, range, targetSets, targetWeight,
+      kind: "reset", exercise, sessions, range, targetSets, targetWeight: stepBackWeight,
       targetReps: Array(targetSets).fill(range.min),
-      rationale: `Three exposures at ${lastWeight} lb produced no meaningful rep or strength gain. Take one step back and rebuild.`,
+      rationale: atBodyweight
+        ? "Three exposures at bodyweight produced no meaningful rep gain. Step back to an easier variation and rebuild."
+        : `Three exposures at ${lastWeight} lb produced no meaningful rep or strength gain. Take one step back and rebuild.`,
     }), mode };
   }
 
@@ -278,7 +299,7 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
     return { ...prescriptionBase({
       kind: "add_load", exercise, sessions, range, targetSets, targetWeight,
       targetReps: Array(targetSets).fill(range.min),
-      rationale: `All ${targetSets} sets reached ${range.max} reps without a technique flag. Add the smallest load step.`,
+      rationale: `All ${targetSets} sets reached ${range.max} reps without a technique flag. ${atBodyweight ? "Add the smallest load, or move to a harder variation." : "Add the smallest load step."}`,
     }), mode };
   }
 
@@ -293,7 +314,7 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
   return { ...prescriptionBase({
     kind: hitFloor ? "add_reps" : "repeat_floor", exercise, sessions, range, targetSets, targetWeight: lastWeight,
     targetReps: nextRepTargets(last, range, targetSets),
-    rationale: hitFloor ? "Keep the load and add one rep to the weakest set." : `Repeat ${lastWeight} lb until every set reaches at least ${range.min} clean reps.`,
+    rationale: hitFloor ? "Keep the load and add one rep to the weakest set." : `Repeat ${atBodyweight ? "at bodyweight" : `${lastWeight} lb`} until every set reaches at least ${range.min} clean reps.`,
   }), mode };
 }
 

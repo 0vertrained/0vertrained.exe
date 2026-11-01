@@ -188,9 +188,10 @@ describe("V2.9 SettingsScreen Whoop UI", () => {
     expect(settingsSrc).toMatch(/getWhoopAuthUrl|syncWhoopNow|disconnectWhoop/);
   });
 
-  test("copy states algorithm blending is not enabled yet", () => {
-    expect(settingsSrc.toLowerCase()).toMatch(/does not change the recovery algorithm yet/);
+  test("copy says the app still computes the recovery score, without promising a sprint", () => {
+    expect(settingsSrc.toLowerCase()).toMatch(/the recovery score is still computed by the app/);
     expect(settingsSrc.toLowerCase()).toMatch(/opt-in/);
+    expect(settingsSrc.toLowerCase()).not.toMatch(/next sprint/);
   });
 });
 

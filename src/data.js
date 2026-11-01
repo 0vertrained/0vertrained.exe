@@ -26,6 +26,12 @@ async function getUserId() {
 // loadRecentEntries + loadOlderEntries so the blocking transfer stops growing
 // with account age (perf plan P1-1).
 export async function loadAllEntries() {
+  return (await loadAllEntriesChecked()).entries;
+}
+
+// V19.4 · Same pages, plus whether they all arrived, so an export can say
+// when the server couldn't be reached instead of handing over a short file.
+export async function loadAllEntriesChecked() {
   const PAGE = 1000;
   const map = {};
   let from = 0;
@@ -35,76 +41,18 @@ export async function loadAllEntries() {
       .select("entry_date, payload")
       .order("entry_date", { ascending: true })
       .range(from, from + PAGE - 1);
-    if (error) { console.error("Load failed:", error); return map; }
+    if (error) { console.error("Load failed:", error); return { entries: map, complete: false }; }
     for (const row of data) map[row.entry_date] = row.payload;
     if (data.length < PAGE) break;
     from += PAGE;
   }
-  return map;
+  return { entries: map, complete: true };
 }
 
-// v19.2.1 · Full backup. Every entry straight from the server (not the boot
-// window held in memory), plus program and settings, in one versioned
-// envelope that both this app and the v20 importer read. Unlike
-// loadAllEntries it fails instead of returning a partial map, so an
-// incomplete backup is never mistaken for a complete one.
-export const BACKUP_FORMAT = "0vertrained-backup";
-
-export async function loadBackupSnapshot() {
-  const userId = await getUserId();
-  if (!userId) return { error: "Not authenticated." };
-  const PAGE = 1000;
-  const entries = {};
-  let from = 0;
-  while (true) {
-    const { data, error } = await supabase
-      .from("entries")
-      .select("entry_date, payload")
-      .order("entry_date", { ascending: true })
-      .range(from, from + PAGE - 1);
-    if (error) return { error: error.message || "Couldn't read your entries." };
-    for (const row of data) entries[row.entry_date] = row.payload;
-    if (data.length < PAGE) break;
-    from += PAGE;
-  }
-  const [programRes, profileRes] = await Promise.all([
-    supabase.from("program").select("payload").eq("user_id", userId).single(),
-    supabase.from("profiles").select("settings, username").eq("id", userId).single(),
-  ]);
-  if (programRes.error && programRes.error.code !== "PGRST116") {
-    return { error: programRes.error.message || "Couldn't read your program." };
-  }
-  if (profileRes.error) return { error: profileRes.error.message || "Couldn't read your settings." };
-  return {
-    ok: true,
-    entries,
-    program: programRes.data?.payload ?? null,
-    settings: profileRes.data?.settings ?? {},
-    username: profileRes.data?.username ?? null,
-  };
-}
-
-export function buildBackupEnvelope({ entries, program, settings, username, appVersion, exportedAt }) {
-  return {
-    format: BACKUP_FORMAT,
-    v: 1,
-    exportedAt,
-    appVersion,
-    username: username ?? null,
-    counts: { days: Object.keys(entries || {}).length },
-    entries: entries || {},
-    program: program ?? null,
-    settings: settings ?? {},
-  };
-}
-
-// Import accepts the full-backup envelope or the older raw {date: payload} map.
-export function entriesFromImport(parsed) {
-  if (parsed && parsed.format === BACKUP_FORMAT && parsed.entries && typeof parsed.entries === "object") {
-    return parsed.entries;
-  }
-  return parsed;
-}
+// V19.4 · PostgREST's "no row" answer to .single(). A real answer, not a
+// failed read: no program row is a new account; no profile row is a signup
+// that never finished (see loadSettingsChecked).
+const isNoRow = (error) => error?.code === "PGRST116";
 
 // V14.3 · The boot window. YYYY-MM-DD cutoff for "recent", local-date based so
 // the window matches what the user sees as "the last N days".
@@ -215,46 +163,29 @@ export async function importEntries(dataMap) {
 
 // ─── Program ───────────────────────────────────────────────────────────────────
 
-// v19.2.1 · Same whole-payload hazard as settings: a failed read used to look
-// like "no program", the app fell back to DEFAULT_PROGRAM, and the next edit
-// saved defaults over the athlete's real program. "No row yet" (PGRST116) is
-// a normal new-user state; any other error blocks program writes until a read
-// succeeds.
-let programLoadedForUser = null;
-let programLoadFailedForUser = null;
-
 export async function loadProgram() {
+  return (await loadProgramChecked()).program;
+}
+
+// V19.4 · loadProgram() answers null both for "no program saved yet" and for
+// "couldn't reach the server", and the app shows DEFAULT_PROGRAM for null. At
+// boot that swapped an athlete's program for the default one whenever the app
+// opened offline. This keeps the two apart: error is set only for a failed read.
+export async function loadProgramChecked() {
   const userId = await getUserId();
-  if (!userId) return null;
+  if (!userId) return { program: null, error: "Not authenticated." };
   const { data, error } = await supabase
     .from("program")
     .select("payload")
     .eq("user_id", userId)
     .single();
-  if (error && error.code !== "PGRST116") {
-    if (programLoadedForUser === userId) programLoadedForUser = null;
-    programLoadFailedForUser = userId;
-    console.error("loadProgram failed:", error);
-    return null;
-  }
-  programLoadedForUser = userId;
-  programLoadFailedForUser = null;
-  if (!data) return null;
-  return data.payload;
-}
-
-// True when the most recent loadProgram() for this user hit a real error (as
-// opposed to "no program saved yet"), so callers keep their cached copy.
-export function programLoadFailed(userId) {
-  return Boolean(userId) && programLoadFailedForUser === userId;
+  if (error) return isNoRow(error) ? { program: null, error: null } : { program: null, error: error.message || "Program read failed" };
+  return { program: data?.payload ?? null, error: null };
 }
 
 export async function saveProgram(programPayload) {
   const userId = await getUserId();
   if (!userId) return { error: "Not authenticated." };
-  if (programLoadedForUser !== userId) {
-    return { error: "Your program hasn't loaded yet — reconnect and try again." };
-  }
   const { error } = await supabase.from("program").upsert(
     { user_id: userId, payload: programPayload },
     { onConflict: "user_id" }
@@ -370,28 +301,33 @@ export const DEFAULT_SETTINGS = {
   coachPreferences: { ...DEFAULT_COACH_PREFERENCES },
 };
 
-// v19.2.1 · Settings are one JSONB blob written whole, so a write is only safe
-// once this session has read the server copy. Before this guard, a failed read
-// returned DEFAULT_SETTINGS, the app cached it, and the next save overwrote the
-// athlete's real settings with defaults.
-let settingsLoadedForUser = null;
-
-// Returns the normalized settings, or null when the server read fails (the
-// caller keeps whatever it already has). Signed-out callers get defaults.
 export async function loadSettings() {
+  return (await loadSettingsChecked()).settings;
+}
+
+// V19.4 · loadSettings() answers DEFAULT_SETTINGS when the read fails, which
+// looks exactly like a brand-new account (onboarded: false). At boot that put
+// the setup wizard in front of an existing athlete who opened the app offline,
+// and the next settings save could write the defaults over their profile.
+// Same answer here, plus `error` when the read failed and `missing` when the
+// account has no profile row at all (a signup whose profile insert failed
+// and couldn't be healed — nothing can be saved for it until it exists).
+export async function loadSettingsChecked() {
   const userId = await getUserId();
-  if (!userId) return { ...DEFAULT_SETTINGS, username: null };
+  if (!userId) return { settings: { ...DEFAULT_SETTINGS, username: null }, error: "Not authenticated.", missing: false };
   const { data, error } = await supabase
     .from("profiles")
     .select("settings, username")
     .eq("id", userId)
     .single();
   if (error) {
-    if (settingsLoadedForUser === userId) settingsLoadedForUser = null;
-    console.error("loadSettings failed:", error);
-    return null;
+    const missing = isNoRow(error);
+    return { settings: { ...DEFAULT_SETTINGS, username: null }, error: missing ? null : (error.message || "Settings read failed"), missing };
   }
-  settingsLoadedForUser = userId;
+  return { settings: normalizeStoredSettings(data), error: null, missing: false };
+}
+
+function normalizeStoredSettings(data) {
   const s = data?.settings || {};
   return {
     // Spread first so any stored field the app relies on (ouraConnected,
@@ -416,16 +352,13 @@ export async function loadSettings() {
     // Normalize coachPreferences so unknown enum values snap to defaults and a
     // pre-V4.5 profile (no key) loads as disabled. Never trusts raw stored blob.
     coachPreferences: normalizeCoachPreferences(s.coachPreferences),
-    username: data.username || null,
+    username: data?.username || null,
   };
 }
 
 export async function saveSettings(settings) {
   const userId = await getUserId();
   if (!userId) return { error: "Not authenticated." };
-  if (settingsLoadedForUser !== userId) {
-    return { error: "Settings haven't loaded yet — reconnect and try again." };
-  }
   const { error } = await supabase.from("profiles").update({ settings }).eq("id", userId);
   if (error) { console.error("saveSettings failed:", error); return { error: error.message }; }
   return { ok: true };
@@ -439,4 +372,21 @@ export async function patchSetting(key, value) {
     .from("profiles").select("settings").eq("id", userId).single();
   const merged = { ...(current?.settings || {}), [key]: value };
   await supabase.from("profiles").update({ settings: merged }).eq("id", userId);
+}
+
+// V19.4 · Merge a few keys into the stored settings, server-side, and report
+// the result. Integrations uses it to save a confirmed connection flag. Unlike
+// patchSetting() above, a failed read aborts: writing the patch over an empty
+// object would wipe the profile. Merging into the server's copy (rather than
+// saving this device's whole settings object) also means a device holding
+// stale or default settings can't overwrite the real ones.
+export async function patchSettings(patch) {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated." };
+  const { data, error } = await supabase.from("profiles").select("settings").eq("id", userId).single();
+  if (error || !data) return { error: error?.message || "Settings read failed" };
+  const merged = { ...(data.settings || {}), ...patch };
+  const { error: writeError } = await supabase.from("profiles").update({ settings: merged }).eq("id", userId);
+  if (writeError) return { error: writeError.message };
+  return { ok: true };
 }

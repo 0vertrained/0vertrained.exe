@@ -33,7 +33,7 @@ function addOneDay(dateStr) {
 export const PERIODIZATION_GOAL_PRESETS = {
   hybrid_base: { label: "Hybrid base", goal: "Build aerobic base while maintaining strength" },
   strength_build: { label: "Strength build", goal: "Progress strength while holding conditioning" },
-  hyrox_prep: { label: "Hyrox prep", goal: "Sharpen race-specific engine and compromised running" },
+  race_prep: { label: "Race prep", goal: "Sharpen race pace and taper into a running race" },
   endurance: { label: "Endurance", goal: "Extend aerobic capacity and weekly mileage" },
   maintain: { label: "Maintain", goal: "Hold fitness while managing fatigue" },
   custom: { label: "Custom", goal: "" },

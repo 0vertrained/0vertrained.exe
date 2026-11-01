@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { THEMES, PRIMARY_THEMES } from "./theme";
 import { useTheme } from "./theme";
@@ -13,7 +13,8 @@ import { friendlySyncError } from "./integrationErrors";
 import { useConfirm } from "./ui/ConfirmDialog";
 import { changeRecoveryPhrase } from "./auth";
 import { suggestRecoveryPhrase } from "./recoveryPhraseSuggest";
-import { readPerfRuns, clearPerfRuns } from "./perf";
+import { buildBetaFeedbackText } from "./firstWeekJourney";
+import { copyToClipboard } from "./clipboard";
 import { APP_VERSION, SUPPORT_EMAIL, buildSupportMailto } from "./appMeta";
 
 const GOAL_LABELS = Object.fromEntries(ONBOARDING_GOALS.map(g => [g.id, g.label]));
@@ -62,7 +63,13 @@ function SyncTimeline({ events, source, title, showCounts = false }) {
   );
 }
 
-export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange, currentTheme }) {
+const SETTINGS_SECTIONS = [["goals","Macros"],["supps","Supplements"],["diet","Dietary"],["training","Training"],["theme","Theme"],["integrations","Integrations"],["account","Account"],["about","About"]];
+
+// V19.4 · initialSection opens a section directly (Recovery's links and the
+// OAuth return land on Integrations); notice is the one status line shown
+// there ({ tone: "ok" | "error", text }); onPatch persists a connection flag
+// quietly, without the full Save path's close + toast.
+export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange, currentTheme, initialSection = null, notice = null, onPatch = null, loggedDays = 0, currentTab = "Settings" }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
   const { confirm, confirmDialog } = useConfirm();
@@ -72,7 +79,16 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   const [dietary, setDietary] = useState([...(settings.dietaryRestrictions || [])]);
   const [socialOptIn, setSocialOptIn] = useState(settings.socialOptIn === true);
   const [trainingCues, setTrainingCues] = useState({ haptics: true, restAudio: false, ...(settings.trainingCues || {}) });
-  const [section, setSection] = useState("goals");
+  const [section, setSection] = useState(() => (SETTINGS_SECTIONS.some(([key]) => key === initialSection) ? initialSection : "goals"));
+  // Opened straight onto a later section (Integrations sits off-screen in the
+  // phone's scrolling tab row): bring its tab into view once.
+  const sectionNavRef = useRef(null);
+  useEffect(() => {
+    const nav = sectionNavRef.current;
+    const active = nav?.querySelector('[aria-current="true"]');
+    if (initialSection && active && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = Math.max(0, active.offsetLeft - nav.offsetLeft - 16);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // V15.3 · two-pane (mockup 1m)
 
   // V13.6 · Change-recovery-phrase panel (Account section). Lets a signed-in
@@ -86,7 +102,23 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
 
   // V14.2 · Load-path diagnostics (About section). Read once per Settings
   // open; the Clear button empties both storage and the local list.
-  const [perfRuns, setPerfRuns] = useState(() => readPerfRuns());
+  // V19.6 · Beta feedback note lives under About (it was on the Profile hub).
+  const [feedbackNote, setFeedbackNote] = useState("");
+  const [feedbackFallback, setFeedbackFallback] = useState(null);
+  const [feedbackCopied, setFeedbackCopied] = useState(false);
+  const copyBetaFeedback = async () => {
+    const text = buildBetaFeedbackText({
+      tab: currentTab,
+      settings,
+      loggedDays,
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+      note: feedbackNote,
+      version: APP_VERSION,
+    });
+    const ok = await copyToClipboard(text);
+    setFeedbackFallback(ok ? null : text);
+    setFeedbackCopied(ok);
+  };
 
   // Oura — same user-facing sync controls as Whoop. Tokens stay server-side.
   const [ouraStatus, setOuraStatus] = useState(null);
@@ -194,7 +226,11 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
       if (GOOGLE_HEALTH_INTEGRATION_ENABLED && googleStat?.connected && settings.googleHealthConnected !== true) connectionPatch.googleHealthConnected = true;
       if (stravaStat?.connected && settings.stravaConnected !== true) connectionPatch.stravaConnected = true;
       if (Object.keys(connectionPatch).length) {
-        onSave({ ...settings, ...connectionPatch });
+        // V19.4 · Quietly when the shell offers it: the full Save path closes
+        // Settings, which would shut this screen right after an OAuth return
+        // lands here.
+        if (onPatch) onPatch(connectionPatch);
+        else onSave({ ...settings, ...connectionPatch });
       }
       if (status?.connected) {
         const [counts, eventsRes] = await Promise.all([
@@ -523,9 +559,9 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
       <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "300px 1fr", gap: 20, alignItems: "start" } : { display: "contents" }}>
       <aside data-section="settings-nav" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
       {/* Sub tabs */}
-      <div style={{ display: "flex", flexDirection: isBroadsheet ? "column" : "row", position: isBroadsheet ? "sticky" : "static", top: isBroadsheet ? 12 : "auto", overflowX: "auto", scrollbarWidth: "none", borderBottom: isBroadsheet ? "none" : `1px solid ${C.line}`, borderRight: isBroadsheet ? `1px solid ${C.line}` : "none", background: C.bg }}>
-        {[["goals","Macros"],["supps","Supplements"],["diet","Dietary"],["training","Training"],["theme","Theme"],["integrations","Integrations"],["account","Account"],["about","About"]].map(([key,label]) => (
-          <button key={key} onClick={() => setSection(key)} style={{ flex: "0 0 auto", minWidth: 88, padding: "10px 10px", background: "none", border: "none", borderBottom: section === key ? `1px solid ${C.text}` : "1px solid transparent", marginBottom: -1, color: section === key ? C.text : C.textFaint, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer" }}>
+      <div ref={sectionNavRef} style={{ display: "flex", flexDirection: isBroadsheet ? "column" : "row", position: isBroadsheet ? "sticky" : "static", top: isBroadsheet ? 12 : "auto", overflowX: "auto", scrollbarWidth: "none", borderBottom: isBroadsheet ? "none" : `1px solid ${C.line}`, borderRight: isBroadsheet ? `1px solid ${C.line}` : "none", background: C.bg }}>
+        {SETTINGS_SECTIONS.map(([key,label]) => (
+          <button key={key} aria-current={section === key ? "true" : undefined} onClick={() => setSection(key)} style={{ flex: "0 0 auto", minWidth: 88, padding: "10px 10px", background: "none", border: "none", borderBottom: section === key ? `1px solid ${C.text}` : "1px solid transparent", marginBottom: -1, color: section === key ? C.text : C.textFaint, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer" }}>
             {label}
           </button>
         ))}
@@ -704,7 +740,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
               );
             })}
             <div style={{ fontSize: 11, color: C.textFaint, marginTop: 8, lineHeight: 1.6 }}>
-              // More themes coming soon.
+              // Two stocks, one layout.
             </div>
           </div>
         )}
@@ -715,11 +751,21 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
               Fig. 5 · Data sources. Wearables become recovery figures and ledger rows.
             </div>
 
-            {/* Google Health / Fitbit Connection */}
+            {/* V19.4 · The result of the connection you just made (OAuth return). */}
+            {notice?.text && (
+              <div role="status" data-testid="integrations-notice" style={{ ...statusBox, marginBottom: 16, fontWeight: 500, lineHeight: 1.6, color: notice.tone === "error" ? C.red : C.text, border: `1px solid ${notice.tone === "error" ? C.red : C.text}` }}>
+                {notice.text}
+              </div>
+            )}
+
+            {/* Google Health / Fitbit Connection — V19.6: not shown until the
+                integration is enabled. A "Coming soon" card is a promise on a
+                settings screen, not a setting. */}
+            {GOOGLE_HEALTH_INTEGRATION_ENABLED && (
             <div style={{ marginBottom: 20 }}>
               <label style={lbl}>Fitbit by Google / Google Health</label>
               <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 12, lineHeight: 1.6 }}>
-                Coming soon — connect your Google account to bring Fitbit sleep, recovery, and activity data into the app.
+                Connect your Google account to bring Fitbit sleep, recovery, and activity data into the app.
               </div>
               <button
                 type="button"
@@ -741,6 +787,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
                 </div>
               )}
             </div>
+            )}
 
             {/* Strava Connection */}
             <div style={{ marginBottom: 20, paddingTop: 20, borderTop: `1px solid ${C.line}` }}>
@@ -915,8 +962,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
               <label style={lbl}>Whoop</label>
               <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 12, lineHeight: 1.6 }}>
                 Opt-in. Syncs recovery, sleep, strain cycles, and workouts. Manual recovery
-                stays first-class — Whoop does not change the recovery algorithm yet
-                (algorithm blending arrives next sprint).
+                stays first-class, and the recovery score is still computed by the app.
               </div>
 
               {whoopStatus?.connected ? (
@@ -1091,43 +1137,33 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
               Email support · {SUPPORT_EMAIL}
             </a>
 
-            {/* V14.2 · Load-path diagnostics. `t` = ms since the run began,
-                `rq` = fetch/XHR round trips so far, `kb` = transfer bytes where
-                the browser exposes them (cross-origin responses without
-                Timing-Allow-Origin read 0 — round-trip count is the reliable
-                column). Last runs, newest first. */}
+            {/* V19.6 · Beta feedback — a privacy-safe plain-text note (version,
+                tab, logged-day count, setup mode, browser; never entries). The
+                load-diagnostics panel that was here is development
+                instrumentation and no longer ships on a user screen. */}
             <div style={{ marginTop: 24 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: `1px solid ${C.line}`, paddingBottom: 6, marginBottom: 8 }}>
-                <span style={{ fontSize: 10, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono }}>
-                  Fig. D · Load diagnostics
-                </span>
-                <button
-                  type="button"
-                  onClick={() => { clearPerfRuns(); setPerfRuns([]); }}
-                  style={{ background: "none", border: "none", color: C.textFaint, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer" }}
-                >
-                  Clear
-                </button>
+              <div style={{ fontSize: 10, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono, borderBottom: `1px solid ${C.line}`, paddingBottom: 6, marginBottom: 8 }}>
+                Beta feedback
               </div>
-              {perfRuns.length === 0 && (
-                <div style={{ fontSize: 11, color: C.textFaint, fontFamily: mono }}>
-                  No runs recorded yet — open the app or the Recovery tab, then revisit.
-                </div>
+              <div style={{ fontSize: 11, color: C.textFaint, lineHeight: 1.6, marginBottom: 6 }}>
+                Copies the app version, current tab, logged-day count, setup goal and mode, and browser. No entries or account details are included.
+              </div>
+              <textarea value={feedbackNote} onChange={(e) => { setFeedbackNote(e.target.value); setFeedbackCopied(false); }} rows={2}
+                placeholder="What worked, what was confusing, what you'd change…"
+                aria-label="Beta feedback note"
+                style={{ ...S.notesInput, marginTop: 0, fontSize: 13.5 }} />
+              <button type="button" style={{ ...S.foodBtn, marginTop: 8 }} onClick={copyBetaFeedback}>
+                {feedbackCopied ? "Copied — paste it into an email" : "Copy beta feedback note"}
+              </button>
+              {feedbackFallback && (
+                <textarea readOnly value={feedbackFallback} onFocus={(e) => e.target.select()} rows={7} aria-label="Beta feedback note text"
+                  style={{ ...S.notesInput, marginTop: 8, fontSize: 11.5, fontFamily: mono }} />
               )}
-              {perfRuns.slice(0, 6).map((run) => (
-                <div key={`${run.kind}-${run.startedAt}`} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 10, color: C.textDim, fontFamily: mono, marginBottom: 2 }}>
-                    {run.kind} · {new Date(run.startedAt).toLocaleString()}
-                  </div>
-                  {run.marks.map((m) => (
-                    <div key={m.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontFamily: mono, color: C.text, borderBottom: `1px solid ${C.line}`, padding: "3px 0" }}>
-                      <span>{m.label}</span>
-                      <span style={{ color: C.textDim }}>{m.t}ms · {m.reqs}rq{m.kb ? ` · ${m.kb}kb` : ""}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
             </div>
+
+            <a href="#/demo" style={{ display: "block", marginTop: 20, padding: "10px 0", borderTop: `1px solid ${C.line}`, fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textFaint, textDecoration: "none" }}>
+              View / share the demo page →
+            </a>
           </div>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -13,15 +13,13 @@ const root = process.cwd();
 describe("Oura user isolation hardening", () => {
   beforeEach(() => {
     localStorage.clear();
-    // Alert history prunes entries older than 14 days from "now", so pin the
-    // clock near the fixture dates (these tests failed once the real date
-    // moved past 2026-07-23).
+    // V19.4 · The alert history below is dated July 2026 and getAlertHistory
+    // prunes anything older than 14 days from "now", so on the real clock
+    // these started failing as the calendar moved on. Pin "now" next to them.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-07-10T12:00:00Z"));
   });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+  afterEach(() => { vi.useRealTimers(); });
 
   it("stores alert history under a user-scoped key and never reads another user's history", () => {
     const alertData = {

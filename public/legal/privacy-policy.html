@@ -81,7 +81,7 @@
     <div class="hero">
       <div class="eyebrow">Legal · Privacy policy</div>
       <h1>Privacy Policy</h1>
-      <p class="updated">0VERTRAINED — Last updated: July 9, 2026</p>
+      <p class="updated">0VERTRAINED — Last updated: October 22, 2026</p>
       <p>This Privacy Policy explains how 0VERTRAINED ("0VERTRAINED," "we," "us," or "the App") collects, uses, discloses, stores, and protects information when you use the App, connect supported wearables, use AI coaching, enable notifications, or participate in opt-in social features.</p>
       <p>This policy is written for the current app architecture. It is not a substitute for legal advice, and the policy should be reviewed by counsel before a commercial launch or expansion into new jurisdictions.</p>
     </div>
@@ -145,6 +145,7 @@
         <li>Push notification subscription data, including endpoint, p256dh key, auth key, reminder preference, and timezone offset, if you enable browser notifications.</li>
         <li>Opt-in social-circle, leaderboard, and PR-board data such as username/handle, circle membership, invite code, aggregate stats, and PR records. Raw daily entries remain private.</li>
         <li>Client error reports such as error message, stack trace, component stack, source, path, app version, user agent, and timestamp.</li>
+        <li>First-party product events tied to your account, such as which first-run screens you saw, which first-step buttons you tapped, whether a wearable connected, and when your first readiness verdict appeared, each with a timestamp. These are stored in our own database, are not shared with analytics or advertising services, and are used only to understand whether the App works for new users.</li>
         <li>Browser localStorage data used for offline-first performance, including recent entries, program/settings cache, coach conversation history, and local UI preferences.</li>
       </ul>
     </section>
@@ -183,7 +184,7 @@
         <li><strong>Oura, Whoop, Google Health/Fitbit, and Strava:</strong> authorization and data syncing only when you connect those services. Their own terms, privacy policies, API rules, and account controls apply to their services.</li>
         <li><strong>Google API data:</strong> Google Health/Fitbit data is used only to provide and improve user-facing 0VERTRAINED features you authorize. We do not sell Google user data, use it for advertising, or use it to train generalized AI or machine-learning models. 0VERTRAINED's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.</li>
         <li><strong>Strava API data:</strong> Strava data is displayed back to the connected user and used for activity import/sync features. We do not disclose Strava-sourced activity data to other users through public feeds, leaderboards, or AI Coach by default.</li>
-        <li><strong>Anthropic:</strong> server-side AI Coach processing when you use the coach feature. The App sends a sanitized coaching context and your coach message.</li>
+        <li><strong>Ollama Cloud:</strong> server-side AI Coach processing when you use the coach feature. The App's server sends a sanitized coaching context and your coach message to models hosted by Ollama Cloud.</li>
         <li><strong>Browser push services:</strong> push notifications are routed through browser/platform notification infrastructure if you enable notifications.</li>
         <li><strong>Other users:</strong> only for opt-in social features, where visible data is limited to handle-level aggregate stats, PR records, circle membership, and information you choose to share.</li>
         <li><strong>Legal and safety:</strong> if necessary to comply with law, respond to lawful requests, protect rights and safety, investigate abuse, or enforce the Terms.</li>
@@ -213,7 +214,7 @@
         <li>Account, training, nutrition, recovery, program, and settings data are retained while your account is active unless you delete or request deletion.</li>
         <li>Disconnecting Oura, Whoop, Google Health/Fitbit, or Strava deletes provider tokens and provider-derived data stored by the App for that source from active app tables, subject to backups, audit logs, legal obligations, and fraud/security retention.</li>
         <li>Push subscriptions are retained while reminders are enabled and are removed when you unsubscribe or delete your account.</li>
-        <li>Client error reports and coach usage counters are retained only as long as reasonably needed for reliability, abuse prevention, and beta operations.</li>
+        <li>Client error reports, product events, and coach usage counters are retained only as long as reasonably needed for reliability, abuse prevention, and beta operations.</li>
         <li>Deletion requests will be completed within 30 days unless a shorter period is legally required or retention is necessary for security, fraud prevention, legal compliance, or dispute resolution.</li>
       </ul>
       <p>To request deletion or export, email <a href="mailto:0vertrained.exe@gmail.com">0vertrained.exe@gmail.com</a>.</p>

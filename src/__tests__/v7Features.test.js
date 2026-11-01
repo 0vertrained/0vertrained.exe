@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { collectCalibrationSamples, buildCalibrationReport } from "../coachCalibration";
 import { buildCorrelationPairs, pearson, describeCorrelation, CORRELATION_METRICS } from "../correlationExplorer";
-import { normalizeRacePlan, buildRaceCountdown, readRacePlan, writeRacePlan, clearRacePlan, HYROX_STATIONS } from "../raceBlock";
 
 // ─── coachCalibration ─────────────────────────────────────────────────────────
 const respDay = (call, response, body) => ({
@@ -95,32 +94,5 @@ describe("correlationExplorer", () => {
       { weight: "185", reps: "8", done: false },
     ] } } } };
     expect(vol.get(d)).toBe(185 * 8);
-  });
-});
-
-// ─── raceBlock ────────────────────────────────────────────────────────────────
-describe("raceBlock", () => {
-  beforeEach(() => clearRacePlan());
-
-  it("normalizes partial plans and round-trips storage", () => {
-    writeRacePlan({ name: "Dallas Hyrox", date: "2026-11-14", benchmarks: { sled_push: "2:05" } });
-    const plan = readRacePlan();
-    expect(plan.name).toBe("Dallas Hyrox");
-    expect(plan.benchmarks.sled_push).toBe("2:05");
-    expect(Object.keys(plan.benchmarks).length).toBe(HYROX_STATIONS.length);
-    expect(normalizeRacePlan({ date: "bad" }).date).toBe("");
-  });
-
-  it("computes build / taper / race-day / past phases", () => {
-    const plan = { date: "2026-11-14" };
-    expect(buildRaceCountdown(plan, "2026-09-01").phase).toBe("build");
-    expect(buildRaceCountdown(plan, "2026-11-10").phase).toBe("taper");
-    expect(buildRaceCountdown(plan, "2026-11-14").phase).toBe("race_day");
-    expect(buildRaceCountdown(plan, "2026-11-20").phase).toBe("past");
-    expect(buildRaceCountdown(plan, "2026-11-04").phase).toBe("taper"); // exactly TAPER_DAYS out
-  });
-
-  it("returns null without a date", () => {
-    expect(buildRaceCountdown({ name: "x" }, "2026-09-01")).toBeNull();
   });
 });

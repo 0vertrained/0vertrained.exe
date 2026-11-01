@@ -51,7 +51,7 @@ function healthyFixture() {
     if ([1, 2, 4, 5].includes(d.getDay())) day.workout = { completed: true, exercises: { "Bench Press": { sets: [{ done: true, weight: "185", reps: "8" }, { done: true, weight: "185", reps: "8" }, { done: true, weight: "185", reps: "8" }] } }, cardio: {}, notes: "" };
     data[key] = day;
   }
-  return { data, oura, whoop, settings: { macroTargets: { protein: 205, calories: 2900 } } };
+  return { data, oura, whoop, settings: { goals: { protein: 205, calories: 2900 } } };
 }
 
 describe("V17.2 publish window — boundary by boundary", () => {
@@ -140,7 +140,7 @@ describe("V17.2 THE ONE CHANGE — strict priority, exactly one", () => {
     const f = healthyFixture();
     const week = ["2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-10", "2026-07-11", "2026-07-12"];
     week.forEach((k) => { f.oura[k] = ouraDay(k, 70, 58, 4.9); }); // HRV/RHR healthy, sleep short
-    f.settings.macroTargets.protein = 300; // protein adherence would also fire
+    f.settings.goals.protein = 300; // protein adherence would also fire
     const m = buildSundayEdition({ ...f, ouraData: f.oura, whoopData: f.whoop, now: SUN_5PM });
     expect(m.oneChange.rung).toBe("sleep_debt");
     expect(m.oneChange.text).toMatch(/45 minutes/);
@@ -148,10 +148,19 @@ describe("V17.2 THE ONE CHANGE — strict priority, exactly one", () => {
 
   it("protein fires only when everything above it is clean", () => {
     const f = healthyFixture();
-    f.settings.macroTargets.protein = 300; // averaged 205 → ~68%
+    f.settings.goals.protein = 300; // averaged 205 → ~68%
     const m = buildSundayEdition({ ...f, ouraData: f.oura, whoopData: f.whoop, now: SUN_5PM });
     expect(m.oneChange.rung).toBe("protein");
     expect(m.oneChange.reason).toMatch(/adherence 68%/);
+  });
+
+  it("V19.4 · measures fuel against the targets Fuel shows (settings.goals), not the unwritten macroTargets key", () => {
+    const f = healthyFixture();
+    const m = buildSundayEdition({ ...f, ouraData: f.oura, whoopData: f.whoop, now: SUN_5PM });
+    expect(m.fuelWeek.proteinTarget).toBe(205);
+    expect(m.fuelWeek.line).toMatch(/against a 205g target \(100%\)/);
+    const legacy = buildSundayEdition({ ...f, settings: { macroTargets: { protein: 205 } }, ouraData: f.oura, whoopData: f.whoop, now: SUN_5PM });
+    expect(legacy.fuelWeek.proteinTarget).toBeNull();
   });
 
   it("there is exactly one change — a single text, never a list", () => {
