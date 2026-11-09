@@ -3,7 +3,7 @@
 // log-error.js: JWT-verified (anonymous sinks are abuse magnets), every field
 // clamped server-side, per-user daily flood cap, and 200s on every tolerable
 // failure so the client's fire-and-forget logger never retries. If the
-// `events` table hasn't been created yet (migrations/V17_0_events.sql), this
+// `events` table hasn't been created yet (supabase/migration_add_events.sql), this
 // endpoint no-ops with 200 — telemetry must never precede the product.
 //
 // Required env: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY

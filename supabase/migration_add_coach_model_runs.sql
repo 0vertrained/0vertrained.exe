@@ -1,4 +1,4 @@
--- 0VERTRAINED v19.0 · Routed coach telemetry (no prompts or responses stored)
+-- Routed coach telemetry (no prompts or responses stored)
 create table if not exists public.coach_model_runs (
   id uuid primary key,
   user_id uuid not null references auth.users(id) on delete cascade,

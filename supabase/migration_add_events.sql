@@ -1,4 +1,4 @@
--- migrations/V17_0_events.sql
+-- supabase/migration_add_events.sql
 -- First-party funnel events (optional — the app and the log-event
 -- function run fine without this table; the sink no-ops until it exists).
 -- Run once in the Supabase SQL editor when you want queryable funnel numbers

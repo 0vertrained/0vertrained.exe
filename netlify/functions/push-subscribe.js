@@ -64,7 +64,7 @@ export default async (req) => {
 
   // Courier prefs: per-TYPE toggles applied across ALL the user's
   // devices (a preference is a person's, not a phone's). Booleans only;
-  // anything else is ignored. If migrations/V17_3_courier.sql hasn't run,
+  // anything else is ignored. If supabase/migration_add_courier.sql hasn't run,
   // PostgREST 400s on the unknown columns — surfaced as a soft failure the
   // card can explain, never a crash.
   if (action === "prefs") {

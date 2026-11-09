@@ -29,7 +29,7 @@
 // Required env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 //               VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
 // Required tables: push_subscriptions (existing), push_state + push_log
-//                  (migrations/V17_3_courier.sql).
+//                  (supabase/migration_add_courier.sql).
 
 import webpush from "web-push";
 import { mirrorClassify } from "./_recovery-mirror.js";

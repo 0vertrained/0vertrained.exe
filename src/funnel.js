@@ -14,7 +14,7 @@
 //   · Once per event name per session (funnel steps, not counters).
 //   · Disabled entirely in demo mode.
 // Server side: netlify/functions/log-event.js → `events` table
-// (migrations/V17_0_events.sql — run once; the endpoint no-ops until then).
+// (supabase/migration_add_events.sql — run once; the endpoint no-ops until then).
 import { supabase } from "./supabaseClient";
 import { isDemoMode } from "./demoData";
 

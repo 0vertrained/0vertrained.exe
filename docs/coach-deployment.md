@@ -40,7 +40,7 @@ The server clamps timeout values to safe ranges.
 Apply:
 
 ```text
-migrations/V19_0_coach_model_runs.sql
+supabase/migration_add_coach_model_runs.sql
 ```
 
 The table stores only operational metadata and user feedback. It does not store questions, responses, evidence payloads, or conversation history.

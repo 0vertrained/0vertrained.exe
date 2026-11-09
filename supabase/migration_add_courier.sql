@@ -1,4 +1,4 @@
--- migrations/V17_3_courier.sql
+-- supabase/migration_add_courier.sql
 -- The Courier. Run once in the Supabase SQL editor before enabling
 -- the edition-courier scheduled function. Until this runs, the courier
 -- degrades safely: the pref columns fall back to "enabled" via the legacy
