@@ -1,6 +1,5 @@
 // src/oauthReturn.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V19.4 · Wearable connections finish in the app.
+// Wearable connections finish in the app.
 //
 // Each provider's OAuth callback sends the browser back with the result in
 // the URL, and until now nothing read it: a successful Oura connection landed
@@ -16,7 +15,6 @@
 // Settings → Integrations with that line once the account has loaded, then
 // replaces the address with cleanOAuthReturnUrl() so a reload or a shared
 // link never replays it. Pure: callers pass a location-like object.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const PROVIDERS = [
   { id: "oura", label: "Oura", connected: (p) => p.get("oura_connected") === "true", errorKey: "oura_error" },

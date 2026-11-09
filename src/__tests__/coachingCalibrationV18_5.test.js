@@ -14,7 +14,7 @@ function day({ response = null, weekly = null, weight = 190, sleep = 7, protein 
 }
 
  describe("V18.5 coaching calibration", () => {
-  // V19.4 · The fixtures sit in May–June 2026 and the calibration report reads
+  // The fixtures sit in May–June 2026 and the calibration report reads
   // a 90-day window back from "now", so on the real clock these started
   // failing as the calendar moved on. Pin "now" to when they were written.
   beforeEach(() => {

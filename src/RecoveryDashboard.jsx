@@ -34,7 +34,7 @@ import {
 import { calcRecoveryScore as calcSubjectiveScore } from "./recovery";
 import { summarizeManualRecovery, getManualRecoveryCompleteness } from "./manualRecovery";
 import { isDemoMode } from "./demoData";
-import { loadStravaActivities, groupStravaByDate } from "./strava/dataLoading"; // V13.3 display context · V16.5 sentinel rung
+import { loadStravaActivities, groupStravaByDate } from "./strava/dataLoading"; // display context · sentinel rung
 import { buildDailyLoads, computeRollingLoads, getLoadZoneInfo, findUnloggedLoadDays } from "./loadModel";
 import { buildSignalProvenance } from "./wearables/signalProvenance";
 import { FigureSection, LeadMetric, RuledScale, MetricFigure, MethodNote, MethodLine, RuledRow, StatusStamp, AlertCard, AlertHistory, Sparkline, SkeletonBlock, SkeletonMetricFigure } from "./whitepaper";
@@ -140,7 +140,7 @@ const getRawRecoveryMetrics = (ouraData, sleepDebt) => {
   };
 };
 
-// V19.4 · Settings → Integrations, in the app. These were href="/settings"
+// Settings → Integrations, in the app. These were href="/settings"
 // links: a full page load that came back up on Today. The link stays as the
 // fallback when no shell action is passed (the app also reads /settings on
 // boot now).
@@ -152,11 +152,11 @@ function SettingsLink({ label, onOpen }) {
   return <a href="/settings" style={{ ...S.foodBtn, display: "block", textAlign: "center", textDecoration: "none" }}>{label}</a>;
 }
 
-// V4.5 · Compact, display-only wearable readiness status. Explains what the
+// Compact, display-only wearable readiness status. Explains what the
 // athlete's wearables (or manual-only setup) are showing and why — it never
 // changes the recovery score or re-derives any data. Manual-only is a valid,
 // confident state here, so it reads as complete rather than broken.
-// V6: when everything is healthy this collapses to a single status line —
+// When everything is healthy this collapses to a single status line —
 // the full explanation renders automatically only when the tone signals a
 // problem (warning/caution) or the wearables disagree, and is otherwise one
 // tap away. No content removed; only the default prominence changed.
@@ -279,25 +279,25 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   const [insights, setInsights] = useState(initialCache?.insights ?? []);
   const [sources, setSources] = useState(initialCache?.sources ?? {});
   const [explanationOpen, setExplanationOpen] = useState(false);
-  // V2.6: dense transparency sections (component ledger, data quality, training
+  // Dense transparency sections (component ledger, data quality, training
   // load, alert history, context) collapse behind one disclosure so the default
   // Recovery view leads with daily coaching. Nothing is removed.
   const [techOpen, setTechOpen] = useState(false);
-  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // V15.1 · broadsheet spread
+  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // broadsheet spread
   const [, setAlertData] = useState(initialCache?.alertData ?? null);
   const [alertHistory, setAlertHistory] = useState(initialCache?.alertHistory ?? {});
   const [recoveryHistory, setRecoveryHistory] = useState(initialCache?.recoveryHistory ?? []);
-  const [trend, setTrend] = useState(initialCache?.trend ?? null); // V16.8 · Morning Edition state machine
-  // V17.2 · Sunday Edition: raw grouped week data stashed by the compute
+  const [trend, setTrend] = useState(initialCache?.trend ?? null); // Morning Edition state machine
+  // Sunday Edition: raw grouped week data stashed by the compute
   // effect (deliberately NOT in the session cache — the effect revalidates on
   // every visit, and the masthead line simply waits for it), plus the overlay
   // toggle.
   const [editionRaw, setEditionRaw] = useState(null);
   const [showEdition, setShowEdition] = useState(false);
   const [trainingLoad, setTrainingLoad] = useState(initialCache?.trainingLoad ?? null);
-  const [unloggedFlags, setUnloggedFlags] = useState([]); // V16.1 · F7 sentinel
-  const [provenance, setProvenance] = useState(null); // V16.5 · signal story at the verdict
-  // V13.3 · External cardio (Strava) — strain-side display context only. Never
+  const [unloggedFlags, setUnloggedFlags] = useState([]); // F7 sentinel
+  const [provenance, setProvenance] = useState(null); // signal story at the verdict
+  // External cardio (Strava) — strain-side display context only. Never
   // a recovery input and never part of this dashboard's load math; it tells
   // the athlete how much outside cardio sits behind the week they're reading.
   const [externalCardio, setExternalCardio] = useState(null);
@@ -314,16 +314,16 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     return () => { alive = false; };
   }, [settings?.stravaConnected]);
   const [tokenStatus, setTokenStatus] = useState(initialCache?.tokenStatus ?? null);
-  // V3.0 Whoop display cards — loaded independently of the Oura recovery pipeline
+  // Whoop display cards — loaded independently of the Oura recovery pipeline
   // so they never touch the recovery score, its cache, or its inputs. Display only.
   const [whoopConnected, setWhoopConnected] = useState(false);
   const [whoopSummary, setWhoopSummary] = useState(null);
-  // V3.1 — raw grouped maps kept only for the pure source resolver (per-metric
+  // Raw grouped maps kept only for the pure source resolver (per-metric
   // source arbitration + conflict detection). Deliberately NOT written into the
   // recovery session cache and NEVER fed into the recovery score.
   const [ouraGrouped, setOuraGrouped] = useState(null);
   const [whoopGrouped, setWhoopGrouped] = useState(null);
-  // V3.5 — sync events for honest empty-state explanations on the Recovery tab.
+  // Sync events for honest empty-state explanations on the Recovery tab.
   const [whoopSyncEvents, setWhoopSyncEvents] = useState([]);
   // DB-first hydrate bookkeeping. `liveAppliedRef` flips true once a live load
   // has written real data so the (async) server-snapshot hydrate never clobbers
@@ -385,21 +385,18 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     else setLoading(true);
     let nextSnapshot;
     try {
-      perfStart("recovery"); // V14.2 · instrumentation — Settings → About → Diagnostics
-      // V14.2 · Waterfall collapse. Previously: isOuraConnected() → await →
-      // getOuraTokenStatus() — the SAME /api/oura/status endpoint invoked twice
-      // back-to-back (each ≈ 3–5 backend round trips) → await → loadOuraData.
-      // Now: ONE status call, fired in parallel with the data query (the query
+      perfStart("recovery"); // instrumentation — Settings → About → Diagnostics
+      // One status call, fired in parallel with the data query (the query
       // needs no status — a disconnected user simply gets an empty result, at
       // the cost of one cheap indexed select). Sequential depth here: 2 → 1.
-      // V16.0 · Whoop joins the batch as the arbitration layer's fallback
+      // Whoop joins the batch as the arbitration layer's fallback
       // source. loadWhoopData is single-flighted, so this call collapses with
       // the context-panel effect's — zero additional network.
       const [tokenStat, oura, whoopForScore, stravaActs] = await Promise.all([
         getOuraTokenStatus(),
-        loadOuraData(35), // V16.8 · 35d window feeds the trend baseline; scoring pools still slice(0,15)
+        loadOuraData(35), // 35d window feeds the trend baseline; scoring pools still slice(0,15)
         loadWhoopData(14).catch(() => null),
-        loadStravaActivities(14).catch(() => []), // V16.5 · sentinel evidence rung
+        loadStravaActivities(14).catch(() => []), // sentinel evidence rung
       ]);
       const stravaGrouped = groupStravaByDate(stravaActs || []);
       perfMark("recovery", "oura-ready");
@@ -422,7 +419,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
         const sleepMetric = rec.detail.sleep;
 
         // Sleep debt over the most recent recovery days, newest first.
-        // V16.9 · Reconciled with what the wearables themselves report. Two
+        // Reconciled with what the wearables themselves report. Two
         // input corrections (the reporting user saw 9h+ of debt while both
         // devices said "minimal"):
         //   1. NEED is Whoop's learned personal baseline (sleep_needed
@@ -436,9 +433,9 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
         //      16.3h debt on identical sleep).
         //   2. Naps CREDIT the slept side (main + nap hours per day). Both
         //      wearables count them toward need; a 1.4h nap on the reference
-        //      export repaid nothing here. HRV/RHR baselines keep the V16.6
-        //      main-sleep discipline — that rule is about signal
-        //      comparability, not duration accounting.
+        //      export repaid nothing here. HRV/RHR baselines keep to main
+        //      sleep — that rule is about signal comparability, not duration
+        //      accounting.
         const sleptByDay = recoveryDates(oura)
           .map(date => {
             const main = (mainSleepDurationSeconds(oura[date]) ?? 0) / 3600;
@@ -468,9 +465,9 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
           setUnloggedFlags(findUnloggedLoadDays(dailyLoads, whoopForScore, { window: 14, stravaByDate: stravaGrouped }));
         }
 
-        // V15.6 · rec.score can now be null (no signals reported) — the honest
+        // Rec.score can now be null (no signals reported) — the honest
         // state. Legacy readiness + recommendation skip rather than grade it.
-        // V16.6 · calcTrainingReadiness takes TRENDS (slopes/day) — it was fed
+        // CalcTrainingReadiness takes TRENDS (slopes/day) — it was fed
         // today's HRV z-score and RHR delta, so its ±0.02 / ±0.5 "trend" bands
         // fired on ordinary single-day noise. Real chronological slopes now.
         const tr = rec.score == null ? null : calcTrainingReadiness(rec.score, hrvTrendSlopePerDay(oura), rhrTrendSlopePerDay(oura), null, sd.debtHours || 0);
@@ -496,7 +493,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
 
         // Compute 7-day recovery history for sparkline (recovery days only, so a
         // heartrate-only sync date does not plot a misleading low point).
-        // V16.6 · Each point is now scored AS OF that morning: the engine gets
+        // Each point is now scored AS OF that morning: the engine gets
         // every day up to and including the point's date (and the matching
         // Whoop window), so leave-one-out baselines exist and the method
         // matches the headline score. The old single-day recompute had no
@@ -514,7 +511,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
         }).reverse();
         setRecoveryHistory(histPoints);
 
-        // V16.8 · Morning Edition — the multi-day state over the daily score.
+        // Morning Edition — the multi-day state over the daily score.
         // Pure classification: rolling-week HRV against the personal normal
         // range, RHR drift, load zone, sleep debt. Computed here (not render)
         // so the session cache restores it instantly on revisit.
@@ -527,7 +524,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
           scoreToday: rec.score,
         });
         setTrend(trendState);
-        setEditionRaw({ oura, whoop: whoopForScore }); // V17.2 · feeds the Sunday Edition
+        setEditionRaw({ oura, whoop: whoopForScore }); // feeds the Sunday Edition
 
         setTrainingLoad(loadModel);
         setQuality(q);
@@ -589,7 +586,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
       console.error("Recovery dashboard load error:", e);
     } finally {
       perfMark("recovery", "verdict-ready");
-      logFunnelEvent("first_verdict_rendered"); // V17.0 · funnel terminus; once per session, once per user in the table
+      logFunnelEvent("first_verdict_rendered"); // funnel terminus; once per session, once per user in the table
       setLoading(false);
       setRefreshing(false);
     }
@@ -625,7 +622,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     return () => { alive = false; };
   }, [userId, hadSessionCache, hydrateFromSnapshot]);
 
-  // V3.0 — load Whoop presence + a display-only summary of the latest day. This
+  // Load Whoop presence + a display-only summary of the latest day. This
   // is intentionally separate from loadData so Whoop can never influence the
   // recovery score, its confidence, or its cache. Cards render only when Whoop is
   // connected; the summary is null until data lands.
@@ -633,7 +630,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     let alive = true;
     (async () => {
       try {
-        // V14.2 · One parallel batch instead of a status pre-check gating the
+        // One parallel batch instead of a status pre-check gating the
         // data fetch. isWhoopConnected duplicated getWhoopTokenStatus's answer;
         // for a disconnected user the extra queries return empty and are
         // ignored — cheaper than serializing every connected user's load.
@@ -725,7 +722,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
           </FigureSection>
         )}
 
-        {/* V4.5 · Wearable readiness check — manual-only reads as a complete,
+        {/* Wearable readiness check — manual-only reads as a complete,
             confident setup here, never as broken. Display only. */}
         <WearableReadinessQASection
           qa={buildWearableReadinessQA({
@@ -827,12 +824,12 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     );
   }
 
-  // Display-only summaries (V2.4C). These reshape metrics already computed above
+  // Display-only summaries. These reshape metrics already computed above
   // into a coaching-first hierarchy; they never re-score or re-derive payloads.
   const heroMeta = buildRecoveryHeroMeta({ connected, confidence, quality, tokenStatus });
   const changeSummary = buildRecoveryChangeSummary({ hrv, rhr, sleep, temp, sleepDebt, trainingLoad, alerts, quality });
 
-  // V3.1 — when both wearables are connected, resolve per-metric sources and
+  // When both wearables are connected, resolve per-metric sources and
   // surface conflicts + a source disclosure. This is display-only: the recovery
   // score above is unchanged, Whoop cards stay display-only, and sources are
   // never averaged. Falls back to null (no extra UI) when Whoop is absent.
@@ -848,13 +845,13 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     : recommendation;
   const blendExplanation = buildBlendExplanation(blendContext);
 
-  // V13 · Slice C — resolve readiness + limiters into EXACTLY ONE top-level
+  // Slice C — resolve readiness + limiters into EXACTLY ONE top-level
   // instruction before anything reaches the screen. The resolver runs on the
   // post-blend recommendation, and every downstream echo (coach interpretation
   // guidance, readiness-hero caption, readiness row) reads the RESOLVED
   // recommendation, so no surface can contradict the verdict. Raw values,
   // sources, and confidence labels are untouched below.
-  // V16.8 · Morning check-in reads live off today's entry body (the same
+  // Morning check-in reads live off today's entry body (the same
   // fields TodayTab writes), so a tap here or a number there stay one truth.
   const todayBody = (todayKey && data?.[todayKey]?.body) || {};
   const checkin = readCheckin(todayBody);
@@ -868,7 +865,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     recovery, recommendation: resolvedRecommendation, insights, sleepDebt, trainingLoad, alerts,
     confidence, quality, connected, subjectiveRecovery, manualCompleteness,
   });
-  // V3.6 — full aggregated context (enrichment layer). Adds aggregated
+  // Full aggregated context (enrichment layer). Adds aggregated
   // confidence, Whoop recovery delta, and strain context to the display.
   const aggregatedContext = (whoopConnected && ouraGrouped)
     ? buildAggregatedRecoveryContext({
@@ -879,19 +876,17 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   const confidenceExplanation = aggregatedContext ? buildConfidenceExplanation(aggregatedContext) : null;
   const mixedSignal = wearableConflicts.length > 0;
 
-  // V15.1 · Broadsheet spread (mockup 1e/1f). Each figure block below is the
-  // EXACT JSX previously inlined in the return, lifted verbatim into a const
-  // so the two shells can compose the same blocks differently: mobile keeps
-  // the V13 audit order untouched; the broadsheet arranges verdict +
-  // interpretation (left) · biometric plates + load + alert history (center) ·
-  // signals + QA + data trust (right) — the reading order audit item 6.3
-  // asked for, falling out of the columns. No write path or figure changed.
+  // Broadsheet spread. Each figure block below is the
+  // The dashboard's blocks as consts, so the two shells can compose the same
+  // blocks differently: mobile keeps the single reading order; the broadsheet
+  // arranges verdict + interpretation (left) · biometric plates + load + alert
+  // history (center) · signals + QA + data trust (right).
   const blkSliceC = (<>
-      {/* V13 · Slice C — the ONE verdict. Stamp carries the resolved call, the
+      {/* Slice C — the ONE verdict. Stamp carries the resolved call, the
           headline states the action, and the most severe limiter renders as a
           double-rule clause INSIDE the verdict instead of a competing block
           further down. Everything below is evidence, not a second opinion. */}
-      {/* V17.2 · The Sunday Edition masthead line — Sunday 5pm through Monday
+      {/* The Sunday Edition masthead line — Sunday 5pm through Monday
           night, above the verdict. One line, no new nav; tap opens the weekly
           broadsheet overlay. */}
       {editionWindow(new Date()).available && editionRaw && (
@@ -912,7 +907,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
       )}
 
       {verdict && (() => {
-        // ── V16.8 · Morning Edition ─────────────────────────────────────────
+        // ── Morning Edition ─────────────────────────────────────────
         // One block, newspaper anatomy: check-in (above the verdict, so you
         // rate how you feel before the number can tell you) → state headline →
         // action → evidence deck → context → explainer. All additions live
@@ -1048,7 +1043,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
 
       {provenance && <AdvisoryNote>{provenance}</AdvisoryNote>}
   </>);
-  // V19.6 · The reconnect banner is an action, so it stays up top. The alert
+  // The reconnect banner is an action, so it stays up top. The alert
   // list is evidence the verdict already weighed (its most severe limiter is
   // the LimiterRule inside the verdict), so it reads under Technical details.
   const blkReconnect = (<>
@@ -1085,7 +1080,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
 
   </>);
   const blkMixedsignalday = (<>
-      {/* V3.1 · Mixed-signal warning — shown only when Oura and Whoop disagree on
+      {/* Mixed-signal warning — shown only when Oura and Whoop disagree on
           the same metric beyond threshold. Display-only; the score is unchanged. */}
       {mixedSignal && (
         <FigureSection title="Mixed signal day" right={`${wearableConflicts.length} metric${wearableConflicts.length === 1 ? "" : "s"}`}>
@@ -1101,7 +1096,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
 
   </>);
   const blkWearablereadinesscheck = (<>
-      {/* V4.5 · Wearable readiness check — compact, display-only status of the
+      {/* Wearable readiness check — compact, display-only status of the
           connected wearables (and manual). Never averages sources or re-scores. */}
       <WearableReadinessQASection
         qa={buildWearableReadinessQA({
@@ -1154,7 +1149,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
         <FigureSection title="Readiness" right={<StatusStamp>{heroMeta.confidenceLabel}{heroMeta.stale ? " · stale" : ""}</StatusStamp>}>
           <ReadinessMethodToggle open={explanationOpen} onToggle={() => setExplanationOpen(o => !o)} />
           <div style={{ clear: "both" }}>
-            {/* V17.0 · Connected-but-empty is a first-sync moment, not a broken
+            {/* Connected-but-empty is a first-sync moment, not a broken
                 one. Say what's happening and how long it takes. */}
             {recovery.band === "insufficient_data" && settings?.ouraConnected === true && (
               <div style={{ fontFamily: S.fontSerif, fontStyle: "italic", fontSize: 13, color: C.textDim, lineHeight: 1.5, marginBottom: 10 }}>
@@ -1228,8 +1223,8 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
 
   </>);
   const blkWearableintelligence = (<>
-      {/* Wearable intelligence — supplemental blend/source detail, relocated
-          from Tier 1 (V6). Same rows, same data; only default prominence. */}
+      {/* Wearable intelligence — supplemental blend/source detail, kept under
+          Technical details. */}
       {blendExplanation?.available && (
         <FigureSection title="Wearable intelligence" right={blendExplanation.headline || "supplemental"}>
           <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6, marginBottom: 8 }}>
@@ -1273,8 +1268,8 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
 
   </>);
   const blkWearablesourcesummary = (<>
-      {/* Wearable source summary — presence only, no scores. Relocated from
-          Tier 1 (V6); renders only when Whoop is connected. */}
+      {/* Wearable source summary — presence only, no scores; renders only when
+          Whoop is connected. */}
       {whoopConnected && (
         <WhoopSourceSummary
           ouraConnected={connected}
@@ -1309,7 +1304,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
           )}
           <RuledRow label="Sleep records" value={`${quality.sleepRecords}/${quality.daysLoaded || quality.daysRequested}`} />
           <RuledRow label="Readiness records" value={`${quality.readinessRecords}/${quality.daysLoaded || quality.daysRequested}`} />
-          {/* V14.2 · "HR samples" removed: raw heartrate payloads are no longer
+          {/* "HR samples" removed: raw heartrate payloads are no longer
               fetched client-side (their only use was this count). Quality scoring
               never used the figure — see calcOuraDataQuality. */}
           <RuledRow label="SpO₂ days" value={quality.spo2Records} />
@@ -1445,11 +1440,9 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
           <section data-section="rec-audit" style={{ minWidth: 0 }}>{blkSignals}{blkMixedsignalday}{blkWearablereadinesscheck}{blkDatatrust}{blkWearablesourcesummary}{blkOuradataquality}{blkWearablecontextWhoop}</section>
         </div>
       ) : (<>
-        {/* V19.6 · One verdict. The morning used to be read four times on the
-            way down (verdict, Signals, Coach interpretation, Readiness score);
-            now the check-in and verdict stand alone, with what changed and the
-            data-trust strip under them, and every other reading of the same
-            numbers waits under Technical details. Nothing is removed. */}
+        {/* One verdict: the check-in and verdict stand alone, with what changed
+            and the data-trust strip under them, and every other reading of the
+            same numbers waits under Technical details. */}
         {blkReconnect}{blkSliceC}{blkWhatchangedtoday}{blkDatatrust}{blkTechnicaldetailsdisclosure}{techOpen && (<>{blkSignals}{blkMixedsignalday}{blkWearablereadinesscheck}{blkReadiness}{blkCoachinterpretation}{blkWearableintelligence}{blkWhatchangedtoday2}{blkWearablesourcesummary}{blkComponentledger}{blkOuradataquality}{blkTrainingLoad}{blkAlerthistory}{blkContext}{blkWearablecontextWhoop}</>)}
       </>)}
     </div>

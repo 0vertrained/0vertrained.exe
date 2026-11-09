@@ -1,11 +1,9 @@
 // src/__tests__/ouraActivityLoadFill.test.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.6 · Oura activity load fill was dead code — two independent breaks:
+// Oura activity load fill was dead code — two independent breaks:
 // normalizeActivity required the legacy { activity: [...] } wrapper (stored
 // payloads are { data: [...] }) and returned snake_case fields while
 // ouraLoadForDay read camelCase. Against the reporting user's 14-day export,
 // zero days ever filled from Oura. Pinned with the real V2 payload shape.
-// ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { normalizeActivity } from "../oura/normalization";
 import { buildWearableLoadRows } from "../wearableWorkoutLoad";

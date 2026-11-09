@@ -1,9 +1,9 @@
 // src/App.jsx
-// V8 refactor · App shell only: auth/session, data load + cache, save paths,
+// App shell only: auth/session, data load + cache, save paths,
 // theme, header, nav, overlays, and modals. The four tabs live in their own
-// files (TodayTab/ProgressTab/FuelTab/MoreTab) — extracted verbatim, no
-// behavior change. DemoPage and FormCheck are lazy: neither is needed for
-// first paint, so they load on demand and stay out of the initial bundle.
+// files (TodayTab/ProgressTab/FuelTab/MoreTab). DemoPage and FormCheck are
+// lazy: neither is needed for first paint, so they load on demand and stay
+// out of the initial bundle.
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { ThemeProvider, useTheme } from "./theme";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName, presetProgram } from "./constants";
@@ -36,9 +36,9 @@ import { isFirstWeekUser, buildNewUserEmptyState, countLoggedDays } from "./firs
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TodayTab } from "./TodayTab";
 
-// V8 · Lazy chunks — DemoPage only loads on the #demo route; FormCheck only
+// Lazy chunks — DemoPage only loads on the #demo route; FormCheck only
 // when its overlay opens.
-// V12.1 · Everything not needed for first paint is now lazy. TodayTab stays
+// Everything not needed for first paint is now lazy. TodayTab stays
 // eager (it IS first paint); the other three tabs, the Profile overlay,
 // Settings, Tutorial, and Coach each load on demand. This cut the entry chunk
 // from ~775 KB to roughly a third of that. Each lazy usage below sits inside
@@ -72,7 +72,7 @@ function AppInner({ onThemeChange }) {
   const [tab, setTab]             = useState("Today");
   const [appUpdateReady, setAppUpdateReady] = useState(false);
   const tabScrollPositions = useRef({ Today: 0 });
-  // V5.0 nav restructure — overlay is a full-screen panel stacked above the
+  // Overlay is a full-screen panel stacked above the
   // tab content: "profile" (was the More tab) or "formcheck" (was nested
   // three taps deep inside More). null means no overlay is showing.
   const [overlay, setOverlay]     = useState(null); // null | "profile" | "formcheck"
@@ -99,7 +99,7 @@ function AppInner({ onThemeChange }) {
   const [settings, setSettings]       = useState(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
-  // V19.4 · Where Settings opens and the one status line it shows there
+  // Where Settings opens and the one status line it shows there
   // (Recovery's links and the wearable OAuth return land on Integrations).
   const [settingsLanding, setSettingsLanding] = useState({ section: null, notice: null });
   const openSettings = (section = null, notice = null) => {
@@ -111,7 +111,7 @@ function AppInner({ onThemeChange }) {
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   const [showTutorial, setShowTutorial] = useState(false);
-  // V19.4 · null, or why this account can't be shown: "unreachable" (the
+  // Null, or why this account can't be shown: "unreachable" (the
   // settings read failed and nothing is cached on this device), "missing" (no
   // profile row) or "cap" (no profile row, and signup is at its user limit).
   // While set, the tabs and Profile show a retry panel instead: setup and the
@@ -120,7 +120,7 @@ function AppInner({ onThemeChange }) {
   const [accountUnavailable, setAccountUnavailable] = useState(null);
   const [bootAttempt, setBootAttempt] = useState(0);
   const [loaded, setLoaded]       = useState(false);
-  // V19.4 · This account's settings are known: from a successful read or from
+  // This account's settings are known: from a successful read or from
   // its own cache. Until then the in-memory settings are defaults, so nothing
   // may write them anywhere: edits and queued saves skip the cache, the queue
   // waits, and Profile and Settings stay closed.
@@ -135,8 +135,8 @@ function AppInner({ onThemeChange }) {
   const [saving, setSaving]       = useState(false);
   const [, setSelectedDay] = useState(null);
   const [logDate, setLogDate]     = useState(null); // null = today; "YYYY-MM-DD" = past date
-  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // V15.0 · broadsheet shell tier
-  // V15.3 · ⌘K palette (mockup 1p): the FAB's quick actions, desktop-native.
+  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // broadsheet shell tier
+  // ⌘K palette: the FAB's quick actions, desktop-native.
   const [paletteOpen, setPaletteOpen] = useState(false);
   const handleQuickAction = (key) => {
     setSheetOpen(false);
@@ -168,8 +168,8 @@ function AppInner({ onThemeChange }) {
 
   const saveTimers = useRef({});
   const hasLoadedRef = useRef(null); // stores the user id that was last loaded
-  // V13.5 · The user whose durable offline queue has been flushed (see the
-  // flush effect below). V19.4 · Declared up here so the logged-out branch of
+  // The user whose durable offline queue has been flushed (see the
+  // flush effect below). Declared up here so the logged-out branch of
   // the load effect can reset it.
   const pendingFlushedRef = useRef(null);
 
@@ -177,8 +177,8 @@ function AppInner({ onThemeChange }) {
   // and sync the document background/colour so the gutters outside the
   // content width (and overscroll) match the theme. Without this, index.css's
   // static paper values framed the dark themes with light margins — visible
-  // on desktop and, since V13.2 bootstraps the logged-out theme from
-  // prefers-color-scheme, on the landing page too.
+  // on desktop and, because the logged-out theme follows prefers-color-scheme,
+  // on the landing page too.
   useEffect(() => {
     document.documentElement.style.setProperty("--ovt-focus", C.text);
     document.documentElement.style.background = C.bg;
@@ -211,7 +211,7 @@ function AppInner({ onThemeChange }) {
   // decision engine can prefer it over the subjective score (HRV/RHR/sleep are
   // stronger signals). Display-only fallback to subjective when absent.
   //
-  // V14.2 · Snapshot-first. The persisted wearable snapshot (written by
+  // Snapshot-first. The persisted wearable snapshot (written by
   // RecoveryDashboard and the hourly server-prefetch hydration) already holds
   // this EXACT number — calcOuraRecovery IS calcRecoveryScore, aliased — so a
   // same-day snapshot answers with zero network. Otherwise: one trimmed direct
@@ -225,7 +225,7 @@ function AppInner({ onThemeChange }) {
     (async () => {
       try {
         if (demoMode) {
-          // V15.5 · The demo decision engine runs on the demo wearable data —
+          // The demo decision engine runs on the demo wearable data —
           // same math, seeded inputs.
           const rec = calcOuraRecovery(buildDemoOuraData(), DEMO_SETTINGS, getDemoWhoopData());
           if (!cancelled) { setOuraRecovery(Number.isFinite(rec?.score) ? rec.score : null); perfMark("boot", "wearable-score-ready"); }
@@ -241,7 +241,7 @@ function AppInner({ onThemeChange }) {
           if (!cancelled) { setOuraRecovery(snapScore); perfMark("boot", "wearable-score-ready"); }
           return;
         }
-        // V16.0 · Whoop rides along (single-flighted — collapses with
+        // Whoop rides along (single-flighted — collapses with
         // TodayTab's concurrent load) so the boot score inherits the ladder.
         const [oura, whoopForScore] = await Promise.all([
           loadOuraData(14),
@@ -310,7 +310,7 @@ function AppInner({ onThemeChange }) {
     }
     if (!user) {
       setData({}); setProgram(null); setLoaded(false); setRefreshing(false);
-      // V19.4 · Nothing from the last account carries into the next one on this
+      // Nothing from the last account carries into the next one on this
       // page: its settings and username, its in-memory save queue (persisted
       // under its own key, it flushes when that account signs back in), and
       // any save still waiting on its debounce timer.
@@ -334,14 +334,14 @@ function AppInner({ onThemeChange }) {
     hasLoadedRef.current = user.id;
     let cancelled = false;
 
-    perfStart("boot"); // V14.2 · instrumentation — Settings → About → Diagnostics
+    perfStart("boot"); // instrumentation — Settings → About → Diagnostics
 
     // Step 1: Try to read from cache synchronously
     const cachedData = readCache(user.id);
     const cacheStatus = getCacheStatus(user.id);
     setCacheStatus(cacheStatus);
 
-    // V13.5 · Overlay the durable offline queue onto whatever loads. A queued
+    // Overlay the durable offline queue onto whatever loads. A queued
     // entry exists precisely because the server hasn't accepted it yet, so the
     // local copy is canonical over both the cache snapshot and the fresh fetch
     // (whole-day payloads; last local edit wins — single-account beta). The
@@ -351,7 +351,7 @@ function AppInner({ onThemeChange }) {
       setPendingSaves(prev => ({ ...storedPending, ...prev }));
     }
 
-    // V19.4 · A cache without settings can't stand in for the account (the
+    // A cache without settings can't stand in for the account (the
     // paint would run on defaults with Profile and Settings open), so it gets
     // the skeleton like no cache at all.
     if (cachedData?.settings) {
@@ -380,7 +380,7 @@ function AppInner({ onThemeChange }) {
     (async () => {
       let unavailable = false;
       try {
-        // V14.1 · Signup-orphan self-heal: a session with no profiles row (auth
+        // Signup-orphan self-heal: a session with no profiles row (auth
         // succeeded, profile insert failed) finishes setting itself up here.
         // Runs before the loads so profile-dependent reads see the healed row.
         let healReason = null;
@@ -396,7 +396,7 @@ function AppInner({ onThemeChange }) {
             showToast("This app is at its user limit — account setup is paused");
           }
         }
-        // V14.3 · Windowed boot (perf plan P1-1). The blocking load fetches
+        // Windowed boot. The blocking load fetches
         // only the last 180 days — one indexed range query, capped forever
         // instead of growing with account age. Older history arrives three
         // ways, all non-blocking: (1) the SWR cache already holds the full map
@@ -408,7 +408,7 @@ function AppInner({ onThemeChange }) {
         const [recent, programRead, settingsRead] = await Promise.all([loadRecentEntries(180), loadProgramChecked(), loadSettingsChecked()]);
         if (cancelled) return;
 
-        // V19.4 · A failed read is not a new account. The plain loaders answer
+        // A failed read is not a new account. The plain loaders answer
         // defaults when the server can't be reached, so opening the app offline
         // swapped in the default program, put the setup wizard in front of an
         // existing athlete, and wrote both into the cache. When a read fails,
@@ -491,7 +491,7 @@ function AppInner({ onThemeChange }) {
         }).catch(() => {});
       } finally {
         if (!cancelled) setRefreshing(false);
-        // V19.4 · Back from a wearable's OAuth screen (or an old /settings
+        // Back from a wearable's OAuth screen (or an old /settings
         // link): once this account's settings are fresh, open Integrations
         // with the result, then take the markers out of the address so a
         // reload doesn't replay it.
@@ -506,7 +506,7 @@ function AppInner({ onThemeChange }) {
       }
     })();
     return () => { cancelled = true; };
-    // V19.4 · themeId is read above but deliberately not a dependency. The
+    // ThemeId is read above but deliberately not a dependency. The
     // cached boot switches to the saved theme, and as a dependency that change
     // cancelled this run before the revalidation (and the OAuth return) could
     // finish, leaving stale data and the refresh bar up whenever the saved
@@ -527,7 +527,7 @@ function AppInner({ onThemeChange }) {
   const todayKey  = logDate || getTodayKey();
   const todayName = getDayName(logDate ? new Date(logDate + "T12:00:00") : new Date());
   const todayData = data[todayKey] || defaultDay();
-  // V19.2 · Race-build overlay: consuming surfaces see the current build week;
+  // Race-build overlay: consuming surfaces see the current build week;
   // MoreTab keeps the raw template so edits target the source of truth.
   const liveProgram = useMemo(() => applyRaceBuild(program, todayKey), [program, todayKey]);
 
@@ -543,11 +543,10 @@ function AppInner({ onThemeChange }) {
         // Queue any failed save, not just browser-detected offline failures.
         // Gyms are full of half-dead networks; navigator.onLine can lie.
         setPendingSaves(prev => ({ ...prev, [dateKey]: dayPayload }));
-        // V13.5 · Optimistic cache write on FAILURE too — previously only
-        // successful saves reached appDataCache, so a reload mid-outage
-        // dropped the entry from the UI even though it was queued. Belt and
-        // suspenders with the pendingSavesStore overlay on boot.
-        if (user?.id && accountReadyRef.current) { // V19.4 · only once the account's settings are known
+        // Optimistic cache write on FAILURE too, so a reload mid-outage keeps
+        // the queued entry on screen. Belt and suspenders with the
+        // pendingSavesStore overlay on boot.
+        if (user?.id && accountReadyRef.current) { // only once the account's settings are known
           writeCache(user.id, {
             entries: { ...data, [dateKey]: dayPayload },
             program,
@@ -564,7 +563,7 @@ function AppInner({ onThemeChange }) {
         });
         // Keep cache warm with the saved entry. Use the payload directly so the
         // cache cannot lag behind React state captured by this debounced closure.
-        if (user?.id && accountReadyRef.current) { // V19.4 · only once the account's settings are known
+        if (user?.id && accountReadyRef.current) { // only once the account's settings are known
           writeCache(user.id, {
             entries: { ...data, [dateKey]: dayPayload },
             program,
@@ -578,12 +577,12 @@ function AppInner({ onThemeChange }) {
     // it makes the React Compiler drop memoization here (compile-skip error).
   }, [demoMode, isOnline, user?.id, data, program, settings, myUsername]);
 
-  // V13.5 · Flush the durable offline queue once per loaded user. Gated on
+  // Flush the durable offline queue once per loaded user. Gated on
   // `loaded` so the data overlay in the load effect has already landed; the
   // ref makes the scheduleSave dependency churn harmless (re-runs no-op).
   // Declared AFTER scheduleSave — the dependency array evaluates at render
   // time, so referencing the const above avoids a temporal-dead-zone crash.
-  // V19.4 · Gated on accountReady, not just loaded: behind the retry panel the
+  // Gated on accountReady, not just loaded: behind the retry panel the
   // account's settings are unknown.
   useEffect(() => {
     const uid = user?.id;
@@ -593,8 +592,8 @@ function AppInner({ onThemeChange }) {
     Object.entries(readPendingSaves(uid)).forEach(([dateKey, payload]) => scheduleSave(dateKey, payload));
   }, [user?.id, demoMode, accountReady, scheduleSave]);
 
-  // V13.5 · Write-through: every queue change persists, so an iOS suspend or
-  // app close mid-outage no longer loses queued workouts. The empty-pre-flush
+  // Write-through: every queue change persists, so an iOS suspend or
+  // app close mid-outage keeps queued workouts. The empty-pre-flush
   // guard stops the initial {} render from deleting a stored queue before the
   // load effect has merged it into state.
   useEffect(() => {
@@ -611,7 +610,7 @@ function AppInner({ onThemeChange }) {
     };
   }, []);
 
-  // V19.4 · A device that turned notifications on before the push endpoint was
+  // A device that turned notifications on before the push endpoint was
   // routed holds a subscription the server never stored. Send it again once
   // the account is loaded (push.js runs it once per page load). Only devices
   // with permission granted load the push module at all.
@@ -627,7 +626,7 @@ function AppInner({ onThemeChange }) {
     
     const handleOnline = () => {
       setIsOnline(true);
-      // Retry pending saves. V13.5 · toast only when something is actually
+      // Retry pending saves. Toast only when something is actually
       // queued, and say how much — "retrying saves" with nothing pending read
       // like the app had been silently failing.
       const pendingCount = Object.keys(pendingSaves).length;
@@ -664,7 +663,7 @@ function AppInner({ onThemeChange }) {
       const updated = setPath(current, path.split("."), value);
       const next = { ...prev, [dateKey]: updated };
       // Optimistically cache local edits so a reload does not drop visible work
-      // while a debounced/offline save is still pending. V19.4 · Only once the
+      // while a debounced/offline save is still pending. Only once the
       // account's settings are known (accountReady).
       if (!demoMode && user?.id && accountReadyRef.current) {
         writeCache(user.id, { entries: next, program, settings, myUsername });
@@ -705,7 +704,7 @@ function AppInner({ onThemeChange }) {
     showToast("Settings saved");
   };
 
-  // V19.4 · Quiet patch for Integrations: it persists a connection flag the
+  // Quiet patch for Integrations: it persists a connection flag the
   // moment the server confirms the connection. The Save path above closes
   // Settings and toasts, which would shut the screen right after an OAuth
   // return lands there. This keeps you on Integrations and only speaks up on
@@ -724,7 +723,7 @@ function AppInner({ onThemeChange }) {
     return { ok: true };
   };
 
-  // V18.6 · Persist coaching-system changes without opening or closing the
+  // Persist coaching-system changes without opening or closing the
   // generic Settings screen. Approved plan versions can update the real goal
   // targets, while guardrails, projection ranges, and notification policy stay
   // namespaced under settings.coachingSystem.
@@ -747,7 +746,7 @@ function AppInner({ onThemeChange }) {
     return { ok: true };
   };
 
-  // V4.5 — persist the opt-in Coach Memory preferences from the More hub. This is
+  // Persist the opt-in Coach Memory preferences from the More hub. This is
   // a light patch (it never opens/closes the Settings modal). Demo mode updates
   // local state only. Suggest-only: nothing here edits programs or scores.
   const handleSaveCoachPreferences = async (coachPreferences) => {
@@ -760,7 +759,7 @@ function AppInner({ onThemeChange }) {
     showToast("Coach preferences saved");
   };
 
-  // Handle tutorial completion — apply full V2.2 setup payload + mark onboarded.
+  // Handle tutorial completion — apply full setup payload + mark onboarded.
   // Backward compatible: older callers pass a bare program-preset id string.
   const handleTutorialComplete = async (payload) => {
     const setup = typeof payload === "string" ? { programPreset: payload } : (payload || {});
@@ -775,7 +774,7 @@ function AppInner({ onThemeChange }) {
       completedAt: new Date().toISOString(),
     });
 
-    // Resolve the starter program. V2.3: if onboarding collected Program Builder
+    // Resolve the starter program. If onboarding collected Program Builder
     // preferences, generate a plan from them and save it + the builder prefs.
     // Otherwise fall back to the legacy preset path (back-compatible with the
     // bare program-preset string payload).
@@ -796,15 +795,13 @@ function AppInner({ onThemeChange }) {
     } else {
       // Legacy preset path: explicit choice wins, else derive from goal.
       const programPreset = setup.programPreset || resolveOnboardingProgramPreset(setup.goal);
-      // V19.5 · Every listed preset carries its own program (hybrid included);
+      // Every listed preset carries its own program (hybrid included);
       // an unknown id still falls back to DEFAULT_PROGRAM.
       programToSave = presetProgram(programPreset);
     }
 
     if (!demoMode) {
-      // V19.4 · Setup only counts once it's saved. These results used to be
-      // ignored: a failed save closed the wizard as if all was well, and it
-      // came back on the next launch. Now the wizard stays on its last step
+      // Setup only counts once it's saved: on a failed save the wizard stays on its last step
       // and Finish retries. Settings (the onboarded flag) only save after the
       // program does, so a half-saved setup never marks the account set up.
       // Setup's own fields land together in one server-side merge
@@ -883,7 +880,7 @@ function AppInner({ onThemeChange }) {
     return true;
   };
 
-  // Apply a Program Builder V2 (V2.3) generated plan. Explicit user action from
+  // Apply a Program Builder V2 generated plan. Explicit user action from
   // the builder panel's Apply button — nothing here runs before Apply. Saves the
   // generated program via the existing program path AND merges the builder
   // preferences into settings.programBuilder WITHOUT clobbering other settings.
@@ -915,7 +912,7 @@ function AppInner({ onThemeChange }) {
   };
 
   // Export / import helpers
-  // V19.4 · note: one line about what the file holds (an incomplete export),
+  // Note: one line about what the file holds (an incomplete export),
   // shown on the export screen and in the "Shared" toast. A separate toast
   // would sit under the full-screen export screen, or be replaced by "Shared".
   const deliver = async (text, filename, mime, label, note = null) => {
@@ -937,7 +934,7 @@ function AppInner({ onThemeChange }) {
     setExportModal({ text, filename, label, note });
   };
 
-  // V19.4 · Exports cover the whole history. In-memory `data` is the 180-day
+  // Exports cover the whole history. In-memory `data` is the 180-day
   // boot window plus whatever older history the background hydrate merged, so
   // after a failed hydrate a "Full Backup" was quietly short. Page everything
   // from the server and lay the in-memory map over it: queued or unsaved local
@@ -980,7 +977,7 @@ function AppInner({ onThemeChange }) {
     if (res.error) { showToast(res.error || "Import failed"); return; }
     const all = await loadAllEntries();
     setData(all); 
-    // Keep cache warm after successful import (V19.4 · once the account is known)
+    // Keep cache warm after successful import (once the account is known)
     if (user?.id && accountReadyRef.current) {
       writeCache(user.id, {
         entries: all,
@@ -1007,7 +1004,7 @@ function AppInner({ onThemeChange }) {
     reader.readAsText(file); e.target.value = "";
   };
 
-  // V17.0 · Funnel: mark the wearable-connected step once per session. Lives
+  // Funnel: mark the wearable-connected step once per session. Lives
   // above ALL early returns (rules-of-hooks); the derivation is inlined here
   // because the render-side `ouraConnected` const is computed after them.
   useEffect(() => {
@@ -1031,11 +1028,11 @@ function AppInner({ onThemeChange }) {
   // First-week baseline state for the additive per-tab guidance banners. Gated on
   // `loaded` so a tab never flashes a banner before its real data resolves.
   const ouraConnected = settings?.ouraConnected === true || ouraRecovery != null;
-  // V17.0 · Day Zero — per-tab zero states. Computed every render (cheap:
+  // Day Zero — per-tab zero states. Computed every render (cheap:
   // key scans over the entries map); gated on `loaded` at the render sites so
   // specimens never flash during boot. Demo mode counts as real data.
   const dayZero = detectDayZero({ data, settings, ouraConnected, demoMode });
-  // V19.4 · The retry panel's "Try again": run the launch again for this account.
+  // The retry panel's "Try again": run the launch again for this account.
   // Loading state first, so the tabs show their skeletons, not samples built
   // from the defaults, until the account answers.
   const retryBoot = () => { hasLoadedRef.current = null; setLoaded(false); setAccountUnavailable(null); setBootAttempt((n) => n + 1); };
@@ -1055,7 +1052,7 @@ function AppInner({ onThemeChange }) {
           />
         </Suspense>
       )}
-      {/* V13 masthead — logout moved into Profile → Account + Data; at desktop
+      {/* Masthead — logout moved into Profile → Account + Data; at desktop
           the header also carries the tab nav + "+ Log" (see AppHeader). Tab
           changes from the masthead close any overlay first so desktop nav
           always lands on the tab, never behind Profile/Form Check. */}
@@ -1107,15 +1104,15 @@ function AppInner({ onThemeChange }) {
       {!overlay && (
         <>
           <div ref={tabPanelRef} id="tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`} tabIndex={0} style={{ outline: "none" }}>
-          {/* V9 · key={tab} resets the boundary on tab switch, so a crash in
+          {/* Key={tab} resets the boundary on tab switch, so a crash in
               one tab never leaves another tab stuck on the fallback. */}
           <ErrorBoundary key={tab} label={`${tab} tab`}>
           <Suspense fallback={null}>
-          {/* V15.0 · At the broadsheet tier only Today composes into columns
+          {/* At the broadsheet tier only Today composes into columns
               (this slice); the other tabs keep their reading-column layout,
-              centered inside the widened shell, until their V15.1–.2 spreads
-              land. Below 1440px this wrapper is display:contents — the DOM
-              gains a node but layout is byte-identical to V14. */}
+              centered inside the widened shell, until they get spreads of their
+              own. Below 1440px this wrapper is display:contents — the DOM
+              gains a node but layout is as before. */}
           <div style={isBroadsheet && !["Today", "Fuel", "Recovery", "Progress"].includes(tab) ? { maxWidth: "var(--ovt-content-width)", margin: "0 auto", width: "100%" } : { display: "contents" }}>
           {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /> : (<>
           {tab === "Today"   && (loaded && dayZero.today.isZero
@@ -1182,9 +1179,9 @@ function AppInner({ onThemeChange }) {
 }
 
 
-// ─── Today Tab ────────────────────────────────────────────────────────────────
-// ─── Daily Coach Hero ──────────────────────────────────────────────────────────
-// V19.4 · Shown in place of the tabs and Profile while the account can't be
+// Today Tab
+// Daily Coach Hero
+// Shown in place of the tabs and Profile while the account can't be
 // loaded (see accountUnavailable in AppInner). Nothing behind it may run off
 // default settings: no setup, no samples, no settings or program saves.
 const ACCOUNT_UNAVAILABLE_COPY = {
@@ -1205,7 +1202,7 @@ function AccountUnavailable({ reason, onRetry, onLogout }) {
   );
 }
 
-// V19.4 · Profile while the account is still loading: its settings aren't
+// Profile while the account is still loading: its settings aren't
 // known yet, so Settings and the program editors wait.
 function AccountLoading() {
   const { C, S } = useTheme();
@@ -1228,7 +1225,7 @@ function BaselineBanner({ tab, firstWeek, settings, entries, program, ouraConnec
   );
 }
 
-// ─── First-week setup card ──────────────────────────────────────────────────────
+// First-week setup card
 // Compact "Baseline week" card shown near the top of Today for new beta users.
 // One-line explanation, checklist progress (n/6), the next step + CTA, a subtle
 // expand/collapse for the full checklist, and a privacy-safe beta feedback note.
@@ -1275,7 +1272,7 @@ function ImportModal({  onImport, onClose }) {
 }
 
 export default function App() {
-  // V13.2 · Logged-out first paint (landing/auth) follows the OS colour
+  // Logged-out first paint (landing/auth) follows the OS colour
   // scheme, matching the static /legal pages. Once a session loads, the
   // user's saved theme still overrides this (handled in AppInner's settings
   // effects), so signed-in behavior is unchanged.

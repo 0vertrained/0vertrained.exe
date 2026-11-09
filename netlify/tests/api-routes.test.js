@@ -1,5 +1,5 @@
 // netlify/tests/api-routes.test.js
-// V19.4 · Every /api/… path the browser calls has to reach a function, either
+// Every /api/… path the browser calls has to reach a function, either
 // through a v2 function's `export const config = { path }` or a netlify.toml
 // redirect. Anything else falls through to the SPA rewrite (/* → /index.html,
 // 200) and fails without a sound. That is how analytics, crash reports and

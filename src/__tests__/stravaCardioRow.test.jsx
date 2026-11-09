@@ -1,5 +1,5 @@
 // src/__tests__/stravaCardioRow.test.jsx
-// V13.3 · The Strava → cardio suggestion row: appears only for the
+// The Strava → cardio suggestion row: appears only for the
 // unlogged-external-run case, applies through the caller's setter, dismisses
 // per-day, and always carries the required Strava deep link. Plus the
 // compliance lock: no Strava field ever reaches a coach payload.

@@ -1,5 +1,5 @@
 // src/programBuilder.js
-// ─── Program Builder V2 (V2.3) — pure plan generator ────────────────────────
+// Program Builder V2 — pure plan generator
 //
 // Turns a small set of user constraints (goal, days/week, rest days, equipment,
 // experience, cardio preference) into the existing weekly program shape that
@@ -23,7 +23,7 @@ import {
 } from "./programExerciseLibrary";
 import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
 
-// ─── Catalogs (exported for UI + validation) ────────────────────────────────
+// Catalogs (exported for UI + validation)
 export const PROGRAM_BUILDER_GOALS = [
   { id: "basic_fitness", label: "Basic fitness",  desc: "General health and strength. Simple full-body sessions plus easy cardio." },
   { id: "bodybuilding",  label: "Bodybuilding",   desc: "Hypertrophy focus. Higher volume, muscle-group variety across the week." },
@@ -70,7 +70,7 @@ export function goalUsesRunning(goal) {
   return RUNNING_GOALS.includes(goal);
 }
 
-// Map a V2.2 onboarding goal id → a builder goal id.
+// Map an onboarding goal id → a builder goal id.
 const ONBOARDING_GOAL_MAP = {
   hybrid: "hybrid",
   muscle: "bodybuilding",
@@ -82,7 +82,7 @@ export function mapOnboardingGoalToBuilderGoal(goal) {
   return ONBOARDING_GOAL_MAP[goal] || "hybrid";
 }
 
-// ─── Recommendations ────────────────────────────────────────────────────────
+// Recommendations
 const GOAL_DEFAULT_DAYS = {
   basic_fitness: 3,
   bodybuilding: 5,
@@ -133,7 +133,7 @@ function sortDays(days) {
   return [...new Set(days)].filter((d) => DAYS.includes(d)).sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b));
 }
 
-// ─── Input normalization ────────────────────────────────────────────────────
+// Input normalization
 export function normalizeProgramBuilderInput(input = {}) {
   const goal = PROGRAM_BUILDER_GOAL_IDS.includes(input.goal) ? input.goal : "hybrid";
   const trainingDaysPerWeek = clampTrainingDays(input.trainingDaysPerWeek, goal);
@@ -217,7 +217,7 @@ function pickLongRunFallback(trainingDays) {
   return trainingDays[trainingDays.length - 1] || "Saturday";
 }
 
-// ─── Role templates ─────────────────────────────────────────────────────────
+// Role templates
 // A "role" is an abstract day type; buildDayFromRole turns it into a concrete
 // lifting/cardio day. Templates return an ordered list of exactly `training`
 // roles for the given goal.
@@ -290,7 +290,7 @@ function roleIntensity(role, includeIntervals) {
   return "moderate";
 }
 
-// ─── Weekly schedule allocation ─────────────────────────────────────────────
+// Weekly schedule allocation
 // Returns a { Weekday: role } map ("rest" for rest days) honoring rest-day
 // choices and applying the safety-spacing rules where possible.
 export function buildWeeklySchedule(input) {
@@ -369,7 +369,7 @@ function improveScheduleSafety(roleByDay, restDays, lockedDay, includeIntervals)
   return map;
 }
 
-// ─── Set/rep schemes ────────────────────────────────────────────────────────
+// Set/rep schemes
 const GOAL_SCHEME = {
   strength:      { compound: { sets: 4, reps: 5 }, accessory: { sets: 3, reps: 10 }, main: { sets: 5, reps: 3 } },
   bodybuilding:  { compound: { sets: 4, reps: 8 }, accessory: { sets: 3, reps: 12 }, main: { sets: 4, reps: 8 } },
@@ -406,7 +406,7 @@ function liftEntry(exercise, { goal, experience, isMain }) {
     notes: exercise.notes,
   };
   const mode = resolveTrackingMode(entry);
-  // V19.5 · A hold's target is seconds: keep the library's (Plank 45 s)
+  // A hold's target is seconds: keep the library's (Plank 45 s)
   // rather than the goal's rep band, which made a 12-second plank.
   if (mode === TRACKING_MODES.TIMED_HOLD) entry.reps = exercise.defaultReps;
   // The logger reads a bodyweight movement it can't recognize by name
@@ -419,7 +419,7 @@ function liftEntry(exercise, { goal, experience, isMain }) {
   return entry;
 }
 
-// ─── Role → concrete day ────────────────────────────────────────────────────
+// Role → concrete day
 // Each pattern-plan entry is [pattern, count]. `main` marks the anchor lift.
 const LIFT_ROLE_PLANS = {
   full_body:      { type: "Full Body", code: "FULL BODY", plan: [["squat", 1], ["horizontalPush", 1], ["horizontalPull", 1], ["hinge", 1], ["verticalPush", 1], ["core", 1], ["calves", 1]] },
@@ -547,7 +547,7 @@ function restDay() {
   return { type: "Rest", code: "REST", lifting: [], cardio: null };
 }
 
-// ─── Build the weekly program ───────────────────────────────────────────────
+// Build the weekly program
 export function buildProgramPlan(input) {
   const norm = normalizeProgramBuilderInput(input);
   const schedule = buildWeeklySchedule(norm);
@@ -603,7 +603,7 @@ export function buildProgramPlan(input) {
   };
 }
 
-// ─── Week-to-week variation ─────────────────────────────────────────────────
+// Week-to-week variation
 // Week 1 base · Week 2 varied accessories/cardio · Week 3 slightly harder ·
 // Week 4 deload. Applies via seed offset + volume flags; does NOT auto-persist.
 export function buildWeekVariant(baseInput, weekIndex = 0) {
@@ -670,7 +670,7 @@ export function buildMultiWeekProgram(input, weeks = 4) {
   return out;
 }
 
-// ─── Rationale + warnings ───────────────────────────────────────────────────
+// Rationale + warnings
 function goalLabel(goal) {
   return PROGRAM_BUILDER_GOALS.find((g) => g.id === goal)?.label || goal;
 }
@@ -705,7 +705,7 @@ function buildWarnings(norm, schedule) {
   return warnings;
 }
 
-// ─── Summary for UI ─────────────────────────────────────────────────────────
+// Summary for UI
 export function summarizeGeneratedPlan(plan) {
   const program = plan?.program || {};
   const days = DAYS.map((day) => {
@@ -747,7 +747,7 @@ export function summarizeGeneratedPlan(plan) {
   };
 }
 
-// ─── Validation (used by callers before persisting) ─────────────────────────
+// Validation (used by callers before persisting)
 export function validateGeneratedProgram(program) {
   const errors = [];
   if (!program || typeof program !== "object") {
@@ -773,7 +773,7 @@ export function validateGeneratedProgram(program) {
   return { valid: errors.length === 0, errors };
 }
 
-// ─── Settings patch (non-clobbering) ────────────────────────────────────────
+// Settings patch (non-clobbering)
 // Returns ONLY { programBuilder: {...} } so callers can shallow-merge it into
 // settings without touching goals/theme/supplements/oura/etc.
 export function buildProgramBuilderSettingsPatch(input, plan = null) {

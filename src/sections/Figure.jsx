@@ -1,6 +1,5 @@
 import { useTheme } from "../theme";
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  LineFigure — one charting primitive for the whole app (Improvements §4).
 //  Consolidates the hand-rolled SVG line charts behind a single component with
 //  consistent conventions: hairline reference lines with direct labels, end-of-
@@ -12,7 +11,6 @@ import { useTheme } from "../theme";
 //               lines are comparable, e.g. a value against its target).
 //    "each"   — each series is scaled to its own min/max (use for overlays of
 //               different units, e.g. recovery vs training load).
-// ─────────────────────────────────────────────────────────────────────────────
 
 function InsufficientData({ C, height, have = 0, need = 2 }) {
   const mono = C.monoFamily || C.fontFamily;

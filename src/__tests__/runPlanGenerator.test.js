@@ -11,7 +11,7 @@ import {
   validateRunPlanSpec,
 } from "../runPlanGenerator";
 
-// V19.3 · The generator's rules are tuned so the hand-written 12-week 10K
+// The generator's rules are tuned so the hand-written 12-week 10K
 // plan (start Mon 2026-10-26, race Sat 2027-01-16, 5K test on Thanksgiving)
 // is reproduced exactly — that plan is the acceptance test. Everything else
 // is held to invariants across a grid of inputs.

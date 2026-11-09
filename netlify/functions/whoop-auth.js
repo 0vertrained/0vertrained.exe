@@ -1,8 +1,7 @@
 // netlify/functions/whoop-auth.js
 import { PROVIDERS, resolveProviderTokens, persistProviderTokens, getProviderConnectionSummary } from "./_provider-standard.js";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Whoop OAuth flow + manual sync handler (V2.9 Whoop Foundation)
+// Whoop OAuth flow + manual sync handler
 //
 // Endpoints (Netlify v2, path /api/whoop/*):
 // • GET  /api/whoop/auth       — verifies Supabase Bearer, mints 8-char state,
@@ -25,7 +24,6 @@ import { PROVIDERS, resolveProviderTokens, persistProviderTokens, getProviderCon
 //   VITE_*). Tokens are stored via the service_role key (server-to-server).
 // • We never log access_token, refresh_token, client_secret, Authorization
 //   headers, raw Whoop payloads, or full failing rows.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const WHOOP_AUTH_URL = "https://api.prod.whoop.com/oauth/oauth2/auth";
 const WHOOP_TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token";
@@ -47,7 +45,7 @@ export const SYNC_DAYS = 14;
 export const MAX_SYNC_DAYS = 30; // upper bound for the initial-backfill (?days=30) button
 const MAX_PAGES = 10; // conservative pagination bound per endpoint
 
-// ─── Redaction helpers ───────────────────────────────────────────────────────
+// Redaction helpers
 // Mirrors the Oura redaction. PostgREST error bodies may echo a failing row that
 // contains the Whoop JSON payload, so we keep code/message/hint but redact
 // tokens and payload/row detail. Never log biometric data.
@@ -80,7 +78,7 @@ async function readErrorBody(response, maxLen = 800) {
   }
 }
 
-// ─── Response helpers ────────────────────────────────────────────────────────
+// Response helpers
 const SECURITY_HEADERS = {
   "content-type": "application/json",
   "x-content-type-options": "nosniff",
@@ -105,7 +103,7 @@ function redirect(location, status = 302) {
   });
 }
 
-// ─── Auth / identity ─────────────────────────────────────────────────────────
+// Auth / identity
 async function resolveUserIdFromBearer(req) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -137,7 +135,7 @@ function generateState() {
   return out;
 }
 
-// ─── Supabase (service_role) helpers ─────────────────────────────────────────
+// Supabase (service_role) helpers
 function serviceHeaders(serviceKey, extra = {}) {
   return {
     "authorization": `Bearer ${serviceKey}`,
@@ -195,7 +193,7 @@ async function consumeState(supabaseUrl, serviceKey, state) {
   return userId;
 }
 
-// ─── Route: GET /api/whoop/auth ──────────────────────────────────────────────
+// Route: GET /api/whoop/auth
 async function handleAuth(req) {
   const WHOOP_CLIENT_ID = process.env.WHOOP_CLIENT_ID;
   const WHOOP_REDIRECT_URI = process.env.WHOOP_REDIRECT_URI;
@@ -228,7 +226,7 @@ async function handleAuth(req) {
   return wantsJson ? json({ url: authorizeUrl.toString() }) : redirect(authorizeUrl.toString());
 }
 
-// ─── Route: GET /api/whoop/callback ──────────────────────────────────────────
+// Route: GET /api/whoop/callback
 async function handleCallback(req) {
   const WHOOP_CLIENT_ID = process.env.WHOOP_CLIENT_ID;
   const WHOOP_CLIENT_SECRET = process.env.WHOOP_CLIENT_SECRET;
@@ -286,7 +284,7 @@ async function handleCallback(req) {
   }
 
   const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
-  // V14 · Encrypted-only persistence — same stance as Oura: connected_accounts
+  // Encrypted-only persistence — same stance as Oura: connected_accounts
   // is the sole token store, a successful persist deletes any surviving
   // whoop_tokens row, and a missing TOKEN_ENCRYPTION_KEY fails closed with an
   // actionable error instead of ever writing plaintext.
@@ -325,7 +323,7 @@ async function handleCallback(req) {
   return redirect(`/?whoop=connected#/settings`);
 }
 
-// ─── Route: GET /api/whoop/status ────────────────────────────────────────────
+// Route: GET /api/whoop/status
 async function handleStatus(req) {
   if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
 
@@ -340,7 +338,7 @@ async function handleStatus(req) {
   catch { userId = null; }
   if (!userId) return json({ error: "Not authenticated" }, 401);
 
-  // V14 · Presence-only summary: encrypted connected_accounts first, legacy
+  // Presence-only summary: encrypted connected_accounts first, legacy
   // fallback, no decryption required.
   let tokenData;
   try {
@@ -383,7 +381,7 @@ async function handleStatus(req) {
     const remainingMs = expiresAt ? new Date(expiresAt).getTime() - Date.now() : -Infinity;
     const needsRefresh = remainingMs <= TOKEN_NEAR_EXPIRY_MS;
     if (needsRefresh && tokenData.refresh_token) {
-      // V14 · refreshAccessToken resolves its own refresh token from the
+      // RefreshAccessToken resolves its own refresh token from the
       // encrypted store — no plaintext flows through the status handler.
       const refreshed = await refreshAccessToken(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, userId);
       if (refreshed) {
@@ -412,7 +410,7 @@ async function handleStatus(req) {
   });
 }
 
-// ─── Route: POST /api/whoop/disconnect ───────────────────────────────────────
+// Route: POST /api/whoop/disconnect
 async function handleDisconnect(req) {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
@@ -433,7 +431,7 @@ async function handleDisconnect(req) {
         method: "DELETE",
         headers: serviceHeaders(SUPABASE_SERVICE_ROLE_KEY, { "Prefer": "return=minimal" }),
       });
-      // V14 · 404 = the table no longer exists (migration_v31 dropped the
+      // 404 = the table no longer exists (migration_v31 dropped the
       // plaintext token tables). Nothing to delete is a success, not a failure.
       if (!r.ok && r.status !== 404) {
         console.error(`Whoop disconnect failed for ${table}:`, r.status);
@@ -466,7 +464,7 @@ async function handleDisconnect(req) {
   return json({ ok: true });
 }
 
-// ─── Route: POST /api/whoop/sync ─────────────────────────────────────────────
+// Route: POST /api/whoop/sync
 async function handleSync(req) {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
@@ -492,7 +490,7 @@ async function handleSync(req) {
     }
   } catch { syncDays = SYNC_DAYS; }
 
-  // V14 · Load tokens via the encrypted store (one-shot legacy migration).
+  // Load tokens via the encrypted store (one-shot legacy migration).
   const resolved = await resolveProviderTokens(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { userId, provider: PROVIDERS.WHOOP });
   if (!resolved.ok) {
     if (resolved.reason === "encryption_not_configured") {
@@ -546,7 +544,7 @@ async function handleSync(req) {
   });
 }
 
-// ─── Route: GET /api/whoop/counts ────────────────────────────────────────────
+// Route: GET /api/whoop/counts
 // Per-type record counts for the Settings surface. Ownership is derived from the
 // verified Bearer token. Returns only aggregate counts + timestamps — never raw
 // biometric payloads.
@@ -590,7 +588,7 @@ async function handleCounts(req) {
   return json({ ...counts, lastSynced, latestDate });
 }
 
-// ─── Sync event logging (V3.4) ───────────────────────────────────────────────
+// Sync event logging
 // Writes a privacy-safe metadata-only row to wearable_sync_events after each
 // sync / connect / disconnect / token_refresh. Never logs raw payloads, tokens,
 // or biometric values — only aggregate counts + a short message.
@@ -618,7 +616,7 @@ export async function logSyncEvent(supabaseUrl, serviceKey, { userId, source, ev
   }
 }
 
-// ─── Token refresh ───────────────────────────────────────────────────────────
+// Token refresh
 export async function refreshAccessToken(supabaseUrl, serviceKey, userId) {
   const WHOOP_CLIENT_ID = process.env.WHOOP_CLIENT_ID;
   const WHOOP_CLIENT_SECRET = process.env.WHOOP_CLIENT_SECRET;
@@ -626,7 +624,7 @@ export async function refreshAccessToken(supabaseUrl, serviceKey, userId) {
     console.error("Whoop refresh: credentials not configured");
     return null;
   }
-  // V14 · Resolve the refresh token from the encrypted store (one-shot legacy
+  // Resolve the refresh token from the encrypted store (one-shot legacy
   // migration). Resolution fails BEFORE the provider call when the encryption
   // key is missing — Whoop rotates refresh tokens on every refresh, so a
   // rotation we can't store would sever the connection permanently.
@@ -666,7 +664,7 @@ export async function refreshAccessToken(supabaseUrl, serviceKey, userId) {
     if (!newAccess) return null;
 
     // Persist immediately before using it so a rotated refresh token is never lost.
-    // V14 · Encrypted-only. A failed store after a Whoop rotation means the
+    // Encrypted-only. A failed store after a Whoop rotation means the
     // stored refresh token is now stale — report failure so the UI surfaces a
     // reconnect rather than pretending health.
     const persisted = await persistProviderTokens(supabaseUrl, serviceKey, {
@@ -702,7 +700,7 @@ export async function refreshAccessToken(supabaseUrl, serviceKey, userId) {
   }
 }
 
-// ─── Sync core ───────────────────────────────────────────────────────────────
+// Sync core
 // Whoop v2 collection endpoints. Sleep + workout live under /activity.
 const WHOOP_ENDPOINTS = [
   { dataType: "recovery", path: "/recovery" },
@@ -752,7 +750,7 @@ function toDateKey(value) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
-// V16.7 · Local calendar date for a UTC timestamp using the record's own
+// Local calendar date for a UTC timestamp using the record's own
 // timezone_offset ("-05:00" style). The old UTC-prefix keying mis-dated every
 // record whose timestamp crosses UTC midnight before local midnight — for a
 // UTC−5 athlete that is anything after 7 p.m.: on the reporting user's export,
@@ -777,9 +775,9 @@ export function toLocalDateKey(value, timezoneOffset) {
 // `score_state` is a status string, not a date, so it is intentionally ignored.
 // Order prefers the record's own window, then creation/update, then nested
 // cycle/sleep windows. Every candidate is shifted into the record's own
-// timezone when it declares one (V16.7).
+// timezone when it declares one.
 export function pickRecordDate(rec) {
-  // V15.6 (audit F5) · Main-sleep records (nap === false) key on their END —
+  // Main-sleep records (nap === false) key on their END —
   // the wake date — matching Oura's day convention. A 22:30 start was keying
   // the night to the PREVIOUS calendar day, skewing every cross-source join
   // by one. Naps keep start-date; cycles are dated by local start.
@@ -805,7 +803,7 @@ export function pickRecordDate(rec) {
   return null;
 }
 
-// V16.7 · Cycles get their own rule. A Whoop cycle runs sleep-onset →
+// Cycles get their own rule. A Whoop cycle runs sleep-onset →
 // sleep-onset and is displayed under the day you WAKE inside it, but its
 // `start` is the previous evening (the export's cycles start ~23:00 local).
 // Wake-day from the bedtime: local(start) + 1 day when the cycle began in the
@@ -898,7 +896,7 @@ export async function syncUserData(supabaseUrl, serviceKey, userId, accessToken,
   const counts = {};
   const fetchFailures = [];
 
-  // V16.7 · Two-pass build. Recovery records carry NO window and NO
+  // Two-pass build. Recovery records carry NO window and NO
   // timezone_offset of their own — only created_at (UTC) and a cycle_id. The
   // old single pass dated them off created_at's UTC prefix, which keys any
   // recovery scored after 7 p.m. local (UTC−5) to the NEXT day. A recovery is
@@ -989,7 +987,7 @@ export function classifyWhoopSync(summary = {}, syncDays = SYNC_DAYS) {
   return { status, message, counts };
 }
 
-// ─── Route: GET /api/whoop/events ────────────────────────────────────────────
+// Route: GET /api/whoop/events
 // Returns the most recent wearable_sync_events rows for the caller (Whoop only
 // for this endpoint; Oura events would use /api/oura/events). Owner-derived via
 // Bearer token. Returns only metadata — no raw payloads, no tokens.
@@ -1030,7 +1028,7 @@ async function handleEvents(req) {
   }
 }
 
-// ─── Netlify entrypoint ──────────────────────────────────────────────────────
+// Netlify entrypoint
 export const config = { path: "/api/whoop/*" };
 
 export default async (req) => {

@@ -1,5 +1,5 @@
 // src/__tests__/landingCompliance.test.jsx
-// V13.2 · Locks the Google-OAuth-verification-critical surface of the
+// Locks the Google-OAuth-verification-critical surface of the
 // logged-out landing page: the Limited Use disclosure (homepage + privacy
 // policy, kept in lockstep), the privacy/terms links in both the masthead and
 // colophon, the Fig. 4 data-use rows, the functionality description

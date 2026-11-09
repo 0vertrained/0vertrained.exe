@@ -1,4 +1,4 @@
-// ─── Recovery Score Calculator ────────────────────────────────────────────────
+// Recovery Score Calculator
 // Calculates a 0-100 recovery score from recovery STATE (sleep, soreness,
 // energy). Sleep is smoothed over a 7-day window anchored to the scored day so
 // one bad night doesn't tank the score. Training load is modeled separately by
@@ -19,7 +19,7 @@ export function calcRecoveryScore(yesterdayData, allData, refDateKey = null) {
 
   // 7-day rolling sleep average ANCHORED to the day being scored (inclusive),
   // not to "now" — so a historical day is scored against its own window.
-  // V4 calibration: blend 60% acute (last night) + 40% 7-day average when
+  // Calibration: blend 60% acute (last night) + 40% 7-day average when
   // enough history exists. A pure 7-day average masked acute deprivation —
   // one 4h night barely moved the score. The blend preserves the smoothing
   // benefit while letting last night carry appropriate weight.

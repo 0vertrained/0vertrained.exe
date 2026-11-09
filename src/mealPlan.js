@@ -1,4 +1,4 @@
-// ─── Meal Planning Engine v2 ──────────────────────────────────────────────────
+// Meal Planning Engine v2
 // Recipe library + constraint solver for θVERTRAINED.
 //
 // Key changes in v2:
@@ -7,7 +7,6 @@
 //   - Calorically appropriate recipes: mains 550–900 kcal, snacks 280–420 kcal
 //   - 90+ recipes total for genuine regeneration variety
 //   - Solver adds randomness on regenerate so all slots change, not just snack
-// ──────────────────────────────────────────────────────────────────────────────
 
 export const DIETARY_TAGS = [
   { key: "gluten-free", label: "Gluten-free" },
@@ -17,9 +16,7 @@ export const DIETARY_TAGS = [
   { key: "soy-free",    label: "Soy-free"    },
 ];
 
-// ──────────────────────────────────────────────────────────────────────────────
 // Helper — builds a recipe object and derives total macros from ingredients
-// ──────────────────────────────────────────────────────────────────────────────
 function recipe(id, name, slot, tags, ingredients, steps, prepMins, cookMins) {
   const macros = ingredients.reduce(
     (a, i) => ({ calories: a.calories+i.cal, protein: a.protein+i.pro, carbs: a.carbs+i.carb, fats: a.fats+i.fat }),
@@ -41,14 +38,12 @@ function recipe(id, name, slot, tags, ingredients, steps, prepMins, cookMins) {
 // Shorthand for ingredients: { name, qty, cal, pro, carb, fat }
 const i = (name, qty, cal, pro, carb, fat) => ({ name, qty, cal, pro, carb, fat });
 
-// ──────────────────────────────────────────────────────────────────────────────
 // RECIPES
 // Target ranges by slot (scaled to 3,600 kcal/day, 5 meals):
 //   breakfast:  600–900 kcal, 40–60g protein
 //   lunch:      700–950 kcal, 50–70g protein
 //   snack1/2:  280–420 kcal, 20–35g protein
 //   dinner:    700–950 kcal, 50–70g protein
-// ──────────────────────────────────────────────────────────────────────────────
 export const RECIPES = [
 
   // ── BREAKFAST (23 recipes) ─────────────────────────────────────────────────
@@ -1300,9 +1295,7 @@ export const RECIPES = [
   ], 5, 0),
 ];
 
-// ──────────────────────────────────────────────────────────────────────────────
 // Solver
-// ──────────────────────────────────────────────────────────────────────────────
 // 5-meal slot structure
 export const SLOTS = ["breakfast", "lunch", "snack1", "dinner", "snack2"];
 
@@ -1438,9 +1431,7 @@ export function planMacros(plan) {
   }, { calories:0, protein:0, carbs:0, fats:0 });
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Swap / browse helpers (v12.1)
-// ──────────────────────────────────────────────────────────────────────────────
+// Swap / browse helpers
 // Pure helpers backing the per-meal "Swap" UX in the expanded day plan. They do
 // not touch persistence or the generator — they only rank the recipe library for
 // a single slot and produce an immutable single-meal replacement. No schema,

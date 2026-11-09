@@ -1,5 +1,5 @@
 // src/correlationExplorer.js
-// V7 · N=1 correlation explorer — pairs two logged metrics across days and
+// N=1 correlation explorer — pairs two logged metrics across days and
 // computes a Pearson r, optionally with a 1-day lag (X today vs Y tomorrow,
 // e.g. sleep → next-day energy). Pure display math over the entries the app
 // already persists. Deliberately conservative in presentation: r is reported

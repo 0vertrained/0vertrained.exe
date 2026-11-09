@@ -1,13 +1,11 @@
 // src/whoop.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Whoop Integration — Modular Re-export Facade (V2.9 Whoop Foundation)
+// Whoop Integration — Modular Re-export Facade
 //
 // Mirrors src/oura.js. Re-exports the Whoop submodules so consumers can import
 // from a single "./whoop" entrypoint. This sprint is FOUNDATION ONLY:
 //   • OAuth connect / status / disconnect / manual 14-day sync
 //   • owner-scoped data loading + display-only normalization
 // It intentionally does NOT export any recovery-algorithm blending.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import * as auth from "./whoop/auth";
 import * as dataLoading from "./whoop/dataLoading";
@@ -24,7 +22,7 @@ export {
   getWhoopSyncEvents,
 } from "./whoop/auth";
 
-// Display cards (V3.0) — Recovery-tab wearable context. Display only; these
+// Display cards — Recovery-tab wearable context. Display only; these
 // components never feed the recovery algorithm.
 export { WhoopRecoveryCard } from "./whoop/WhoopRecoveryCard";
 export { WhoopSleepCard } from "./whoop/WhoopSleepCard";

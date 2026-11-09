@@ -1,7 +1,5 @@
--- ============================================================
 --  PATCH: Keep Oura OAuth tokens server-side only
 --  Run after migration_add_oura.sql is present.
--- ============================================================
 -- Browser clients should never SELECT access_token/refresh_token from PostgREST.
 -- Use Netlify endpoints instead:
 --   GET  /api/oura/status

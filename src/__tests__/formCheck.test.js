@@ -121,7 +121,7 @@ describe("validateVideo", () => {
     expect(r.valid).toBe(true);
   });
 
-  // V1.1: Test warnings for non-ideal duration
+  // Test warnings for non-ideal duration
   it("warns when clip is shorter than ideal (< 5s)", () => {
     const r = validateVideo({
       file: { type: "video/mp4", size: 5000 },
@@ -133,7 +133,7 @@ describe("validateVideo", () => {
     expect(r.retakeTips.length).toBeGreaterThan(0);
   });
 
-  // V1.1: Test warnings for clips longer than ideal (> 12s)
+  // Test warnings for clips longer than ideal (> 12s)
   it("warns when clip is longer than ideal (> 12s)", () => {
     const r = validateVideo({
       file: { type: "video/mp4", size: 10000 },
@@ -144,7 +144,7 @@ describe("validateVideo", () => {
     expect(r.retakeTips.length).toBeGreaterThan(0);
   });
 
-  // V1.1: Test warnings for low resolution
+  // Test warnings for low resolution
   it("warns when video resolution is low (< 360p)", () => {
     const r = validateVideo({
       file: { type: "video/mp4", size: 5000 },
@@ -158,7 +158,7 @@ describe("validateVideo", () => {
     expect(r.retakeTips.length).toBeGreaterThan(0);
   });
 
-  // V1.1: Test warnings for large file size (> 20MB)
+  // Test warnings for large file size (> 20MB)
   it("warns when file is large (> 20MB)", () => {
     const r = validateVideo({
       file: { type: "video/mp4", size: 25 * 1024 * 1024 },
@@ -169,7 +169,7 @@ describe("validateVideo", () => {
     expect(r.warnings[0].toLowerCase()).toMatch(/mb|large|size/);
   });
 
-  // V1.1: Test that ideal-range clips pass cleanly
+  // Test that ideal-range clips pass cleanly
   it("passes cleanly for ideal-range clips (5-12s, good resolution)", () => {
     const r = validateVideo({
       file: { type: "video/mp4", size: 8 * 1024 * 1024 },
@@ -259,7 +259,7 @@ describe("analyzeSquat", () => {
   });
 });
 
-// V1.2: Test history building with new coaching fields
+// Test history building with new coaching fields
 describe("formCheckHistory with V1.2 coaching fields", () => {
   it("preserves formScore, captureQuality, coaching, and metricConfidence in summary entries", () => {
     const { buildSummaryEntry } = require("../formCheck/formCheckHistory");

@@ -1,6 +1,5 @@
 // src/recovery/wearableSyncEvents.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V3.4 Wearable Sync Events — pure display summarizers
+// Wearable Sync Events — pure display summarizers
 //
 // Turns raw wearable_sync_events rows (from the server) into a compact debug
 // timeline + empty-state explanations. Pure, side-effect-free, null-safe. No
@@ -9,7 +8,6 @@
 // The server stores only event metadata (source, event_type, status, counts,
 // message, timestamp). These helpers reshape that metadata for display — they
 // never re-derive sync state or fabricate data.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const SOURCE_LABELS = { whoop: "Whoop", oura: "Oura", google_health: "Google Health", strava: "Strava" };
 const EVENT_LABELS = {

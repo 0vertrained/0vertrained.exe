@@ -1,14 +1,12 @@
 // src/__tests__/whoopGroupingDeterminism.test.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.6 · Deterministic Whoop day-grouping. The old last-write-wins grouping
+// Deterministic Whoop day-grouping. The old last-write-wins grouping
 // left `day.sleep` to unspecified within-date Postgres row order: on the
 // reporting user's export, 2026-07-11 (nap + main sleep sharing a date key)
-// resolved to the NAP (performance 12%) in one order and the main sleep (83%)
+// resolved to the NAP in one order and the main sleep (83%)
 // in the other. That coin-flip fed the sleep fallback rung, the source
 // resolver's conflict detector (false "major" 473-min sleep disagreement →
 // "Mixed signal day"), and the Whoop display cards. Grouping must now be a
 // pure function of the row SET, not the row ORDER.
-// ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { groupWhoopRows } from "../whoop/dataLoading";
 

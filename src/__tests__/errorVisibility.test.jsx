@@ -1,5 +1,5 @@
 // src/__tests__/errorVisibility.test.jsx
-// V9 · Error-visibility tests: the reporter's dedupe/cap logic (pure) and a
+// Error-visibility tests: the reporter's dedupe/cap logic (pure) and a
 // rendered ErrorBoundary check (fallback shows, catch is reported, Try again
 // recovers). React logs caught errors to console.error by design — silenced
 // per-test so real failures stay visible.

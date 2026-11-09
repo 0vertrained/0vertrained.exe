@@ -1,13 +1,11 @@
 // src/whoop/WhoopRecoveryCard.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// Whoop Recovery display card (V3.0 Whoop Display Cards)
+// Whoop Recovery display card
 //
 // Compact, display-only card for the Recovery tab. Shows Whoop's recovery score
 // and the biometrics behind it (HRV, RHR, SpO₂, skin temp). This card is purely
 // informational — it does NOT feed the recovery algorithm, Today Coach, or any
 // scoring. Missing fields render as "—" and a missing record shows a soft
 // "not available yet" note rather than an error.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { useTheme } from "../theme";
 

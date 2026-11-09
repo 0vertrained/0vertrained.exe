@@ -1,4 +1,4 @@
-// V1.8 — Personalized Coach Layer (frontend-only, pure).
+// Personalized Coach Layer (frontend-only, pure).
 //
 // Combines already-derived app context (recovery read, block emphasis, training
 // goal) with derived Form Check history (recurring focus, best recent score) to

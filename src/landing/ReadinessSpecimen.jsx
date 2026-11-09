@@ -1,5 +1,5 @@
 // src/landing/ReadinessSpecimen.jsx
-// V13.2 · Shared readiness "specimen" — the auto-cycling verdict card that
+// Shared readiness "specimen" — the auto-cycling verdict card that
 // demonstrates the real engine. Extracted from DemoPage so the logged-out
 // landing (Fig. 1) and the #/demo pitch page render one and the same card
 // instead of keeping two copies. Everything here runs the actual
@@ -74,7 +74,7 @@ export const HERO_SCN = [
 export const scnIndex = (s) => { const r = computeReadinessIndex(s.r, { ratio: s.a }, null); return r ? r.index : 0; };
 export const stressFromIndex = (i) => Math.max(0, Math.min(1, 1 - i / 100));
 
-// ReadinessSpecimen (formerly DemoPage's AnimatedReadinessCard). `stressRef`
+// ReadinessSpecimen, shared by the demo and the landing page. `stressRef`
 // is optional: the demo passes one to drive its FlowField backdrop; the
 // landing passes nothing (the `if (stressRef)` guard below covers it — no
 // default value, so the hooks analyzer still classifies it as a ref).

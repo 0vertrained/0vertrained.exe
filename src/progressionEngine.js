@@ -1,5 +1,5 @@
 // src/progressionEngine.js
-// V18.2 · Deterministic exercise progression.
+// Deterministic exercise progression.
 // The engine is intentionally suggest-only: it reads completed work, requires
 // repeated evidence before calling a stall, and never mutates the program.
 
@@ -80,7 +80,7 @@ function summarizeSession({ date, exercise, sets, plannedName, performedName }) 
     label: mode === TRACKING_MODES.ASSISTED_REPS
       ? `${completed[0]?.assistance || 0} lb assist · ${reps.join("/")}`
       : mode === TRACKING_MODES.BODYWEIGHT_REPS
-        // V19.5 · "0×10/9/8" read as a 0-lb load.
+        // "0×10/9/8" read as a 0-lb load.
         ? `${Math.max(...weights, 0) > 0 ? `+${Math.max(...weights, 0)}` : "BW"}×${reps.join("/")}`
         : `${Math.max(...weights, 0)}×${reps.join("/")}`,
   };
@@ -129,7 +129,7 @@ function detectStall(sessions, targetSets) {
   // Newest is index 0. Require no meaningful rep or strength improvement over
   // three exposures; one bad workout alone can never trigger this branch.
   const totalReps = sample.map((session) => session.totalReps);
-  // V19.5 · At bodyweight the "load" never changes, so a sharp drop in reps is
+  // At bodyweight the "load" never changes, so a sharp drop in reps is
   // a harder variation (a calisthenics ladder step), not a plateau. Only a flat
   // run of exposures counts as a stall there.
   const atBodyweight = sample.every((session) => session.mode === TRACKING_MODES.BODYWEIGHT_REPS && session.weight <= 0);
@@ -192,7 +192,7 @@ export function formatPrescription(prescription) {
   if (prescription.kind === "carry_progress") return `${prescription.targetWeight} lb · ${reps} yd`;
   if (prescription.targetWeight == null) return `${prescription.targetSets} sets · ${reps}`;
   if (prescription.mode === TRACKING_MODES.BODYWEIGHT_REPS) {
-    // V19.5 · Nothing added reads as bodyweight, not "0 lb".
+    // Nothing added reads as bodyweight, not "0 lb".
     return prescription.targetWeight > 0 ? `+${prescription.targetWeight} lb · ${reps}` : `Bodyweight · ${reps}`;
   }
   return `${prescription.targetWeight} lb · ${reps}`;
@@ -264,9 +264,9 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
   }
 
   const lastWeight = last.weight;
-  // V19.5 · A bodyweight movement steps back to bodyweight, never below it,
+  // A bodyweight movement steps back to bodyweight, never below it,
   // and with nothing added "one step back" means an easier variation. The
-  // loaded floor (one increment) used to prescribe "+5 lb" there, after a
+  // loaded floor (one increment) would prescribe "+5 lb" there, after a
   // pain flag or a stall.
   const bodyweightMode = mode === TRACKING_MODES.BODYWEIGHT_REPS;
   const atBodyweight = bodyweightMode && lastWeight <= 0;

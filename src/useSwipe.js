@@ -1,6 +1,6 @@
 import { useRef } from "react";
 
-// ─── Swipe gesture hook ───────────────────────────────────────────────────
+// Swipe gesture hook
 /**
  * Hook to detect left and right swipe gestures on touch events.
  * Returns touch handlers to spread on a target element.

@@ -1,5 +1,5 @@
 // src/ui/primitives.jsx
-// Reusable UI primitives for the V2.4 command-center redesign. These keep the
+// Reusable UI primitives for the command-center surfaces. These keep the
 // existing whitepaper/ledger identity (hairline rules, mono labels, serif
 // display) but give repeated card/header/metric patterns one grammar so new
 // surfaces stop reinventing their own. Each component reads the active theme
@@ -147,7 +147,7 @@ export function EmptyStateCard({ title, message, loading = false, style }) {
 // uiStability.getSkeletonPlan). Reuses the EmptyStateCard grammar for one shared
 // loading identity across Today / Fuel / Progress / Recovery.
 export function LoadingShell({ plan = [], style }) {
-  // V16.2 (U2) · At the broadsheet tier every skeleton renders as a centered
+  // At the broadsheet tier every skeleton renders as a centered
   // reading column instead of a full-width single stack that snaps into a
   // spread on load — kills the layout shift uniformly for all tabs.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -209,7 +209,7 @@ export function SourceBadge({ children, tone, style }) {
   );
 }
 
-// ─── V13 ink-state vocabulary ─────────────────────────────────────────────────
+// Ink-state vocabulary
 // Monochrome status devices. The palette is single-ink by design, so state is
 // carried by PRINT devices instead of color words: an inverted stamp for the
 // one daily verdict, a double rule for limiters that modify that verdict, a
@@ -297,9 +297,9 @@ export function DisclosureBlock({ label, sub, defaultOpen = false, plain = false
 }
 
 
-// V16.3 (U8) · AdvisoryNote — the one way to say "worth knowing, not an
+// AdvisoryNote — the one way to say "worth knowing, not an
 // error." Dim ink over a hairline rule; never red (red stays reserved for
-// errors per the Whitepaper System). Both V16.1 sentinel sites migrate here;
+// errors per the Whitepaper System). Both sentinel sites migrate here;
 // future advisories (data quality, scoring basis) use this, not hand styles.
 export function AdvisoryNote({ children, compact = false }) {
   const { C } = useTheme();

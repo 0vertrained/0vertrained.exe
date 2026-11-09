@@ -32,7 +32,7 @@ export function summarizeProgramDay(day = null) {
   const cardioParts = [];
   if (cardioType) cardioParts.push(cardioType);
   if (minutes !== null && minutes > 0) {
-    // V19.3 · Race-plan runs are prescribed in minutes (their miles are an
+    // Race-plan runs are prescribed in minutes (their miles are an
     // estimate), and their type already names the effort ("Threshold Run").
     cardioParts.push(`${minutes} min`);
     if (effort && !(cardioType || "").toLowerCase().includes(effort.toLowerCase())) cardioParts.push(effort);

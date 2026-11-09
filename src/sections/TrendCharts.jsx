@@ -3,14 +3,12 @@ import { calcRecoveryScore } from "../recovery";
 import { computeSessionLoad } from "../loadModel";
 import { LineFigure } from "./Figure";
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  Recovery vs Load — a correlation figure (Improvements §4).
 //  Plots daily recovery against that day's training load over the trailing
 //  window and derives a plain-language takeaway, turning logged data into
 //  self-knowledge rather than another isolated number.
 //  Self-contained and defensive: shows an instructive empty state until there
 //  is enough signal to be honest.
-// ─────────────────────────────────────────────────────────────────────────────
 
 function pearson(xs, ys) {
   const n = xs.length;

@@ -1,5 +1,5 @@
 // src/FuelTab.jsx
-// V8 refactor · Extracted verbatim from App.jsx (no behavior change): the
+// Extracted verbatim from App.jsx (no behavior change): the
 // Fuel tab (Log/Plan sub-tabs) plus its private FuelHero, QuickAddSection,
 // and FuelRecoveryInsight pieces.
 import { useState } from "react";
@@ -26,7 +26,7 @@ const mealCheckBtn = (C, isChecked) => ({
 });
 
 
-// ─── Fuel: Still Needed Hero (V2.4D) ──────────────────────────────────────────
+// Fuel: Still Needed Hero
 // Execution-first lead for Fuel: "what should I eat/drink next?" before the raw
 // ledger. Presentation only — buildFuelHero reshapes the already-computed
 // stillNeeded/recommendation and the suggestion button reuses the existing
@@ -96,7 +96,7 @@ function FuelHero({ hero, needs, onAddSuggestion }) {
   );
 }
 
-// ─── Fuel: Quick Add / common foods (V2.4D) ───────────────────────────────────
+// Fuel: Quick Add / common foods
 // Low-friction adds broken out below the hero. Every button reuses an existing
 // write path (addNutrition / addWater) — no new persistence.
 function QuickAddSection({ quickAdds, onAdd, waterBehind, onWater, title = "> Quick add" }) {
@@ -133,7 +133,7 @@ function QuickAddSection({ quickAdds, onAdd, waterBehind, onWater, title = "> Qu
   );
 }
 
-// ─── Fuel ↔ Recovery insight (V2.4D) ──────────────────────────────────────────
+// Fuel ↔ Recovery insight
 // Display-only coaching copy derived from current fuel gaps (no recovery
 // plumbing). Never a medical/nutrition diagnosis.
 function FuelRecoveryInsight({ insight }) {
@@ -151,7 +151,7 @@ function FuelRecoveryInsight({ insight }) {
   );
 }
 
-// ─── Fuel: Next Meal preview (Phase 2) ────────────────────────────────────────
+// Fuel: Next Meal preview (Phase 2)
 // Compact single-meal lead for the Log view so "what should I eat next" sits
 // beside Still Needed + Quick Add. Reuses the existing buildNextMealPreview model
 // plus the checkMeal/uncheckMeal write paths — no new state, no plan mutation.
@@ -216,14 +216,14 @@ function NextMealPreview({ plan, nextMeal, checkedMeals, progressLabel, slotLabe
 export function FuelTab({ settings, todayData, updateToday, showToast, todayKey, loaded, data }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
-  // V6 · Fuel splits into Log / Plan sub-tabs (same underline pattern as
+  // Fuel splits into Log / Plan sub-tabs (same underline pattern as
   // Progress). "Log what I just ate" and "what should I eat this week" are
   // different tasks on different time horizons; interleaving them forced the
   // three logging surfaces (quick add, ledger, search) apart. Display-only.
-  // V19.6 · The Factor tab (a personal 12-day prepared-meal block) is gone;
+  // The Factor tab (a personal 12-day prepared-meal block) is gone;
   // Fuel is Log and Recipes.
   const [fuelView, setFuelView] = useState("log"); // "log" | "plan"
-  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // V15.1 · docked-ledger spread
+  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // docked-ledger spread
   const goals        = settings?.goals || { calories: 3600, protein: 200, carbs: 400, fats: 100, water: 128 };
   const restrictions = settings?.dietaryRestrictions || [];
   const nut = todayData?.nutrition || {};
@@ -260,12 +260,12 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
   const [plans, setPlans]             = useState(() => generateMealPlans(goals, restrictions, 3, 0));
   const [planIdx, setPlanIdx]         = useState(0);
   const [expandedMeal, setExpandedMeal] = useState(null);
-  // V12.1 · Per-meal Swap: which slot's inline recipe chooser is open (null =
+  // Per-meal Swap: which slot's inline recipe chooser is open (null =
   // none) and how far the "More options" control has paged into the ranked
   // alternates. Lives only in the full-day plan rows; display-only until a pick.
   const [swapSlot, setSwapSlot]     = useState(null);
   const [swapOffset, setSwapOffset] = useState(0);
-  // V2.4D: the meal plan is a preview by default; the full recipe/alternates
+  // The meal plan is a preview by default; the full recipe/alternates
   // detail expands in place. Execution context (hero + quick add) stays above.
   const [showFullPlan, setShowFullPlan] = useState(false);
   // Phase 2 · The Log view leads with Still Needed + Quick Add + Next Meal; the
@@ -314,7 +314,7 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
     showToast("New plans generated");
   };
 
-  // V12.1 · Replace a single meal in the currently selected plan with a chosen
+  // Replace a single meal in the currently selected plan with a chosen
   // alternate. Immutable (replaceMealInPlan) so other slots are preserved. If
   // the swapped meal was already logged, reverse its macros through the existing
   // uncheckMeal write path first so the ledger stays consistent — the new meal
@@ -332,11 +332,11 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
   const dayMacros = plan ? planMacros(plan) : { calories:0, protein:0, carbs:0, fats:0 };
   const macroColor = (v, g) => pct(v, g) >= 85 && pct(v, g) <= 115 ? C.green : pct(v, g) < 85 ? C.textDim : C.textDim;
 
-  // V2.4D display models (pure helpers — no writes, no algorithm changes).
+  // Display models (pure helpers — no writes, no algorithm changes).
   const fuelHero = buildFuelHero({ nutrition: nut, goals, recommendation: nutritionRecommendation, stillNeeded });
   const fuelInsight = buildFuelRecoveryInsight({ nutrition: nut, goals, stillNeeded });
   const mealProgress = buildMealPlanProgress({ checkedMeals, slots: SLOTS });
-  // V2.6: compact "next meal" preview so Fuel leads with one meal, not all five.
+  // Compact "next meal" preview so Fuel leads with one meal, not all five.
   const nextMeal = buildNextMealPreview({ meals: plan?.meals, checkedMeals, slots: SLOTS, slotLabels: SLOT_LABELS });
   // Which slots to render as full rows: everything when expanded, otherwise just
   // the next unlogged meal (a compact preview). Check/uncheck still works on it.
@@ -362,13 +362,12 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
         <button onClick={() => setFuelView("plan")} style={{ flex: 1, padding: "10px 6px", background: "none", border: "none", borderBottom: fuelView === "plan" ? `1px solid ${C.text}` : "1px solid transparent", marginBottom: -1, color: fuelView === "plan" ? C.text : C.textFaint, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer" }}>Recipes</button>
       </div>
 
-      {/* V15.1 · Broadsheet Fuel (mockup 1g essence): the execution column
+      {/* Broadsheet Fuel: the execution column
           stays left; the manual macro/hydration ledger — with FoodSearch
           inside it — DOCKS permanently on the right instead of hiding behind
           the disclosure. Below the tier (and in Plan view) this container is
-          display:contents: layout byte-identical to V14. The mockup's
-          per-item meal ledger needs a logged-items data model that doesn't
-          exist yet — out of "no feature moves" scope, tracked in the plan. */}
+          display:contents, so the single-column layout is unchanged. A per-item
+          meal ledger would need a logged-items data model that doesn't exist yet. */}
       <div style={isBroadsheet && fuelView === "log" ? { display: "grid", gridTemplateColumns: "1fr var(--ovt-rail-s)", gap: 20, alignItems: "start" } : isBroadsheet ? { maxWidth: "var(--ovt-content-width)", margin: "0 auto", width: "100%" } : { display: "contents" }}>
       {fuelView === "log" && (<section data-section="fuel-main" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
       {/* 1 · Still Needed Hero — execution-first lead */}
@@ -391,7 +390,7 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
       </section>)}
 
       {fuelView === "plan" && (<>
-      {/* ── V11 · Adaptive TDEE — measured expenditure + goal targets ── */}
+      {/* ── Adaptive TDEE — measured expenditure + goal targets ── */}
       <EnergyIntelligence data={data} settings={settings} />
 
       {/* 3 · Meal plan — preview always visible; full recipes/alternates on demand */}

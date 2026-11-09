@@ -1,7 +1,7 @@
 /**
  * src/weeklyCoachReview.js
  *
- * V18.3 · Weekly Coaching Review
+ * Weekly Coaching Review
  * Pure weekly trend/adherence/decision engine. It is intentionally suggest-only:
  * it explains evidence and proposes one next-week change, but never edits goals,
  * programs, cardio, or nutrition targets itself.
@@ -394,7 +394,7 @@ export function buildWeeklyCoachReview({
     fuelRecoveryLinks,
     trainingSignals,
 
-    // V18.3 fields.
+    // Fields.
     phase,
     observationMode,
     recommendation: { ...recommendation, observationMode },

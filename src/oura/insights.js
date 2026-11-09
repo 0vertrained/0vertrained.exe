@@ -1,10 +1,8 @@
 // src/oura/insights.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Oura Recovery Insights & Recommendations
 //
 // Data quality assessment, metric baselines, confidence scoring, and
 // human-friendly training recommendations.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import {
   getSleepDoc, getReadinessDoc,
@@ -43,7 +41,7 @@ export function calcOuraDataQuality(ouraData = {}, days = 14) {
     if (finiteNum(tempDeviation(sleep, readiness)) !== null) tempRecords++;
     const contributors = readiness?.contributors || {};
     if ([contributors.hrv_balance, contributors.resting_heart_rate, contributors.previous_night, contributors.sleep_balance, contributors.body_temperature].some(v => finiteNum(v) !== null)) fallbackSignals++;
-    // V14.2 · Always 0 now: loadOuraData no longer fetches raw heartrate
+    // Always 0 now: loadOuraData no longer fetches raw heartrate
     // payloads (their only consumer was this display count; the quality score
     // below never used it). Field kept for return-shape stability.
     heartrateSamples += Array.isArray(day?.heartrate?.data) ? day.heartrate.data.length : 0;

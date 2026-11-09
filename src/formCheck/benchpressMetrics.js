@@ -66,7 +66,7 @@ export function extractBenchpressFrameMetrics(landmarks) {
   const elbowAngleDeg = angleDeg(shoulder, elbow, wrist);
   if (elbowAngleDeg == null) return null;
 
-  // V1.4: Elbow flare proxy — horizontal offset of elbow vs shoulder at bottom.
+  // Elbow flare proxy — horizontal offset of elbow vs shoulder at bottom.
   // Larger positive = elbow is further forward than shoulder (more flare).
   const elbowFlare = elbow.x - shoulder.x;
 
@@ -176,7 +176,7 @@ export function aggregateBenchpressMetrics(frames = []) {
   };
 }
 
-// V1.4: Extract wrist positions from all usable frames for full-trajectory
+// Extract wrist positions from all usable frames for full-trajectory
 // bar-path tracking. Returns an array of { tMs, x, y } in normalized image
 // coordinates. Only frames with visible arm joints are included.
 export function extractBenchpressWristPositions(frames = []) {

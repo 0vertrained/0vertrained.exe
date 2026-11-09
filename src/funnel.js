@@ -1,6 +1,5 @@
 // src/funnel.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.0 · First-party funnel events for the beta go/no-go call.
+// First-party funnel events for the beta go/no-go call.
 //
 // The validation plan is judged on visit→paid conversion — that number has to
 // be queryable, and client-side perfMarks die with the session. This is the
@@ -16,7 +15,6 @@
 //   · Disabled entirely in demo mode.
 // Server side: netlify/functions/log-event.js → `events` table
 // (migrations/V17_0_events.sql — run once; the endpoint no-ops until then).
-// ─────────────────────────────────────────────────────────────────────────────
 import { supabase } from "./supabaseClient";
 import { isDemoMode } from "./demoData";
 

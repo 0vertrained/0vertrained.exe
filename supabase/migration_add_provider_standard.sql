@@ -1,4 +1,3 @@
--- ============================================================
 --  MIGRATION: Provider Integration Standard
 --
 --  Adds the provider-neutral foundation used by Oura/Whoop today and by
@@ -12,9 +11,8 @@
 --
 --  Tokens remain service-role only. Browser clients must use provider API
 --  endpoints for status/disconnect/sync.
--- ============================================================
 
--- ─── Connected OAuth accounts ────────────────────────────────────────────────
+-- Connected OAuth accounts
 CREATE TABLE IF NOT EXISTS public.connected_accounts (
   id                       UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id                  UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -45,7 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_connected_accounts_user_provider
 CREATE INDEX IF NOT EXISTS idx_connected_accounts_status
   ON public.connected_accounts(status);
 
--- ─── Normalized daily health/recovery summaries ──────────────────────────────
+-- Normalized daily health/recovery summaries
 CREATE TABLE IF NOT EXISTS public.health_daily_summaries (
   id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id              UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -85,7 +83,7 @@ CREATE INDEX IF NOT EXISTS idx_health_daily_summaries_user_date
 CREATE INDEX IF NOT EXISTS idx_health_daily_summaries_ai
   ON public.health_daily_summaries(user_id, ai_eligible, date DESC);
 
--- ─── Normalized activity summaries ───────────────────────────────────────────
+-- Normalized activity summaries
 CREATE TABLE IF NOT EXISTS public.activities (
   id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id              UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -127,7 +125,7 @@ CREATE INDEX IF NOT EXISTS idx_activities_dedupe
 CREATE INDEX IF NOT EXISTS idx_activities_ai
   ON public.activities(user_id, ai_eligible, start_time DESC);
 
--- ─── Optional/lazy activity streams ──────────────────────────────────────────
+-- Optional/lazy activity streams
 CREATE TABLE IF NOT EXISTS public.activity_streams (
   id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   activity_id    UUID NOT NULL REFERENCES public.activities(id) ON DELETE CASCADE,
@@ -152,7 +150,7 @@ REVOKE ALL ON public.activity_streams FROM anon;
 GRANT SELECT ON public.activity_streams TO authenticated;
 GRANT ALL ON public.activity_streams TO service_role;
 
--- ─── Raw provider payload quarantine ─────────────────────────────────────────
+-- Raw provider payload quarantine
 CREATE TABLE IF NOT EXISTS public.provider_raw_payloads (
   id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id              UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -173,7 +171,7 @@ CREATE INDEX IF NOT EXISTS idx_provider_raw_payloads_retention
 CREATE INDEX IF NOT EXISTS idx_provider_raw_payloads_user_provider
   ON public.provider_raw_payloads(user_id, provider, created_at DESC);
 
--- ─── Widen sync event constraints for new providers/events ──────────────────
+-- Widen sync event constraints for new providers/events
 DO $$
 BEGIN
   IF EXISTS (
@@ -207,7 +205,7 @@ BEGIN
   END IF;
 END $$;
 
--- ─── Account deletion patch for new provider-standard tables ────────────────
+-- Account deletion patch for new provider-standard tables
 DO $$
 BEGIN
   IF EXISTS (

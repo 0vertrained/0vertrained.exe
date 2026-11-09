@@ -1,10 +1,8 @@
 // src/GhostChip.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.5 · The ghost chip — one tap fills the set.
+// The ghost chip — one tap fills the set.
 // Quiet by design: faint mono, a single hairline, sits under the first empty
 // row only (setGhosts.firstEmptyIndex decides placement, not this component).
 // Says its source out loud so the suggestion can be audited at a glance.
-// ─────────────────────────────────────────────────────────────────────────────
 import { useTheme } from "./theme";
 
 export function GhostChip({ ghost, onFill, compact = false }) {

@@ -1,5 +1,4 @@
 // src/integrations/providerRegistry.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Shared wearable/provider policy registry.
 //
 // This file is intentionally pure and browser-safe. It gives UI, source
@@ -9,7 +8,6 @@
 //   • which normalized tables it should map into
 //
 // Server-side OAuth/token helpers live in netlify/functions/_provider-standard.js.
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const PROVIDERS = Object.freeze({
   OURA: "oura",

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// V13.6 · The recovery hash is computed in the BROWSER at signup/change
+// The recovery hash is computed in the BROWSER at signup/change
 // (src/recoveryKdf.js, WebCrypto) and re-derived in the NODE recovery function
 // (account-recovery.js) to verify. If those two implementations ever diverge,
 // a phrase set in the app silently stops verifying on the server. This test is

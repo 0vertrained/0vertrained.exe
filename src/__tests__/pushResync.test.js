@@ -1,5 +1,5 @@
 // src/__tests__/pushResync.test.js
-// V19.4 · Devices that turned notifications on while /api/push-subscribe was
+// Devices that turned notifications on while /api/push-subscribe was
 // unrouted hold a subscription the server never stored. resyncPushSubscription
 // sends it again, once per page load, only with permission granted, and
 // without any preference fields (stored preferences are left alone).

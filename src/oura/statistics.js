@@ -1,9 +1,7 @@
 // src/oura/statistics.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Oura Statistics & Math Utilities
 //
 // Basic statistical calculations used by algorithms: mean, std dev, z-score, etc.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Calculate mean
@@ -57,11 +55,11 @@ export function trimmedMean(values, trim = 0.1) {
  * Trimmed sample standard deviation — the spread companion to trimmedMean:
  * drops the same extreme fraction before computing the sample SD.
  *
- * V16.7 · Why this exists: a single crash night in the baseline pool inflates
+ * Why this exists: a single crash night in the baseline pool inflates
  * the plain SD and MASKS the next real dip. On the reporting user's export,
  * the 2026-07-05 HRV crash (37 ms in a ~72 ms pool) widened the ln-SD from
  * ~0.15 to ~0.23 — nine days later a genuine −16% HRV morning (both wearables
- * graded it low) read as only z −0.45. The V16.5.1 physiological floors remain
+ * graded it low) read as only z −0.45. The physiological floors remain
  * the guardrail on the other side: trimming can only tighten SD down to the
  * floor, never below it. Falls back to the plain sample SD below 5 samples,
  * mirroring trimmedMean.

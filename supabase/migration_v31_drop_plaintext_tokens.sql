@@ -1,6 +1,4 @@
--- ============================================================
---  V14 (v31) — Drop plaintext token tables    ⚠ DEFERRED — read first
--- ============================================================
+--  V14 — Drop plaintext token tables    ⚠ DEFERRED — read first
 --  DO NOT run this with the V14.0 deploy. Run it AFTER:
 --
 --   1. V14.0 has been live for at least one healthy release cycle, AND
@@ -41,7 +39,6 @@
 --  There is deliberately no down-migration: recreating plaintext token tables
 --  would defeat the point. If a connection breaks post-drop, the fix is the
 --  provider's OAuth flow (Settings → Integrations → Connect), not a restore.
--- ============================================================
 
 drop table if exists public.oura_tokens;
 drop table if exists public.whoop_tokens;

@@ -1,14 +1,12 @@
 // src/oura/dataLoading.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Oura Data Loading & Fetching
 //
 // Handles loading Oura data from Supabase.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { supabase } from "../supabaseClient";
 import { DEMO_OURA_DATA, isDemoMode } from "../demoData";
 
-// V14.2 · data_types the browser actually consumes. Raw `heartrate` payloads
+// Data_types the browser actually consumes. Raw `heartrate` payloads
 // are time-series (~288 samples/day) whose ONLY client consumer was an
 // array-length debug stat — an estimated 150–500 KB per 14-day fetch to
 // display an integer. The server-side snapshot path excludes them for exactly
@@ -16,7 +14,7 @@ import { DEMO_OURA_DATA, isDemoMode } from "../demoData";
 // summaries stay: the source resolver reads them and they are tiny.
 const CLIENT_DATA_TYPES = ["sleep", "readiness", "activity", "spo2"];
 
-// V14.2 · Keyed single-flight: a cold boot had App, TodayTab, and (on tab
+// Keyed single-flight: a cold boot had App, TodayTab, and (on tab
 // open) RecoveryDashboard racing identical 14-day fetches. Concurrent callers
 // with the SAME window now share one request; different windows (7/14/30)
 // stay independent. No result caching — the next call after settle refetches.

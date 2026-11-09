@@ -1,23 +1,21 @@
 // netlify/functions/oura-sync.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Oura Data Sync (PHASE 2)
 //
 // POST /api/oura/sync
 // • Fetches yesterday's data from Oura API (sleep, readiness, activity, HR, SpO2)
 // • Stores normalized data in Supabase oura_data table
-// • Persists rotated tokens encrypted in connected_accounts (V14)
+// • Persists rotated tokens encrypted in connected_accounts
 // • Protected by OURA_SYNC_SECRET header (scheduler authentication)
 //
 // Env vars:
 // • OURA_SYNC_SECRET — secret key for scheduler (Authorization: Bearer header)
 // • SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — server-to-server Supabase access
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { resolveProviderTokens, persistProviderTokens, PROVIDERS } from "./_provider-standard.js";
 
 const OURA_API_BASE = "https://api.ouraring.com/v2/usercollection";
 
-// ─── Sync diagnostics helpers ────────────────────────────────────────────────
+// Sync diagnostics helpers
 // These make failed Supabase/PostgREST writes debuggable without leaking
 // secrets. If you are chasing a "Failed to store Oura data" log line, this is
 // where the sanitized status + response body come from. Duplicated verbatim in
@@ -182,7 +180,7 @@ export default async (req) => {
   const userId = body?.user_id;
   if (!userId) return json({ error: "Missing user_id" }, 400);
 
-  // V14 · Fetch tokens via the encrypted store (one-shot legacy migration,
+  // Fetch tokens via the encrypted store (one-shot legacy migration,
   // fail-closed without the encryption key).
   const resolved = await resolveProviderTokens(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { userId, provider: PROVIDERS.OURA });
   if (!resolved.ok) {
@@ -226,7 +224,7 @@ export default async (req) => {
       const newRefreshToken = newTokenData.refresh_token;
       const expiresAt = new Date(Date.now() + (newTokenData.expires_in || 3600) * 1000).toISOString();
 
-      // V14 · Persist the rotation encrypted-only, immediately, before any data
+      // Persist the rotation encrypted-only, immediately, before any data
       // fetch. resolveProviderTokens already refused when the key was missing,
       // so this persist cannot fail for that reason.
       const persisted = await persistProviderTokens(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -322,7 +320,7 @@ export default async (req) => {
 
   // `synced` keeps its original meaning (rows attempted). `stored`/`failed_types`
   // are additive diagnostics; `ok` now reflects whether every batch persisted.
-  // V3.4 parity — log a sync event so the debug timeline covers scheduled Oura syncs.
+  // Log a sync event so the debug timeline covers scheduled Oura syncs.
   const syncCounts = {};
   for (const row of upserts) {
     syncCounts[row.data_type] = (syncCounts[row.data_type] || 0) + 1;

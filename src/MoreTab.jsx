@@ -1,11 +1,11 @@
 // src/MoreTab.jsx
-// V8 refactor · Extracted verbatim from App.jsx (no behavior change): the
+// Extracted verbatim from App.jsx (no behavior change): the
 // Profile hub (MoreTab) with ProgramTab, ProgramEditor, SocialTab,
 // CirclesSection, PR boards, CoachPreferencesCard, and hub primitives.
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useTheme } from "./theme";
 import { copyToClipboard } from "./clipboard";
-// V12.1 · FormCheck was referenced below without ANY import — a latent
+// FormCheck was referenced below without ANY import — a latent
 // ReferenceError on the legacy subView === "form" path, caught by ESLint's
 // first run. Lazy so the 80 KB analyzer chunk stays out of this chunk too.
 const FormCheck = lazy(() => import("./FormCheck").then(m => ({ default: m.FormCheck })));
@@ -29,7 +29,7 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
   const { C, S } = useTheme();
   const mono = C.fontFamily;
   const { confirm, confirmDialog } = useConfirm();
-  // initialAction (V2.4B) lets the More hub open this tab straight into a
+  // initialAction lets the More hub open this tab straight into a
   // sub-flow — "generate" → Program Builder, "switch" → preset browser,
   // "edit" → weekly editor — so the hub cards are one tap from the action.
   // Unknown/omitted values fall through to the weekly program overview.
@@ -40,7 +40,7 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
   const [showPresets, setShowPresets] = useState(initialAction === "switch");
   const [previewPreset, setPreviewPreset] = useState(null); // preset id being previewed
   const [builderOpen, setBuilderOpen] = useState(initialAction === "generate"); // V2.3 Program Builder panel
-  const [racePlanOpen, setRacePlanOpen] = useState(initialAction === "race");   // V19.3 race plan panel
+  const [racePlanOpen, setRacePlanOpen] = useState(initialAction === "race");   // race plan panel
   const hasRacePlan = isRunPlanSpec(program?.__raceBuild);
 
   const enterEdit = () => {
@@ -69,7 +69,7 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
     const ok = await onSaveProgram(programToSave);
     setBusy(false);
     if (ok) {
-      // V17.4 · Preset-declared supersets go live immediately (sticky prefs).
+      // Preset-declared supersets go live immediately (sticky prefs).
       seedSupersetPrefsFromProgram(programToSave);
       setShowPresets(false); setPreviewPreset(null);
     }
@@ -77,7 +77,7 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
 
   const prog = editMode ? draft : (program || DEFAULT_PROGRAM);
 
-  // ── Program Builder V2 (V2.3) — generate a plan. Cancel leaves the current
+  // ── Program Builder V2 — generate a plan. Cancel leaves the current
   // program untouched; Apply is handled by onApplyGeneratedProgram. ──
   if (builderOpen) {
     return (
@@ -94,7 +94,7 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
     );
   }
 
-  // ── Race plan (V19.3) — Save writes the spec into the program's marker;
+  // ── Race plan — Save writes the spec into the program's marker;
   // End removes it. Both go through the normal program save path. ──
   if (racePlanOpen) {
     return (
@@ -263,7 +263,7 @@ function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings
   );
 }
 
-// V19.5 · Structured steps (what the cardio timer pre-fills from) describe the
+// Structured steps (what the cardio timer pre-fills from) describe the
 // same workout as the type and notes. Rewriting either here makes them stale,
 // so they're dropped and the timer goes back to reading the notes.
 function editCardio(cardio, field, val) {
@@ -272,8 +272,8 @@ function editCardio(cardio, field, val) {
   return next;
 }
 
-// ─── Program session display ──────────────────────────────────────────────────
-// V19.5 · A hold's target is seconds and a carry's is yards (the set composer
+// Program session display
+// A hold's target is seconds and a carry's is yards (the set composer
 // already reads them that way), so "3×45" on a plank reads as "3×45s".
 function targetUnit(exercise) {
   const mode = resolveTrackingMode(exercise);
@@ -312,7 +312,7 @@ function ProgramSessionBlock({ session, compact = false }) {
   );
 }
 
-// ─── Program Editor ───────────────────────────────────────────────────────────
+// Program Editor
 function ProgramEditor({  draft, setDraft, openDay, setOpenDay, onCancel, onSave, busy }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
@@ -437,7 +437,7 @@ function ProgramEditor({  draft, setDraft, openDay, setOpenDay, onCancel, onSave
   );
 }
 
-// ─── AM/PM Program Editor ─────────────────────────────────────────────────────
+// AM/PM Program Editor
 function SessionProgramEditor({ draft, setDraft, openDay, setOpenDay, onCancel, onSave, busy }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
@@ -574,7 +574,7 @@ function SessionProgramEditor({ draft, setDraft, openDay, setOpenDay, onCancel, 
   );
 }
 
-// ─── Social Tab (Leaderboard + PR Board) ──────────────────────────────────────
+// Social Tab (Leaderboard + PR Board)
 const LEADERBOARD_CATEGORIES = [
   { key: "total_miles",   label: "Miles",    unit: "mi",  decimals: 1 },
   { key: "workouts_done", label: "Workouts", unit: "",    decimals: 0 },
@@ -594,7 +594,7 @@ function socialFormat(value, cat) {
   return cat?.decimals === 0 ? String(Math.round(n)) : n.toFixed(cat?.decimals ?? 1);
 }
 
-// ─── V4.5 · Private invite-only Circles ───────────────────────────────────────
+// Private invite-only Circles
 // A small aggregate-only group surface. Circles are invite-code join, and expose
 // ONLY derived member aggregates (usernames + counts/sums) computed server-side —
 // never raw logs, biometrics, feeds, comments, or DMs. When the migration hasn't
@@ -803,7 +803,7 @@ function SocialTab({ myUsername, socialOptIn }) {
         }
       });
     }
-    // V4.4 server summary is fetched even when the older leaderboard cache hits;
+    // Server summary is fetched even when the older leaderboard cache hits;
     // otherwise rank deltas/highlights can lag behind the visible board.
     loadSocialSummary(period).then(result => {
       if (!cancelled && result.ok && result.data) {
@@ -839,7 +839,7 @@ function SocialTab({ myUsername, socialOptIn }) {
   const periodLabel = PERIODS.find(p => p.key === period)?.label || "Board";
   const myRow = activeBoard.find(r => r.username === myUsername) || null;
 
-  // V4.4: gap to the person one rank above (more motivational than leader gap)
+  // Gap to the person one rank above (more motivational than leader gap)
   const gapToNext = getGapToNext(activeBoard, myUsername, category);
   // Build a gap label preferring next-rank gap over leader gap
   let gapToNextLabel = null;
@@ -848,10 +848,10 @@ function SocialTab({ myUsername, socialOptIn }) {
     gapToNextLabel = `${formatted} ${cat.unit} to next rank`.trim();
   }
 
-  // V4.4: period-over-period rank movement from server (workouts-based primary metric)
+  // Period-over-period rank movement from server (workouts-based primary metric)
   const deltaBadge = buildDeltaBadge(serverSummary?.currentUser?.rankDelta ?? null);
 
-  // V4.4: server highlights override V4.3 local highlights when available
+  // Server highlights override local highlights when available
   const serverHighlights = serverSummary?.highlights?.length
     ? serverSummary.highlights.map(h => {
         const catMeta = LEADERBOARD_CATEGORIES.find(c => c.key === h.category);
@@ -1063,8 +1063,8 @@ function RunningPRBoard({ prs, myUsername, comparison }) {
   );
 }
 
-// ─── More Tab ─────────────────────────────────────────────────────────────────
-// ─── More: management hub (V2.4B) ─────────────────────────────────────────────
+// More Tab
+// More: management hub
 // Small consistent header for every More subview: a "← More" back-to-hub button
 // plus a title. Replaces the old always-visible horizontal subnav — the hub
 // cards are now the navigation, so each detail view just needs a way home.
@@ -1085,7 +1085,7 @@ function MoreSubHeader({ title, onBack }) {
 // A single labelled navigation/action row inside a hub group. Left column is a
 // label + optional sublabel; the whole row is the tap target. Keeps the ledger
 // look (hairline border, mono) while giving each action a generous target.
-// V2.6: `variant` distinguishes primary action cards (Generate / Edit / Form
+// `variant` distinguishes primary action cards (Generate / Edit / Form
 // Check) from utility rows (Settings, data). Primary gets a heavier top+left
 // rule and darker ink; utility keeps the quiet hairline. Behaviour unchanged.
 function HubAction({ label, sublabel, cta = "→", onClick, variant = "utility" }) {
@@ -1110,7 +1110,7 @@ function CoachPreferencesCard({ settings, allData, onSave, showToast }) {
   const prefs = normalizeCoachPreferences(settings?.coachPreferences || DEFAULT_COACH_PREFERENCES);
   const [draft, setDraft] = useState(prefs);
   const [fallbackText, setFallbackText] = useState(null);
-  // V19.6 · Collapsed on the hub: a four-select form with a textarea was the
+  // Collapsed on the hub: a four-select form with a textarea was the
   // biggest thing on the Profile screen, for an optional preference.
   const [open, setOpen] = useState(false);
 
@@ -1264,7 +1264,7 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
         </div>
         <div style={note}>Erase-my-data controls are not included in this beta. Export a local backup before deleting app data.</div>
 
-        {/* V13 · Logout lives here now — a once-a-quarter action belongs in
+        {/* Logout lives here now — a once-a-quarter action belongs in
             Account + Data, not in the always-visible masthead. */}
         {typeof onLogout === "function" && (
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>

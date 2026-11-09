@@ -1,10 +1,8 @@
 // src/oura.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Oura Ring Integration — Modular Re-export Facade
 //
 // This file re-exports all named exports from modular submodules, maintaining
 // compatibility with existing imports while organizing code coherently.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import * as auth from "./oura/auth";
 import * as dataLoading from "./oura/dataLoading";

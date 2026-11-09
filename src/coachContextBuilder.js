@@ -1,6 +1,5 @@
 // src/coachContextBuilder.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V3.1 Unified Coach Context Builder
+// Unified Coach Context Builder
 //
 // Produces a compact recovery summary for LLM coach injection that spans BOTH
 // wearables when they are connected. When only Oura is connected this delegates
@@ -11,7 +10,6 @@
 // re-scoring, no network).
 //
 // Output is capped at ~300 chars so it stays safe to inject into a prompt.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { buildOuraCoachContext } from "./oura/coachContext";
 import { resolveRecoveryContext } from "./recovery/wearableSourceResolver";
@@ -25,7 +23,7 @@ const MAX_LEN = 300;
 // stays prompt-safe. Memory is appended only when the athlete has opted in.
 const COMBINED_MAX = MAX_LEN + 260;
 
-// V4.5 — append the opt-in, suggest-only coach memory (coaching preferences) to
+// Append the opt-in, suggest-only coach memory (coaching preferences) to
 // whatever the wearable builder produced. When preferences are disabled/absent
 // this is a no-op, so the coach behaves exactly as before. Trend is intentionally
 // omitted here (this builder has no entries) — preferences alone are enough to
@@ -98,7 +96,7 @@ export function buildCoachContext({ ouraData, whoopData, manualData, settings = 
       parts.push(`Confidence lowered: ${blend.confidenceAdjustment.reason}`);
     }
 
-    // V3.6 — aggregated confidence floor from the aggregation model
+    // Aggregated confidence floor from the aggregation model
     if (blend?.confidenceAdjustment?.direction === "down") {
       const steps = blend.confidenceAdjustment.steps || 1;
       const confWord = steps >= 2 ? "low" : "medium";

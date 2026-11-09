@@ -1,4 +1,4 @@
-// V16.5 · Provenance contracts: the sentence at the verdict must be honest
+// Provenance contracts: the sentence at the verdict must be honest
 // about cause — "no data" only for a wholly absent day, "no <metric> reading"
 // for partial — and must bridge, not dead-end, on insufficient days.
 import { describe, expect, it } from "vitest";

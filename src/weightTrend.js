@@ -1,5 +1,5 @@
 // src/weightTrend.js
-// V10 · Bodyweight trend smoothing. Daily scale readings are noise (water,
+// Bodyweight trend smoothing. Daily scale readings are noise (water,
 // glycogen, sodium, gut content swing ±2-4 lb); the signal is the trend. This
 // applies the classic exponentially-smoothed moving average (Hacker's Diet
 // convention, alpha = 0.1 per logged day): trend += alpha × (weight − trend).

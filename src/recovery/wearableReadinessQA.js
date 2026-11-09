@@ -1,6 +1,5 @@
 // src/recovery/wearableReadinessQA.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V4.5 Wearable Readiness QA — pure, display-only status builder.
+// Wearable Readiness QA — pure, display-only status builder.
 //
 // Turns the wearable connection state + raw sync events + a "scored recovery
 // available?" flag into a compact, honest readiness status. It NEVER changes any
@@ -13,7 +12,6 @@
 //   - Oura and Whoop are NEVER averaged. When both are active the message is a
 //     conservative "mixed signal" reminder, not a blended number.
 //   - Pure + null-safe. Callers inject `now` so every branch is unit-testable.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { buildLatestSyncSummary, buildSyncTimeline } from "./wearableSyncEvents";
 

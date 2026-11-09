@@ -1,5 +1,5 @@
 // src/fatigueManagement.js
-// V18.2 · Multi-signal fatigue and deload guidance.
+// Multi-signal fatigue and deload guidance.
 // A single poor metric never triggers a deload. Safety flags bypass training
 // optimization entirely and defer to the athlete's clinician-defined plan.
 

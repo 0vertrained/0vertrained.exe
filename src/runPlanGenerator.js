@@ -1,6 +1,5 @@
 // src/runPlanGenerator.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V19.3 · Race-plan generator — the general form of the hand-written 50K ladder.
+// Race-plan generator — the general form of the hand-written 50K ladder.
 //
 // A program opts in by carrying a small spec under `__raceBuild` (an object
 // instead of the 50K's registry string):
@@ -30,7 +29,6 @@
 // days surface as warnings, never edits (suggest-only, like the rest of the app).
 //
 // Pure module: no React, no network, no clocks — dates are passed in.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { DAYS } from "./constants";
 import { mapExerciseToMuscles } from "./muscleVolume";
@@ -51,7 +49,7 @@ export const CROSS_TRAINING_OPTIONS = [
   { id: "vest_walk", label: "Weighted-vest walk" },
 ];
 
-// ─── Dates (same T12:00:00 convention as raceBuild.js) ──────────────────────
+// Dates (same T12:00:00 convention as raceBuild.js)
 
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -94,7 +92,7 @@ const dayAt = (i) => DAYS[((i % 7) + 7) % 7];
 const round5 = (m) => Math.max(5, Math.round(m / 5) * 5);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-// ─── Spec ───────────────────────────────────────────────────────────────────
+// Spec
 
 function defaultQualityDay(longRunDay) {
   const L = dayIndex(longRunDay);
@@ -167,7 +165,7 @@ export function validateRunPlanSpec(raw) {
   return { valid: errors.length === 0, errors, warnings, weeks, spec };
 }
 
-// ─── Distance profiles ──────────────────────────────────────────────────────
+// Distance profiles
 
 const T = (reps, workMin, recMin) => ({ intensity: "threshold", reps, workMin, recMin });
 const I = (reps, workMin, recMin) => ({ intensity: "interval", reps, workMin, recMin });
@@ -201,7 +199,7 @@ function phaseLengths(preRaceWeeks) {
   return { base: row[0], build: row[1], specific: row[2] };
 }
 
-// ─── Run days ───────────────────────────────────────────────────────────────
+// Run days
 
 /**
  * Weekday for each role: { long, quality, easyA, easyB, easyC, cross }.
@@ -230,7 +228,7 @@ export function assignRunDays(rawSpec) {
   return roles;
 }
 
-// ─── Leg-day awareness (read-only over the program) ─────────────────────────
+// Leg-day awareness (read-only over the program)
 
 const HEAVY_LEG_SETS = 6;
 
@@ -280,7 +278,7 @@ export function planProgramWarnings(program, rawSpec) {
   return warnings;
 }
 
-// ─── Prescriptions ──────────────────────────────────────────────────────────
+// Prescriptions
 
 // Pace guesses (sec/mi) used ONLY to estimate miles when there is no
 // benchmark. Never displayed as targets.
@@ -461,7 +459,7 @@ function crossWalk(minutes, crossTraining, week) {
   };
 }
 
-// ─── Generation ─────────────────────────────────────────────────────────────
+// Generation
 
 const PHASE_LABEL = { base: "Base", build: "Build", specific: "Race-specific", race: "Race week" };
 

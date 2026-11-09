@@ -1,4 +1,4 @@
-// V15.5.1 · Sleep-debt model contracts. Written against the real-data report
+// Sleep-debt model contracts. Written against the real-data report
 // that motivated the rewrite: 9h of app-computed debt while both Oura and
 // Whoop showed 0. The reproduction case is pinned first.
 import { describe, expect, it } from "vitest";
@@ -35,7 +35,7 @@ describe("calcSleepDebt", () => {
   });
 
   it("a chronically deprived stretch cannot normalize itself (norm floors at 6.5)", () => {
-    // V16.9 · Floor lowered 7 → 6.5: the 7h floor manufactured ~4h/week of
+    // Floor lowered 7 → 6.5: the 7h floor manufactured ~4h/week of
     // phantom debt for healthy sub-7h sleepers (the reporting user's 6.4h
     // median read 9h+ while both wearables said minimal). The INTENT of this
     // pin is unchanged — a genuinely deprived stretch still clamps UP:

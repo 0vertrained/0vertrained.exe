@@ -1,10 +1,8 @@
 // src/programSessions.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Optional AM/PM session adapter for weekly programs.
 // Legacy program days keep the original shape: { lifting, cardio }.
 // Session-aware days can add: { sessions: [{ id, label, title, lifting, cardio }] }.
 // All helpers are pure and defensive so old saved programs continue to work.
-// ─────────────────────────────────────────────────────────────────────────────
 
 function cleanId(value, fallback) {
   const raw = String(value || "").trim().toLowerCase();

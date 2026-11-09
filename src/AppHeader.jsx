@@ -2,7 +2,7 @@ import { useTheme } from "./theme";
 import { useIsDesktop, useIsBroadsheet } from "./ui/useMediaQuery";
 import { WordmarkTheta } from "./ui/WordmarkTheta";
 
-// ─── Calculate streak ───────────────────────────────────────────────────────
+// Calculate streak
 export function calcStreak(data) {
   // Count consecutive days with any logged data ending today or yesterday.
   // Returns { count, active } where active=true if today is already logged.
@@ -40,8 +40,8 @@ function syncState({ isOnline, saving, pendingCount, demoMode }) {
   return { key: "synced", label: "SYNCED", sr: "All changes synced.", dot: "ok" };
 }
 
-// ─── Header Component ──────────────────────────────────────────────────────
-// V13 masthead. One row of chrome instead of three: wordmark + issue number on
+// Header Component
+// Masthead. One row of chrome instead of three: wordmark + issue number on
 // the left, sync status and actions on the right. At >=1024px the four tabs
 // move INTO the masthead (broadsheet navigation) and a "+ Log" action replaces
 // the mobile FAB; the bottom dock unmounts (see AppBottomNav). Logout moved to
@@ -139,7 +139,7 @@ export function Header({ saving, demoMode, onOpenProfile, allData, isOnline, pen
           >Profile</button>
         </span>
       </div>
-      {/* V15.0 · Context strip (broadsheet only): the working context that
+      {/* Context strip (broadsheet only): the working context that
           the mobile shell distributes across cards — today's plan, the
           logging target, the streak — pinned under the masthead. Sources are
           all existing: program day plan, App's logDate, calcStreak. The

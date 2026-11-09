@@ -1,10 +1,10 @@
 // src/AuthScreen.jsx
-// V13.4 · Public landing + private beta authentication, including a complete
+// Public landing + private beta authentication, including a complete
 // server-verified recovery-phrase reset flow.
 import { useState, useEffect } from "react";
 import { useTheme } from "./theme";
 import { useIsDesktop } from "./ui/useMediaQuery";
-// V13.5 · getSignupStatus was dynamically imported below while this module
+// GetSignupStatus was dynamically imported below while this module
 // already statically imports "./auth" — Vite flagged it: the dynamic import
 // could never split a chunk and was pure overhead. One static import now.
 import { signUp, logIn, resetPasswordWithRecovery, getSignupStatus } from "./auth";

@@ -1,12 +1,12 @@
 // src/coachEnabled.js
-// V12.1 · Coach visibility gate, extracted from Coach.jsx so the app shell can
+// Coach visibility gate, extracted from Coach.jsx so the app shell can
 // check it without importing the (now lazy-loaded) Coach chunk. This is a
 // CONVENIENCE/visibility flag only — the real security gate is enforced
 // server-side in netlify/functions/coach.js (legacy env allow OR the
 // coach_access table, plus daily/monthly limits). Never rely on this client
 // flag for security.
 //
-// V9 · Two modes:
+// Two modes:
 //   · Default (VITE_COACH_OPEN unset): only the legacy env-matched user sees
 //     the entry point — identical to pre-beta behavior.
 //   · VITE_COACH_OPEN=true: every logged-in user sees it; accounts without a

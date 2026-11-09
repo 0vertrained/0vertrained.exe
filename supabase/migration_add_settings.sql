@@ -1,7 +1,5 @@
--- ============================================================
 --  MIGRATION: User settings (macro targets + supplement stack)
 --  Run this in Supabase SQL Editor
--- ============================================================
 
 -- Add settings column to profiles table
 -- Stores macro targets and custom supplement stack as JSONB
@@ -25,6 +23,4 @@ set settings = '{
 }'::jsonb
 where settings = '{}'::jsonb;
 
--- ============================================================
 --  DONE. User settings now stored per-user in profiles.
--- ============================================================

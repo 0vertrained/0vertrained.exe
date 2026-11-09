@@ -1,6 +1,5 @@
 // src/SessionComplete.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.5 · The Box Score — the post-session story.
+// The Box Score — the post-session story.
 //
 // The seconds after the last set are the peak-emotion moment of the loop; the
 // old screen spent them on one number and a random flavor line. This one
@@ -13,7 +12,6 @@
 // backdrop OR the Close button dismisses; tapping the card never does (no
 // accidental dismissal mid-read). Honest degradation: no prior same-day
 // session → no fake deltas, and the headline says the baseline is set.
-// ─────────────────────────────────────────────────────────────────────────────
 import { useTheme } from "./theme";
 import { MethodLine } from "./whitepaper";
 

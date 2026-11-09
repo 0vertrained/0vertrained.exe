@@ -1,5 +1,5 @@
 // netlify/functions/coach-feedback.js
-// V19.0 · Best-effort helpful / unhelpful feedback for routed coach runs.
+// Best-effort helpful / unhelpful feedback for routed coach runs.
 // Stores no prompt, answer, or evidence payload—only the rating on the caller's
 // own telemetry row.
 

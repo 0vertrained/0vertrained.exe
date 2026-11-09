@@ -1,10 +1,8 @@
 // src/whoop/dataLoading.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Whoop Data Loading (V2.9 Whoop Foundation)
+// Whoop Data Loading
 //
 // Loads normalized Whoop records from Supabase. Reads ONLY the whoop_data table
 // (owner-readable via RLS). It never reads whoop_tokens — tokens are server-held.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { supabase } from "../supabaseClient";
 import { getDemoWhoopData } from "../demoData";
@@ -15,7 +13,7 @@ import { isDemoMode } from "../demoData";
  * Shape: { "2026-07-01": { recovery: {...}, sleep: {...}, workout: [{...}] }, ... }
  * Workouts (multiple per day) are collected into an array.
  *
- * V16.6 · Deterministic single-per-day selection. The old grouping was
+ * Deterministic single-per-day selection. The old grouping was
  * last-write-wins over rows ordered by date only — within a date, Postgres row
  * order is UNSPECIFIED, so on a day carrying both a nap and the main sleep
  * (nap=true + nap=false rows share a date key: naps key on start date, main
@@ -63,9 +61,9 @@ function compareWhoopRecords(a, b, dataType) {
 // Pure grouping core, exported for tests. Row order in must NOT matter for the
 // resulting day map (beyond workout array order).
 //
-// V16.7 · Cross-date dedupe by (data_type, external_id) runs FIRST. The V16.7
-// server fix keys records to their LOCAL calendar date (timezone_offset-aware);
-// rows synced before the fix sit at the UTC-derived date. A re-sync after the
+// Cross-date dedupe by (data_type, external_id) runs FIRST. The server
+// keys records to their LOCAL calendar date (timezone_offset-aware); rows
+// synced before it did sit at the UTC-derived date. A re-sync after the
 // fix upserts the same external_id under the corrected date — the old row
 // remains at the wrong one (the upsert conflict key includes date), and an
 // evening workout would double-count across two days. Keeping only the

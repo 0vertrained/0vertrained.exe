@@ -1,5 +1,5 @@
 // src/CardioSession.jsx
-// V10 · Cardio session runner — the interval counterpart to Session Mode.
+// Cardio session runner — the interval counterpart to Session Mode.
 // Three phases: setup (preset chips + work/rest/round steppers, pre-filled
 // from the program's cardio notes when unambiguous), running (segment
 // countdown, round counter, pause/skip), done (summary + one-tap log of the
@@ -30,7 +30,7 @@ function Stepper({ label, value, display, onChange, step, min, max }) {
 export function CardioSession({ open, onClose, cardio, onLogTime, showToast, settings }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
-  // V19.3 · Structured race-plan steps win; prose parsing stays the fallback.
+  // Structured race-plan steps win; prose parsing stays the fallback.
   const suggested = useMemo(() => suggestPlanFromSteps(cardio?.steps) || suggestPlanFromNotes(cardio?.notes), [cardio]);
   const hapticsEnabled = settings?.trainingCues?.haptics !== false;
   useScreenWakeLock(open);

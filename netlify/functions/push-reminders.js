@@ -1,6 +1,6 @@
 // netlify/functions/push-reminders.js
-// V7 · Scheduled evening check-in reminder.
-// V12.1 · Timezone-aware: the cron now fires HOURLY at :30 and each run sends
+// Scheduled evening check-in reminder.
+// Timezone-aware: the cron now fires HOURLY at :30 and each run sends
 // only to subscriptions whose LOCAL time is 7:30pm, using the per-device
 // tz_offset_minutes captured at subscribe time (migration_v28). Rows that
 // predate the migration default to 360 (US Central), which reproduces the old

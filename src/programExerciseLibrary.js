@@ -1,5 +1,5 @@
 // src/programExerciseLibrary.js
-// ─── Program Builder V2 — Exercise + Cardio Library ─────────────────────────
+// Program Builder V2 — Exercise + Cardio Library
 //
 // A structured, deterministic library the program builder draws from so that
 // generated weeks have real movement variety instead of a handful of hardcoded
@@ -11,7 +11,7 @@
 // note. Cardio sessions live in a separate catalog with intensity + effort so
 // the builder can respect recovery spacing rules.
 
-// ─── Movement patterns ──────────────────────────────────────────────────────
+// Movement patterns
 export const MOVEMENT_PATTERNS = [
   "squat", "hinge", "singleLeg",
   "horizontalPush", "verticalPush",
@@ -33,7 +33,7 @@ export function isCompoundPattern(pattern) {
   return COMPOUND_PATTERNS.includes(pattern);
 }
 
-// ─── Equipment ──────────────────────────────────────────────────────────────
+// Equipment
 // Exercise-level tag → which equipment MODES may use it.
 export const EQUIPMENT_MODES = ["full_gym", "dumbbells", "bodyweight", "mixed"];
 
@@ -51,7 +51,7 @@ function ex(name, pattern, equipment, difficulty, defaultSets, defaultReps, note
   return { name, pattern, equipment, difficulty, defaultSets, defaultReps, notes, alternatives };
 }
 
-// ─── Strength catalog ───────────────────────────────────────────────────────
+// Strength catalog
 export const EXERCISES = [
   // ── Squat pattern ──
   ex("Back Squat", "squat", "barbell", "intermediate", 4, 6, "Brace hard, sit between the hips, hit at least parallel. Controlled descent, drive the floor away.", ["Front Squat", "Goblet Squat"]),
@@ -154,7 +154,7 @@ export const EXERCISES = [
   ex("Hanging Leg Raise", "core", "bodyweight", "intermediate", 3, 12, "Full hang, raise legs to parallel or above, no swinging. Control the descent.", ["Cable Crunch", "Dead Bug"]),
 ];
 
-// ─── Cardio catalog ─────────────────────────────────────────────────────────
+// Cardio catalog
 // intensity buckets drive the builder's recovery-spacing rules.
 export const CARDIO_INTENSITY = ["recovery", "easy", "moderate", "hard"];
 
@@ -190,7 +190,7 @@ export function cardioIntensity(key) {
   return CARDIO_SESSIONS[key]?.intensity || "easy";
 }
 
-// ─── Structured view (patterns grouped by equipment mode) ───────────────────
+// Structured view (patterns grouped by equipment mode)
 // Kept for tests / callers that want to verify pattern coverage per mode.
 export const EXERCISE_LIBRARY = EQUIPMENT_MODES.reduce((acc, mode) => {
   const allowed = EQUIPMENT_ALLOW[mode];
@@ -203,7 +203,7 @@ export const EXERCISE_LIBRARY = EQUIPMENT_MODES.reduce((acc, mode) => {
   return acc;
 }, {});
 
-// ─── Deterministic selection ────────────────────────────────────────────────
+// Deterministic selection
 // Returns `n` exercises for a movement pattern, filtered to the equipment mode
 // and biased toward the experience level. A `seed` rotates the starting point
 // so week-to-week variants pull different (but stable) movements. Falls back

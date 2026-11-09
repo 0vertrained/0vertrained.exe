@@ -141,7 +141,7 @@ export const THEMES = {
 };
 
 // ── Build style objects from a palette ────────────────────────────────────────
-// ─── Interaction verb system (V6) ─────────────────────────────────────────────
+// Interaction verb system
 // One rule set for what each interactive style MEANS, app-wide:
 //   · Primary action   — filled button (bg C.text, text C.bg). One per view max.
 //   · Secondary action — ghost/outline button (S.smallBtn / btn-ghost style).
@@ -158,7 +158,7 @@ export function buildStyles(C) {
   // jitter in width as their digits change.
   const TNUM = { fontVariantNumeric: "tabular-nums", fontFeatureSettings: '"tnum"' };
   return {
-    // ── design-token accessors (Slice 2) ──
+    // ── design-token accessors ──
     // Spacing and type-scale values surfaced from TOKENS so components can read a
     // shared rhythm off the S object instead of hardcoding pixel values. Purely
     // additive — no existing style depends on these.
@@ -225,10 +225,10 @@ export function buildStyles(C) {
     exName: { fontSize: 14, fontWeight: 500, color: C.text, letterSpacing: "0.02em", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "baseline" },
     exTarget: { color: C.textDim, fontWeight: 400, fontSize: 11 },
     // Column headers for tables
-    colTag: { display: "grid", gridTemplateColumns: "20px 1fr 1fr 44px 46px", gap: 5, marginBottom: 3 }, // V12: +RIR col
+    colTag: { display: "grid", gridTemplateColumns: "20px 1fr 1fr 44px 46px", gap: 5, marginBottom: 3 }, // +RIR col
     colTagSpan: { fontSize: 10, color: C.textFaint, letterSpacing: "0.1em", textTransform: "uppercase", textAlign: "center", fontWeight: 500 },
     // Set/row in table: hairline above
-    setLine: { display: "grid", gridTemplateColumns: "20px 1fr 1fr 44px 46px", gap: 5, marginBottom: 0, alignItems: "center", paddingTop: 4, borderTop: `1px solid ${C.line}` }, // V12: +RIR col
+    setLine: { display: "grid", gridTemplateColumns: "20px 1fr 1fr 44px 46px", gap: 5, marginBottom: 0, alignItems: "center", paddingTop: 4, borderTop: `1px solid ${C.line}` }, // +RIR col
     setN: { fontSize: 11, color: C.textFaint, textAlign: "center" },
     // Input cell: minimal border, no fill
     cell: { background: C.inputBg, border: `1px solid ${C.line}`, borderRadius: 0, padding: "9px 3px", textAlign: "center", fontSize: 16, fontWeight: 500, color: C.text, fontFamily: mono, width: "100%", boxSizing: "border-box", outline: "none", transition: "background 140ms ease, border-color 140ms ease, color 140ms ease", ...TNUM },
@@ -274,7 +274,7 @@ export function buildStyles(C) {
     // the tap target feels lighter while the current tab is unmistakable.
     navItem: { flex: 1, padding: "12px 2px 10px", textAlign: "center", fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: C.textFaint, fontFamily: annot, fontWeight: 500, background: "none", border: "none", borderTop: "1px solid transparent", outline: "none", cursor: "pointer", minHeight: 48, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", WebkitTapHighlightColor: "transparent", transition: "color 140ms ease, background 140ms ease" },
     navItemActive: { color: C.text, borderTop: `1px solid ${C.lineBright}`, background: C.bg, fontWeight: 600 },
-    // ── Quick-action FAB + sheet (V5.0 nav restructure) ──
+    // ── Quick-action FAB + sheet ──
     // The FAB sits centered in the tab row, raised above the hairline so it
     // reads as an action rather than a fifth destination. It echoes the serif
     // display language (leadFigure) used for hero numbers elsewhere, rather

@@ -1,4 +1,4 @@
-// V13.6 · Recovery-phrase password reset.
+// Recovery-phrase password reset.
 //  · The browser never receives the stored recovery salt/hash or a service-
 //    role credential. Mismatch responses are non-disclosive, and attempts are
 //    rate-limited in a service-role-only table so limits survive refreshes and
@@ -27,7 +27,7 @@ const GENERIC_MISMATCH = "The username or recovery phrase didn't match.";
 const WINDOW_MS = 10 * 60 * 1000;
 const LOCK_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
-// V14.1 · Second rate-limit dimension: per-IP. Wider than the username cap so
+// Second rate-limit dimension: per-IP. Wider than the username cap so
 // shared NATs (gyms, offices) aren't punished for one bad neighbor, but tight
 // enough to blunt spraying one guess across many usernames from one host.
 const IP_MAX_ATTEMPTS = 20;
@@ -57,7 +57,7 @@ const json = (body, status = 200, extraHeaders = {}) =>
 const sanitizeUsername = (value) =>
   String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
 
-// Legacy single-round hash (pre-V13.6). Kept only to verify + upgrade old rows.
+// Legacy single-round hash. Kept only to verify + upgrade old rows.
 export function hashRecoveryPhrase(phrase, salt) {
   return createHash("sha256").update(`${salt}${String(phrase).trim()}`, "utf8").digest("hex");
 }
@@ -135,7 +135,7 @@ function serviceHeaders(serviceRoleKey, prefer = "") {
   };
 }
 
-// V14.1 · Atomic bump via the v32 RPC. Returns:
+// Atomic bump via the v32 RPC. Returns:
 //   { allowed, retryAfterSeconds }  — RPC evaluated the bucket
 //   undefined                       — RPC not deployed yet (fall back to legacy)
 //   null                            — RPC errored (treat as unavailable)
@@ -201,7 +201,7 @@ export default async (req) => {
   const encodedHash = encodeURIComponent(usernameHash);
   const ipHash = resolveClientIpHash(req);
 
-  // ── V14.1 · Rate limiting: two atomic buckets via the v32 RPC ─────────────
+  // ── Rate limiting: two atomic buckets via the v32 RPC ─────────────
   // Username bucket (5/10min) throttles guessing one account; IP bucket
   // (20/10min) blunts spraying across many usernames from one host. SELECT FOR
   // UPDATE inside the RPC removes the old read-then-upsert race. When the RPC
@@ -352,7 +352,7 @@ export default async (req) => {
     }
   }
 
-  // V14.1 · Clear the username bucket on success (the account owner proved the
+  // Clear the username bucket on success (the account owner proved the
   // phrase). The IP bucket is left to decay with its window — success by one
   // user shouldn't reopen spray capacity for a shared host. The legacy-table
   // delete stays for pre-v32 deploys and tolerates the table being dropped.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// V13.5 · Single-source the app version.
+// Single-source the app version.
 //
 // Before this script, four places carried a version independently and had
 // already drifted (package.json 13.4.0, appMeta.js "V13.4", sw.js cache name

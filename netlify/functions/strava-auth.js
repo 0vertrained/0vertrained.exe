@@ -309,7 +309,7 @@ async function handleWebhook(req) {
     const r = await fetch(`${supabaseUrl}/rest/v1/connected_accounts?provider=eq.strava&provider_user_id=eq.${encodeURIComponent(ownerId)}&select=user_id&limit=1`, { headers: serviceHeaders(serviceKey) });
     const userId = r.ok ? (await r.json().catch(() => []))?.[0]?.user_id : null;
     if (userId) {
-      // V13.3 · Deauthorization purge — the API Agreement requires deleting an
+      // Deauthorization purge — the API Agreement requires deleting an
       // athlete's data when they revoke access from Strava's side. Strava
       // signals this as an athlete-update event with authorized:"false".
       const authorizedFlag = body?.updates?.authorized;
@@ -323,7 +323,7 @@ async function handleWebhook(req) {
         }
         return json({ ok: true });
       }
-      // V13.3 · Targeted sync — a create/update event costs one API call for
+      // Targeted sync — a create/update event costs one API call for
       // that activity instead of a paged backfill, keeping webhook traffic
       // inside the rate budget. Deletes drop the single normalized row.
       if (body.object_type === "activity" && body.object_id) {

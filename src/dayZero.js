@@ -1,6 +1,5 @@
 // src/dayZero.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.0 · Day Zero Edition — the zero-state detector.
+// Day Zero Edition — the zero-state detector.
 //
 // A cold visitor's first minutes are the whole conversion game. Each tab gets
 // exactly one question answered here: "does this person have ANY real data on
@@ -15,12 +14,11 @@
 //     full fake environment; specimens would fight it).
 //   · Progress is honest about its unlock: it reports how many logged days
 //     exist and how many remain, in the Morning Edition calibration voice.
-//   · V19.4 · A specimen never hides the only way past it. A specimen
+//   · A specimen never hides the only way past it. A specimen
 //     replaces its whole tab, so what clears it can't be something only that
 //     tab can log: Today and Fuel clear when setup finishes, Recovery when a
 //     wearable connects or a check-in is logged on Today.
 //   · Pure module. No React, no theme, no network.
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const PROGRESS_UNLOCK_DAYS = 7;
 
@@ -74,10 +72,10 @@ function hasRecoveryCheckin(data) {
   });
 }
 
-// V19.4 · Setup (Tutorial.jsx) is what picks the program and the macro
-// targets, so a finished setup is the honest "chosen" signal. The V17
-// detector waited for a logged workout or meal instead, but the loggers live
-// inside the very tabs the specimens replaced, so neither could ever arrive:
+// Setup (Tutorial.jsx) is what picks the program and the macro
+// targets, so a finished setup is the honest "chosen" signal. Waiting for a
+// logged workout or meal instead would never end, because the loggers live
+// inside the very tabs the specimens replace:
 // Today and Fuel stayed samples forever. (A default program and default goals
 // are assigned at load, which is why neither is detectable by absence.)
 export function isOnboarded(settings) {

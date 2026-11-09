@@ -65,7 +65,7 @@ function SyncTimeline({ events, source, title, showCounts = false }) {
 
 const SETTINGS_SECTIONS = [["goals","Macros"],["supps","Supplements"],["diet","Dietary"],["training","Training"],["theme","Theme"],["integrations","Integrations"],["account","Account"],["about","About"]];
 
-// V19.4 · initialSection opens a section directly (Recovery's links and the
+// InitialSection opens a section directly (Recovery's links and the
 // OAuth return land on Integrations); notice is the one status line shown
 // there ({ tone: "ok" | "error", text }); onPatch persists a connection flag
 // quietly, without the full Save path's close + toast.
@@ -89,9 +89,9 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
     if (initialSection && active && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = Math.max(0, active.offsetLeft - nav.offsetLeft - 16);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // V15.3 · two-pane (mockup 1m)
+  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // two-pane
 
-  // V13.6 · Change-recovery-phrase panel (Account section). Lets a signed-in
+  // Change-recovery-phrase panel (Account section). Lets a signed-in
   // user rotate their phrase — closes the permanent-lockout gap where a phrase
   // set at signup could never be changed.
   const [recPhrase, setRecPhrase] = useState("");
@@ -100,9 +100,9 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   const [recMsg, setRecMsg] = useState("");
   const [recErr, setRecErr] = useState("");
 
-  // V14.2 · Load-path diagnostics (About section). Read once per Settings
+  // Load-path diagnostics (About section). Read once per Settings
   // open; the Clear button empties both storage and the local list.
-  // V19.6 · Beta feedback note lives under About (it was on the Profile hub).
+  // Beta feedback note lives under About (it was on the Profile hub).
   const [feedbackNote, setFeedbackNote] = useState("");
   const [feedbackFallback, setFeedbackFallback] = useState(null);
   const [feedbackCopied, setFeedbackCopied] = useState(false);
@@ -127,13 +127,13 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   const [ouraCounts, setOuraCounts] = useState(null);
   const [ouraEvents, setOuraEvents] = useState([]);
 
-  // Whoop (V2.9 Foundation) — status is server-held; the browser never reads tokens.
+  // Whoop — status is server-held; the browser never reads tokens.
   const [whoopStatus, setWhoopStatus] = useState(null);
   const [whoopBusy, setWhoopBusy] = useState(false);
   const [whoopMsg, setWhoopMsg] = useState("");
-  // V2.9.2 — per-type completeness so the user can see exactly what landed.
+  // Per-type completeness so the user can see exactly what landed.
   const [whoopCounts, setWhoopCounts] = useState(null);
-  // V3.4 — sync event debug timeline.
+  // Sync event debug timeline.
   const [whoopEvents, setWhoopEvents] = useState([]);
 
   // Google Health / Fitbit — provider-standard OAuth and sync.
@@ -226,7 +226,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
       if (GOOGLE_HEALTH_INTEGRATION_ENABLED && googleStat?.connected && settings.googleHealthConnected !== true) connectionPatch.googleHealthConnected = true;
       if (stravaStat?.connected && settings.stravaConnected !== true) connectionPatch.stravaConnected = true;
       if (Object.keys(connectionPatch).length) {
-        // V19.4 · Quietly when the shell offers it: the full Save path closes
+        // Quietly when the shell offers it: the full Save path closes
         // Settings, which would shut this screen right after an OAuth return
         // lands here.
         if (onPatch) onPatch(connectionPatch);
@@ -554,7 +554,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
         <button onClick={onClose} style={{ background: "none", border: "none", color: C.textDim, fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", fontFamily: mono }}>✕ Close</button>
       </div>
 
-      {/* V15.3 · Two-pane Settings (mockup 1m): persistent section nav left,
+      {/* Two-pane Settings: persistent section nav left,
           content right; below the tier both wrappers are display:contents. */}
       <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "300px 1fr", gap: 20, alignItems: "start" } : { display: "contents" }}>
       <aside data-section="settings-nav" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
@@ -575,7 +575,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
 
         {section === "goals" && (
           <>
-            {/* V2.2 setup summary — read-only glance at goal + data mode. */}
+            {/* Setup summary — read-only glance at goal + data mode. */}
             {(settings.setup?.goal || settings.setup?.dataMode) && (
               <div style={{ border: `1px solid ${C.line}`, padding: "10px 12px", marginBottom: 16, display: "flex", gap: 16 }}>
                 <div>
@@ -751,14 +751,14 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
               Fig. 5 · Data sources. Wearables become recovery figures and ledger rows.
             </div>
 
-            {/* V19.4 · The result of the connection you just made (OAuth return). */}
+            {/* The result of the connection you just made (OAuth return). */}
             {notice?.text && (
               <div role="status" data-testid="integrations-notice" style={{ ...statusBox, marginBottom: 16, fontWeight: 500, lineHeight: 1.6, color: notice.tone === "error" ? C.red : C.text, border: `1px solid ${notice.tone === "error" ? C.red : C.text}` }}>
                 {notice.text}
               </div>
             )}
 
-            {/* Google Health / Fitbit Connection — V19.6: not shown until the
+            {/* Google Health / Fitbit Connection — not shown until the
                 integration is enabled. A "Coming soon" card is a promise on a
                 settings screen, not a setting. */}
             {GOOGLE_HEALTH_INTEGRATION_ENABLED && (
@@ -919,7 +919,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
                     </div>
                   )}
 
-                  {/* V3.4 parity · Oura sync event debug timeline */}
+                  {/* Oura sync event debug timeline */}
                   {ouraEvents.length > 0 && (
                     <SyncTimeline events={ouraEvents} source="oura" title="Oura sync timeline" />
                   )}
@@ -957,7 +957,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
               </div>
             )}
 
-            {/* Whoop Connection (V2.9 Foundation) */}
+            {/* Whoop Connection */}
             <div style={{ marginTop: 24, marginBottom: 20, paddingTop: 20, borderTop: `1px solid ${C.line}` }}>
               <label style={lbl}>Whoop</label>
               <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 12, lineHeight: 1.6 }}>
@@ -976,7 +976,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
                       : " · not synced yet"}
                   </div>
 
-                  {/* V2.9.2 · per-type data completeness */}
+                  {/* Per-type data completeness */}
                   {whoopCounts && (
                     <div style={countsBox}>
                       {[
@@ -1027,7 +1027,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
                     Disconnect
                   </button>
 
-                  {/* V3.4 · Sync event debug timeline — metadata only, no raw payloads */}
+                  {/* Sync event debug timeline — metadata only, no raw payloads */}
                   {whoopEvents.length > 0 && (
                     <SyncTimeline events={whoopEvents} source="whoop" title="Sync timeline" showCounts />
                   )}
@@ -1137,7 +1137,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
               Email support · {SUPPORT_EMAIL}
             </a>
 
-            {/* V19.6 · Beta feedback — a privacy-safe plain-text note (version,
+            {/* Beta feedback — a privacy-safe plain-text note (version,
                 tab, logged-day count, setup mode, browser; never entries). The
                 load-diagnostics panel that was here is development
                 instrumentation and no longer ships on a user screen. */}

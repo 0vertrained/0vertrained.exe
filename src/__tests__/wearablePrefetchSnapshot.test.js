@@ -1,5 +1,5 @@
 // src/__tests__/wearablePrefetchSnapshot.test.js
-// V12.2 — scheduled wearable-prefetch snapshot materialization.
+// Scheduled wearable-prefetch snapshot materialization.
 //
 // The netlify function is self-contained but exports its pure derivation +
 // secret-stripping helpers for cheap unit tests, and the default handler is
@@ -97,7 +97,7 @@ const ENV = {
   SUPABASE_URL: "https://project.supabase.co",
   SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
   OURA_SYNC_SECRET: "sync-secret",
-  // V14 · resolve/persist are fail-closed without this key.
+  // Resolve/persist are fail-closed without this key.
   TOKEN_ENCRYPTION_KEY: "prefetch-test-encryption-key",
   // Needed for the server-side Whoop token refresh path in the prefetch.
   WHOOP_CLIENT_ID: "whoop-client-id",
@@ -121,7 +121,7 @@ function installFetchMock(opts = {}) {
     whoopTokenRefreshes: [], whoopTokenPatches: [], whoopApiFetches: [],
     whoopDataUpserts: [], order: [],
   };
-  // V14 · Stateful stores so the mock behaves like the real cutover: a persist
+  // Stateful stores so the mock behaves like the real cutover: a persist
   // (connected_accounts POST) becomes readable by later per-user GETs, and a
   // legacy DELETE actually removes the plaintext row.
   const accountStore = new Map(); // `${user_id}:${provider}` → last upserted record
@@ -430,7 +430,7 @@ describe("wearable-prefetch static security", () => {
     expect(prefetchSrc).not.toMatch(/searchParams\.get\(["']user_id["']\)/);
     expect(prefetchSrc).not.toMatch(/body\.user_id/);
     expect(prefetchSrc).not.toMatch(/body\?\.user_id/);
-    // V14 · Enumeration goes through the encrypted-store union helper, and the
+    // Enumeration goes through the encrypted-store union helper, and the
     // prefetch never selects plaintext token columns from any table.
     expect(prefetchSrc).toMatch(/listProviderConnectedUserIds/);
     expect(prefetchSrc).not.toMatch(/whoop_tokens[^\n]*access_token/);

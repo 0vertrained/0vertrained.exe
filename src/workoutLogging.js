@@ -1,5 +1,5 @@
 // src/workoutLogging.js
-// V18.0 · Set Flow — shared workout logging rules.
+// Set Flow — shared workout logging rules.
 // Today quick edit and Session Mode use the same initialization, validation,
 // completion, and resume semantics so the two surfaces cannot drift.
 

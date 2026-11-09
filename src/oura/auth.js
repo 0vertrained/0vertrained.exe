@@ -1,10 +1,8 @@
 // src/oura/auth.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Oura Auth & Connection Management
 //
 // Handles OAuth flow, token management, and connection status checks.
 // Security: getOuraAuthUrl calls /api/oura/auth with Bearer token, no userId query string.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { supabase } from "../supabaseClient";
 import { memoizeAsync } from "../asyncMemo";
@@ -36,7 +34,7 @@ export async function getOuraAuthUrl() {
 /**
  * Check if Oura is connected (tokens exist). Token table reads stay server-side.
  */
-// V14.2 · Memoized (60s TTL + single-flight): a cold boot fired this probe
+// Memoized (60s TTL + single-flight): a cold boot fired this probe
 // from App, TodayTab, and RecoveryDashboard within the same second — each a
 // full /api/oura/status function invocation (bearer verify + summary +
 // possible token self-heal server-side). Presence cannot meaningfully flap
@@ -92,7 +90,7 @@ export async function disconnectOura() {
 }
 
 /**
- * Fetch recent Oura sync events for the debug timeline (V3.4 parity). Reads
+ * Fetch recent Oura sync events for the debug timeline. Reads
  * the server's /api/oura/events endpoint (Bearer-authenticated; ownership is
  * server-derived). Returns only metadata — no raw payloads, no tokens.
  * Shape: { events: Array<row>, error?: string }.

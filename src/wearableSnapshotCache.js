@@ -1,5 +1,4 @@
 // src/wearableSnapshotCache.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Persistent, user-scoped, secret-free wearable/recovery snapshot cache.
 //
 // Why this exists (separate from recoveryDashboardSessionCache):
@@ -20,7 +19,6 @@
 // ledger, per-metric scores, raw metric strings, source/freshness labels).
 // The multi-wearable rule still holds upstream: Oura/Whoop are never averaged
 // and this cache only mirrors whatever the dashboard already decided to show.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Bump when the persisted snapshot shape changes so old caches self-invalidate.
 const SNAPSHOT_VERSION = "1";

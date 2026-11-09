@@ -1,7 +1,6 @@
 // src/__tests__/frontDoorV19_4.test.jsx
 // @vitest-environment jsdom
-// ─────────────────────────────────────────────────────────────────────────────
-// V19.4 · The front door, walked end to end through the real App: a brand-new
+// The front door, walked end to end through the real App: a brand-new
 // account signs in, finishes setup, and banks its first set. Through v19.3
 // this was impossible. Today showed a sample until a workout was logged, and
 // the workout loggers live inside the Today tab the sample replaced.
@@ -12,7 +11,6 @@
 // database), the data layer's network calls (an in-memory store), and fetch.
 // Everything between them is the shipped app: App, Tutorial, TodayTab,
 // SessionMode, the Day Zero detector, Settings.
-// ─────────────────────────────────────────────────────────────────────────────
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 

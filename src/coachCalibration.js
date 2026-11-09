@@ -1,5 +1,5 @@
 // src/coachCalibration.js
-// V7 · Coach calibration report — closes the loop between the daily decision
+// Coach calibration report — closes the loop between the daily decision
 // (call + the athlete's Followed/Modified/Ignored/Skipped response, persisted
 // at intelligence.todayDecisionResponse) and next-day recovery. Pure display:
 // reads entries, computes averages, renders nothing itself and changes no

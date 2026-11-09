@@ -1,6 +1,5 @@
 // netlify/functions/wearable-snapshot.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Wearable display-snapshot endpoint (V12.2 DB-first hydrate).
+// Wearable display-snapshot endpoint.
 //
 // Endpoints (Netlify v2, path /api/wearable/*):
 // • GET  /api/wearable/snapshot — the caller's latest display-safe recovery
@@ -25,7 +24,6 @@
 // This function is intentionally self-contained (like the other netlify
 // functions); the pure sanitizer/status helpers are also exported for tests and
 // mirror src/wearables/snapshotSanitize.js so the two paths cannot drift.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // A snapshot older than this is labelled "stale" (still returned, but flagged).
 const SNAPSHOT_STALE_MS = 6 * 60 * 60 * 1000;
@@ -33,7 +31,7 @@ const SNAPSHOT_STALE_MS = 6 * 60 * 60 * 1000;
 // to dump a large raw payload into the display snapshot).
 const MAX_SNAPSHOT_BYTES = 32 * 1024;
 
-// ─── Secret-key stripping (mirrors src/wearableSnapshotCache.js) ─────────────
+// Secret-key stripping (mirrors src/wearableSnapshotCache.js)
 const EXACT_SECRET_KEYS = new Set([
   "token", "tokens", "authorization", "bearer", "jwt",
   "secret", "password", "passwd", "credential", "credentials",
@@ -88,7 +86,7 @@ export function deriveStatus({ hasSnapshot, updatedAt, now = Date.now(), staleMs
   return ageMs > staleMs ? "stale" : "fresh";
 }
 
-// ─── Response helpers ────────────────────────────────────────────────────────
+// Response helpers
 const SECURITY_HEADERS = {
   "content-type": "application/json",
   "x-content-type-options": "nosniff",
@@ -100,7 +98,7 @@ function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: SECURITY_HEADERS });
 }
 
-// ─── Auth / identity (mirrors whoop-auth.js) ─────────────────────────────────
+// Auth / identity (mirrors whoop-auth.js)
 async function resolveUserIdFromBearer(req) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -131,7 +129,7 @@ async function loadSnapshotRow(supabaseUrl, serviceKey, userId) {
   return rows?.[0] || null;
 }
 
-// ─── Route: GET /api/wearable/snapshot ───────────────────────────────────────
+// Route: GET /api/wearable/snapshot
 async function handleGetSnapshot(req) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -164,7 +162,7 @@ async function handleGetSnapshot(req) {
   });
 }
 
-// ─── Route: GET /api/wearable/status ─────────────────────────────────────────
+// Route: GET /api/wearable/status
 async function handleGetStatus(req) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -191,7 +189,7 @@ async function handleGetStatus(req) {
   });
 }
 
-// ─── Route: POST /api/wearable/snapshot ──────────────────────────────────────
+// Route: POST /api/wearable/snapshot
 // Upsert the caller's display-safe snapshot. Ownership derives from the Bearer
 // token ONLY — a user_id in the body/query is ignored, never trusted.
 async function handlePostSnapshot(req) {
@@ -254,7 +252,7 @@ async function handlePostSnapshot(req) {
   return json({ ok: true, status, updatedAt, source, hasSnapshot });
 }
 
-// ─── Netlify entrypoint ──────────────────────────────────────────────────────
+// Netlify entrypoint
 export const config = { path: "/api/wearable/*" };
 
 export default async (req) => {

@@ -1,6 +1,5 @@
 // src/__tests__/courierMirrorParity.test.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.3 · The drift alarm. House doctrine: Netlify functions MIRROR src logic
+// The drift alarm. House doctrine: Netlify functions MIRROR src logic
 // (V16.6/16.7 precedent), and this test is the contract that keeps the mirror
 // honest. It runs the src classifier and the courier's slim mirror on
 // identical raw-row fixtures and asserts equal states under the courier's
@@ -10,7 +9,6 @@
 // If you change src/oura/normalization.js, src/oura/statistics.js, or
 // src/wearables/recoveryTrend.js and this fails: update
 // netlify/functions/_recovery-mirror.js to match. That is the entire fix.
-// ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { classifyRecoveryState } from "../wearables/recoveryTrend";
 import { mirrorClassify, groupOuraRows } from "../../netlify/functions/_recovery-mirror.js";

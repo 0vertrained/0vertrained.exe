@@ -1,4 +1,4 @@
-// V16.1 · F7 sentinel contracts (flag-only per design) + relocation guard.
+// F7 sentinel contracts (flag-only per design) + relocation guard.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";

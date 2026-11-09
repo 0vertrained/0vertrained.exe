@@ -1,4 +1,3 @@
--- ============================================================
 --  MIGRATION: V3.4 Wearable Sync Events + Debug Timeline
 --  Run this ONCE in: Supabase Dashboard → SQL Editor
 --
@@ -17,10 +16,9 @@
 --    • No tokens, no Authorization headers, no Whoop/Oura JSON bodies.
 --
 --  This migration is IDEMPOTENT and SAFE to re-run.
--- ============================================================
 
 
--- ─── wearable_sync_events table ──────────────────────────────────────────────
+-- wearable_sync_events table
 -- A compact, metadata-only log of wearable sync attempts per user. One row per
 -- sync event (manual or automatic). The client reads the most recent N events
 -- to build a debug timeline in Settings → Integrations.
@@ -52,14 +50,14 @@ GRANT SELECT ON public.wearable_sync_events TO authenticated;
 GRANT ALL ON public.wearable_sync_events TO service_role;
 
 
--- ─── Indexes ─────────────────────────────────────────────────────────────────
+-- Indexes
 CREATE INDEX IF NOT EXISTS idx_wearable_sync_events_user_created
   ON public.wearable_sync_events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_wearable_sync_events_source
   ON public.wearable_sync_events(source);
 
 
--- ─── Patch delete_my_account_data() to also purge sync events ────────────────
+-- Patch delete_my_account_data() to also purge sync events
 -- Only patch if the function already exists. This redefinition is a strict
 -- superset and is safe/idempotent.
 DO $$
@@ -152,11 +150,9 @@ BEGIN
 END $$;
 
 
--- ============================================================
 --  DONE. V3.4 Wearable Sync Events applied.
 --
 --  Privacy guarantees:
 --    • No raw biometric payloads, no tokens, no auth headers stored.
 --    • Only event metadata: source, type, status, aggregate counts, message.
 --    • Owner-readable (SELECT) for the debug timeline; service-role writes only.
--- ============================================================

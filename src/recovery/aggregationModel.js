@@ -1,9 +1,8 @@
 // src/recovery/aggregationModel.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V3.6 Full Aggregation Model
+// Full Aggregation Model
 //
-// Pure, side-effect-free enrichment layer that sits between the V3.1 wearable
-// source resolver + V3.2 conservative blending and the decision engine. It
+// Pure, side-effect-free enrichment layer that sits between the wearable
+// source resolver + conservative blending and the decision engine. It
 // assembles a unified recovery context from every available source — Oura,
 // Whoop, and manual check-in — and produces an aggregated confidence + source
 // map + supplemental context for the Today Coach and Recovery UI.
@@ -22,7 +21,6 @@
 //      Oura-only path. The output is null/no-op and callers behave as before.
 //
 // No network, no Supabase, no localStorage, no side effects. Null-safe.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { resolveRecoveryContext, buildSourceMap } from "./wearableSourceResolver";
 import { buildConservativeBlendContext } from "./conservativeBlending";
@@ -76,7 +74,7 @@ export function buildAggregatedRecoveryContext({
   void settings; // reserved for future per-user source overrides.
 
   // If Whoop is not connected, there is nothing to aggregate beyond the
-  // existing Oura-only path. Return null so callers fall back to pre-V3.6.
+  // existing Oura-only path. Return null so callers use that path.
   const hasWhoop = whoopData && typeof whoopData === "object" && Object.keys(whoopData).length > 0;
   if (!hasWhoop) return null;
 
@@ -84,12 +82,12 @@ export function buildAggregatedRecoveryContext({
   const recoveryScore = num(recovery?.score);
   const recoverySource = recovery?.source || null;
 
-  // ── Resolved per-metric context (V3.1 resolver) ────────────────────────────
+  // ── Resolved per-metric context ────────────────────────────
   const resolvedContext = resolveRecoveryContext({
     ouraData, whoopData, manualData, date, settings: settings || {},
   });
 
-  // ── Conservative blend (V3.2) ──────────────────────────────────────────────
+  // ── Conservative blend ──────────────────────────────────────────────
   const blend = buildConservativeBlendContext({
     resolvedContext,
     recovery,
@@ -101,7 +99,7 @@ export function buildAggregatedRecoveryContext({
   // Read the Whoop recovery score directly from the Whoop data (not from the
   // resolver, which prefers Oura). Compare to the canonical recovery score for
   // a "delta" signal. A large delta is NOT a conflict by itself (different
-  // weightings), but it is useful context for the coach. The V3.1 resolver
+  // weightings), but it is useful context for the coach. The resolver
   // already detects per-metric conflicts; this is a softer, score-level
   // comparison.
   const resolvedDate = resolvedContext?.date || date || latestWhoopDate(whoopData);
@@ -150,7 +148,7 @@ export function buildAggregatedRecoveryContext({
   let aggregatedConfidence = recommendation?.confidence || "high";
   const confidenceReasons = [];
 
-  // 1. Conflicts downgrade confidence (from V3.2 blend)
+  // 1. Conflicts downgrade confidence
   if (blend?.confidenceAdjustment?.direction === "down") {
     const steps = blend.confidenceAdjustment.steps || 1;
     aggregatedConfidence = downgrade(aggregatedConfidence, steps);
@@ -214,7 +212,7 @@ export function buildAggregatedRecoveryContext({
     whoopRecoveryContext,
     whoopStrainContext,
 
-    // Conflict + blend (from V3.1/V3.2)
+    // Conflict + blend
     conflicts: resolvedContext?.conflicts || [],
     conflictAction: resolvedContext?.conflictAction || null,
     blend,

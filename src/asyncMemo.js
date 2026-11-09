@@ -1,5 +1,5 @@
 // src/asyncMemo.js
-// V14.2 · Deduplication primitives for the wearable status/data layer.
+// Deduplication primitives for the wearable status/data layer.
 //
 // The perf trace found a cold boot firing FOUR wearable-status function
 // invocations (App effect + TodayTab's Oura/Whoop/Strava probes) and fetching

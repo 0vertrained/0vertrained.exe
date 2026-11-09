@@ -2,7 +2,7 @@
 // Same-origin proxy for the hosted Form Check engine.
 // Keeps upstream base URL / API key out of the Vite browser bundle.
 //
-// V13.5 hardening — this was the only user-facing function without an auth
+// This was the only user-facing function without an auth
 // gate. It attached FORM_CHECK_API_KEY to any request from anywhere, and the
 // path suffix was forwarded verbatim (URL normalization meant
 // /api/form-check/../admin reached ${base}/admin on the upstream host).

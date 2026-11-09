@@ -1,6 +1,6 @@
 // src/recovery/verdictResolver.js
-// V13 · Presentation-level action resolver for the Recovery verdict (audit
-// Slice C). The dashboard previously rendered the raw training recommendation
+// Presentation-level action resolver for the Recovery verdict (audit
+// Slice C). Without it the dashboard could show the raw training recommendation
 // ("PR attempts are allowed…") in one block and a sleep-debt caution in
 // another — two surfaces, opposite advice. This module resolves readiness +
 // limiters into EXACTLY ONE top-level instruction before anything reaches the
@@ -103,7 +103,7 @@ export function buildRecoveryVerdict({
   alerts = null,
   trainingLoad = null,
   confidence = null,
-  checkin = null, // V16.8 · { severity: 0–3, flags: [] } from checkinMorning
+  checkin = null, // { severity: 0–3, flags: [] } from checkinMorning
 } = {}) {
   const score = recovery && Number.isFinite(Number(recovery.score)) ? Math.round(Number(recovery.score)) : null;
   const baseLabel = String(recommendation?.label || "").trim().toLowerCase();
@@ -128,7 +128,7 @@ export function buildRecoveryVerdict({
       detail: "Several recovery markers are deviating together. Treat today as recovery regardless of the score.",
     });
   }
-  // V16.8 · Morning check-in, caution-only (the doctrine at the top of this
+  // Morning check-in, caution-only (the doctrine at the top of this
   // file). Two independent rough answers — or an illness/injury flag — demote
   // the call one step. A great check-in never raises it: the subjective row
   // keeps the verdict honest, it doesn't hand out passes. The composite score

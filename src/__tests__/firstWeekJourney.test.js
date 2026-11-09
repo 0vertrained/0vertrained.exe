@@ -16,7 +16,7 @@ import {
   buildBetaFeedbackText,
 } from "../firstWeekJourney";
 
-// ─── Fixtures ─────────────────────────────────────────────────────────────────
+// Fixtures
 const trainingDay = () => ({ workout: { exercises: { Squat: { sets: [{ weight: 225, reps: 5, done: true }] } } } });
 const cardioDay = () => ({ workout: { cardio: { miles: 3 } } });
 const noteDay = () => ({ workout: { notes: "easy recovery walk" } });

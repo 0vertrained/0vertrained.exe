@@ -1,5 +1,5 @@
 // src/perf.js
-// V14.2 · Load-path instrumentation. The performance plan's byte/latency
+// Load-path instrumentation. The performance plan's byte/latency
 // figures were estimates; this module makes them measurements. It records
 // named marks (ms since run start) for the hot paths — boot, today, recovery —
 // alongside cumulative network activity, and keeps the last runs in

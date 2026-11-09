@@ -1,11 +1,11 @@
 // src/sessionIntelligence.js
-// Pure display helpers for Session Mode (V7). They read the already-persisted
+// Pure display helpers for Session Mode. They read the already-persisted
 // entries shape (data[dateKey].workout.exercises[name].sets) and produce
 // (1) a "last time" summary per exercise, (2) a conservative double-progression
 // hint, and (3) plate math for a target weight. No side effects, no writes,
 // no changes to the decision engine — purely presentational, so unit-testable.
 
-// ─── Estimated 1RM (V12: canonical home; TodayTab re-exports for compat) ─────
+// Estimated 1RM (canonical home; TodayTab re-exports for compat)
 // Epley formula, capped at 12 reps where the estimate stops being meaningful.
 export function epley1RM(weight, reps) {
   const w = parseFloat(weight); const r = parseFloat(reps);
@@ -27,7 +27,7 @@ export function effectiveE1RM(weight, reps, rir) {
   return epley1RM(weight, reps);
 }
 
-// ─── Last performance ─────────────────────────────────────────────────────────
+// Last performance
 // Scan backwards from (but excluding) todayKey for the most recent day where
 // this exercise has at least one completed set with a weight. Returns null when
 // there's no history yet.
@@ -47,7 +47,7 @@ export function getLastPerformance(data, exerciseName, todayKey, lookbackDays = 
       if (sets.length > 0) {
         const weight = Math.max(...sets.map(s => parseFloat(s.weight) || 0));
         const reps = sets.map(s => parseInt(s.reps, 10) || 0);
-        // V12: carry logged RIR (may be sparse/empty — consumers must not assume)
+        // Carry logged RIR (may be sparse/empty — consumers must not assume)
         const rirs = sets.map(s => (s.rir === "" || s.rir === undefined || s.rir === null ? null : parseInt(s.rir, 10)));
         return {
           date: key,
@@ -63,7 +63,7 @@ export function getLastPerformance(data, exerciseName, todayKey, lookbackDays = 
   return null;
 }
 
-// ─── Progression hint — conservative double progression ──────────────────────
+// Progression hint — conservative double progression
 // If the athlete hit the programmed reps on every completed set at a single
 // weight in the LAST session with this movement, suggest a small load bump:
 // +5 lb for lower-body/compound cues, +5 lb default (kept deliberately simple
@@ -85,7 +85,7 @@ export function buildProgressionHint({ last, exercise }) {
   const isLower = LOWER_BODY_HINTS.some(k => exercise.name.toLowerCase().includes(k));
   const increment = isLower ? 10 : 5;
 
-  // V12 · RIR-aware adjustment: if every set was logged and the WORST set
+  // RIR-aware adjustment: if every set was logged and the WORST set
   // still had 3+ in reserve, a double jump is safe; if any set hit RIR 0,
   // the hit-all-reps signal is a grind, not headroom — repeat the weight.
   const loggedRirs = (last.rirs || []).filter(v => Number.isFinite(v));
@@ -117,7 +117,7 @@ export function buildProgressionHint({ last, exercise }) {
   };
 }
 
-// ─── Plate math ───────────────────────────────────────────────────────────────
+// Plate math
 // Standard lb plates per side for a given target on a 45-lb bar. Returns null
 // when the target is below the bar or not a number. Greedy from heaviest —
 // exact for anything loadable in 2.5-lb steps; flags a remainder otherwise.
@@ -145,7 +145,7 @@ export function calcPlateMath(target, barWeight = 45) {
   };
 }
 
-// ─── Warm-up ramp (V10) ───────────────────────────────────────────────────────
+// Warm-up ramp
 // Standard percentage ramp to a working weight: empty bar × 10, ~55% × 5,
 // ~70% × 3, ~85% × 2, then work sets. Steps round to 5 lb, dedupe, and skip
 // anything at/below the bar. Below 95 lb a ramp is pointless — bar work and
@@ -172,7 +172,7 @@ export function buildWarmupRamp(workingWeight, barWeight = 45) {
   return { steps, working: { weight: w, label: workPlates ? workPlates.label : "" } };
 }
 
-// ─── Rest timer defaults ──────────────────────────────────────────────────────
+// Rest timer defaults
 // Display-only suggestion: heavier compound work earns longer rests. The timer
 // itself is client state in SessionMode; this just picks the default seconds.
 export function suggestRestSeconds(exercise) {

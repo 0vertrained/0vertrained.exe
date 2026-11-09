@@ -1,5 +1,5 @@
 // src/__tests__/stravaLedger.test.js
-// V13.3 · Strava → ledger: row mapping, day grouping, load formulas, fill
+// Strava → ledger: row mapping, day grouping, load formulas, fill
 // priority, manual-canonical rule, and weekly running-volume dedupe.
 
 import { describe, it, expect } from "vitest";

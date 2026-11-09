@@ -1,5 +1,5 @@
 // src/ProgressInsights.jsx
-// V7 · Two display-only Progress Overview sections:
+// Two display-only Progress Overview sections:
 //   1. CalibrationReport — did following the daily call actually precede
 //      better next-day recovery? (coachCalibration.js)
 //   2. CorrelationExplorer — scatter any two logged metrics, optional 1-day
@@ -12,7 +12,7 @@ import { buildCalibrationReport } from "./coachCalibration";
 import { buildCoachingCalibrationProfile } from "./coachingCalibration";
 import { CORRELATION_METRICS, buildCorrelationPairs, pearson, describeCorrelation } from "./correlationExplorer";
 
-// ─── Calibration report ───────────────────────────────────────────────────────
+// Calibration report
 export function CalibrationReport({ data, wearableTrends = null }) {
   const { C, S } = useTheme();
   const report = useMemo(() => buildCalibrationReport(data), [data]);
@@ -67,7 +67,7 @@ export function CalibrationReport({ data, wearableTrends = null }) {
   );
 }
 
-// ─── Correlation explorer ─────────────────────────────────────────────────────
+// Correlation explorer
 function Scatter({ pairs, width = 300, height = 130 }) {
   const { C } = useTheme();
   if (pairs.length < 3) return null;

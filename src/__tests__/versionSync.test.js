@@ -1,5 +1,5 @@
 // @vitest-environment node
-// V13.5 · Version single-sourcing enforcement. package.json is the only
+// Version single-sourcing enforcement. package.json is the only
 // source of truth; appMeta.js consumes it via the __APP_VERSION__ define and
 // public/sw.js is stamped by scripts/sync-version.mjs. If this test fails
 // after a version bump, run: npm run sync:version

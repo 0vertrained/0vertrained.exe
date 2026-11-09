@@ -1,6 +1,5 @@
 // src/__tests__/whoopLocalDateKeying.test.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.7 · Local-date keying + cross-date dedupe. The old UTC-prefix keying
+// Local-date keying + cross-date dedupe. The old UTC-prefix keying
 // mis-dated every record whose timestamp crosses UTC midnight before local
 // midnight: on the reporting user's export (an evening lifter at UTC−5),
 // 9 of 20 workouts — every session after 7 p.m. — were filed under the NEXT
@@ -10,7 +9,6 @@
 // wake-day convention of their own, and recovery records (no window, no
 // offset) must date via their cycle. The client dedupes by external_id across
 // dates so one re-sync after this fix self-heals the historical rows.
-// ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { toLocalDateKey, pickRecordDate, pickCycleDate } from "../../netlify/functions/whoop-auth.js";
 import { groupWhoopRows } from "../whoop/dataLoading";

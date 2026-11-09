@@ -1,5 +1,5 @@
 // src/landing/LandingPage.jsx
-// V13.2 · The logged-out landing as the paper's front matter: masthead, title
+// The logged-out landing as the paper's front matter: masthead, title
 // block + Abstract, Fig. 1 live specimen, Fig. 2 method, Fig. 3 data sources,
 // Fig. 4 Google user-data disclosure, colophon. This page is the homepage URL
 // submitted on the Google OAuth consent screen, so it must keep satisfying

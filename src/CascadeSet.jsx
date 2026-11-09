@@ -1,6 +1,5 @@
 // src/CascadeSet.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.4 · The Cascade, rendered. Lives directly under a set row in both
+// The Cascade, rendered. Lives directly under a set row in both
 // TodayTab and Session Mode:
 //   · A completed set with a weight quietly offers  + drop · + rp  — nothing
 //     appears on ordinary sets before then (no clutter tax on the 95% case).
@@ -12,15 +11,14 @@
 // The set object's own weight/reps remain the top effort; see cascade.js for
 // why every downstream consumer (e1RM, volume, tonnage) is safe by
 // construction.
-// ─────────────────────────────────────────────────────────────────────────────
 import { useTheme } from "./theme";
 import { CASCADE_KINDS, startCascade, addSegment, updateSegment, removeSegment, clearCascade } from "./cascade";
 
 // showOffer: TodayTab passes true (it has no set-type UI, so the offer rows
-// are the entry point). Session Mode passes false — its V12 type-cycler on
+// are the entry point). Session Mode passes false — its type-cycler on
 // the set number IS the entry point there; the figure simply appears once the
 // type is drop/rest-pause. One capability, one entry point per surface.
-// V17.4.1 · The offer explains itself: full words + a plain hint per row
+// The offer explains itself: full words + a plain hint per row
 // ("what does drop + rp mean?" — a fair field report; hover tooltips don't
 // exist on phones), and it appears only on the LAST set of the exercise —
 // matching the programming doctrine (final-set techniques) and keeping

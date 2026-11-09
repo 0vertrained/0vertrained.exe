@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// V16.2 · Pays the mounted-smoke debt from V15.3 (palette, two-pane) and pins
+// Pays the mounted-smoke debt from V15.3 (palette, two-pane) and pins
 // the U-series behaviors. Session's spread keeps static guards — its ten
 // required props make a meaningful mount a fixture project, noted honestly.
 import { afterEach, describe, expect, it, vi } from "vitest";

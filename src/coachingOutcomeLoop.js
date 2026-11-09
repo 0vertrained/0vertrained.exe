@@ -1,5 +1,5 @@
 /**
- * V18.6 · Coaching Outcome Loop
+ * Coaching Outcome Loop
  * Pure lifecycle, plan versioning, outcome evaluation, projection, monthly
  * review, phase-transition, and inbox helpers. The UI owns persistence.
  */

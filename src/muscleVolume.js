@@ -1,5 +1,5 @@
 // src/muscleVolume.js
-// V11 · Per-muscle weekly volume intelligence. The load model (ACWR) treats
+// Per-muscle weekly volume intelligence. The load model (ACWR) treats
 // training as one global number — correct for injury risk, blind for
 // hypertrophy, where the unit of progress is weekly hard sets per muscle.
 // This module maps exercises to muscles, counts completed sets into weekly
@@ -14,7 +14,7 @@
 //   · Sets on unmapped exercises are counted and SURFACED, never silently
 //     dropped — "3 sets unmapped" is information.
 
-// ─── Muscle groups + literature landmark ranges (weekly hard sets) ────────────
+// Muscle groups + literature landmark ranges (weekly hard sets)
 export const MUSCLE_LANDMARKS = {
   chest:      { label: "Chest",       mev: 8,  mavLo: 12, mavHi: 20, mrv: 22 },
   back:       { label: "Back",        mev: 8,  mavLo: 14, mavHi: 22, mrv: 25 },
@@ -30,11 +30,11 @@ export const MUSCLE_LANDMARKS = {
   abs:        { label: "Abs",         mev: 0,  mavLo: 16, mavHi: 20, mrv: 25 },
 };
 
-// ─── Exercise → muscle mapping (keyword-matched, first match wins) ────────────
+// Exercise → muscle mapping (keyword-matched, first match wins)
 // primary counts 1.0 set, secondary counts 0.5. Ordered specific → general so
 // "incline bench" hits the bench rule, not a generic one.
 const EXERCISE_MAP = [
-  // V19.5 · Named exceptions first. Each contains a chest keyword ("pec deck",
+  // Named exceptions first. Each contains a chest keyword ("pec deck",
   // "cable fly", "incline db", "push-up") but trains something else: Reverse Pec
   // Deck and Rear Delt Cable Fly are rear delts, Incline DB Curl is biceps, Pike
   // Push-Up and handstand work are shoulders.
@@ -85,7 +85,7 @@ export function mapExerciseToMuscles(exerciseName) {
   return null;
 }
 
-// ─── Weekly counting ──────────────────────────────────────────────────────────
+// Weekly counting
 export function weekStartKey(dateKey) {
   const d = new Date(dateKey + "T12:00:00");
   const dow = (d.getDay() + 6) % 7; // Monday = 0
@@ -99,9 +99,9 @@ function emptyWeek() {
   return w;
 }
 
-// V12 · A completed set logged at RIR 5+ isn't a hard set — it's a warm-up or
+// A completed set logged at RIR 5+ isn't a hard set — it's a warm-up or
 // technique work by the athlete's own report, so it doesn't count toward
-// landmark volume. Unlogged RIR still counts (the pre-V12 behavior).
+// landmark volume. Unlogged RIR still counts (as before).
 function isHardSet(s) {
   if (!s.done) return false;
   const rir = s.rir === "" || s.rir === undefined || s.rir === null ? null : parseFloat(s.rir);
@@ -144,7 +144,7 @@ export function buildWeeklyMuscleVolume(data, { weeks = 5 } = {}) {
     }));
 }
 
-// ─── Muscle recency (V12) — "what's actually fresh today?" ───────────────────
+// Muscle recency — "what's actually fresh today?"
 // Days since each muscle was last PRIMARILY trained (secondary involvement is
 // tracked separately as a lighter signal). null = never in the window.
 export function buildMuscleRecency(data, todayKey, { windowDays = 21 } = {}) {
@@ -178,7 +178,7 @@ export function buildMuscleRecency(data, todayKey, { windowDays = 21 } = {}) {
   });
 }
 
-// ─── Landmark audit ───────────────────────────────────────────────────────────
+// Landmark audit
 export function classifyVolume(muscleKey, sets) {
   const L = MUSCLE_LANDMARKS[muscleKey];
   if (!L) return null;
@@ -189,7 +189,7 @@ export function classifyVolume(muscleKey, sets) {
   return { status: "above_mrv", label: "above MRV",  tone: "warn" };
 }
 
-// ─── Balance ratios ───────────────────────────────────────────────────────────
+// Balance ratios
 // Push = chest + front/side delts + triceps · Pull = back + rear delts + biceps.
 // Guidance bands are conventional coaching heuristics, framed as such.
 export function buildBalanceRatios(weekMuscles) {
@@ -209,7 +209,7 @@ export function buildBalanceRatios(weekMuscles) {
   ];
 }
 
-// ─── Report builder for the UI ────────────────────────────────────────────────
+// Report builder for the UI
 const MIN_WEEK_SETS = 6; // fewer than this and "weekly volume" is noise
 
 export function buildVolumeReport(data) {

@@ -1,7 +1,6 @@
 // src/__tests__/sundayEdition.test.jsx
 // @vitest-environment jsdom
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.2 · The Sunday Edition. Pins:
+// The Sunday Edition. Pins:
 //   (1) the publish window — Sunday 17:00 through Monday 23:59 local, covering
 //       the Mon–Sun week that ends that Sunday, boundary by boundary;
 //   (2) model determinism (two builds of the same inputs are deep-equal) and
@@ -14,7 +13,6 @@
 //   (6) the overlay's anatomy order and the jargon guard (no z-scores);
 //   (7) the dashboard masthead line renders inside the window and opens the
 //       overlay, with no new nav items.
-// ─────────────────────────────────────────────────────────────────────────────
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { buildSundayEdition, editionWindow } from "../sundayEdition";

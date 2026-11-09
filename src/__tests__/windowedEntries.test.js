@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// V14.3 · Windowed entries contract (perf plan P1-1). Pins:
+// Windowed entries contract. Pins:
 //   1. loadRecentEntries applies the cutoff filter (gte) — the blocking boot
 //      transfer is capped, never full-history.
 //   2. loadOlderEntries pages descending until a short page, invoking onBatch

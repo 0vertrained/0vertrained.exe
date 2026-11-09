@@ -1,5 +1,5 @@
 // src/raceBuild.js
-// V19.2 · Race-build resolver — pure date → build-week mapping.
+// Race-build resolver — pure date → build-week mapping.
 //
 // A weekly program opts in by carrying `__raceBuild: "<configId>"` (a plain
 // string, safe through JSON round-trips and every defensive Object.values
@@ -13,7 +13,7 @@
 //
 // Pure module: no React, no network, no clocks — dates are passed in.
 //
-// V19.3 · `__raceBuild` may also be an OBJECT: a generated race-plan spec
+// `__raceBuild` may also be an OBJECT: a generated race-plan spec
 // (runPlanGenerator.js, kind "runPlan"). It is expanded on read, and its weeks
 // use plan patches — { run } / { cross } / { clearRuns } — that own running on
 // all seven days, reach into AM/PM sessions, and never touch lifting. The
@@ -43,7 +43,7 @@ function weeksBetweenMondays(fromKey, toKey) {
   return Math.round((b - a) / WEEK_MS);
 }
 
-// ─── The 50K ladder (race Friday 2026-08-28) ────────────────────────────────
+// The 50K ladder (race Friday 2026-08-28)
 // Six Monday-anchored weeks. Each week patches days by name:
 //   { cardio: {...} }  → replace that day's cardio, keep lifting/type/code
 //   { day: {...} }     → replace the whole day (race week uses this)
@@ -139,7 +139,7 @@ export function resolveRaceBuildConfig(marker) {
   return null;
 }
 
-// ─── Resolution ─────────────────────────────────────────────────────────────
+// Resolution
 
 // Maps a date to a ladder week. Dates before the ladder clamp to week 0
 // (early joiners just start at the base week) — except for generated plans,
@@ -208,7 +208,7 @@ export function describeBuildWeek(program, todayKey) {
   };
 }
 
-// ─── Plan patches (generated plans only) ────────────────────────────────────
+// Plan patches (generated plans only)
 
 const RUN_HINT = /\b(run|runs|running|jog|jogging|intervals?|tempo|threshold|strides?|fartlek|track|hill repeats?|shakeout|race|5k|10k|half marathon|marathon|zone\s*2|long zone)\b/i;
 const NON_RUN = /\b(walk|walking|hike|hiking|bike|ride|cycling|cycle|row|rowing|elliptical|swim|ski|erg|stair|sled)\b/i;

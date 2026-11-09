@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DAYS, PROGRAM_PRESETS } from "../constants";
 import { RACE_BUILDS } from "../raceBuild";
 
-// V19.2 · The Race Edition — 50K Build. Emergency five-week ultra build:
+// The Race Edition — 50K Build. Emergency five-week ultra build:
 // two upper lifting days + calves, four cardio days (incl. B2B weekend),
 // one full rest day, and a __raceBuild marker wiring it to the resolver.
 

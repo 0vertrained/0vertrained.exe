@@ -14,13 +14,13 @@ const okResponse = {
   cues: [{ id: "baseline", severity: "info", text: "No major V1 flags." }],
   privacy: { videoStored: false, retention: "deleted_after_processing", rawPoseReturned: false },
   disclaimer: "Educational estimate only.",
-  // V1.2: Coaching-tier fields
+  // Coaching-tier fields
   formScore: 82,
   metricConfidence: 0.85,
   captureQuality: { lighting: "good", framing: "excellent", motionBlur: "minimal", bodyVisibility: "clear", overallQuality: "high" },
   coaching: { nextSetCue: "Focus on full elbow extension at the top.", retakeRecommendation: null },
   enrichedRepNotes: ["Rep 1: solid lockout", "Rep 2: slight elbows flare"],
-  // V1.3: derived evidence/progress fields
+  // Derived evidence/progress fields
   evidence: {
     summary: "Bench evidence derived from visible elbow range.",
     keyMoments: [{ label: "bottom", timestampMs: 1200, confidence: 0.72, reason: "Minimum elbow angle." }],
@@ -90,7 +90,7 @@ describe("hosted form check client", () => {
     expect(JSON.stringify(mapped).toLowerCase()).not.toContain("landmarks");
   });
 
-  // V1.2: Test mapping of new coaching-tier fields
+  // Test mapping of new coaching-tier fields
   it("extracts and preserves V1.2 coaching fields (formScore, captureQuality, coaching)", () => {
     const mapped = mapHostedResultToAnalysis(okResponse, { protocol: { label: "Bench" } });
     expect(mapped.formScore?.score).toBe(82);
@@ -102,7 +102,7 @@ describe("hosted form check client", () => {
     expect(mapped.coaching.nextSetCue).toMatch(/elbow extension/i);
   });
 
-  // V1.2: Test enriched rep notes mapping
+  // Test enriched rep notes mapping
   it("maps enrichedRepNotes into individual reps", () => {
     const mapped = mapHostedResultToAnalysis(okResponse, { protocol: { label: "Bench" } });
     expect(mapped.segmentation.reps.length).toBeGreaterThan(0);
@@ -119,7 +119,7 @@ describe("hosted form check client", () => {
     expect(JSON.stringify(mapped)).not.toMatch(/base64|rawLandmarks|frameImageBase64|blob:https/i);
   });
 
-  // V1.2: Test backward compatibility when new fields are missing
+  // Test backward compatibility when new fields are missing
   it("preserves backward compatibility when V1.2 fields are absent", () => {
     const oldResponse = { ...okResponse };
     delete oldResponse.formScore;

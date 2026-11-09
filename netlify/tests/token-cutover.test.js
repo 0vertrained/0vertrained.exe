@@ -1,4 +1,4 @@
-// V14 · Contract tests for the encrypted-token cutover helpers.
+// Contract tests for the encrypted-token cutover helpers.
 // These pin the properties the whole cutover rests on:
 //   1. Encrypted rows win — a decryptable connected_accounts row means the
 //      legacy table is never even read.

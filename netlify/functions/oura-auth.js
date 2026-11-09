@@ -1,7 +1,6 @@
 // netlify/functions/oura-auth.js
 import { PROVIDERS, storeProviderOAuthState, consumeProviderOAuthState, randomState, resolveProviderTokens, persistProviderTokens, getProviderConnectionSummary } from "./_provider-standard.js";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Oura OAuth flow handler (PHASE 2)
 //
 // Endpoints:
@@ -16,7 +15,6 @@ import { PROVIDERS, storeProviderOAuthState, consumeProviderOAuthState, randomSt
 //   (consumed and deleted on callback), not a self-verifying signed token.
 // • Client secret only in Netlify env vars (never browser).
 // • Tokens stored in Supabase via service_role key (server-to-server).
-// ─────────────────────────────────────────────────────────────────────────────
 
 const OURA_AUTH_URL = "https://cloud.ouraring.com/oauth/authorize";
 const OURA_TOKEN_URL = "https://api.ouraring.com/oauth/token";
@@ -28,7 +26,7 @@ const STATE_TTL_MS = 10 * 60 * 1000;
 // /status can self-heal before the token actually expires (no reconnect prompt).
 const TOKEN_NEAR_EXPIRY_MS = 5 * 60 * 1000;
 
-// ─── Sync diagnostics helpers ────────────────────────────────────────────────
+// Sync diagnostics helpers
 // These make failed Supabase/PostgREST writes debuggable without leaking
 // secrets. If you are chasing an "Oura data sync storage failed" log line, this
 // is where the sanitized status + response body come from. Duplicated verbatim
@@ -149,7 +147,7 @@ async function storeOuraDataBatches(supabaseUrl, serviceKey, upserts, logLabel) 
   return { stored, failures };
 }
 
-// ─── Sync event logging (V3.4 parity) ────────────────────────────────────────
+// Sync event logging
 // Writes a privacy-safe metadata-only row to wearable_sync_events after each
 // Oura sync / connect / disconnect / token_refresh. Mirrors whoop-auth.js.
 // Never logs raw payloads, tokens, or biometric values — only aggregate counts
@@ -180,7 +178,7 @@ async function logSyncEvent(supabaseUrl, serviceKey, { userId, source, eventType
   }
 }
 
-// V13.6 · The HMAC state-signing helpers (base64url/hmacSha256/signState/
+// The HMAC state-signing helpers (base64url/hmacSha256/signState/
 // verifyState) were removed here. Oura now uses the DB-backed single-use
 // provider_oauth_state pattern (storeProviderOAuthState/consumeProviderOAuthState)
 // like every other provider, which is one-time-use and needs no shared secret.
@@ -263,7 +261,7 @@ async function handleAuth(req) {
   catch { userId = null; }
   if (!userId) return json({ error: "Not authenticated" }, 401);
 
-  // V13.6 · DB-backed, single-use OAuth state (provider_oauth_state), matching
+  // DB-backed, single-use OAuth state (provider_oauth_state), matching
   // Whoop/Strava/Google. Replaces the HMAC-signed self-verifying token, which
   // used a non-constant-time signature compare and — because it carried its own
   // expiry rather than being consumed — was replayable within its TTL. The row
@@ -303,7 +301,7 @@ async function handleStatus(req) {
   catch { userId = null; }
   if (!userId) return json({ error: "Not authenticated" }, 401);
 
-  // V14 · Presence-only summary: encrypted connected_accounts first, legacy
+  // Presence-only summary: encrypted connected_accounts first, legacy
   // fallback, no decryption. Works (and reports honestly) even if the
   // encryption key is missing.
   let tokenData;
@@ -352,7 +350,7 @@ async function handleStatus(req) {
     const remainingMs = expiresAt ? new Date(expiresAt).getTime() - Date.now() : -Infinity;
     const needsRefresh = remainingMs <= TOKEN_NEAR_EXPIRY_MS;
     if (needsRefresh && tokenData.refresh_token) {
-      // V14 · refreshOuraAccessToken resolves its own refresh token from the
+      // RefreshOuraAccessToken resolves its own refresh token from the
       // encrypted store (with one-shot legacy migration) — no plaintext flows
       // through the status handler.
       const refreshed = await refreshOuraAccessToken(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, userId);
@@ -407,7 +405,7 @@ async function handleDisconnect(req) {
           "Prefer": "return=minimal",
         },
       });
-      // V14 · 404 = the table no longer exists (migration_v31 dropped the
+      // 404 = the table no longer exists (migration_v31 dropped the
       // plaintext token tables). Nothing to delete is a success, not a failure.
       if (!r.ok && r.status !== 404) {
         console.error(`Oura disconnect failed for ${table}:`, r.status);
@@ -513,7 +511,7 @@ async function buildOuraUpserts({ userId, accessToken, days = 14 }) {
 // returned. Shared by /status (self-heal) and the manual-sync path
 // (getUsableOuraAccessToken).
 //
-// V14 · Resolves its own refresh token from the encrypted store (with one-shot
+// Resolves its own refresh token from the encrypted store (with one-shot
 // legacy migration) and persists the rotation encrypted-only. The resolve step
 // fails up front when the encryption key is missing, so we never rotate a
 // token at Oura that we'd then be unable to store — that ordering is what
@@ -585,7 +583,7 @@ async function refreshOuraAccessToken(supabaseUrl, serviceKey, userId) {
 async function getUsableOuraAccessToken(supabaseUrl, serviceKey, userId) {
   const OURA_CLIENT_ID = process.env.OURA_CLIENT_ID;
   const OURA_CLIENT_SECRET = process.env.OURA_CLIENT_SECRET;
-  // V14 · Encrypted store first, one-shot legacy migration, fail-closed on a
+  // Encrypted store first, one-shot legacy migration, fail-closed on a
   // missing encryption key.
   const resolved = await resolveProviderTokens(supabaseUrl, serviceKey, { userId, provider: PROVIDERS.OURA });
   if (!resolved.ok) {
@@ -722,7 +720,7 @@ async function handleCallback(req) {
   if (error) return redirect(`/settings?oura_error=${encodeURIComponent(error)}`);
   if (!code || !state) return json({ error: "Missing code or state" }, 400);
 
-  // V13.6 · Consume the single-use state row. Returns the userId and deletes
+  // Consume the single-use state row. Returns the userId and deletes
   // the row atomically, so a replayed callback (same state twice) fails.
   const userId = await consumeProviderOAuthState(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     provider: PROVIDERS.OURA,
@@ -763,7 +761,7 @@ async function handleCallback(req) {
   }
 
   const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
-  // V14 · Encrypted-only persistence. This is the moment plaintext-at-rest
+  // Encrypted-only persistence. This is the moment plaintext-at-rest
   // ends for Oura: connected_accounts (AES-256-GCM) is the sole store, and a
   // successful persist deletes any surviving legacy oura_tokens row. Fails
   // closed with an actionable error when TOKEN_ENCRYPTION_KEY is missing —
@@ -845,7 +843,7 @@ async function handleCallback(req) {
       if (failures.length > 0) {
         console.warn(`Immediate Oura data sync: ${failures.length} data_type batch(es) failed to store`);
       }
-      // V3.4 parity — log the connect + immediate sync event
+      // Log the connect + immediate sync event
       await logSyncEvent(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
         userId, source: "oura", eventType: "connect",
         status: failures.length === 0 ? "success" : "partial",
@@ -872,7 +870,7 @@ async function handleCallback(req) {
   return redirect(`/settings?oura_connected=true`);
 }
 
-// ─── Route: GET /api/oura/events ─────────────────────────────────────────────
+// Route: GET /api/oura/events
 // Returns the most recent wearable_sync_events rows for the caller (Oura only
 // for this endpoint). Owner-derived via Bearer token. Mirrors /api/whoop/events.
 async function handleEvents(req) {

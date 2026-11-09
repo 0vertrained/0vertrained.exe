@@ -4,7 +4,7 @@ import { buildE1RMSeries, detectStall, buildLiftIntelligence } from "../e1rmTren
 import { buildWeeklyMuscleVolume, buildMuscleRecency } from "../muscleVolume";
 import { readExerciseNote, writeExerciseNote, readSupersetPref, writeSupersetPref } from "../liftLogPrefs";
 
-// ─── RIR-effective e1RM ───────────────────────────────────────────────────────
+// RIR-effective e1RM
 describe("effectiveE1RM", () => {
   it("adds logged RIR to reps (capped at 4)", () => {
     // 185×8 plain: 185*(1+8/30)=234 · @RIR2 → 10 effective: 185*(1+10/30)=247
@@ -14,7 +14,7 @@ describe("effectiveE1RM", () => {
   });
 });
 
-// ─── RIR-aware progression hints ──────────────────────────────────────────────
+// RIR-aware progression hints
 describe("buildProgressionHint · RIR-aware", () => {
   const exercise = { name: "Bench Press", sets: 3, reps: 8 };
   const base = { weight: 185, reps: [8, 8, 8], setsCompleted: 3, label: "185×8/8/8" };
@@ -37,7 +37,7 @@ describe("buildProgressionHint · RIR-aware", () => {
   });
 });
 
-// ─── e1RM series + stall detection ────────────────────────────────────────────
+// e1RM series + stall detection
 const dayFor = (weight, reps, extra = {}) => ({
   workout: { exercises: { "Bench Press": { sets: [{ weight: String(weight), reps: String(reps), done: true, ...extra }] } } },
 });
@@ -99,7 +99,7 @@ describe("buildLiftIntelligence", () => {
   });
 });
 
-// ─── Hard-set RIR exclusion + recency ─────────────────────────────────────────
+// Hard-set RIR exclusion + recency
 describe("muscleVolume · V12 additions", () => {
   it("excludes completed sets logged at RIR 5+ from weekly volume", () => {
     const data = {
@@ -132,7 +132,7 @@ describe("muscleVolume · V12 additions", () => {
   });
 });
 
-// ─── liftLogPrefs ─────────────────────────────────────────────────────────────
+// liftLogPrefs
 describe("liftLogPrefs", () => {
   beforeEach(() => { try { localStorage.clear(); } catch {} });
 

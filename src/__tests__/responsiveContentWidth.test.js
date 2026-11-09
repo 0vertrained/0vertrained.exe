@@ -22,7 +22,7 @@ describe("responsive content-width contract", () => {
     // The shell width defaults to the content width…
     expect(css).toContain("--ovt-shell-width: var(--ovt-content-width)");
     // …and widens only at the broadsheet tier.
-    // V16.3 · The :root block went multi-line when the rail tokens landed;
+    // The :root block went multi-line when the rail tokens landed;
     // substring pins replace the one-line regex.
     expect(css).toContain("@media (min-width: 1440px)");
     expect(css).toContain("--ovt-shell-width: min(1856px, calc(100vw - 48px))");

@@ -6,7 +6,7 @@ import { buildPeriodizationPlan } from "../periodizationPlanner";
 import { buildCoachEvidencePacket } from "../coachEvidence";
 import { seedSupersetPrefsFromProgram } from "../liftLogPrefs";
 
-// V19.3 · Generated race plans through the existing resolver: the plan spec
+// Generated race plans through the existing resolver: the plan spec
 // rides in `__raceBuild` as an object; the 50K registry string is untouched
 // (see raceBuild.test.js).
 

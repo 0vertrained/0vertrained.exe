@@ -1,7 +1,6 @@
 // src/__tests__/boxScoreGhosts.test.jsx
 // @vitest-environment jsdom
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.5 · The Box Score & Ghost Taps. Pins:
+// The Box Score & Ghost Taps. Pins:
 //   (1) ghost priority — carry (today's prior set) > last-time same slot >
 //       last-time final set > nothing; ONE chip at the first empty set;
 //       explicit tap only (the chip fills, nothing auto-adopts);
@@ -16,7 +15,6 @@
 //       dismisses while the card does not, the finisher fires;
 //   (6) wiring guards — skips count as handled in the completion detector,
 //       the finisher routes to the active session's cardio slot.
-// ─────────────────────────────────────────────────────────────────────────────
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, fireEvent } from "@testing-library/react";
 import { ThemeProvider } from "../theme";

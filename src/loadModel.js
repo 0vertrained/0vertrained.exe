@@ -35,7 +35,7 @@ function resolveSessionRpe(wo, hasLift) {
   return { rpe, estimated: true };
 }
 
-// V13.3 · exported: the Strava running-volume figure reuses this exact
+// Exported: the Strava running-volume figure reuses this exact
 // definition of "manually logged cardio" so manual-vs-import dedupe can never
 // drift from the load model's own reading of a day.
 export function getLoggedCardioBlocks(wo) {
@@ -214,7 +214,7 @@ export function buildDailyLoads(data, maxDays = 28, asOf = null) {
 export default { computeSessionLoad, computeRollingLoads, getLoadZoneInfo, buildDailyLoads };
 
 
-// ═══ V16.1 · Unlogged-load sentinel (audit F7, flag-only per design) ═══════
+// Unlogged-load sentinel
 // A day with high Whoop strain and ZERO logged load is invisible to the ACWR
 // — the chronic denominator quietly understates and the verdict can
 // green-light onto hidden fatigue. This flags such days as a data-quality
@@ -223,7 +223,7 @@ export default { computeSessionLoad, computeRollingLoads, getLoadZoneInfo, build
 // (≥5 samples), floored at 10 so easy days never flag; absolute fallback 14
 // (a genuinely hard Whoop day) when history is thin.
 export function findUnloggedLoadDays(dailyLoads, whoopGrouped, { window = 14, stravaByDate = null } = {}) {
-  // V16.5 · Strava joins as a second evidence rung: on days Whoop has nothing
+  // Strava joins as a second evidence rung: on days Whoop has nothing
   // (device off), a synced run ≥ ~3mi with zero logged load still flags. One
   // flag per day; Whoop's strain detail wins when both report.
   if (!Array.isArray(dailyLoads) || (!whoopGrouped && !stravaByDate)) return [];

@@ -1,7 +1,6 @@
 // src/__tests__/doubleEditionCascade.test.jsx
 // @vitest-environment jsdom
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.4 · The Double Edition & The Cascade. Pins:
+// The Double Edition & The Cascade. Pins:
 //   (1) the preset's shape — seven weekdays, AM/PM sessions everywhere,
 //       cardio in every session, Sunday lifts nothing, numeric sets/reps;
 //   (2) the naming rule — no personal name ("Sulek") anywhere in app source
@@ -15,7 +14,6 @@
 //       see one set;
 //   (6) the mounted figure — offer only on completed weighted sets (TodayTab
 //       mode), figure under typed sets (Session Mode mode), segment edits.
-// ─────────────────────────────────────────────────────────────────────────────
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, fireEvent } from "@testing-library/react";
 import { ThemeProvider } from "../theme";
@@ -150,7 +148,7 @@ describe("V17.4 The Cascade — mounted figure", () => {
     expect(queryByTestId("cascade-offer")).toBeNull();
     rerender(<ThemeProvider><CascadeSet set={{ weight: "90", reps: "10", done: true }} showOffer isLast onChange={onChange} /></ThemeProvider>);
     const offer = getByTestId("cascade-offer");
-    // V17.4.1 · Self-explanatory: full words + a plain hint per row — no
+    // Self-explanatory: full words + a plain hint per row — no
     // abbreviations, no hover-only tooltips (phones have no hover).
     expect(offer.textContent).toContain("+ drop set");
     expect(offer.textContent).toContain("+ rest-pause");

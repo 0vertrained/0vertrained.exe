@@ -1,7 +1,7 @@
 /**
  * uiStability.js
  *
- * Pure, side-effect-free presentation helpers for V4.1 "UX Stability + Polish".
+ * Pure, side-effect-free presentation helpers for loading, refresh and coach-line state.
  * These reshape already-known state into stable loading/refresh descriptors and
  * a forward-looking coach line. No writes, no localStorage, no algorithm/scoring
  * changes — the outlook helper only reformats fields the decision engine already

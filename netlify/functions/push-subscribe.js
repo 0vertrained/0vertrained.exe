@@ -1,5 +1,5 @@
 // netlify/functions/push-subscribe.js
-// V7 · Stores / removes a user's Web Push subscription. Auth pattern matches
+// Stores / removes a user's Web Push subscription. Auth pattern matches
 // coach.js: verify the Supabase JWT server-side, never trust a user_id from
 // the body. Writes go through the service-role key so RLS can stay strict
 // (no public writes to push_subscriptions).
@@ -62,7 +62,7 @@ export default async (req) => {
     return json({ ok: true, removed: true });
   }
 
-  // V17.3 · Courier prefs: per-TYPE toggles applied across ALL the user's
+  // Courier prefs: per-TYPE toggles applied across ALL the user's
   // devices (a preference is a person's, not a phone's). Booleans only;
   // anything else is ignored. If migrations/V17_3_courier.sql hasn't run,
   // PostgREST 400s on the unknown columns — surfaced as a soft failure the
@@ -90,7 +90,7 @@ export default async (req) => {
   const keys = subscription?.keys || {};
   if (!keys.p256dh || !keys.auth) return json({ error: "Malformed subscription keys" }, 400);
 
-  // V12.1 · Per-subscription reminder prefs (migration_v28). tz_offset_minutes
+  // Per-subscription reminder prefs (migration_v28). tz_offset_minutes
   // uses Date#getTimezoneOffset() semantics (UTC-6 Central → 360) and is
   // clamped server-side to the real-world offset range. Both fields are
   // optional — omitted means the column defaults (enabled, Central) apply, so
@@ -115,7 +115,7 @@ export default async (req) => {
     }),
   });
   if (!r.ok) {
-    // V12.1 · Detail stays in the function log (same stance as coach.js) —
+    // Detail stays in the function log (same stance as coach.js) —
     // PostgREST errors can echo table/column internals the client shouldn't see.
     const detail = await r.text().catch(() => "");
     console.error(`push-subscribe store failed ${r.status}: ${detail.slice(0, 200)}`);
@@ -124,7 +124,7 @@ export default async (req) => {
   return json({ ok: true });
 };
 
-// V19.4 · Routed. Without a path the client's POST to /api/push-subscribe fell through
+// Routed. Without a path the client's POST to /api/push-subscribe fell through
 // to the SPA rewrite (/* → /index.html, 200), so nothing ever reached this
 // function. Same pattern as coach.js.
 export const config = { path: "/api/push-subscribe" };

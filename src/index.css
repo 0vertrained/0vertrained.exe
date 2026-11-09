@@ -23,7 +23,7 @@ button {
   appearance: none;
 }
 
-/* ──────────────────────────────────────────────────────────────────────────
+/*
    Focus visibility (accessibility)
    Pointer/touch interactions stay ring-free, but KEYBOARD focus shows a clear,
    theme-aware ring. --ovt-focus is set per theme from the ThemeProvider; it
@@ -98,7 +98,7 @@ input[type="number"] { -moz-appearance: textfield; }
 #root { padding-bottom: env(safe-area-inset-bottom); }
 .app-shell, main { scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 
-/* ──────────────────────────────────────────────────────────────────────────
+/*
    Reduced motion (accessibility / vestibular safety)
    Honor the OS-level "reduce motion" preference: neutralize animations and
    transitions, and freeze keyframe-driven effects on their final frame.
@@ -126,7 +126,7 @@ input[type="number"] { -moz-appearance: textfield; }
 @media (min-width: 1024px) {
   :root { --ovt-content-width: 760px; }
 }
-/* V15.0 · Broadsheet tier. The SHELL widens for the ruled three-column
+/* Broadsheet tier. The SHELL widens for the ruled three-column
    layout; --ovt-content-width deliberately stays 760px so every centered
    fixed surface (sheets, session overlays, toasts) keeps the reading-column
    contract — mockup 1r (Session complete) is itself a centered 760px plate. */
@@ -161,7 +161,7 @@ input[type="number"] { -moz-appearance: textfield; }
   opacity: 0.75;
 }
 
-/* V13 · Broadsheet shell — the bottom dock unmounts at >=1024px (see
+/* Broadsheet shell — the bottom dock unmounts at >=1024px (see
    AppBottomNav), so the mobile dock clearance is no longer needed. Inline
    styles set the mobile padding, hence the !important here. */
 @media (min-width: 1024px) {

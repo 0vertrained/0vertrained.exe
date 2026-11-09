@@ -30,14 +30,14 @@ export function mapHostedResultToAnalysis(data, { protocol, metadata, validation
   const reps = Array.isArray(data.reps) ? data.reps : [];
   const cues = Array.isArray(data.cues) ? data.cues : [];
   
-  // V1.1: Merge validation warnings and retakeTips with backend results
+  // Merge validation warnings and retakeTips with backend results
   const retakeTips = Array.isArray(data.retakeTips) ? data.retakeTips : [];
   if (Array.isArray(validation?.retakeTips)) {
     retakeTips.push(...validation.retakeTips);
   }
   const warnings = Array.isArray(validation?.warnings) ? validation.warnings : [];
 
-  // V1.2: Extract coaching-tier and quality fields (preserve backward compatibility).
+  // Extract coaching-tier and quality fields (preserve backward compatibility).
   // Backend V1.2 returns structured objects; early frontend mocks used flat numbers.
   // Keep both useful shapes so UI and history remain resilient.
   const rawFormScore = data.formScore ?? null;
@@ -50,7 +50,7 @@ export function mapHostedResultToAnalysis(data, { protocol, metadata, validation
           reasons: Array.isArray(rawFormScore.reasons) ? rawFormScore.reasons : [],
         }
       : null;
-  // V1.5: Analyzability gate (capture quality + retake coach). Derived only.
+  // Analyzability gate (capture quality + retake coach). Derived only.
   const analyzability = data.analyzability && typeof data.analyzability === "object"
     ? {
         level: typeof data.analyzability.level === "string" ? data.analyzability.level : null,
@@ -60,7 +60,7 @@ export function mapHostedResultToAnalysis(data, { protocol, metadata, validation
         shouldShowFullCoaching: data.analyzability.shouldShowFullCoaching !== false,
       }
     : null;
-  // V1.7: Movement-accuracy proxies. Map only derived scalar fields per metric.
+  // Movement-accuracy proxies. Map only derived scalar fields per metric.
   const movementMetrics = data.movementMetrics && typeof data.movementMetrics === "object" && !Array.isArray(data.movementMetrics)
     ? Object.fromEntries(
         Object.entries(data.movementMetrics)
@@ -81,7 +81,7 @@ export function mapHostedResultToAnalysis(data, { protocol, metadata, validation
       ? { overall: { confidence: data.metricConfidence } }
       : null;
   
-  // V1.2: Map enriched rep notes into reps. Prefer backend rep.coachNote, then legacy
+  // Map enriched rep notes into reps. Prefer backend rep.coachNote, then legacy
   // enrichedRepNotes[] array, then any existing repNote.
   const enrichedReps = reps.map((rep, idx) => {
     const enrichedNotes = Array.isArray(data.enrichedRepNotes) ? data.enrichedRepNotes[idx] : null;
@@ -150,9 +150,9 @@ export async function analyzeVideoWithHostedEngine({ file, movement, apiBase, si
   const headers = {};
   if (apiKey) headers["X-FormCheck-Key"] = apiKey;
 
-  // V13.5 — the same-origin Netlify proxy now requires the caller's Supabase
-  // JWT (it attaches the paid engine key server-side and was previously open
-  // to anonymous traffic). Attach the session token ONLY when talking to the
+  // The same-origin Netlify proxy now requires the caller's Supabase
+  // JWT (it attaches the paid engine key server-side and must not serve
+  // anonymous traffic). Attach the session token ONLY when talking to the
   // proxy (base === ""); an explicit apiBase points at a different origin and
   // must never receive the Supabase JWT.
   const base = resolveApiBase(apiBase);

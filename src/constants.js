@@ -5,7 +5,6 @@ export const DEFAULT_PROGRAM = {
   // Recovery: 72hrs between same muscle groups. Cardio separated from legs.
   // Double progression throughout: hit top rep on all sets → add weight.
   // Session time: ~75–85 min lifting + 15 min sauna = 2 hours.
-  // ──────────────────────────────────────────────────────────────────────────
 
   Monday: {
     type: "Upper A — Push + Triceps", code: "UPPER A",
@@ -241,7 +240,7 @@ export function scoreFoods(q) {
 }
 
 // ── Workout Presets ────────────────────────────────────────────────────────────
-// V19.5 · A bodyweight movement the logger can't recognize by name (Inverted
+// A bodyweight movement the logger can't recognize by name (Inverted
 // Row, Pistol Squat, Dead Bug…) declares its tracking mode, or the set can't be
 // banked without a weight. Same string as TRACKING_MODES.BODYWEIGHT_REPS in
 // workoutLogging.js; presetLineupV19_5.test.js pins every mode a preset uses.
@@ -291,7 +290,7 @@ export const PROGRAM_PRESETS = {
         cardio: {
           type: "Intervals", miles: 5, effort: "Hard",
           notes: "Warm up 15 min, then 5 × 3 min hard w/ 2 min easy jog. Controlled: the last rep as quick as the first. Cool down 10 min. Every other week, run 20 min of tempo instead (comfortably hard, 3–4 words at a time) between the same warm-up and cool-down.",
-          // The cardio timer reads these before the notes (V19.3 race-plan format).
+          // The cardio timer reads these before the notes.
           steps: [
             { kind: "warmup", minutes: 15, intensity: "easy" },
             { kind: "repeat", reps: 5, work: { minutes: 3, intensity: "interval" }, recovery: { minutes: 2, intensity: "jog" } },
@@ -911,7 +910,7 @@ export const PROGRAM_PRESETS = {
   },
 };
 
-// V19.5 · What Switch preset lists, in this order: one plan per kind of
+// What Switch preset lists, in this order: one plan per kind of
 // athlete. Presets left out stay defined. A loaded preset is copied into the
 // account's program, so nobody already on one is affected; onboarding's legacy
 // path and the presets' own tests still read them, and any can come back by

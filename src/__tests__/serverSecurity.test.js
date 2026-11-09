@@ -38,7 +38,7 @@ describe("serverless security guards", () => {
       if (String(url).includes("/auth/v1/user")) {
         return new Response(JSON.stringify({ id: "user-1" }), { status: 200 });
       }
-      // V13.6 · state is now persisted to provider_oauth_state before redirect.
+      // State is now persisted to provider_oauth_state before redirect.
       if (String(url).includes("/rest/v1/provider_oauth_state")) {
         return new Response(null, { status: 201 });
       }
@@ -136,7 +136,7 @@ describe("serverless security guards", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url, opts = {}) => {
       const href = String(url);
       const method = (opts.method || "GET").toUpperCase();
-      // V14 · Encrypted store empty → resolve falls back to the legacy row and
+      // Encrypted store empty → resolve falls back to the legacy row and
       // migrates it (connected_accounts POST + oura_tokens DELETE below).
       if (href.includes("/rest/v1/connected_accounts")) {
         if (method === "GET") return new Response(JSON.stringify([]), { status: 200 });
@@ -211,7 +211,7 @@ describe("serverless security guards", () => {
         return new Response(JSON.stringify({ id: "user-1" }), { status: 200 });
       }
       if (href.includes("/rest/v1/connected_accounts")) {
-        // V14 · Status reads presence from the encrypted store. Ciphertexts may
+        // Status reads presence from the encrypted store. Ciphertexts may
         // travel server-side; the assertions below prove nothing token-shaped
         // ever reaches the browser response.
         return new Response(JSON.stringify([{
@@ -252,7 +252,7 @@ describe("serverless security guards", () => {
   });
 
   test("oura callback consumes the state row exactly once (replay of the same state fails)", async () => {
-    // V13.6 · Proves the DB-backed one-time state: the callback reads the row,
+    // Proves the DB-backed one-time state: the callback reads the row,
     // then DELETEs it. A replayed callback with the same state finds no row and
     // is rejected. This is the property the old HMAC-signed state lacked.
     process.env.OURA_CLIENT_ID = "client-id";

@@ -1,6 +1,6 @@
 // @vitest-environment node
 // src/__tests__/pushReminderSchedule.test.js
-// V12.1 · The reminder cron now fires hourly and sends only to subscriptions
+// The reminder cron now fires hourly and sends only to subscriptions
 // whose LOCAL time is in the 19:00–19:59 window, using the tz offset captured
 // at subscribe time (Date#getTimezoneOffset semantics: minutes to ADD to
 // local time to reach UTC). These tests pin the isDue window math.

@@ -139,7 +139,7 @@ const PROTOCOLS = [
     ],
   },
 
-  // ---- V1.9 Full Movement Expansion Pack ----
+  // V1.9 Full Movement Expansion Pack
   // Tier 1 — squat, hinge, press and pull variations of movements we already read.
   {
     key: "front-squat-side-view",

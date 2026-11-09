@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scripts/generate-icons.mjs
 //
-// V14.2.1 · Regenerates every favicon / app-icon asset from the theta mark.
+// Regenerates every favicon / app-icon asset from the theta mark.
 //
 // Provenance: IBM Plex Mono (the app's mono) ships NO Greek block — a capital
 // theta set in it falls back to the system monospace. This mark is therefore

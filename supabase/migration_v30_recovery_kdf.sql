@@ -1,6 +1,4 @@
--- ============================================================
---  V13.6 (v30) — Recovery KDF versioning
--- ============================================================
+--  V13.6 — Recovery KDF versioning
 --  P1 hardening from the V13.4.1 security review: the recovery phrase is
 --  user-chosen and was stored as a single round of SHA-256(salt + phrase).
 --  The per-user salt defeats rainbow tables but not offline dictionary
@@ -22,7 +20,6 @@
 --  explicit value is correctly read as "legacy" by the verifier.
 --
 --  Idempotent and re-runnable, matching the v27/v28/v29 style.
--- ============================================================
 
 alter table public.profiles
   add column if not exists recovery_kdf text;

@@ -1,5 +1,5 @@
 // netlify/functions/log-event.js
-// V17.0 · Funnel event sink for the beta go/no-go call. Same doctrine as
+// Funnel event sink for the beta go/no-go call. Same doctrine as
 // log-error.js: JWT-verified (anonymous sinks are abuse magnets), every field
 // clamped server-side, per-user daily flood cap, and 200s on every tolerable
 // failure so the client's fire-and-forget logger never retries. If the
@@ -79,7 +79,7 @@ export default async (req) => {
   return json({ ok: true });
 };
 
-// V19.4 · Routed. Without a path the client's POST to /api/log-event fell through
+// Routed. Without a path the client's POST to /api/log-event fell through
 // to the SPA rewrite (/* → /index.html, 200), so nothing ever reached this
 // function. Same pattern as coach.js.
 export const config = { path: "/api/log-event" };

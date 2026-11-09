@@ -1,6 +1,6 @@
 // src/wearables/signalProvenance.js
-// V16.5 · One sentence, at the verdict, explaining what today's score stood
-// on — the arbitration layer made fallback days CORRECT (V16.0); this makes
+// One sentence, at the verdict, explaining what today's score stood
+// on — the arbitration layer made fallback days CORRECT; this makes
 // them FELT. Cause attribution is deliberately conservative: "had no data"
 // only when the day object is entirely absent; a day with docs but a missing
 // field says "no <metric> reading" — inferring behavior from partial data
@@ -26,7 +26,7 @@ export function buildSignalProvenance(rec, ouraData, whoopGrouped, scoredDay) {
 
   const parts = [];
 
-  // ── V16.6/V16.7 · Nap-skip transparency. When a newer calendar day exists
+  // ── Nap-skip transparency. When a newer calendar day exists
   //    whose only sleep record is a nap (no main sleep, no readiness), the
   //    engine correctly scores the last real night — say so, or a user who
   //    napped this afternoon wonders why the masthead date is yesterday. ──

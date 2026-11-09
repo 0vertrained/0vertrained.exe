@@ -1,6 +1,5 @@
 // src/recovery/wearableProgressContext.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V3.3 Wearable Progress Context
+// Wearable Progress Context
 //
 // Pure, side-effect-free source-aware trend notes for the Progress / weekly
 // review surfaces. It reads the SAME per-metric source arbitration the recovery
@@ -15,7 +14,6 @@
 //   • No recovery-score recomputation, no averaging Oura + Whoop.
 //   • Null-safe: empty/partial/missing inputs never throw and never emit NaN.
 //   • No network, no Supabase, no logging of raw biometric payloads.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { resolveMetric } from "./wearableSourceResolver";
 

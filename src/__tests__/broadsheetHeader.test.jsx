@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// V15.1.1 · Regression: the context strip rendered the calcStreak OBJECT
+// Regression: the context strip rendered the calcStreak OBJECT
 // ({count, active}) as a React child — React #31, desktop-only, shipped
 // because every broadsheet guard was a static source check. This is the
 // first test that actually MOUNTS the broadsheet header. If a future edit

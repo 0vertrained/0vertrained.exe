@@ -1,6 +1,5 @@
 // src/wearables/recoveryTrend.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.8 · Morning Edition — the trend layer over the daily recovery score.
+// Morning Edition — the trend layer over the daily recovery score.
 //
 // WHY THIS EXISTS. The daily composite is a single-morning z-score reading; on
 // the reporting user's own export it ran 77 → 88 → 90 → 81 across four
@@ -24,9 +23,8 @@
 //   · Calibration is honest and specific: "N more mornings" — never a fake
 //     verdict on thin data.
 //   · Devices are never mixed in one series (baselines are device-relative,
-//     V16.0 doctrine). Oura main-sleep HRV is the primary series; Whoop
+//     Doctrine). Oura main-sleep HRV is the primary series; Whoop
 //     recovery HRV is the fallback series when Oura is thin.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { trimmedMean, trimmedStdDev, lnRMSSD, linearRegression } from "../oura/statistics";
 import { getSleepDoc, recoveryDates } from "../oura/normalization";

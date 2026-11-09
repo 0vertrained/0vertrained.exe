@@ -1,6 +1,5 @@
 // src/boxScore.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.5 · The Box Score — the post-session story, pure.
+// The Box Score — the post-session story, pure.
 //
 // The seconds after the last set are the peak-emotion moment of the loop; the
 // old complete screen spent them on a tonnage number and a random flavor
@@ -13,7 +12,6 @@
 //   honestly.
 // Honesty rules: no prior same-name session → no fake deltas ("first Pull
 // day on record — the baseline is set"); every comparison names its basis.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { effectiveE1RM } from "./sessionIntelligence";
 import { buildE1RMSeries } from "./e1rmTrend";
@@ -50,7 +48,7 @@ export function buildBoxScore({ data = {}, todayKey, todayName = null } = {}) {
   const tonnageDeltaPct = priorTonnage ? Math.round(((tonnage - priorTonnage) / priorTonnage) * 100) : null;
 
   // ── PRs: today's best e1RM per exercise vs ALL prior history (straight
-  //    sets only — the V12 exclusion law, applied on both sides).
+  //    sets only, on both sides).
   const prs = [];
   const arrows = [];
   for (const [name, exData] of exercises) {
@@ -78,8 +76,8 @@ export function buildBoxScore({ data = {}, todayKey, todayName = null } = {}) {
   }
 
   // ── Sets banked per muscle (today's straight+cascade done sets, primaries
-  //    1 / secondaries 0.5 — the volume audit's own currency) with the weekly
-  //    position from the audit itself.
+  //    1 / secondaries 0.5 — the weekly volume audit's own currency) with the
+  //    weekly position from that audit.
   const bankedByMuscle = {};
   for (const [name, exData] of exercises) {
     const doneCount = (exData?.sets || []).filter((s) => s.done && numOr(s.weight) >= 0).length;

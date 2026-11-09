@@ -1,4 +1,4 @@
-// V1.6 — Trend Coach / Progress Memory V2 tests (pure helpers).
+// Trend Coach / Progress Memory V2 tests (pure helpers).
 //
 // Cover: insufficient data, improving, stable, declining, and mixed old/new
 // entries. All inputs are already-derived history records.

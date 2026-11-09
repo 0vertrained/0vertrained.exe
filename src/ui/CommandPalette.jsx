@@ -1,5 +1,5 @@
 // src/ui/CommandPalette.jsx
-// V15.3 · ⌘K command palette (mockup 1p, decision D4). Desktop-native "one
+// ⌘K command palette. Desktop-native "one
 // tap from anywhere": the same QUICK_ACTIONS the mobile FAB serves, plus
 // jump-to targets for the four tabs. Number keys fire actions, T/R/F/P jump
 // tabs, Escape closes. Broadsheet-tier only — mounted and unmounted by App.

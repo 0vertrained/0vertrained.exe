@@ -41,11 +41,9 @@ function stateInk(C, band) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  Intelligence sections — the user-facing surface of the deterministic engine.
 //  Extracted from App.jsx so the readiness / adaptive / nutrition figures live
 //  together and App.jsx stays a thinner shell (see Improvements §6.1).
-// ─────────────────────────────────────────────────────────────────────────────
 
 // 5-state readiness scale. Position disambiguates the call (so "Push" and
 // "Normal" are no longer visually identical); the single reserved spot colour
@@ -80,9 +78,9 @@ function ReadinessScale({ active, index = null, C }) {
   );
 }
 
-// ─── Readiness Section (merged recommendation + recovery) ─────────────────────
+// Readiness Section (merged recommendation + recovery)
 export function ReadinessSection({ recommendation, recovery, C, S }) {
-  // V12.1 · Hooks must run unconditionally — the early return previously sat
+  // Hooks must run unconditionally — the early return previously sat
   // ABOVE useCountUp/useState, so a recommendation flipping between null and
   // set across renders changed the hook order and crashed React
   // ("Rendered more hooks than during the previous render"). Caught by
@@ -164,8 +162,8 @@ export function ReadinessSection({ recommendation, recovery, C, S }) {
   );
 }
 
-// ─── Adaptive Training Banner (compact) ─────────────────────────────────────
-// V6 note: no longer rendered on Today — replaced by TrainingAdjustmentInline
+// Adaptive Training Banner (compact)
+// Not rendered on Today, where TrainingAdjustmentInline takes its place
 // below, which renders the same content *inside* the decision block instead
 // of as a second, competing decision surface. Kept exported for reuse.
 export function AdaptiveTrainingBanner({ suggestion, accepted, keptOriginal, onAccept, onKeepOriginal }) {
@@ -208,7 +206,7 @@ export function AdaptiveTrainingBanner({ suggestion, accepted, keptOriginal, onA
   );
 }
 
-// ─── Training adjustment, inline (V6) ────────────────────────────────────────
+// Training adjustment, inline
 // The Accept / Keep-plan interaction rendered INSIDE the Today decision block.
 // Identical gating and write-path callbacks to AdaptiveTrainingBanner; only
 // the frame differs — a ruled sub-section of the decision, not a sibling
@@ -253,7 +251,7 @@ export function TrainingAdjustmentInline({ suggestion, accepted, keptOriginal, o
   );
 }
 
-// ─── Dynamic Nutrition Card ──────────────────────────────────────────────────
+// Dynamic Nutrition Card
 export function DynamicNutritionCard({ recommendation, onAdd }) {
   const { C, S } = useTheme();
   if (!recommendation) return null;
@@ -300,7 +298,7 @@ export function DynamicNutritionCard({ recommendation, onAdd }) {
   );
 }
 
-// ─── Guidance list (DO / AVOID / WATCH) ─────────────────────────────────────
+// Guidance list (DO / AVOID / WATCH)
 // Compact ruled group; only rendered by the card when it has items. The glyph
 // carries the section meaning in the single-ink language (no colour spent).
 function GuidanceList({ label, items, glyph, C }) {
@@ -318,7 +316,7 @@ function GuidanceList({ label, items, glyph, C }) {
   );
 }
 
-// ─── Today Coach V2 ─────────────────────────────────────────────────────────
+// Today Coach V2
 // Compact decision surface: one clear call, why, do/avoid/watch guidance,
 // confidence + risk + source transparency, and retained response tracking.
 // Falls back gracefully if handed a v1-shaped decision (no do/avoid/watch).
@@ -331,7 +329,7 @@ export function TodayDecisionCard({
   cta = null,
 }) {
   const { C, S } = useTheme();
-  // V2.6: the four session-feedback buttons live under a collapsible "After
+  // The four session-feedback buttons live under a collapsible "After
   // session" area so they stop competing with the primary Accept / Keep-Plan
   // action. Auto-open once a response has been recorded so the choice stays
   // visible. The onResponse write path is unchanged.
@@ -347,7 +345,7 @@ export function TodayDecisionCard({
     { value: "skipped", label: "Skipped" },
   ];
 
-  // V13 · the call renders as an inverted ink Stamp — no colored words. Red
+  // The call renders as an inverted ink Stamp — no colored words. Red
   // stays reserved for failures; a cautious call is a limiter, not an error.
   const callTone = C.text;
   const STAMP_TEXT = { push: "Push", maintain: "On plan", modify: "Modify", recover: "Recover" };

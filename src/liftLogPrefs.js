@@ -1,5 +1,5 @@
 // src/liftLogPrefs.js
-// V12 · Lifting quality-of-life persistence: per-exercise sticky notes ("seat
+// Lifting quality-of-life persistence: per-exercise sticky notes ("seat
 // 4, pin 7, elbows tucked") and superset pairing memory (so Tuesday's
 // curls+pushdowns pairing survives to next Tuesday). localStorage, same
 // precedent as the race plan and energy goal — device-local, versioned key,
@@ -21,7 +21,7 @@ function writeJson(key, obj) {
   try { localStorage.setItem(key, JSON.stringify(obj)); return true; } catch { return false; }
 }
 
-// ─── Sticky notes ─────────────────────────────────────────────────────────────
+// Sticky notes
 export function readExerciseNote(exerciseName) {
   if (!exerciseName) return "";
   const notes = readJson(NOTES_KEY);
@@ -37,7 +37,7 @@ export function writeExerciseNote(exerciseName, note) {
   return writeJson(NOTES_KEY, notes);
 }
 
-// ─── Superset pairing memory ──────────────────────────────────────────────────
+// Superset pairing memory
 // Keyed by day name + the exercise it pairs FORWARD to (exercise i pairs with
 // i+1 in the session order). Stored as { "<dayName>|<exerciseName>": true }.
 const pairKey = (dayName, exerciseName) => `${dayName || "any"}|${exerciseName}`;
@@ -55,7 +55,7 @@ export function writeSupersetPref(dayName, exerciseName, paired) {
   return writeJson(PAIRS_KEY, pairs);
 }
 
-// V17.4 · Preset-declared supersets. A program exercise may carry
+// Preset-declared supersets. A program exercise may carry
 // `pairNext: true` — on preset apply, this seeds the sticky pairing pref for
 // that weekday+exercise so the Session Mode superset flow works on day one
 // with zero taps. Seeding is additive only: it never unpairs anything the

@@ -186,7 +186,7 @@ export function buildTodayDecision({
     if (!overrideNote) overrideNote = `Elevated soreness (${soreness}/10) — no hard pushing today.`;
   }
 
-  // ── V3.1 Mixed-signal (wearable conflict) bias — when Oura and Whoop disagree
+  // ── Mixed-signal (wearable conflict) bias — when Oura and Whoop disagree
   //    on the same metric, bias the call toward caution. A major conflict caps at
   //    "modify"; a minor one only holds back a "push". Never pushes toward more
   //    training. Manual overrides above still take precedence in the subtitle. ──
@@ -290,7 +290,7 @@ export function buildTodayDecision({
   const confidence = [ "low", "medium", "high" ].includes(String(recommendation.confidence))
     ? recommendation.confidence
     : "medium";
-  // V3.6 — aggregated confidence from the wearable aggregation model. It is
+  // Aggregated confidence from the wearable aggregation model. It is
   // only ever a floor (can lower, never raise). When conflicts/fallbacks/missing
   // metrics lower it, that floor wins over the decision engine's confidence.
   const AGG_ORDER = { low: 0, medium: 1, high: 2 };

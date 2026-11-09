@@ -1,9 +1,7 @@
 // src/RaceBlockSection.jsx
-// V19.6 · The race countdown on Progress → Program, read from the program's
-// race plan (V19.3). Before this it was the V7 race block: a second race kept
-// in localStorage with a Hyrox station ledger and its own "Set race target"
-// form, so a runner could have two unconnected races on screen. The plan is
-// the one source now; it's edited under Profile → Training plan → Race plan.
+// The race countdown on Progress → Program, read from the program's race
+// plan, which is the one source for the race; it's edited under Profile →
+// Training plan → Race plan.
 
 import { useTheme } from "./theme";
 import { getTodayKey } from "./constants";

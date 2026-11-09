@@ -1,7 +1,7 @@
 /**
  * pendingSavesStore.js
  *
- * V13.5 · Persistent offline save queue, namespaced by userId.
+ * Persistent offline save queue, namespaced by userId.
  *
  * Before this module, the pending-save queue lived only in React state
  * (App.jsx `pendingSaves`). Failed saves — dead gym wifi, half-alive LTE —

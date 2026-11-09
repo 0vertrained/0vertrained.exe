@@ -1,7 +1,6 @@
 // src/__tests__/morningEdition.test.jsx
 // @vitest-environment jsdom
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.8 · Morning Edition surface. The dashboard's ten-required-props mount is
+// Morning Edition surface. The dashboard's ten-required-props mount is
 // a fixture project (per the V16.2 precedent, noted honestly) — the wiring and
 // reading-order anatomy are pinned as source guards, and the pieces that mount
 // cleanly (Sparkline overlay) are mounted for real. The engine behavior behind
@@ -12,7 +11,6 @@
 //   state row with gated delta → resolver headline → evidence deck →
 //   context line → divergence → limiter → explainer. Provisional ink until
 //   the check-in completes; calibration never fakes a verdict.
-// ─────────────────────────────────────────────────────────────────────────────
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { ThemeProvider } from "../theme";

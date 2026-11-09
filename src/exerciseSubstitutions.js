@@ -1,5 +1,5 @@
 // src/exerciseSubstitutions.js
-// V10 · "Rack's taken" substitutions. Matches an exercise name to a movement
+// "Rack's taken" substitutions. Matches an exercise name to a movement
 // pattern by keyword and returns 3-4 curated equivalents with a short note on
 // how the stimulus shifts. Curated and conservative on purpose: pattern-true
 // swaps only, no creative programming — the goal is same-session equivalence,

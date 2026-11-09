@@ -1,5 +1,5 @@
 // src/__tests__/racePlanUi.test.jsx
-// V19.3 · Race-plan surfaces: the Today line copy, the More → Program panel
+// Race-plan surfaces: the Today line copy, the More → Program panel
 // (draft → stored spec, live preview, explicit save/end), the Progress race
 // block reading the synced plan, the cardio runner reading structured steps,
 // and the plan surviving a lifting swap.

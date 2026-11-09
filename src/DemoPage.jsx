@@ -1,18 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { useTheme } from "./theme";
 import { computeReadinessIndex } from "./decisionEngine";
-// V13.2 · The readiness card, its band helpers, and the auto-cycling specimen
+// The readiness card, its band helpers, and the auto-cycling specimen
 // moved to src/landing/ReadinessSpecimen.jsx so the logged-out landing's
 // Fig. 1 and this page render one and the same component.
 import { ReadinessCard, ReadinessSpecimen, bandFor, LABEL } from "./landing/ReadinessSpecimen";
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  In-app demo / pitch page. Reached at #/demo (public — renders before the auth
 //  gate) and from the More tab. Native to the Whitepaper System: it uses the
 //  active theme and reuses the real readiness engine, so the interactive figure
 //  produces the exact call the app would. The standalone /demo.html mirrors this
 //  for sharing outside the app.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // "Request early access" routes to the sign-in / create-account card on the
 // landing page: changing the hash off #/demo closes this overlay via App's

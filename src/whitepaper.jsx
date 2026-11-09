@@ -12,7 +12,7 @@ export function FigureSection({ n, title, right, children, style }) {
 
 export function FigureHeader({ n, title, right }) {
   const { S } = useTheme();
-  // V6: the figure number renders only when provided. Conditional sections
+  // The figure number renders only when provided. Conditional sections
   // (whose visible sequence skips and forks day-to-day) pass no n — a number
   // that implies an order the page doesn't have is worse than none.
   return (
@@ -33,7 +33,7 @@ export function RuledRow({ label, value, children, emphasis = false }) {
   );
 }
 
-// V17.1 · MethodLine — every number defends itself. The V16.9 sleep-debt row
+// MethodLine — every number defends itself. The sleep-debt row
 // ("vs 7.6h baseline need (Whoop) · naps credited") generalized into a house
 // primitive: one annot-vocabulary line of method directly under a figure, and
 // an optional tap-to-expand detail in the Morning Edition details/summary
@@ -127,7 +127,7 @@ export function StatusStamp({ children }) {
 
 export function AlertCard({ severity, title, markers, message, recommendation }) {
   const { C } = useTheme();
-  // V13 ink-state vocabulary: warnings are limiters, typeset as a double rule
+  // Ink-state vocabulary: warnings are limiters, typeset as a double rule
   // in ink; cautions keep a dim hairline; red is reserved for genuine failures
   // (the new "error" severity — sync/token breakage), never coaching.
   const severityRules = {
@@ -193,7 +193,7 @@ export function Sparkline({ points = [], width = 200, height = 40, color, label,
 
   const pad = 4;
   const values = points.map(p => Number(p.value) || 0);
-  // V16.8 · Optional second series (e.g. the rolling trend over the daily
+  // Optional second series (e.g. the rolling trend over the daily
   // points). Shares the min/max scale with the primary so the two lines are
   // honestly comparable; drawn faint and behind the daily line.
   const overlayValues = Array.isArray(overlayPoints) && overlayPoints.length >= 2
@@ -239,7 +239,7 @@ export function Sparkline({ points = [], width = 200, height = 40, color, label,
   );
 }
 
-// ─── Loading Skeleton Placeholders ───────────────────────────────────────────
+// Loading Skeleton Placeholders
 // Stable layout placeholders during async data load. Uses theme tokens for consistency.
 export function SkeletonBlock() {
   const { S, C } = useTheme();

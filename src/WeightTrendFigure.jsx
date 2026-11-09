@@ -1,5 +1,5 @@
 // src/WeightTrendFigure.jsx
-// V10 · Bodyweight trend block for Progress → Overview. Raw weigh-ins render
+// Bodyweight trend block for Progress → Overview. Raw weigh-ins render
 // as faint dots, the exponentially smoothed trend as the line — the point is
 // teaching the eye to read the line and ignore the scatter. Display only,
 // built on weightTrend.js.

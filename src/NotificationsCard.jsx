@@ -1,5 +1,5 @@
 // src/NotificationsCard.jsx
-// V7 · Push notification opt-in for the Profile → App section. Handles the
+// Push notification opt-in for the Profile → App section. Handles the
 // three honest states: unsupported (with the actionable iOS Home-Screen
 // explanation), supported-but-off, and enabled. All server interaction goes
 // through src/push.js → /api/push-subscribe.
@@ -15,7 +15,7 @@ export function NotificationsCard({ showToast }) {
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  // V17.3 · Courier per-type prefs. Local optimistic state; the server applies
+  // Courier per-type prefs. Local optimistic state; the server applies
   // across all the user's devices. Defaults mirror the columns (true).
   const [prefs, setPrefs] = useState({ edition_enabled: true, transitions_enabled: true });
   const [prefBusy, setPrefBusy] = useState("");
@@ -86,7 +86,7 @@ export function NotificationsCard({ showToast }) {
       {!support.supported && (
         <div style={{ fontSize: 11, color: C.textFaint, lineHeight: 1.55, marginTop: 6 }}>{support.reason}</div>
       )}
-      {/* V17.3 · Courier per-type switches — visible once notifications are on. */}
+      {/* Courier per-type switches — visible once notifications are on. */}
       {support.supported && enabled && (
         <div data-testid="courier-prefs" style={{ marginTop: 10 }}>
           {[

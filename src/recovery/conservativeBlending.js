@@ -1,10 +1,9 @@
 // src/recovery/conservativeBlending.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V3.2 Conservative Blending
+// Conservative Blending
 //
 // Pure, side-effect-free layer that lets Whoop *supplement* the decision context
 // WITHOUT ever changing, averaging, or re-deriving the canonical recovery SCORE.
-// It sits on top of the V3.1 wearableSourceResolver (resolveRecoveryContext) and
+// It sits on top of wearableSourceResolver (resolveRecoveryContext) and
 // answers a single, narrow question: "given both wearables (and manual feel),
 // how — if at all — should today's recommendation lean, and how confident are we?"
 //
@@ -23,7 +22,6 @@
 //
 // Everything is null-safe. No network, no Supabase, no localStorage, no logging
 // of raw biometric payloads. Output is display/coach copy + small structured bits.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Whoop day-strain runs on a 0–21 scale. These thresholds mark where strain is
 // worth surfacing as extra load context (never as a reason to train harder).
@@ -86,7 +84,7 @@ function metricLabelList(metrics) {
  * Build the conservative blend context from a resolved recovery context.
  *
  * @param {object} params
- * @param {object} params.resolvedContext - output of resolveRecoveryContext (V3.1).
+ * @param {object} params.resolvedContext - output of resolveRecoveryContext.
  * @param {object} params.recovery - the canonical recovery result ({score, source, band}).
  *   Its score is echoed verbatim and NEVER modified.
  * @param {object} params.trainingLoad - rolling-load model (for strain context framing).

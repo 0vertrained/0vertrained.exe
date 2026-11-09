@@ -1,12 +1,10 @@
 // src/whoop/WhoopSleepCard.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// Whoop Sleep display card (V3.0 Whoop Display Cards)
+// Whoop Sleep display card
 //
 // Compact, display-only card for the Recovery tab. Shows Whoop's nightly sleep:
 // asleep / in-bed duration, efficiency, and respiratory rate. Display only — it
 // does NOT feed the recovery algorithm. Missing fields render as "—" and a
 // missing record shows a soft "not available yet" note rather than an error.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { useTheme } from "../theme";
 

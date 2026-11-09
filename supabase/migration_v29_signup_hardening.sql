@@ -1,6 +1,4 @@
--- ============================================================
---  V13.5 (v29) — Signup hardening
--- ============================================================
+--  V13.5 — Signup hardening
 --  Fixes two P0 findings from the V13.4.1 security review:
 --
 --  1. VULN · app_state was writable by every authenticated user. The
@@ -29,7 +27,6 @@
 --  The trigger raises exceptions whose messages begin with stable tokens
 --  (SIGNUP_LOCKED / SIGNUP_CAP_REACHED) that src/auth.js maps to friendly
 --  copy. Idempotent and re-runnable, matching the v27/v28 style.
--- ============================================================
 
 
 -- ── 1 · app_state becomes read-only for client roles ────────────────────────

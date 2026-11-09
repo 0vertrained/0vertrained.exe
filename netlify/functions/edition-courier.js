@@ -1,9 +1,8 @@
 // netlify/functions/edition-courier.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.3 · The Courier — scheduled pushes that carry headlines, never numbers.
+// The Courier — scheduled pushes that carry headlines, never numbers.
 //
 // Three sends, all idempotent per user+date+type via push_log, all gated on
-// each subscription's LOCAL clock (per-device tz_offset_minutes, the V12.1
+// each subscription's LOCAL clock (per-device tz_offset_minutes, the
 // push-reminders pattern):
 //   · edition     — local 07:xx, only when TODAY's sleep row has landed:
 //                   "The Morning Edition — Steady. Run the plan as written."
@@ -31,7 +30,6 @@
 //               VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
 // Required tables: push_subscriptions (existing), push_state + push_log
 //                  (migrations/V17_3_courier.sql).
-// ─────────────────────────────────────────────────────────────────────────────
 
 import webpush from "web-push";
 import { mirrorClassify } from "./_recovery-mirror.js";

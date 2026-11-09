@@ -1,6 +1,4 @@
--- ============================================================
---  V14.1 (v32) — Atomic recovery rate limiting (username + IP buckets)
--- ============================================================
+--  V14.1 — Atomic recovery rate limiting (username + IP buckets)
 --  Completes P1-4 from the V13.4.1 security review. The previous limiter in
 --  netlify/functions/account-recovery.js had three gaps:
 --
@@ -32,7 +30,6 @@
 --  so deploy order is safe in either direction.
 --
 --  Idempotent and re-runnable, matching the v27–v31 style.
--- ============================================================
 
 drop table if exists public.account_recovery_attempts;
 

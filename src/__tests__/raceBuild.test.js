@@ -8,7 +8,7 @@ import {
   resolveBuildWeek,
 } from "../raceBuild";
 
-// V19.2 · Resolver correctness around the real 8/28 race calendar.
+// Resolver correctness around the real 8/28 race calendar.
 // Race Friday 2026-08-28 → race week is Mon 2026-08-24 … Sun 2026-08-30.
 
 const program = PROGRAM_PRESETS.raceEdition50k.program;

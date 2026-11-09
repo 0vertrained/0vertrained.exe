@@ -1,6 +1,5 @@
 // src/fuelSummary.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Fuel presentation helpers (V2.4D — "Daily nutrition execution")
+// Fuel presentation helpers
 //
 // Pure, side-effect-free display summarizers. These do NOT recompute nutrition
 // targets, re-derive macros, or change any algorithm. They only reshape values
@@ -12,7 +11,6 @@
 // Coaching-safe language only. No medical diagnosis, no rigid diet prescriptions.
 // The macro ledger and meal-plan recipe details are rendered elsewhere and are
 // intentionally NOT hidden by these summaries.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { computeStillNeeded } from "./fuelNeeds";
 
@@ -163,7 +161,7 @@ export function buildMealPlanProgress({ checkedMeals = {}, slots = [] } = {}) {
 }
 
 /**
- * Next-meal preview model (V2.6 — Visual compression). Reshapes the already
+ * Next-meal preview model. Reshapes the already
  * generated plan into a single "what's next" card so Fuel can show one compact
  * meal by default instead of all five rows. Pure display: it never generates
  * recipes, changes macros, or writes anything. The full five-meal plan (with

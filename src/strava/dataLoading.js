@@ -1,6 +1,5 @@
 // src/strava/dataLoading.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Strava client data loading (V13.3).
+// Strava client data loading.
 //
 // Reads the current athlete's normalized rows from the provider-standard
 // `activities` table (RLS policy `activities_select_own`) and maps them into
@@ -11,7 +10,6 @@
 // Strava data is strain-side only and excluded from AI Coach by policy
 // (providerRegistry: STRAVA_API_TERMS). Nothing loaded here may be passed to
 // coach payload builders — see src/__tests__/stravaCoachExclusion.test.js.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { supabase } from "../supabaseClient";
 import { isDemoMode, getDemoStravaActivities } from "../demoData";
@@ -157,7 +155,7 @@ export async function loadStravaActivities(days = 28) {
 }
 
 /** Server-verified connection check, mirroring isOuraConnected/isWhoopConnected. */
-// V14.2 · Memoized (60s TTL + single-flight) — see isOuraConnected rationale.
+// Memoized (60s TTL + single-flight) — see isOuraConnected rationale.
 const isStravaConnectedMemo = memoizeAsync(async () => {
   try {
     const status = await getStravaTokenStatus();
@@ -167,7 +165,7 @@ const isStravaConnectedMemo = memoizeAsync(async () => {
   }
 }, 60_000);
 export async function isStravaConnected() {
-  if (isDemoMode()) return true; // V15.5 · demo shows the full wearable story
+  if (isDemoMode()) return true; // demo shows the full wearable story
   return isStravaConnectedMemo();
 }
 export function invalidateStravaConnected() { isStravaConnectedMemo.invalidate(); }

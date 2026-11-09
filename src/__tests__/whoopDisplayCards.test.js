@@ -49,13 +49,13 @@ function assertNoBlendingLanguage(markup) {
   }
 }
 
-// ─── Fixtures ─────────────────────────────────────────────────────────────────
+// Fixtures
 const recovery = { date: "2026-07-01", recoveryScore: 67, hrvRmssd: 42.3, rhr: 55, spo2: 96.1, skinTempC: 33.4, calibrating: false };
 const sleep = { date: "2026-06-30", inBedMin: 480, asleepMin: 450, efficiencyPct: 93.7, respiratoryRate: 15.4 };
 const cycle = { date: "2026-07-01", strain: 12.4, avgHr: 70, maxHr: 165, kilojoule: 9000 };
 const workouts = [{ date: "2026-07-01", id: "w1", strain: 9.1, avgHr: 130, maxHr: 172 }];
 
-// ─── WhoopRecoveryCard ────────────────────────────────────────────────────────
+// WhoopRecoveryCard
 describe("WhoopRecoveryCard", () => {
   test("renders with data, showing the score and source label", () => {
     const markup = render(WhoopRecoveryCard, { recovery, date: "2026-07-01" });
@@ -79,7 +79,7 @@ describe("WhoopRecoveryCard", () => {
   });
 });
 
-// ─── WhoopSleepCard ───────────────────────────────────────────────────────────
+// WhoopSleepCard
 describe("WhoopSleepCard", () => {
   test("renders with data + source label", () => {
     const markup = render(WhoopSleepCard, { sleep, date: "2026-06-30" });
@@ -100,7 +100,7 @@ describe("WhoopSleepCard", () => {
   });
 });
 
-// ─── WhoopStrainCard ──────────────────────────────────────────────────────────
+// WhoopStrainCard
 describe("WhoopStrainCard", () => {
   test("renders with data + source label + picks the top workout", () => {
     const markup = render(WhoopStrainCard, { cycle, workouts, date: "2026-07-01" });
@@ -122,7 +122,7 @@ describe("WhoopStrainCard", () => {
   });
 });
 
-// ─── WhoopSourceSummary ───────────────────────────────────────────────────────
+// WhoopSourceSummary
 describe("WhoopSourceSummary", () => {
   test("shows the three sources and their connection status", () => {
     const markup = render(WhoopSourceSummary, { ouraConnected: true, whoopConnected: true, manual: true });
@@ -146,7 +146,7 @@ describe("WhoopSourceSummary", () => {
   });
 });
 
-// ─── getWhoopSyncCounts shape ─────────────────────────────────────────────────
+// getWhoopSyncCounts shape
 describe("getWhoopSyncCounts", () => {
   test("returns the expected stable shape", async () => {
     const counts = await getWhoopSyncCounts();
@@ -163,7 +163,7 @@ describe("getWhoopSyncCounts", () => {
   });
 });
 
-// ─── Static server assertions ─────────────────────────────────────────────────
+// Static server assertions
 describe("V2.9.2 server surface", () => {
   const fnSrc = read("netlify/functions/whoop-auth.js");
 

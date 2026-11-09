@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scripts/migrate-auth-domain.mjs
 //
-// V14 · Move every auth.users synthetic email from the legacy domain
+// Move every auth.users synthetic email from the legacy domain
 // (athlete.app — a registrable domain this project does not control) to a
 // domain you own. Login derives `username@<domain>` client-side, so this
 // script and the VITE_AUTH_EMAIL_DOMAIN build flip MUST land together:

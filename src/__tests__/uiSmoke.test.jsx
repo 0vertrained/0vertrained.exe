@@ -1,5 +1,5 @@
 // src/__tests__/uiSmoke.test.jsx
-// V8 · UI smoke tests — the first rendered-component tests in the repo. The
+// UI smoke tests — the first rendered-component tests in the repo. The
 // 1000+ existing tests all cover pure logic; these protect the app shell
 // itself: the 4-tab nav + FAB, the quick-action sheet, the shared Progress
 // subnav/History toggle, and the notifications card's unsupported state.

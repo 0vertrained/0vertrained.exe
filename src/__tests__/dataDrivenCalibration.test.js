@@ -1,6 +1,5 @@
 // src/__tests__/dataDrivenCalibration.test.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.7 · Calibration fixes surfaced by running the engine against a real
+// Calibration fixes surfaced by running the engine against a real
 // 14-day dual-wearable export:
 //   Z1 · Whoop load: strain is logarithmic and NOT additive across workouts
 //        (export: 5 workouts summed to 17.9 strain → 626 load, on a day whose
@@ -17,7 +16,6 @@
 //        — it lives on sleep as average_breath.
 //   P1 · Nap-skip transparency: when a nap-only newer day is (correctly)
 //        skipped, the provenance line says so.
-// ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { buildWearableLoadRows } from "../wearableWorkoutLoad";
 import { detectConflicts } from "../recovery/wearableSourceResolver";

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// V16.5.1 · SD-floor contracts, pinned against the real-data report: a
+// SD-floor contracts, pinned against the real-data report: a
 // consistent athlete's routine morning read HRV 8/35 · RHR 3/25 because the
 // leave-one-out pool's tiny SD turned normal wobble into |z| > 2.5. Floors
 // restore robustness WITHOUT dulling genuine crashes — both directions pinned.

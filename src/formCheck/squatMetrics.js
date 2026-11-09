@@ -109,12 +109,12 @@ export function extractFrameMetrics(landmarks) {
   const kneeAngleDeg = angleDeg(hip, knee, ankle);
   if (kneeAngleDeg == null) return null;
 
-  // V1.4: Hip angle (shoulder–hip–knee) — tracks hip hinge during squat.
+  // Hip angle (shoulder–hip–knee) — tracks hip hinge during squat.
   const hipAngleDeg = angleDeg(shoulder, hip, knee);
 
   const torsoLeanDeg = torsoLeanFromVertical(shoulder, hip);
 
-  // V1.4: Knee-over-toe proxy — horizontal offset of knee vs ankle in normalized coords.
+  // Knee-over-toe proxy — horizontal offset of knee vs ankle in normalized coords.
   const kneeOverToe = knee.x - ankle.x;
 
   // Average visibility across the joints we actually used.
@@ -168,7 +168,7 @@ export function aggregateSquatMetrics(frames = []) {
   let minKneeAngleDeg = null;
   // Torso lean at the deepest point (smallest knee angle) is the most relevant.
   let leanAtDeepest = null;
-  // V1.4: Hip angle and knee-over-toe at deepest point.
+  // Hip angle and knee-over-toe at deepest point.
   let hipAtDeepest = null;
   let kneeOverToeAtDeepest = null;
 

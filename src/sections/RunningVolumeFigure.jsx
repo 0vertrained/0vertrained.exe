@@ -1,6 +1,5 @@
 // src/sections/RunningVolumeFigure.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// V13.3 · Fig · Running volume — weekly miles for the Progress charts view.
+// Fig · Running volume — weekly miles for the Progress charts view.
 //
 // One number that matters (this week's miles), a sparkline of the last eight
 // Monday-anchored weeks, and honest provenance: manual logs and Strava runs
@@ -13,7 +12,6 @@
 // Attribution: when Strava rows contribute, the figure carries the "Powered
 // by Strava" mark per the API Agreement. Display only — this figure's data
 // never feeds coach payloads.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "../theme";

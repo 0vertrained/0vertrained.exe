@@ -1,7 +1,6 @@
 // src/__tests__/ledgerLines.test.jsx
 // @vitest-environment jsdom
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.1 · Ledger Lines — every number defends itself. Pins:
+// Ledger Lines — every number defends itself. Pins:
 //   (1) the MethodLine primitive (method renders always; detail hidden until
 //       the summary is toggled; no-detail variant renders as a plain line);
 //   (2) the sweep — TDEE, Training Load (ACWR), and muscle-volume landmarks
@@ -14,7 +13,6 @@
 //       has no day-to-day delete affordances (edit-in-place by design; the
 //       only destructive actions are account-level behind ConfirmDialog) —
 //       pinned so the plan's original instruction isn't re-applied blind.
-// ─────────────────────────────────────────────────────────────────────────────
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, fireEvent, act } from "@testing-library/react";
 import { useState, useEffect } from "react";

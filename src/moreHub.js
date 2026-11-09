@@ -1,5 +1,5 @@
 // src/moreHub.js
-// Pure display helpers for the More management hub (V2.4B). They turn the
+// Pure display helpers for the More management hub. They turn the
 // already-stored weekly program into a compact "current plan" summary shown on
 // the hub landing card. No side effects, no persistence, no algorithm changes —
 // purely presentational counting of values the app already has, so they are

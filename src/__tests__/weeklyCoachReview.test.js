@@ -63,9 +63,7 @@ function decisionResponse(response, call = "maintain") {
 }
 
 describe("buildWeeklyCoachReview", () => {
-  // ─────────────────────────────────────────────────────────────────────
   // MISSING DATA & CONFIDENCE
-  // ─────────────────────────────────────────────────────────────────────
 
   it("returns low-confidence result when data is empty", () => {
     const result = buildWeeklyCoachReview({ data: {}, goals: {} });
@@ -99,9 +97,7 @@ describe("buildWeeklyCoachReview", () => {
     expect(result.confidence).toBe("high");
   });
 
-  // ─────────────────────────────────────────────────────────────────────
   // STRUCTURE & FIELDS
-  // ─────────────────────────────────────────────────────────────────────
 
   it("includes all required fields in response", () => {
     const data = Object.fromEntries(
@@ -135,9 +131,7 @@ describe("buildWeeklyCoachReview", () => {
     expect(result.weekEndKey).toBe(dayKey(0));
   });
 
-  // ─────────────────────────────────────────────────────────────────────
   // GOOD WEEK: WINS & ACTIONS
-  // ─────────────────────────────────────────────────────────────────────
 
   it("identifies wins when targets are hit", () => {
     const strongDay = sampleDay({
@@ -178,9 +172,7 @@ describe("buildWeeklyCoachReview", () => {
     expect(result.nextWeekActions[0]).toMatch(/progression|maintain|consistency|one variable/i);
   });
 
-  // ─────────────────────────────────────────────────────────────────────
   // WATCHOUTS: UNDER-FUELED + RECOVERY DIP
-  // ─────────────────────────────────────────────────────────────────────
 
   it("detects under-fueling and recovery dips", () => {
     const weakDay = sampleDay({
@@ -240,9 +232,7 @@ describe("buildWeeklyCoachReview", () => {
     expect(Array.isArray(result.trainingSignals)).toBe(true);
   });
 
-  // ─────────────────────────────────────────────────────────────────────
   // DECISION RESPONSE STATS
-  // ─────────────────────────────────────────────────────────────────────
 
   it("counts decision responses correctly", () => {
     const data = Object.fromEntries([
@@ -283,9 +273,7 @@ describe("buildWeeklyCoachReview", () => {
     expect(result.decisionStats.followed).toBe(0);
   });
 
-  // ─────────────────────────────────────────────────────────────────────
   // ROBUSTNESS: OLD DATA WITHOUT INTELLIGENCE
-  // ─────────────────────────────────────────────────────────────────────
 
   it("does not throw on entries without intelligence field", () => {
     const oldDay = {
@@ -322,9 +310,7 @@ describe("buildWeeklyCoachReview", () => {
     expect(() => buildWeeklyCoachReview({ data, goals: {} })).not.toThrow();
   });
 
-  // ─────────────────────────────────────────────────────────────────────
   // SCORE & RECOMMENDATION LOGIC
-  // ─────────────────────────────────────────────────────────────────────
 
   it("generates higher score for week with good consistency", () => {
     const consistentDay = sampleDay({
@@ -396,9 +382,7 @@ describe("buildWeeklyCoachReview", () => {
     expect(strongResult.headline).not.toBe(weakResult.headline);
   });
 
-  // ─────────────────────────────────────────────────────────────────────
   // EDGE CASES
-  // ─────────────────────────────────────────────────────────────────────
 
   it("handles single-day week gracefully", () => {
     const data = { [dayKey(0)]: sampleDay() };

@@ -4,7 +4,7 @@ import { buildWarmupRamp } from "../sessionIntelligence";
 import { getSubstitutions } from "../exerciseSubstitutions";
 import { buildWeightTrend, SMOOTHING_ALPHA } from "../weightTrend";
 
-// ─── cardioSession ────────────────────────────────────────────────────────────
+// cardioSession
 describe("cardioSession · buildSegments", () => {
   it("builds warmup → work/rest rounds and drops the final rest", () => {
     const segs = buildSegments({ work: 240, rest: 180, rounds: 4, warmup: 300 });
@@ -56,7 +56,7 @@ describe("cardioSession · suggestPlanFromNotes", () => {
   });
 });
 
-// ─── warm-up ramp ─────────────────────────────────────────────────────────────
+// warm-up ramp
 describe("buildWarmupRamp", () => {
   it("builds an ascending ramp with plate labels below the working weight", () => {
     const ramp = buildWarmupRamp(225);
@@ -80,7 +80,7 @@ describe("buildWarmupRamp", () => {
   });
 });
 
-// ─── substitutions ────────────────────────────────────────────────────────────
+// substitutions
 describe("getSubstitutions", () => {
   it("maps common lifts to the right pattern", () => {
     expect(getSubstitutions("Barbell Back Squat").pattern).toBe("Squat pattern");
@@ -100,7 +100,7 @@ describe("getSubstitutions", () => {
   });
 });
 
-// ─── weight trend ─────────────────────────────────────────────────────────────
+// weight trend
 describe("buildWeightTrend", () => {
   const day = (w) => ({ body: { weight: String(w) } });
 

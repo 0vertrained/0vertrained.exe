@@ -1,5 +1,4 @@
 // src/recovery/hrvRawDisplay.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Pure helper for the *raw* HRV value shown in the Recovery trust strip and
 // component ledger.
 //
@@ -21,7 +20,6 @@
 //   - the readiness HRV-balance index (0–100), clearly labeled as a fallback.
 // It re-derives nothing about scoring; it only decides what number to show and
 // how to label it, anchored to the same latestRecoveryDay the scorer uses.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import {
   latestRecoveryDay,

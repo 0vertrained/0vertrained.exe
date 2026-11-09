@@ -1,7 +1,5 @@
--- ============================================================
 --  MIGRATION: Add program table
 --  Run this in Supabase SQL Editor (safe to run once)
--- ============================================================
 
 create table if not exists public.program (
   id         uuid primary key default gen_random_uuid(),
@@ -39,10 +37,8 @@ create trigger program_touch
   for each row execute function public.touch_updated_at();
 
 
--- ============================================================
 --  MIGRATION: Multi-user cap support
 --  Run this in Supabase SQL Editor
--- ============================================================
 
 -- Add max_users column to app_state
 alter table public.app_state

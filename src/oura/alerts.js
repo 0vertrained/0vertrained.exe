@@ -1,9 +1,7 @@
 // src/oura/alerts.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Oura Alert System & History
 //
 // Multi-marker alert detection and localStorage history management.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import {
   getSleepDoc, getReadinessDoc, recoveryDates, latestRecoveryDay, tempDeviation
@@ -67,7 +65,7 @@ export function checkAlerts(ouraData) {
   }
 
   // Compute real respiratory baseline from the 14-day window.
-  // V16.7 · V2 daily_readiness documents carry NO respiratory_rate — the field
+  // V2 daily_readiness documents carry NO respiratory_rate — the field
   // lives on the SLEEP document as `average_breath` (present on every main
   // sleep in the reporting user's export; the readiness read was always null,
   // so this alert could never fire on real synced data). Sleep's reading is
@@ -88,7 +86,7 @@ export function checkAlerts(ouraData) {
     }
   }
 
-  // V16.6 · Stored V2 sleep docs carry `efficiency` (already 0–100); the old
+  // Stored V2 sleep docs carry `efficiency` (already 0–100); the old
   // `sleep_efficiency`-only read meant this alert could never fire on real
   // synced data.
   const effRaw = sleep?.efficiency ?? sleep?.sleep_efficiency;

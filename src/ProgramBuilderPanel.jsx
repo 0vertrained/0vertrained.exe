@@ -1,5 +1,5 @@
 // src/ProgramBuilderPanel.jsx
-// ─── Program Builder V2 (V2.3) — product-facing panel ───────────────────────
+// Program Builder V2 — product-facing panel
 //
 // Mobile-first, whitepaper/ruled builder UI. Collects goal + constraints, shows
 // a live weekly preview, rationale/warnings and a 4-week variation preview, then

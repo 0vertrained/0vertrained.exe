@@ -1,5 +1,5 @@
 // src/__tests__/bodyweightSupportV19_5.test.js
-// V19.5 · What the app does with bodyweight work once a plan is built on it.
+// What the app does with bodyweight work once a plan is built on it.
 //   · Progression: a bodyweight movement steps back to bodyweight, never below
 //     it. With nothing added, the old loaded floor prescribed "+5 lb" after a
 //     pain flag or a stall; now it says to use an easier variation.

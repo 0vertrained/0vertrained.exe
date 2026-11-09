@@ -1,5 +1,5 @@
 // src/SessionMode.jsx
-// V18.2 · Adaptive Set Flow — focused logging with progression intelligence.
+// Adaptive Set Flow — focused logging with progression intelligence.
 // Session Mode remains a lens over workout.exercises; the revamp centralizes
 // completion rules, resumes intelligently, and makes the current set the hero.
 

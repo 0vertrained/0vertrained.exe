@@ -1,6 +1,4 @@
--- ============================================================
---  V14.3 (v33) — Performance indexes + cleanup
--- ============================================================
+--  V14.3 — Performance indexes + cleanup
 --  Closes the performance plan's P1-2. Two certain changes and one
 --  verify-first optional. Idempotent and re-runnable.
 --
@@ -21,7 +19,6 @@
 --       select indexdef from pg_indexes where tablename = 'activities';
 --
 --     If nothing covers (user_id, start_date), uncomment the block below.
--- ============================================================
 
 create index if not exists idx_wearable_sync_events_user_created
   on public.wearable_sync_events (user_id, created_at desc);

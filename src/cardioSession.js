@@ -1,5 +1,5 @@
 // src/cardioSession.js
-// V10 · Cardio session runner logic. Builds a flat segment list (warmup →
+// Cardio session runner logic. Builds a flat segment list (warmup →
 // work/rest rounds → cooldown) from a plan config, plus a conservative parser
 // that tries to pre-fill the plan from the program's free-text cardio notes.
 // Pure functions only — the timer/UI lives in CardioSession.jsx, and the only
@@ -46,7 +46,7 @@ export function fmtSeconds(totalSeconds) {
   return `${m}:${String(s % 60).padStart(2, "0")}`;
 }
 
-// ─── Structured steps (V19.3) ────────────────────────────────────────────────
+// Structured steps
 // Race-plan runs carry their workout as steps: warmup → repeat { work,
 // recovery } → cooldown. Read the interval block straight from them instead of
 // parsing prose (whose "10 min easy" warm-up the notes parser would mistake
@@ -67,7 +67,7 @@ export function suggestPlanFromSteps(steps) {
   });
 }
 
-// ─── Notes parser — deliberately conservative ─────────────────────────────────
+// Notes parser — deliberately conservative
 // Pre-fills the plan ONLY for unambiguous time-based patterns:
 //   "6x3min", "4 × 4 min w/ 3min rest", "8x90s", "10 x 30 sec / 30 sec off"
 // Distance-based intervals ("6x800m") depend on pace we don't know → null.

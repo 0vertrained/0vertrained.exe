@@ -1,4 +1,4 @@
-// V15.0 · Broadsheet shell invariants (static, source-level — the house
+// Broadsheet shell invariants (static, source-level — the house
 // pattern for layout contracts). Pins the three properties the desktop plan
 // promised: (1) the tier exists and is exactly 1440; (2) below the tier every
 // broadsheet wrapper is display:contents, so mobile/desktop-narrow layout is
@@ -36,7 +36,7 @@ describe("broadsheet shell (V15.0)", () => {
     const src = read("src/AppHeader.jsx");
     expect(src).toContain("<WordmarkTheta />");
     expect(src).not.toMatch(/aria-hidden="true">θ</); // the fallback-serif glyph is gone
-    // V15.1.1 · calcStreak returns { count, active } — rendering the object
+    // CalcStreak returns { count, active } — rendering the object
     // was React #31 in prod. The strip must render the COUNT.
     expect(src).toContain("Streak {calcStreak(allData || {}).count} days");
     expect(src).toContain('Logging: {logDate || "Today"}');
@@ -131,7 +131,7 @@ describe("broadsheet shell (V15.0)", () => {
     // full-screen takeover; the FORM badge is a view-timestamp, tier-only.
     expect(src).toContain("if (selectedDay && !isBroadsheet) return dayDetailPanel;");
     expect((src.match(/\{dayDetailPanel \|\| dayDetailHint\}/g) || []).length).toBe(2);
-    // V16.4 · the planning fold is mobile chrome; the tier renders unfolded.
+    // The planning fold is mobile chrome; the tier renders unfolded.
     expect(src).toContain("const ovFiguresGroup = (<>");
     const tierBranch = src.slice(src.indexOf("{isBroadsheet ? (\n        <Suspense"), src.indexOf(") : (<>", src.indexOf("{isBroadsheet ? (\n        <Suspense")));
     expect(tierBranch).not.toContain("DisclosureBlock");
@@ -141,7 +141,7 @@ describe("broadsheet shell (V15.0)", () => {
 
   it("tabs without a broadsheet spread stay a centered reading column at the tier", () => {
     const src = read("src/App.jsx");
-    // V15.1 · Today, Fuel, and Recovery now compose their own spreads; the
+    // Today, Fuel, and Recovery now compose their own spreads; the
     // remainder (Progress) centers at 760px until V15.2.
     expect(src).toContain('isBroadsheet && !["Today", "Fuel", "Recovery", "Progress"].includes(tab) ? { maxWidth: "var(--ovt-content-width)"');
     expect(src).toContain('{ display: "contents" }');

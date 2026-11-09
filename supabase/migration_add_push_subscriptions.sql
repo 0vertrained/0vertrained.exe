@@ -1,4 +1,3 @@
--- ============================================================
 --  MIGRATION: V7 Push Subscriptions (Web Push)
 --  Run this ONCE in: Supabase Dashboard → SQL Editor
 --
@@ -16,7 +15,6 @@
 --      browser itself generated. No biometric or log data.
 --
 --  This migration is IDEMPOTENT and SAFE to re-run.
--- ============================================================
 
 create table if not exists public.push_subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -24,7 +22,7 @@ create table if not exists public.push_subscriptions (
   endpoint text not null unique,
   p256dh text not null,
   auth text not null,
-  -- V12.1 · Reminder preferences (see migration_v28_usage_hardening.sql).
+  -- Reminder preferences (see migration_v28_usage_hardening.sql).
   -- tz_offset_minutes uses Date#getTimezoneOffset semantics; 360 = US Central.
   reminders_enabled boolean not null default true,
   tz_offset_minutes int not null default 360

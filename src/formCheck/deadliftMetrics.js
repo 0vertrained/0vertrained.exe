@@ -67,7 +67,7 @@ export function extractDeadliftFrameMetrics(landmarks) {
   const hipAngleDeg = angleDeg(shoulder, hip, knee);
   if (hipAngleDeg == null) return null;
 
-  // V1.4: Knee angle (hip–knee–ankle) — should stay relatively constant in a
+  // Knee angle (hip–knee–ankle) — should stay relatively constant in a
   // stiff-leg/RDL pattern; large changes suggest knee bend during the pull.
   const kneeAngleDeg = angleDeg(hip, knee, ankle);
 
@@ -109,7 +109,7 @@ export function aggregateDeadliftMetrics(frames = []) {
   let minHipAngleDeg = null;
   let maxHipAngleDeg = null;
   let torsoLeanAtBottomDeg = null;
-  // V1.4: Knee angle at the deepest hinge point.
+  // Knee angle at the deepest hinge point.
   let kneeAtBottomDeg = null;
 
   for (const frame of list) {

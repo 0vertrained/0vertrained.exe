@@ -1,6 +1,5 @@
 // src/__tests__/sleepDebtReconciliation.test.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.9 · Sleep debt reconciled with what the wearables report. Repro (shapes
+// Sleep debt reconciled with what the wearables report. Repro (shapes
 // from the reporting user's real export): both devices said "minimal" while
 // the app said 9h+. Three causes, each pinned here:
 //   1. NEED took Whoop's FULL tonight-specific figure (baseline + their own
@@ -13,7 +12,6 @@
 //      baselines keep the V16.6 main-sleep discipline untouched.
 //   3. The personal-norm 7h floor manufactured phantom debt for sub-7h
 //      sleepers. Now: floor 6.5, matching the wearable-need clamp.
-// ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";

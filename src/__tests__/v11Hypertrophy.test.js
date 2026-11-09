@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mapExerciseToMuscles, buildWeeklyMuscleVolume, classifyVolume, buildBalanceRatios, buildVolumeReport, weekStartKey, MUSCLE_LANDMARKS } from "../muscleVolume";
 import { computeAdaptiveTDEE, buildEnergyTargets, buildDriftCheck, readGoalRate, writeGoalRate } from "../adaptiveTDEE";
 
-// ─── muscleVolume ─────────────────────────────────────────────────────────────
+// muscleVolume
 describe("mapExerciseToMuscles", () => {
   it("maps common lifts to the right primary muscles", () => {
     expect(mapExerciseToMuscles("Incline Bench Press").primary).toContain("chest");
@@ -108,7 +108,7 @@ describe("buildVolumeReport", () => {
   });
 });
 
-// ─── adaptiveTDEE ─────────────────────────────────────────────────────────────
+// adaptiveTDEE
 function energyFixture({ days = 28, kcal = 3000, dailyLoss = 0 }) {
   // Start June 1 2026, weight drifts linearly; constant intake.
   const data = {};

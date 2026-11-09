@@ -1,5 +1,5 @@
 // src/adaptiveTDEE.js
-// V11 · Adaptive TDEE — measure actual energy expenditure from the athlete's
+// Adaptive TDEE — measure actual energy expenditure from the athlete's
 // own ledger instead of estimating it from a population formula. Method
 // (the MacroFactor-style energy-balance approach):
 //
@@ -42,7 +42,7 @@ function dayDiff(a, b) {
   return Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 86400000);
 }
 
-// ─── Measured TDEE ────────────────────────────────────────────────────────────
+// Measured TDEE
 export function computeAdaptiveTDEE(data, { windowDays = WINDOW_DAYS } = {}) {
   if (!data) return { ready: false, note: "No data yet." };
 
@@ -90,7 +90,7 @@ export function computeAdaptiveTDEE(data, { windowDays = WINDOW_DAYS } = {}) {
   };
 }
 
-// ─── Targets + drift ──────────────────────────────────────────────────────────
+// Targets + drift
 export function buildEnergyTargets(tdee, goalRate, trendWeight) {
   if (!Number.isFinite(tdee) || !Number.isFinite(goalRate)) return null;
   const calories = Math.round((tdee + (goalRate * KCAL_PER_LB) / 7) / 10) * 10;

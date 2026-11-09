@@ -1,5 +1,5 @@
 // src/recoveryPhraseSuggest.js
-// V13.6 · Suggests a high-entropy recovery phrase so users don't default to a
+// Suggests a high-entropy recovery phrase so users don't default to a
 // weak, guessable one. A user-chosen phrase is only as strong as its entropy;
 // paired with the PBKDF2 upgrade (recoveryKdf.js), a generated 4-word phrase
 // from this 256-word list gives 32 bits of entropy before the KDF stretch,

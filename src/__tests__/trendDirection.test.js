@@ -1,6 +1,5 @@
 // src/__tests__/trendDirection.test.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.6 · Trend direction semantics.
+// Trend direction semantics.
 // (1) calcRHRScore's 3-day modifier fed a NEWEST-FIRST array to
 //     linearRegression, which treats index as time — the trend was inverted:
 //     a genuinely rising RHR (bad) earned the +1 "falling" bonus and vice
@@ -10,7 +9,6 @@
 //     single-day noise (z −0.5, delta +1) swung factors designed for
 //     multi-day drift. hrvTrendSlopePerDay / rhrTrendSlopePerDay are the
 //     matching chronological inputs.
-// ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import {
   calcRHRScore, calcTrainingReadiness,

@@ -112,7 +112,7 @@ export function buildSummaryEntry(analysis = {}, date) {
     ? seg.reps.map(sanitizeRep)
     : [];
 
-  // V1.2: Preserve coaching-tier fields in allow-listed form. These are derived
+  // Preserve coaching-tier fields in allow-listed form. These are derived
   // values only — no video, frames, landmarks, images, or base64.
   const formScore = analysis.formScore && typeof analysis.formScore === "object"
     ? {
@@ -191,7 +191,7 @@ export function buildSummaryEntry(analysis = {}, date) {
       : [],
   } : null;
 
-  // V1.5: Persist only the derived analyzability summary — no raw signals.
+  // Persist only the derived analyzability summary — no raw signals.
   const analyzability = analysis.analyzability && typeof analysis.analyzability === "object" ? {
     level: analysis.analyzability.level || null,
     score: Number.isFinite(analysis.analyzability.score) ? analysis.analyzability.score : null,
@@ -199,7 +199,7 @@ export function buildSummaryEntry(analysis = {}, date) {
     improvements: Array.isArray(analysis.analyzability.improvements) ? analysis.analyzability.improvements.slice(0, 6) : [],
     shouldShowFullCoaching: analysis.analyzability.shouldShowFullCoaching !== false,
   } : null;
-  // V1.7: Persist derived movement-accuracy proxies (scalar fields per metric).
+  // Persist derived movement-accuracy proxies (scalar fields per metric).
   const movementMetrics = analysis.movementMetrics && typeof analysis.movementMetrics === "object" && !Array.isArray(analysis.movementMetrics)
     ? Object.fromEntries(
         Object.entries(analysis.movementMetrics)
@@ -285,14 +285,12 @@ export function clearHistory(storage) {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// V1.4 — Progress memory + same-movement comparison.
+// Progress memory + same-movement comparison.
 //
 // All helpers below are PURE: they read already-derived history records and
 // return derived comparison/summary objects. No storage, no I/O, no Date.now()
 // (dates come from the stored records). They tolerate old V1.1/V1.2 entries and
 // missing V1.3 fields, and never surface anything beyond the saved derived data.
-// ──────────────────────────────────────────────────────────────────────────────
 
 // Short, human-readable family labels for known movement families. Kept local
 // (rather than importing protocols) so this storage module stays dependency-free
@@ -654,14 +652,12 @@ export function buildFormCheckHistorySummary(history) {
   };
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// V1.6 — Trend Coach / Progress Memory V2.
+// Trend Coach / Progress Memory V2.
 //
 // PURE helpers that read already-derived history records and summarize a
 // movement's trajectory across several checks. Conservative language: they never
 // diagnose, only describe measured deltas. They tolerate V1.1–V1.5 entries and
 // missing scores/focus, and fall back to "insufficient-data" rather than guessing.
-// ──────────────────────────────────────────────────────────────────────────────
 
 // Most common primaryFocus across a set of entries. Returns a small object with a
 // human-readable label, or null when nothing recurs.

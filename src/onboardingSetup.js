@@ -1,4 +1,4 @@
-// ─── V2.2 Onboarding + Setup Flow — pure helpers ────────────────────────────
+// Onboarding + Setup Flow — pure helpers
 //
 // Everything here is deterministic and side-effect free so it can be unit
 // tested without React, Supabase, or a browser. The Tutorial component drives
@@ -23,7 +23,7 @@ import {
   normalizeProgramBuilderInput,
 } from "./programBuilder";
 
-// ─── Goals ──────────────────────────────────────────────────────────────────
+// Goals
 export const ONBOARDING_GOALS = [
   {
     id: "hybrid",
@@ -59,7 +59,7 @@ export function isValidGoal(goal) {
   return GOAL_IDS.includes(goal);
 }
 
-// ─── Data modes ─────────────────────────────────────────────────────────────
+// Data modes
 // "manual" is first-class: full readiness and recovery from logged sleep/energy.
 export const ONBOARDING_DATA_MODES = [
   {
@@ -86,7 +86,7 @@ export function isValidDataMode(mode) {
   return DATA_MODE_IDS.includes(mode);
 }
 
-// ─── Macro presets ──────────────────────────────────────────────────────────
+// Macro presets
 // Absolute daily targets. Water is fixed at the app default (oz) across presets.
 export const ONBOARDING_MACRO_PRESETS = {
   balanced: {
@@ -161,7 +161,7 @@ function normalizeGoals(input, fallback) {
   return out;
 }
 
-// ─── Program preset resolution ──────────────────────────────────────────────
+// Program preset resolution
 // Maps a training goal to a starter PROGRAM_PRESETS id. Used to pre-select the
 // program step; the user can still override. Falls back to "hybrid", the
 // Hybrid Athlete preset.
@@ -179,7 +179,7 @@ export function resolveOnboardingProgramPreset(goal) {
   return "hybrid";
 }
 
-// ─── Onboarding → Program Builder bridge ────────────────────────────────────
+// Onboarding → Program Builder bridge
 // Maps the onboarding goal + the compact builder preferences the Tutorial
 // collects into a normalized Program Builder input. Pure, so App.jsx can feed
 // it straight into buildProgramPlan()/buildProgramBuilderSettingsPatch() and it
@@ -193,7 +193,7 @@ export function buildOnboardingBuilderInput({ goal, builderPrefs, generatedAt } 
   });
 }
 
-// ─── Settings patch ─────────────────────────────────────────────────────────
+// Settings patch
 // Builds ONLY the fields onboarding owns. Never returns theme/social/dietary/
 // supplements so a merge can preserve those untouched.
 export function buildOnboardingSettingsPatch({
@@ -237,7 +237,7 @@ export function mergeOnboardingSettings(existing, payload) {
   };
 }
 
-// ─── First-task copy for the Today landing ──────────────────────────────────
+// First-task copy for the Today landing
 export function buildFirstTask({ dataMode } = {}) {
   const base = { tab: "Today", title: "Log today's session" };
   if (dataMode === "oura") {

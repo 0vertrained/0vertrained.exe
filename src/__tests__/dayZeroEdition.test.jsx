@@ -1,7 +1,6 @@
 // src/__tests__/dayZeroEdition.test.jsx
 // @vitest-environment jsdom
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.0 · Day Zero Edition. The conversion surface: every tab renders a
+// Day Zero Edition. The conversion surface: every tab renders a
 // designed specimen with ONE action when — and only when — it has no real
 // data. Pins: (1) the detector's meaningful-content rules (a blank defaultDay
 // shell never defeats zero; one logged set/meal/weigh-in always does);
@@ -11,14 +10,13 @@
 // gates on `loaded` and swaps the whole tab; (5) the wizard (Tutorial)
 // survives — it collects goals/macros at signup; specimens are the per-tab
 // activation layer after it. Complementary, not duplicates.
-// V19.4 · (6) A specimen never hides the only way past it. V17 cleared Today
+// (6) A specimen never hides the only way past it. V17 cleared Today
 // on a logged workout and Fuel on a logged meal (or a macroTargets key nothing
 // wrote), but those loggers live inside the tabs the specimens replace, so a
 // new account could never reach one. Finished setup now clears Today and
 // Fuel, a check-in or a connection clears Recovery (manual setups never see
 // it), and each action opens the step that clears it. The app-level walk
 // through signup → setup → first banked set is frontDoorV19_4.test.jsx.
-// ─────────────────────────────────────────────────────────────────────────────
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, fireEvent } from "@testing-library/react";
 import { ThemeProvider } from "../theme";

@@ -1,12 +1,10 @@
 // netlify/functions/_provider-standard.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Server-side integration standard for OAuth health/activity providers.
 //
 // This module is deliberately provider-agnostic. Oura/Whoop continue writing to
 // their legacy token tables for backward compatibility, but successful OAuth
 // callbacks also mirror encrypted account metadata into connected_accounts when
 // the new migration has been applied and TOKEN_ENCRYPTION_KEY is configured.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import crypto from "node:crypto";
 
@@ -305,7 +303,7 @@ export async function logSyncEvent(supabaseUrl, serviceKey, { userId, source, ev
   }
 }
 
-// ═══ V14 · Encrypted-token cutover ═══════════════════════════════════════════
+// Encrypted-token cutover
 // connected_accounts (AES-256-GCM ciphertexts) is now the runtime source of
 // truth for ALL provider tokens. The legacy plaintext tables (oura_tokens,
 // whoop_tokens) survive only as a one-shot read fallback: the first time a
@@ -318,7 +316,7 @@ export async function logSyncEvent(supabaseUrl, serviceKey, { userId, source, ev
 // key is absent, token resolution refuses up front — before any provider call —
 // so a rotating refresh token is never burned against storage we can't use.
 
-// Legacy plaintext token tables (pre-V14). Only Oura and Whoop ever had them.
+// Legacy plaintext token tables. Only Oura and Whoop ever had them.
 const LEGACY_TOKEN_TABLES = Object.freeze({
   [PROVIDERS.OURA]: { table: "oura_tokens", select: "access_token,refresh_token,expires_at" },
   [PROVIDERS.WHOOP]: { table: "whoop_tokens", select: "access_token,refresh_token,expires_at,scope" },

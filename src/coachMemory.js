@@ -1,6 +1,5 @@
 // src/coachMemory.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V4.5 Coach Memory — pure, local coaching-preference + trend helpers.
+// Coach Memory — pure, local coaching-preference + trend helpers.
 //
 // Gives the coach a small, privacy-safe "memory": user-approved coaching
 // PREFERENCES (tone, focus, intensity, rest bias, a short self-authored note)
@@ -15,7 +14,6 @@
 //   - Pure + null-safe. Callers inject `now`. Nothing here fetches or persists;
 //     persistence is the app's job (settings JSONB) and stays opt-in.
 //   - Guidance is SUGGEST-ONLY. Nothing here edits programs or scores.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Allowed preference values. Anything off-list normalizes back to the default —
 // so a corrupted or adversarial settings blob can never inject arbitrary text
@@ -77,7 +75,7 @@ export function mergeCoachPreferences(existing, patch) {
   return normalizeCoachPreferences({ ...normalizeCoachPreferences(existing), ...(patch || {}) });
 }
 
-// ─── Recent trend (aggregate-only) ────────────────────────────────────────────
+// Recent trend (aggregate-only)
 // Selects the most recent `windowDays` of entries and derives counts/averages.
 // Never reads notes or copies payloads — only numeric channels the app already
 // computes elsewhere. Accepts an entries map keyed by date or an array.
@@ -145,7 +143,7 @@ export function summarizeRecentTrend(entries, now, { windowDays = 14 } = {}) {
   };
 }
 
-// ─── Coach memory lines (suggest-only) ────────────────────────────────────────
+// Coach memory lines (suggest-only)
 // Concise, non-judgmental lines to inject into the coach context. Preferences
 // come first (they're what the user asked for), then a light aggregate trend.
 const TONE_PHRASE = {
@@ -201,7 +199,7 @@ export function buildCoachMemoryContext({ preferences, trend } = {}, { maxLen = 
   return out;
 }
 
-// ─── Privacy-safe export ──────────────────────────────────────────────────────
+// Privacy-safe export
 // Plain-text export of coach memory. Contains ONLY preference enums, the short
 // self-authored note, and derived aggregate counts — never raw notes, chat, or
 // biometric payloads.

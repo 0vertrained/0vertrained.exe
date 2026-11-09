@@ -1,5 +1,5 @@
 // src/coachEvidence.js
-// V19.0 · Question-specific, inspectable evidence packets for the unified coach.
+// Question-specific, inspectable evidence packets for the unified coach.
 // The browser derives compact summaries from the athlete's own loaded data.
 // Deterministic application code remains authoritative; the model receives
 // evidence to explain, not raw logs to recalculate.
@@ -85,7 +85,7 @@ function collectExerciseNames(data = {}, program = {}) {
   return [...names].filter(Boolean);
 }
 
-// V19.5 · A program exercise can declare how it's logged (bodyweight reps for
+// A program exercise can declare how it's logged (bodyweight reps for
 // an Inverted Row, a Nordic curl…). Read by name alone, a bodyweight set logged
 // without a weight looks like a loaded set missing its weight and drops out of
 // the history the coach sees, so the program's own exercise is passed along.

@@ -1,6 +1,5 @@
 // src/whoop/normalization.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Whoop Data Normalization (V2.9 Whoop Foundation)
+// Whoop Data Normalization
 //
 // Defensive, pure helpers that turn raw Whoop v2 records into small internal
 // summaries for DISPLAY ONLY. This sprint deliberately does NOT blend Whoop into
@@ -9,7 +8,6 @@
 //
 // Whoop v2 record shapes vary and can be partially scored, so every extractor
 // tolerates missing fields and returns null rather than throwing.
-// ─────────────────────────────────────────────────────────────────────────────
 
 function finiteNum(v) {
   const n = Number(v);
@@ -98,7 +96,7 @@ export function normalizeWorkout(rec) {
     date: dateOf(r),
     id: r.id != null ? String(r.id) : null,
     sportId: r.sport_id ?? r.sportId ?? null,
-    // V16.7 · Whoop v2 names the sport directly; surfaces can say
+    // Whoop v2 names the sport directly; surfaces can say
     // "weightlifting, 45 min" instead of a bare strain number.
     sportName: typeof r.sport_name === "string" && r.sport_name ? r.sport_name : null,
     strain: finiteNum(score.strain),
@@ -112,7 +110,7 @@ export function normalizeWorkout(rec) {
 // Best-effort date key for a record (YYYY-MM-DD). Mirrors the server's pick but
 // stays defensive for display use.
 function dateOf(r) {
-  // V15.6 (audit F5) · mirror of the server rule: main sleep keys on wake date.
+  // mirror of the server rule: main sleep keys on wake date.
   if (r && r.nap === false && r.end) {
     const m = String(r.end).match(/^(\d{4}-\d{2}-\d{2})/);
     if (m) return m[1];

@@ -1,5 +1,5 @@
 // src/nutritionAutopilot.js
-// V18.4 · Nutrition Autopilot
+// Nutrition Autopilot
 // Pure planning helpers for prepared-meal inventory, next-meal selection,
 // protein-gap rescue, and grocery prompts. Suggest-only; callers own writes.
 

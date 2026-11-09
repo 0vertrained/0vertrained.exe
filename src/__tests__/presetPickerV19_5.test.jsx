@@ -1,6 +1,6 @@
 // src/__tests__/presetPickerV19_5.test.jsx
 // @vitest-environment jsdom
-// V19.5 · More → Switch preset lists the five-plan lineup (not every preset
+// More → Switch preset lists the five-plan lineup (not every preset
 // in the file), previews each plan's own days with holds read in seconds, and
 // switching saves the preset's own program. Hybrid Athlete used to load
 // DEFAULT_PROGRAM whatever it said; an active race plan still rides along.

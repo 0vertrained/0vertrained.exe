@@ -1,5 +1,5 @@
 // src/__tests__/presetLineupV19_5.test.js
-// V19.5 · The preset lineup. Switch preset lists five plans, one per kind of
+// The preset lineup. Switch preset lists five plans, one per kind of
 // athlete. Each is pinned for what its copy promises and for how the app reads
 // it: every set loggable as written, unique exercise names per day (logs are
 // keyed by name), rep targets the progression engine reads the way the notes

@@ -46,7 +46,7 @@ function sanitizeUsername(username) {
   return String(username).trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
 }
 
-// V13.6 · Recovery-phrase hashing moved to src/recoveryKdf.js (PBKDF2-SHA256).
+// Recovery-phrase hashing moved to src/recoveryKdf.js (PBKDF2-SHA256).
 // The former client-side single-round SHA-256 helpers (sha256/generateSalt/
 // hashWithSalt) are gone; deriveRecoveryHash generates its own salt and stamps
 // the KDF version so the server can verify and lazily upgrade legacy rows.
@@ -101,7 +101,7 @@ export async function signUp({ username, password, recoveryPhrase }) {
     password,
   });
   if (error) {
-    // V14.1 · A "user already registered" here usually means a previous signup
+    // A "user already registered" here usually means a previous signup
     // created the auth user but the profile insert failed (network blip, cap
     // race). The username is reserved by that auth account, and logging in
     // triggers the self-heal below (ensureProfileExists) which finishes setup.
@@ -114,7 +114,7 @@ export async function signUp({ username, password, recoveryPhrase }) {
   const userId = data.user?.id;
   if (!userId) return { error: "Signup failed — no user id returned." };
 
-  // V13.6 · PBKDF2-SHA256 recovery hash with a fresh per-user salt and a
+  // PBKDF2-SHA256 recovery hash with a fresh per-user salt and a
   // stamped KDF version, so a profiles leak is dictionary-resistant and the
   // recovery function can tell new hashes from legacy ones.
   let recovery_hash = null;
@@ -183,7 +183,7 @@ export async function getCurrentUser() {
   return data.user ?? null;
 }
 
-// V13.6 · Change the recovery phrase for the currently signed-in user. Writes
+// Change the recovery phrase for the currently signed-in user. Writes
 // a fresh PBKDF2 hash+salt to the caller's own profiles row via RLS
 // (profiles_update_own: auth.uid() = id), so no service role or server
 // function is needed — the user is already authenticated. This closes the
@@ -207,7 +207,7 @@ export async function changeRecoveryPhrase({ newPhrase }) {
   return { ok: true };
 }
 
-// V14.1 · Self-heal the signup orphan path. If auth.signUp succeeded but the
+// Self-heal the signup orphan path. If auth.signUp succeeded but the
 // profiles insert failed (network blip, cap race), the user holds a valid
 // session with no profile row: the app half-works and re-signup says "already
 // registered". On boot, App.jsx calls this: if the signed-in user has no

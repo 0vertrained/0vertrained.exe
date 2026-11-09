@@ -5,7 +5,7 @@
 // feedback before upload. It performs no upload and no storage itself; the
 // hosted analyzer handles temporary processing and deletion.
 //
-// V1.1: Stricter limits aligned to backend, with warnings for non-ideal input
+// Stricter limits aligned to backend, with warnings for non-ideal input
 // (duration, file size, resolution). Warnings do not block upload but allow
 // the UI to show guidance and optional retake tips.
 
@@ -23,7 +23,7 @@ function result(valid, code, message, warnings = [], retakeTips = []) {
   return { valid, code, message, warnings, retakeTips };
 }
 
-// V1.1: Return object includes warnings (non-blocking) and retakeTips.
+// Return object includes warnings (non-blocking) and retakeTips.
 // durationSec and metadata may be null/undefined when metadata hasn't been read yet.
 export function validateVideo({ file, durationSec, width, height } = {}) {
   const warnings = [];

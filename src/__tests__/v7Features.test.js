@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { collectCalibrationSamples, buildCalibrationReport } from "../coachCalibration";
 import { buildCorrelationPairs, pearson, describeCorrelation, CORRELATION_METRICS } from "../correlationExplorer";
 
-// ─── coachCalibration ─────────────────────────────────────────────────────────
+// coachCalibration
 const respDay = (call, response, body) => ({
   intelligence: { todayDecisionResponse: { version: 1, decisionCall: call, response, recordedAt: "x" } },
   body,
@@ -59,7 +59,7 @@ describe("buildCalibrationReport", () => {
   });
 });
 
-// ─── correlationExplorer ──────────────────────────────────────────────────────
+// correlationExplorer
 describe("correlationExplorer", () => {
   const data = {
     "2026-06-20": { body: { sleep: "6", energy: "5" } },

@@ -1,4 +1,3 @@
--- ============================================================
 --  V4.4 Social Signals: get_social_summary RPC
 --  Returns a single JSONB object with aggregate social data.
 --
@@ -9,7 +8,6 @@
 --    • Returns only derived aggregates (usernames, counts, sums, ranks, gaps, deltas)
 --    • Never returns raw entries, payloads, biometrics, notes, coach chat, or tokens
 --    • Numeric JSON fields guarded by regex before casting
--- ============================================================
 
 create or replace function public.get_social_summary(period_days int default 7)
 returns jsonb

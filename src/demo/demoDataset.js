@@ -1,5 +1,5 @@
 // src/demo/demoDataset.js
-// V15.5 · The recruiter/investor demo dataset. Everything here is
+// The recruiter/investor demo dataset. Everything here is
 // DETERMINISTIC (seeded PRNG) so a demo walkthrough is reproducible and the
 // contract tests can pin properties like "the load model resolves a zone".
 //

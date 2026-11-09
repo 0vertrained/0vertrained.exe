@@ -1,4 +1,4 @@
-// V13.5 · package.json is the single source of truth for the app version —
+// Package.json is the single source of truth for the app version —
 // __APP_VERSION__ is injected by the Vite/Vitest define (see vite.config.js).
 // public/sw.js is stamped from the same source by scripts/sync-version.mjs,
 // and versionSync.test.js fails the quality gate on any drift.

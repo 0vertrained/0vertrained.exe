@@ -1,12 +1,10 @@
 // src/__tests__/recoveryTrend.test.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.8 · Morning Edition state machine. Pins: (1) calibration is honest and
+// Morning Edition state machine. Pins: (1) calibration is honest and
 // specific below 7 mornings; (2) each state's entry conditions; (3) the
 // parasympathetic-saturation trap (elevated HRV + rising RHR under high load)
 // classifies protective, not celebratory; (4) score deltas are gated on the
 // user's own noise band so ordinary mornings read "steady"; (5) devices are
 // never mixed in one series; (6) evidence is plain language (no z-scores).
-// ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import {
   classifyRecoveryState, computeHrvTrend, gatedScoreDelta,

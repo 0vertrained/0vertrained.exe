@@ -1,5 +1,5 @@
 // src/EnergyIntelligence.jsx
-// V11 · Adaptive TDEE block for Fuel → Plan. Shows the MEASURED expenditure
+// Adaptive TDEE block for Fuel → Plan. Shows the MEASURED expenditure
 // (from your own intake-vs-trend ledger, adaptiveTDEE.js), lets you pick a
 // goal rate, and computes advisory calorie/protein targets plus a weekly
 // drift check. Advisory display only — updating the actual macro goals stays

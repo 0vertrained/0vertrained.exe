@@ -1,4 +1,3 @@
--- ============================================================
 --  MIGRATION: V12.2 Wearable Display Snapshot (DB-first hydrate)
 --  Run this ONCE in: Supabase Dashboard → SQL Editor
 --
@@ -20,10 +19,9 @@
 --
 --  This migration is IDEMPOTENT and SAFE to re-run. It only ADDS objects and
 --  patches delete_my_account_data() if present without weakening RLS.
--- ============================================================
 
 
--- ─── wearable_snapshots table ────────────────────────────────────────────────
+-- wearable_snapshots table
 -- Exactly one latest display-safe snapshot per user (user_id is the primary
 -- key, so the writer upserts on conflict). No biometric payloads, no tokens.
 CREATE TABLE IF NOT EXISTS public.wearable_snapshots (
@@ -52,13 +50,13 @@ GRANT SELECT ON public.wearable_snapshots TO authenticated;
 GRANT ALL ON public.wearable_snapshots TO service_role;
 
 
--- ─── Index ───────────────────────────────────────────────────────────────────
+-- Index
 -- user_id is already the PK; add a freshness index for any future admin sweep.
 CREATE INDEX IF NOT EXISTS idx_wearable_snapshots_updated
   ON public.wearable_snapshots(updated_at DESC);
 
 
--- ─── Patch delete_my_account_data() to also purge snapshots ──────────────────
+-- Patch delete_my_account_data() to also purge snapshots
 -- Only patch if the function already exists. This redefinition is a strict
 -- superset of migration_add_wearable_sync_events.sql and is safe/idempotent.
 DO $$
@@ -156,11 +154,9 @@ BEGIN
 END $$;
 
 
--- ============================================================
 --  DONE. V12.2 Wearable Display Snapshot applied.
 --
 --  Privacy guarantees:
 --    • No tokens, no auth headers, no raw provider payloads, no raw biometric
 --      values stored — only already-rendered display-safe dashboard values.
 --    • Owner-readable (SELECT) for DB-first hydrate; service-role writes only.
--- ============================================================

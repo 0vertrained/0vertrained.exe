@@ -1,5 +1,5 @@
 // src/ErrorBoundary.jsx
-// V9 · Error boundaries for the app shell. Two goals: (1) one tab or overlay
+// Error boundaries for the app shell. Two goals: (1) one tab or overlay
 // crashing must not take down the whole app; (2) every boundary catch is
 // reported through errorReporting.js so beta failures are visible instead of
 // silent. Fallback stays in the whitepaper language — a ruled block, not a

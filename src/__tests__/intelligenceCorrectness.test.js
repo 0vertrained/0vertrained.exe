@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// V15.6 · Intelligence-correctness contracts (audit F1/F2/F5/F6). Each pins
+// Intelligence-correctness contracts. Each pins
 // the failure mode it fixes, sleep-debt-style.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";

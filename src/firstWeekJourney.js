@@ -1,6 +1,5 @@
 // src/firstWeekJourney.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V2.8 Onboarding + First-Week Journey — pure helpers
+// Onboarding + First-Week Journey — pure helpers
 //
 // Deterministic, side-effect-free helpers that shape a stronger first-week
 // experience for new beta users: a setup checklist, new-account empty states,
@@ -15,7 +14,6 @@
 //   - The beta feedback note NEVER includes entries, biometric/video payloads,
 //     tokens, usernames, or other account identifiers — only whitelisted,
 //     non-identifying setup metadata plus what the user typed themselves.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { ONBOARDING_GOALS, ONBOARDING_DATA_MODES } from "./onboardingSetup";
 import { summarizeProgramForHub } from "./moreHub";
@@ -34,7 +32,7 @@ const num = (v) => {
 
 const nonEmptyString = (v) => typeof v === "string" && v.trim().length > 0;
 
-// ─── Per-day signal detection ────────────────────────────────────────────────
+// Per-day signal detection
 // Mirrors the timeline/quick-log notion of a "meaningful" day: a day counts once
 // it carries a real training, nutrition, recovery/check-in, or note signal. An
 // object of empty scaffolding (all zeros / blanks) does NOT count.
@@ -84,7 +82,7 @@ export function dayHasSignal(entry) {
   );
 }
 
-// ─── Logged-day counting ──────────────────────────────────────────────────────
+// Logged-day counting
 // Accepts the app's entries map (keyed by date) or an array of day payloads.
 // Returns the number of DISTINCT days that carry a meaningful signal.
 export function countLoggedDays(entries) {
@@ -118,7 +116,7 @@ export function countLoggedChannels(entries) {
   return { total, training, nutrition, recovery };
 }
 
-// ─── Setup age ────────────────────────────────────────────────────────────────
+// Setup age
 // Days since setup.completedAt, or null when it is missing/invalid. `now` is
 // injected so callers stay deterministic under test.
 export function setupAgeDays(settings, now) {
@@ -132,7 +130,7 @@ export function setupAgeDays(settings, now) {
   return ms / (1000 * 60 * 60 * 24);
 }
 
-// ─── First-week detection ─────────────────────────────────────────────────────
+// First-week detection
 // True when the athlete has completed onboarding but is still inside their
 // baseline week: fewer than seven logged days, OR setup finished within the last
 // seven days. Pre-onboarding users are handled by the Tutorial, not this card.
@@ -149,7 +147,7 @@ export function isFirstWeekUser(settings, entries, now) {
   return false;
 }
 
-// ─── Data-mode resolution ─────────────────────────────────────────────────────
+// Data-mode resolution
 // Manual is first-class. Oura is "connected" when the ring is actually linked OR
 // the athlete chose the Oura data mode during setup.
 export function resolveDataMode(settings, ouraConnected) {
@@ -169,7 +167,7 @@ function goalLabel(goalId) {
   return found ? found.label : null;
 }
 
-// ─── Setup checklist ──────────────────────────────────────────────────────────
+// Setup checklist
 // Ordered items with a `done` predicate each. Status is assigned by a single
 // rule so transitions stay predictable and testable:
 //   - a completed item is always 'done'
@@ -302,7 +300,7 @@ export function summarizeChecklist(checklist = []) {
   };
 }
 
-// ─── New-account empty / baseline states ──────────────────────────────────────
+// New-account empty / baseline states
 // Additive, tab-specific guidance shown when a new user has sparse data. This
 // never replaces functional controls — the UI renders it above the real tab.
 const EMPTY_STATES = {
@@ -367,7 +365,7 @@ export function buildNewUserEmptyState(tab, { settings, entries, program, ouraCo
   return { ...base };
 }
 
-// ─── First-week coach copy ────────────────────────────────────────────────────
+// First-week coach copy
 // Conservative, baseline-building language. Before enough data exists we NEVER
 // use judgmental / trend words — we say the baseline is being established.
 export function buildFirstWeekCoachCopy({ loggedDays = 0, setupGoal, dataMode } = {}) {
@@ -405,7 +403,7 @@ export function buildFirstWeekCoachCopy({ loggedDays = 0, setupGoal, dataMode } 
   };
 }
 
-// ─── Beta feedback note ───────────────────────────────────────────────────────
+// Beta feedback note
 // Builds a plain-text report the user can copy/share. It contains ONLY
 // whitelisted, non-identifying setup metadata plus what the user typed. It must
 // never include entries, biometric/video payloads, tokens, usernames, or any
@@ -446,15 +444,12 @@ export function buildBetaFeedbackText({ tab, settings, loggedDays, userAgent, no
   return lines.join("\n");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// V4.5 Beta Activation extensions — additive, pure helpers.
+// Beta Activation extensions — additive, pure helpers.
 //
 // A stronger activation checklist (adds explicit profile + social-understood
 // steps on top of the first-week checklist), sparse-state guidance that covers
 // the Social subview and explains wearable data delay, and a version-stamped
-// beta feedback wrapper. Nothing here mutates the V2.8 exports above, so the
-// existing first-week tests keep passing untouched.
-// ─────────────────────────────────────────────────────────────────────────────
+// beta feedback wrapper. Nothing here mutates the first-week exports above.
 
 export const BETA_ACTIVATION_VERSION_LABEL = "V4.5";
 
@@ -631,7 +626,7 @@ export function summarizeActivation(checklist = []) {
   };
 }
 
-// ─── Sparse-state guidance (all tabs + Social) ────────────────────────────────
+// Sparse-state guidance (all tabs + Social)
 // Broader than buildNewUserEmptyState: adds the Social subview and, on Recovery,
 // an honest note that Whoop/Oura recovery only appears AFTER the next sleep is
 // processed — so a fresh wearable connection never reads as "broken".

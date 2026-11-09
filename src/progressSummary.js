@@ -1,6 +1,5 @@
 // src/progressSummary.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Progress presentation helpers (V2.5 — "Progress Intelligence Loop")
+// Progress presentation helpers
 //
 // Pure, side-effect-free display summarizers for the redesigned Progress tab.
 // They reshape objects that other modules have ALREADY computed (weekly coach
@@ -20,7 +19,6 @@
 //   - Conservative coaching language only ("likely limiter", "worth watching",
 //     "trend suggests"). No medical or diagnostic claims. No causal "X caused Y".
 //   - Null-safe: a partial/loading/empty state must never throw or emit NaN.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const num = (v) => {
   const n = Number(v);

@@ -1,6 +1,5 @@
 // src/recovery/wearableSourceResolver.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V3.1 Wearable Source Resolver
+// Wearable Source Resolver
 //
 // Pure, side-effect-free per-metric source arbitration for the case where BOTH
 // Oura and Whoop are connected (and manual check-in is always available). This
@@ -31,7 +30,6 @@
 //   respiratory rate Whoop → Oura                 (Whoop measures directly)
 //   SpO₂             Whoop → Oura                 (Whoop measures directly)
 //   subjective/feel  Manual (always first-class)
-// ─────────────────────────────────────────────────────────────────────────────
 
 import {
   getSleepDoc,
@@ -273,8 +271,8 @@ function magnitudeFor(rule, ouraValue, whoopValue) {
   return avg > 0 ? (diff / avg) * 100 : 0;
 }
 
-// ── V16.7 · Baseline-relative comparison for HRV and RHR ────────────────────
-// The V16.0 doctrine ("devices carry systematic offsets; z-scores are computed
+// ── Baseline-relative comparison for HRV and RHR ────────────────────
+// The doctrine ("devices carry systematic offsets; z-scores are computed
 // against the SAME device's own history") stopped at the scoring engine — the
 // conflict detector still compared raw cross-device values. On the reporting
 // user's export, Whoop's resting HR reads +5.8 bpm above Oura's lowest-HR

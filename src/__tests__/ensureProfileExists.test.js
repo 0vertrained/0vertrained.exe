@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// V14.1 · Signup-orphan self-heal. If auth.signUp succeeded but the profiles
+// Signup-orphan self-heal. If auth.signUp succeeded but the profiles
 // insert failed, the user holds a session with no profile row. On boot,
 // ensureProfileExists finishes setup by inserting a profile whose username is
 // derived from the synthetic auth email local part. These tests drive the

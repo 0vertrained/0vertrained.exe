@@ -1,5 +1,5 @@
 // src/trainingArbitration.js
-// V18.2 · AM/PM load arbitration and in-session volume projection.
+// AM/PM load arbitration and in-session volume projection.
 
 import { getProgramSessions } from "./programSessions";
 import { buildWeeklyMuscleVolume, classifyVolume, mapExerciseToMuscles, MUSCLE_LANDMARKS, weekStartKey } from "./muscleVolume";

@@ -1,7 +1,5 @@
--- ============================================================
 --  PATCH: Social boards are opt-in only
 --  Run after migration_add_settings.sql and migration_add_social.sql.
--- ============================================================
 -- Opt-in flag lives in profiles.settings JSONB:
 --   { "socialOptIn": true }
 -- Default / missing / false => user is hidden from leaderboards and PR boards.

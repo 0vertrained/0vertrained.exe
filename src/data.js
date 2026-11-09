@@ -1,7 +1,7 @@
 import { supabase } from "./supabaseClient";
 import { DEFAULT_COACH_PREFERENCES, normalizeCoachPreferences } from "./coachMemory";
 
-// ─── User ID cache ─────────────────────────────────────────────────────────────
+// User ID cache
 // getUser() is called on every save (every 700ms of typing). The user ID never
 // changes mid-session, so we resolve it once and reuse it. On sign-out the cache
 // is cleared by clearCachedUserId() so the next login gets a fresh ID.
@@ -18,18 +18,18 @@ async function getUserId() {
   return id;
 }
 
-// ─── Entries ───────────────────────────────────────────────────────────────────
+// Entries
 
 // Load ALL of the current user's entries, returned as a map keyed by date.
 // Paginates in batches of 1000 to avoid Supabase's default row limit.
-// V14.3 · Kept for import/export paths; the boot path now uses
+// Kept for import/export paths; the boot path now uses
 // loadRecentEntries + loadOlderEntries so the blocking transfer stops growing
-// with account age (perf plan P1-1).
+// with account age.
 export async function loadAllEntries() {
   return (await loadAllEntriesChecked()).entries;
 }
 
-// V19.4 · Same pages, plus whether they all arrived, so an export can say
+// Same pages, plus whether they all arrived, so an export can say
 // when the server couldn't be reached instead of handing over a short file.
 export async function loadAllEntriesChecked() {
   const PAGE = 1000;
@@ -49,12 +49,12 @@ export async function loadAllEntriesChecked() {
   return { entries: map, complete: true };
 }
 
-// V19.4 · PostgREST's "no row" answer to .single(). A real answer, not a
+// PostgREST's "no row" answer to .single(). A real answer, not a
 // failed read: no program row is a new account; no profile row is a signup
 // that never finished (see loadSettingsChecked).
 const isNoRow = (error) => error?.code === "PGRST116";
 
-// V14.3 · The boot window. YYYY-MM-DD cutoff for "recent", local-date based so
+// The boot window. YYYY-MM-DD cutoff for "recent", local-date based so
 // the window matches what the user sees as "the last N days".
 export function entriesWindowCutoff(days = 180) {
   const d = new Date();
@@ -63,7 +63,7 @@ export function entriesWindowCutoff(days = 180) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-// V14.3 · Blocking boot load: only the recent window. One indexed range query
+// Blocking boot load: only the recent window. One indexed range query
 // for any realistic account (window row count ≪ page size). Same map shape as
 // loadAllEntries, so every consumer is untouched.
 export async function loadRecentEntries(days = 180) {
@@ -86,7 +86,7 @@ export async function loadRecentEntries(days = 180) {
   return map;
 }
 
-// V14.3 · Deferred history hydrate: pages everything BEFORE the cutoff, newest
+// Deferred history hydrate: pages everything BEFORE the cutoff, newest
 // first, invoking onBatch(chunkMap) per page so the caller can merge
 // progressively. Background-safe: errors log and stop (the recent window is
 // already on screen; history arriving late is acceptable, history breaking
@@ -161,13 +161,13 @@ export async function importEntries(dataMap) {
   return { ok: true, count: rows.length };
 }
 
-// ─── Program ───────────────────────────────────────────────────────────────────
+// Program
 
 export async function loadProgram() {
   return (await loadProgramChecked()).program;
 }
 
-// V19.4 · loadProgram() answers null both for "no program saved yet" and for
+// LoadProgram() answers null both for "no program saved yet" and for
 // "couldn't reach the server", and the app shows DEFAULT_PROGRAM for null. At
 // boot that swapped an athlete's program for the default one whenever the app
 // opened offline. This keeps the two apart: error is set only for a failed read.
@@ -194,7 +194,7 @@ export async function saveProgram(programPayload) {
   return { ok: true };
 }
 
-// ─── Social: Leaderboard + PRs ────────────────────────────────────────────────
+// Social: Leaderboard + PRs
 
 export async function loadLeaderboard(periodDays = 7) {
   const { data, error } = await supabase.rpc("get_leaderboard", { period_days: periodDays });
@@ -220,7 +220,7 @@ export async function loadSocialSummary(periodDays = 7) {
   return { ok: true, data };
 }
 
-// ─── Social Circles (V4.5) ─────────────────────────────────────────────────────
+// Social Circles
 // Private, invite-only aggregate circles. Each wrapper returns { ok, data } or
 // { ok:false, error }. The RPC itself returns a jsonb envelope with its own `ok`
 // flag for domain errors (invalid code, not a member, etc.); we surface that as
@@ -251,7 +251,7 @@ export async function loadCircleSummary(circleId, periodDays = 7) {
   return { ok: true, data };
 }
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
+// Settings
 
 export const DEFAULT_SETTINGS = {
   goals: {
@@ -270,18 +270,18 @@ export const DEFAULT_SETTINGS = {
   theme: "whitepaperLight",
   trainingCues: { haptics: true, restAudio: false },
   onboarded: false,
-  // V2.2 first-run setup summary. Null fields until onboarding completes; the
+  // First-run setup summary. Null fields until onboarding completes; the
   // app treats a missing/empty setup as "manual, not yet configured" — never
-  // as an error, so pre-V2.2 profiles keep working untouched.
+  // as an error, so older profiles keep working untouched.
   setup: {
     goal: null,
     dataMode: null,
     macroPreset: null,
     completedAt: null,
   },
-  // V2.3 Program Builder preferences. Null/empty until the athlete generates a
+  // Program Builder preferences. Null/empty until the athlete generates a
   // plan; a missing key is treated as "never used the builder" — never an error,
-  // so pre-V2.3 profiles keep working untouched.
+  // so older profiles keep working untouched.
   programBuilder: {
     goal: null,
     trainingDaysPerWeek: null,
@@ -295,7 +295,7 @@ export const DEFAULT_SETTINGS = {
     varietyMode: "balanced",
     lastGeneratedAt: null,
   },
-  // V4.5 Coach Memory preferences. Disabled by default — the coach behaves
+  // Coach Memory preferences. Disabled by default — the coach behaves
   // exactly as before until the athlete opts in. Suggest-only; never edits
   // programs or scores. See src/coachMemory.js for the normalization contract.
   coachPreferences: { ...DEFAULT_COACH_PREFERENCES },
@@ -305,7 +305,7 @@ export async function loadSettings() {
   return (await loadSettingsChecked()).settings;
 }
 
-// V19.4 · loadSettings() answers DEFAULT_SETTINGS when the read fails, which
+// LoadSettings() answers DEFAULT_SETTINGS when the read fails, which
 // looks exactly like a brand-new account (onboarded: false). At boot that put
 // the setup wizard in front of an existing athlete who opened the app offline,
 // and the next settings save could write the defaults over their profile.
@@ -345,12 +345,12 @@ function normalizeStoredSettings(data) {
     })(s.theme),
     onboarded: s.onboarded === true || s.onboarded === "true",
     trainingCues: { ...DEFAULT_SETTINGS.trainingCues, ...(s.trainingCues || {}) },
-    // Merge setup over defaults so pre-V2.2 profiles (no setup key) still load.
+    // Merge setup over defaults so older profiles (no setup key) still load.
     setup: { ...DEFAULT_SETTINGS.setup, ...(s.setup || {}) },
-    // Merge programBuilder over defaults so pre-V2.3 profiles (no key) still load.
+    // Merge programBuilder over defaults so older profiles (no key) still load.
     programBuilder: { ...DEFAULT_SETTINGS.programBuilder, ...(s.programBuilder || {}) },
     // Normalize coachPreferences so unknown enum values snap to defaults and a
-    // pre-V4.5 profile (no key) loads as disabled. Never trusts raw stored blob.
+    // older profile (no key) loads as disabled. Never trusts raw stored blob.
     coachPreferences: normalizeCoachPreferences(s.coachPreferences),
     username: data?.username || null,
   };
@@ -374,7 +374,7 @@ export async function patchSetting(key, value) {
   await supabase.from("profiles").update({ settings: merged }).eq("id", userId);
 }
 
-// V19.4 · Merge a few keys into the stored settings, server-side, and report
+// Merge a few keys into the stored settings, server-side, and report
 // the result. Integrations uses it to save a confirmed connection flag. Unlike
 // patchSetting() above, a failed read aborts: writing the patch over an empty
 // object would wipe the profile. Merging into the server's copy (rather than

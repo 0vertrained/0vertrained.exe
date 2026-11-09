@@ -1,4 +1,3 @@
--- ============================================================
 --  MIGRATION: V2.9 Whoop Foundation
 --  Run this ONCE in: Supabase Dashboard → SQL Editor
 --
@@ -14,11 +13,10 @@
 --      own normalized records; all writes go through the service role.
 --
 --  This migration is IDEMPOTENT and SAFE to re-run. It only ADDS objects and
---  patches delete_my_account_data() (V2.7) if present without weakening RLS.
--- ============================================================
+--  patches delete_my_account_data() if present without weakening RLS.
 
 
--- ─── whoop_oauth_state table ─────────────────────────────────────────────────
+-- whoop_oauth_state table
 -- Maps a self-generated 8-char state string to the initiating user for the
 -- OAuth callback. The callback derives user ownership ONLY from this table,
 -- never from query params. Rows are short-lived (10 min TTL) and best-effort
@@ -37,7 +35,7 @@ REVOKE ALL ON public.whoop_oauth_state FROM anon, authenticated;
 GRANT ALL ON public.whoop_oauth_state TO service_role;
 
 
--- ─── whoop_tokens table ──────────────────────────────────────────────────────
+-- whoop_tokens table
 -- OAuth access/refresh tokens per user. One row per user. Whoop rotates the
 -- refresh token on every refresh, so the server persists the rotated token
 -- immediately and avoids concurrent refreshes.
@@ -60,7 +58,7 @@ REVOKE ALL ON public.whoop_tokens FROM anon, authenticated;
 GRANT ALL ON public.whoop_tokens TO service_role;
 
 
--- ─── whoop_data table ────────────────────────────────────────────────────────
+-- whoop_data table
 -- Normalized Whoop records: recovery, sleep, cycle, workout, body_measurement.
 -- One row per user+date+data_type+external_id combination. external_id defaults
 -- to '' so single-per-day types still have a stable conflict key, while multiple
@@ -89,7 +87,7 @@ GRANT SELECT ON public.whoop_data TO authenticated;
 GRANT ALL ON public.whoop_data TO service_role;
 
 
--- ─── Indexes ─────────────────────────────────────────────────────────────────
+-- Indexes
 CREATE INDEX IF NOT EXISTS idx_whoop_tokens_user_id
   ON public.whoop_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_whoop_oauth_state_expires_at
@@ -98,7 +96,7 @@ CREATE INDEX IF NOT EXISTS idx_whoop_data_user_date_type
   ON public.whoop_data(user_id, date DESC, data_type);
 
 
--- ─── Patch delete_my_account_data() (V2.7) to also purge Whoop ───────────────
+-- Patch delete_my_account_data() to also purge Whoop
 -- Only patch if the function already exists (V2.7 has been run). If it does not
 -- exist yet, this is a no-op — V2.7's own definition already deletes Whoop rows
 -- once this file's tables exist... but to keep V2.7 forward-compatible without
@@ -185,11 +183,9 @@ BEGIN
 END $$;
 
 
--- ============================================================
 --  DONE. V2.9 Whoop Foundation applied.
 --
 --  Non-goals (NOT part of this migration or sprint):
 --    • No recovery-algorithm blending from Whoop.
 --    • No automatic workout completion from Whoop workouts.
 --    • No webhooks / background cron.
--- ============================================================

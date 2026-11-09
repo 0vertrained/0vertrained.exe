@@ -1,18 +1,16 @@
 // src/cascade.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.4 · The Cascade — drop sets and rest-pause as STRUCTURE, not notes.
+// The Cascade — drop sets and rest-pause as STRUCTURE, not notes.
 //
-// Model: a set may carry `type: "drop" | "rp"` (the V12 set-type vocabulary) plus `segments`
+// Model: a set may carry `type: "drop" | "rp"` plus `segments`
 // [{weight, reps}] — the continuation work performed after the top effort.
 // The top effort stays in the set's own weight/reps fields, which preserves
 // every existing consumer by construction:
 //   · e1RM: isStraightSet() already excludes any set with a non-straight
-//     type (V12 doctrine — intensity techniques distort the load-rep curve).
+//     type.
 //   · Volume audit: hard-set counting sees ONE set — a drop set is one hard
 //     set taken past failure, not three sets.
 //   · Tonnage: sums the top segment only (the honest comparable across days).
 // Pure module; the UI lives in CascadeSet.jsx.
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CASCADE_KINDS = {
   drop: { key: "drop", label: "DROP", stepPct: 0.75, hint: "past failure: strip ~25% and go straight back in, no rest" },

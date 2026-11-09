@@ -1,5 +1,5 @@
 // netlify/functions/log-error.js
-// V9 · Client error sink. JWT-verified (same pattern as coach.js /
+// Client error sink. JWT-verified (same pattern as coach.js /
 // push-subscribe.js) — anonymous error sinks are abuse magnets, so pre-auth
 // client errors queue client-side and flush after login instead. Every field
 // is clamped server-side regardless of what the client claims.
@@ -42,7 +42,7 @@ export default async (req) => {
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
   if (!body?.message) return json({ error: "Missing message" }, 400);
 
-  // V13.6 · Per-user daily flood cap. This endpoint is JWT-gated but was
+  // Per-user daily flood cap. This endpoint is JWT-gated but was
   // otherwise uncapped, so one authenticated client (a crash loop, or a
   // malicious user) could bloat client_errors without bound. Count this user's
   // rows in the last 24h via a HEAD request (PostgREST returns the total in
@@ -100,7 +100,7 @@ export default async (req) => {
   return json({ ok: true });
 };
 
-// V19.4 · Routed. Without a path the client's POST to /api/log-error fell through
+// Routed. Without a path the client's POST to /api/log-error fell through
 // to the SPA rewrite (/* → /index.html, 200), so nothing ever reached this
 // function. Same pattern as coach.js.
 export const config = { path: "/api/log-error" };

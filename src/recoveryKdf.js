@@ -1,5 +1,5 @@
 // src/recoveryKdf.js
-// V13.6 · Recovery-phrase key derivation (browser side).
+// Recovery-phrase key derivation (browser side).
 //
 // The recovery phrase is user-chosen and, before this, was stored as a single
 // round of SHA-256(salt + phrase). The per-user salt defeats rainbow tables
@@ -18,7 +18,7 @@
 // updating the Node side and that test in lockstep.
 
 // Versioned KDF identifiers stored in profiles.recovery_kdf.
-//  · null / "sha256"      → legacy single-round SHA-256 (pre-V13.6 signups)
+//  · null / "sha256"      → legacy single-round SHA-256
 //  · "pbkdf2-sha256-600k" → this module
 export const RECOVERY_KDF_LEGACY = "sha256";
 export const RECOVERY_KDF_CURRENT = "pbkdf2-sha256-600k";
@@ -38,7 +38,7 @@ export function generateRecoverySalt() {
 }
 
 // Legacy verifier — kept so the change-phrase flow and any browser-side check
-// can still recognize a pre-V13.6 hash if ever needed. Recovery upgrades these
+// can still recognize an older single-round hash if ever needed. Recovery upgrades these
 // to the current KDF on the server; this exists for completeness/symmetry.
 export async function deriveLegacyRecoveryHash(phrase, salt) {
   const enc = new TextEncoder().encode(String(salt) + String(phrase).trim());

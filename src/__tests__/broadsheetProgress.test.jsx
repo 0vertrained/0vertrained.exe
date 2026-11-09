@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// V15.2 · Mounted smoke for the Progress spreads (per the V15.1.1 policy:
+// Mounted smoke for the Progress spreads (per the V15.1.1 policy:
 // every new broadsheet surface gets a render test, not just source guards).
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";

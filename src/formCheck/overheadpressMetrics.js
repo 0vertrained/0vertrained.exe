@@ -146,7 +146,7 @@ export function aggregateOverheadpressMetrics(frames = []) {
   };
 }
 
-// V1.4: Extract wrist positions from all usable frames for full-trajectory
+// Extract wrist positions from all usable frames for full-trajectory
 // bar-path tracking. Returns an array of { tMs, x, y } in normalized image
 // coordinates. Only frames with visible arm joints are included.
 export function extractOverheadpressWristPositions(frames = []) {

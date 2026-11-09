@@ -1,5 +1,5 @@
 // src/RacePlanPanel.jsx
-// ─── Race plan (V19.3) — product-facing panel ───────────────────────────────
+// Race plan — product-facing panel
 //
 // Set a race and the app builds the weeks between now and race day around
 // your lifting. Same whitepaper/ruled layout as ProgramBuilderPanel: inputs,

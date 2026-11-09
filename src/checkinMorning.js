@@ -1,13 +1,12 @@
 // src/checkinMorning.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.8 · Morning check-in — the subjective row of the Morning Edition.
+// Morning check-in — the subjective row of the Morning Edition.
 //
 // DESIGN DECISIONS (why it works this way):
 //   · WRITES TO THE EXISTING FIELDS. The taps store 1–10 values on the same
 //     entry body fields TodayTab and manualRecovery already use
 //     (sleepQuality / soreness / stress / energy) — one source of truth, and a
 //     user who prefers typing numbers on Today sees the same data here.
-//   · CAUTION-ONLY, per the V13 resolver doctrine ("limiters can only make the
+//   · CAUTION-ONLY, per the resolver's rule ("limiters can only make the
 //     call MORE cautious, never less"). A rough check-in can demote the
 //     training call one step; a great check-in never raises it — the
 //     subjective row keeps you honest, it doesn't hand out passes. The
@@ -21,7 +20,6 @@
 //     confusing morning a recovery app can produce; both directions get one
 //     plain sentence (the Saw & Gastin finding — subjective measures often
 //     lead objective ones — operationalized as transparency, not math).
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Tap rows. Values land on the existing 1–10 scales; three levels is a
 // deliberate ceiling (a 1–10 picker at 6:30 a.m. is friction, not fidelity).

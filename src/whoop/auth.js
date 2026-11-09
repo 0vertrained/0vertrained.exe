@@ -1,13 +1,11 @@
 // src/whoop/auth.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Whoop Auth & Connection Management (V2.9 Whoop Foundation)
+// Whoop Auth & Connection Management
 //
 // Mirrors src/oura/auth.js. All privileged work happens server-side:
 // • getWhoopAuthUrl() asks /api/whoop/auth (with the Supabase JWT) to build the
 //   Whoop authorize URL — no client secret, no userId in any query string.
 // • Status / disconnect / sync go through /api/whoop/* with a Bearer token.
 // • The browser NEVER reads whoop_tokens; ownership is server-derived.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { supabase } from "../supabaseClient";
 import { memoizeAsync } from "../asyncMemo";
@@ -46,10 +44,10 @@ export async function getWhoopAuthUrl() {
  * Whoop is opt-in; connection state lives server-side. Token table reads never
  * happen in the browser — we ask /api/whoop/status.
  */
-// V14.2 · Memoized (60s TTL + single-flight) — see isOuraConnected rationale.
+// Memoized (60s TTL + single-flight) — see isOuraConnected rationale.
 const isWhoopConnectedMemo = memoizeAsync(isWhoopConnectedProbe, 60_000);
 export async function isWhoopConnected() {
-  if (isDemoMode()) return true; // V15.5 · demo shows the full wearable story
+  if (isDemoMode()) return true; // demo shows the full wearable story
   return isWhoopConnectedMemo();
 }
 
@@ -189,7 +187,7 @@ export async function getWhoopSyncCounts() {
 }
 
 /**
- * Fetch recent Whoop sync events for the debug timeline (V3.4). Reads the
+ * Fetch recent Whoop sync events for the debug timeline. Reads the
  * server's /api/whoop/events endpoint (Bearer-authenticated; ownership is
  * server-derived). Returns only metadata — no raw payloads, no tokens.
  * Shape: { events: Array<row>, error?: string }.

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useTheme } from "./theme";
 import { useIsDesktop } from "./ui/useMediaQuery";
 
-// V5.0 nav restructure: Form Check and quick-logging were three taps deep
+// Form Check and quick-logging were three taps deep
 // (More → Form Check → Analyze) despite being core differentiators. The FAB
 // puts them one tap away from anywhere, and dropping "More" to a header
 // entry (see Header's Profile button in AppHeader.jsx) frees the tab row to
@@ -17,13 +17,13 @@ const TAB_LABELS = {
   Progress: "Progress — trends and weekly review",
 };
 
-// ─── Bottom Navigation Component ───────────────────────────────────────────
+// Bottom Navigation Component
 // tabsOrder splits around the FAB slot: the first half renders left of it,
 // the remainder renders right of it. With the current 4-tab order that's a
 // clean 2/2 split; this stays correct if a tab is ever added or removed.
 export function BottomNav({ currentTab, onTabChange, tabsOrder = TABS_ORDER, onQuickAction }) {
   const { S } = useTheme();
-  // V13 broadsheet: at >=1024px the tabs live in the masthead (see AppHeader)
+  // Broadsheet: at >=1024px the tabs live in the masthead (see AppHeader)
   // and the center FAB becomes the header's "+ Log" — the dock unmounts
   // entirely so desktop reads as one newspaper, not a phone in a big window.
   const isDesktop = useIsDesktop();
@@ -74,7 +74,7 @@ export function BottomNav({ currentTab, onTabChange, tabsOrder = TABS_ORDER, onQ
   );
 }
 
-// ─── Quick-action sheet ─────────────────────────────────────────────────────
+// Quick-action sheet
 // Opened by the FAB. Display-only routing — every action just points at an
 // existing tab or overlay; no new write paths, no logging logic here.
 export const QUICK_ACTIONS = [

@@ -1,12 +1,10 @@
 // src/whoop/WhoopSourceSummary.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// Wearable source summary bar (V3.0 Whoop Display Cards)
+// Wearable source summary bar
 //
 // A small, subtle bar that shows which signal sources are currently
 // contributing context — Oura, Whoop, Manual — and their connection state. It
 // shows PRESENCE only: no raw scores, no biometrics, and it never implies any
 // source feeds the recovery algorithm. The recovery score remains Oura + manual.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { useTheme } from "../theme";
 

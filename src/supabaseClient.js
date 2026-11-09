@@ -51,7 +51,7 @@ export const supabase = missingConfig ? createMockSupabase() : createClient(supa
 // This is NOT a real email and is never used to contact anyone — it only
 // satisfies the auth system's internal identifier format. No PII stored.
 //
-// V14 · The domain is env-configurable. `athlete.app` is a REGISTRABLE domain
+// The domain is env-configurable. `athlete.app` is a REGISTRABLE domain
 // this project does not control: if Supabase email features (confirmations,
 // magic links, email reset) were ever enabled, whoever owns that domain's MX
 // would receive credential mail for every account, and GoTrue's public

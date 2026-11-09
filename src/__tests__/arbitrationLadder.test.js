@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// V16.0 · Arbitration-layer contracts (audit F4). The four principles, pinned:
+// Arbitration-layer contracts. The four principles, pinned:
 // per-metric ladders, WITHIN-source baselines, fallback-not-average,
 // top-rung-wins.
 import { describe, expect, it } from "vitest";

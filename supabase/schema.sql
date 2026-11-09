@@ -1,7 +1,5 @@
--- ============================================================
 --  HYBRID ATHLETE TRACKER — DATABASE SCHEMA
 --  Run this whole file once in: Supabase Dashboard → SQL Editor
--- ============================================================
 --  SECURITY MODEL (read this):
 --   • Each row of data is tagged with the owner's user_id.
 --   • Row Level Security (RLS) is ENABLED on every table.
@@ -9,9 +7,8 @@
 --     write rows where user_id = their own auth.uid().
 --   • Even with the public anon key, nobody can read your data
 --     without being logged in AS you. The database itself refuses.
--- ============================================================
 
--- ---------- 1. DAILY ENTRIES TABLE ----------
+-- 1. DAILY ENTRIES TABLE
 -- One row per day per user. The whole day's data is stored as JSONB
 -- so the app's existing data shape carries over unchanged.
 create table if not exists public.entries (
@@ -49,7 +46,7 @@ create policy "entries_delete_own"
   using (auth.uid() = user_id);
 
 
--- ---------- 2. PROFILE / RECOVERY TABLE ----------
+-- 2. PROFILE / RECOVERY TABLE
 -- Stores the username and a HASHED recovery phrase (never plaintext).
 -- The recovery phrase hash is used to authorize a password reset.
 create table if not exists public.profiles (
@@ -79,7 +76,7 @@ create policy "profiles_update_own"
   with check (auth.uid() = id);
 
 
--- ---------- 3. SIGNUP LOCK ----------
+-- 3. SIGNUP LOCK
 -- A single-row table that tracks whether signup is still open.
 -- After the first account is created, the app flips this to locked.
 create table if not exists public.app_state (
@@ -111,7 +108,7 @@ create policy "app_state_read"
 drop policy if exists "app_state_lock" on public.app_state;
 
 
--- ---------- 4. AUTO-UPDATE updated_at ----------
+-- 4. AUTO-UPDATE updated_at
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$
 begin
@@ -124,12 +121,10 @@ create trigger entries_touch
   before update on public.entries
   for each row execute function public.touch_updated_at();
 
--- ============================================================
 --  DONE. Your database now enforces per-user isolation at the
 --  lowest level. The app code cannot override these rules.
--- ============================================================
 
--- ---------- 5. GRANTS (required for authenticated role to access tables) ----------
+-- 5. GRANTS (required for authenticated role to access tables)
 -- RLS controls which rows, but Postgres also needs explicit table-level grants.
 grant usage on schema public to authenticated;
 grant usage on schema public to anon;

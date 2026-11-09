@@ -1,8 +1,7 @@
 // src/ui/WordmarkTheta.jsx
-// V15.0 · The masthead theta as an outlined glyph. Newsreader — the app's
-// display serif and the face S.wordmarkTheta asks for — ships no Greek block
-// (verified during the V14.2.1 favicon work), so every browser has been
-// substituting a system serif here since V13. This component embeds the real
+// The masthead theta as an outlined glyph. Newsreader — the app's
+// display serif and the face S.wordmarkTheta asks for — ships no Greek block,
+// so every browser would substitute a system serif here. This component embeds the real
 // outline of lowercase theta from STIX Two Text Italic (wght 500) — the
 // scientific-publishing serif, the spiritually correct donor for the
 // Whitepaper System — extracted with fontTools from the google/fonts OFL

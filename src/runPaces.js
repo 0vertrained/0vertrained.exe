@@ -1,6 +1,5 @@
 // src/runPaces.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V19.3 · Training paces from a race result — pure math, no React, no clocks.
+// Training paces from a race result — pure math, no React, no clocks.
 //
 // Daniels & Gilbert oxygen-cost model (the formulas behind the VDOT tables):
 //   VO2(v)      = −4.60 + 0.182258·v + 0.000104·v²          v = metres/min
@@ -19,7 +18,6 @@
 //
 // No benchmark → no paces. Callers fall back to effort targets (talk test,
 // RPE); a wrong pace is worse than an honest effort cue.
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const METERS_PER_MILE = 1609.344;
 
@@ -114,7 +112,7 @@ export function racePaceSecPerMile(vdot, distance) {
   return Math.round(secs / (meters / METERS_PER_MILE));
 }
 
-// ─── Formatting / parsing ───────────────────────────────────────────────────
+// Formatting / parsing
 
 /** "24:30" → 1470, "1:02:10" → 3730. Null for anything ambiguous. */
 export function parseDuration(text) {
@@ -150,7 +148,7 @@ export function formatPace(secPerMile) {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-// ─── Zones ──────────────────────────────────────────────────────────────────
+// Zones
 
 /**
  * Normalize a stored benchmark: { distance: "5k", seconds: 1500, date? }.

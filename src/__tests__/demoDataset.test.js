@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// V15.5 · Demo dataset contracts. The recruiter/investor demo is only worth
+// Demo dataset contracts. The recruiter/investor demo is only worth
 // shipping if the intelligence systems demonstrably fire on it — these pin
 // that, plus determinism (a walkthrough must be reproducible) and coherence
 // (Strava derives from the entries' own cardio days).

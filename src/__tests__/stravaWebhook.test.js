@@ -1,5 +1,5 @@
 // src/__tests__/stravaWebhook.test.js
-// V13.3 · Strava webhook contract: subscription-challenge echo, and the API
+// Strava webhook contract: subscription-challenge echo, and the API
 // Agreement's deauthorization requirement — an athlete revoking access from
 // Strava's side must purge their tokens and imported data. Also covers the
 // targeted delete path so a removed Strava activity leaves the ledger.

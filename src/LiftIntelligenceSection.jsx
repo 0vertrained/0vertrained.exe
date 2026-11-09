@@ -1,5 +1,5 @@
 // src/LiftIntelligenceSection.jsx
-// V12 · Two Progress → Overview sections:
+// Two Progress → Overview sections:
 //   1. LiftIntelligenceSection — per-lift RIR-effective e1RM sparkline with
 //      a progressing / stalled / regressing verdict and a concrete stall
 //      suggestion (e1rmTrend.js).
@@ -84,7 +84,7 @@ export function LiftIntelligenceSection({ data }) {
   );
 }
 
-// ─── Muscle recency map ───────────────────────────────────────────────────────
+// Muscle recency map
 const RECENCY_TONE = (status, C) => status === "worked" ? C.textFaint : status === "ready" ? C.text : status === "fresh" ? C.green : C.textFaint;
 
 export function MuscleRecencyMap({ data }) {

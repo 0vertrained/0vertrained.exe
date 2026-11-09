@@ -1,8 +1,7 @@
 // netlify/functions/_recovery-mirror.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.3 · The Courier's slim recovery mirror.
+// The Courier's slim recovery mirror.
 //
-// House doctrine (V16.6/16.7 precedent): Netlify functions MIRROR src logic
+// House doctrine: Netlify functions MIRROR src logic
 // rather than importing across the bundle boundary, and a parity test
 // (src/__tests__/courierMirrorParity.test.js) is the drift alarm — it runs the
 // src classifier and this mirror on identical fixtures and asserts equal
@@ -18,7 +17,6 @@
 // context) and deload requires the RHR corroboration path. The morning push
 // therefore speaks in {calibrating*, fresh, steady, accumulating, deload}.
 // (*calibrating is computed but never pushed — see edition-courier.js.)
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ── normalization mirror (src/oura/normalization.js) ─────────────────────────
 const MAIN_SLEEP_TYPE = /long|main/i;

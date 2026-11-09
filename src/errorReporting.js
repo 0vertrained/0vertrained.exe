@@ -1,5 +1,5 @@
 // src/errorReporting.js
-// V9 · Beta error visibility. Captures uncaught errors, unhandled promise
+// Beta error visibility. Captures uncaught errors, unhandled promise
 // rejections, and ErrorBoundary catches, and reports them to
 // /api/log-error (JWT-verified → service-role insert into client_errors).
 //
@@ -21,7 +21,7 @@ export { APP_VERSION };
 
 const CAPS = { message: 500, stack: 4000, componentStack: 2000, path: 200 };
 
-// ─── Pure helpers (unit-tested) ───────────────────────────────────────────────
+// Pure helpers (unit-tested)
 export function normalizeError(err, context = {}) {
   const message = String(err?.message || err || "Unknown error").slice(0, CAPS.message);
   const stack = String(err?.stack || "").slice(0, CAPS.stack);
@@ -58,7 +58,7 @@ export function shouldReport(state, normalized) {
   return true;
 }
 
-// ─── Wiring (side-effectful) ──────────────────────────────────────────────────
+// Wiring (side-effectful)
 const state = createReporterState();
 let initialized = false;
 

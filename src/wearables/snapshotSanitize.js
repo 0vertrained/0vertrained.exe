@@ -1,5 +1,4 @@
 // src/wearables/snapshotSanitize.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Pure, browser-safe helpers for the DB-first wearable snapshot slice.
 //
 // These functions have NO side effects and touch NO browser/network APIs, so
@@ -12,7 +11,6 @@
 // the local-cache and server-snapshot paths can never drift apart on what
 // counts as a secret. The server function mirrors the same rules inline (it is
 // intentionally self-contained, like the other netlify functions).
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { sanitizeSnapshot } from "../wearableSnapshotCache";
 

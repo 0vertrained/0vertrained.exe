@@ -1,8 +1,7 @@
 -- Oura Ring Integration Migration
--- ─────────────────────────────────────────────────────────────────────────────
 -- Creates tables and RLS policies for Oura token storage and data syncing.
 
--- ─── oura_tokens table ───────────────────────────────────────────────────────
+-- oura_tokens table
 -- Stores OAuth access/refresh tokens per user. One row per user.
 CREATE TABLE IF NOT EXISTS oura_tokens (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -35,7 +34,7 @@ CREATE POLICY "Users can delete own tokens" ON oura_tokens
 REVOKE ALL ON oura_tokens FROM anon, authenticated;
 GRANT ALL ON oura_tokens TO service_role;
 
--- ─── oura_data table ────────────────────────────────────────────────────────
+-- oura_data table
 -- Stores normalized Oura data: sleep, readiness, activity, heartrate, spo2.
 -- One row per user+date+data_type combination.
 CREATE TABLE IF NOT EXISTS oura_data (

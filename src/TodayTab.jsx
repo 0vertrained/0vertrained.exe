@@ -1,5 +1,5 @@
 // src/TodayTab.jsx
-// V8 refactor · Extracted verbatim from App.jsx (no behavior change): the
+// Extracted verbatim from App.jsx (no behavior change): the
 // Today tab plus its private pieces — Today command center, TodayPlanCard,
 // FirstWeekCard, PrimaryNextAction, CheckinCard, CardioNotes, ExerciseLogger,
 // and the epley1RM helper (exported; ProgressTab uses it too).
@@ -41,7 +41,7 @@ import { isFirstWeekUser, countLoggedDays, buildFirstWeekChecklist, summarizeChe
 import { PhysiqueOSPanel } from "./PhysiqueOSPanel";
 import { RaceWeekLine } from "./RaceWeekLine";
 
-// V8 · SessionMode is lazy — it only loads when a session actually starts,
+// SessionMode is lazy — it only loads when a session actually starts,
 // keeping it out of the initial bundle.
 const SessionMode = lazy(() => import("./SessionMode").then(m => ({ default: m.SessionMode })));
 const CardioSession = lazy(() => import("./CardioSession").then(m => ({ default: m.CardioSession })));
@@ -83,10 +83,10 @@ function RestDayLogCard({ recovery }) {
   );
 }
 
-// copyToClipboard moved to src/clipboard.js (V12.1) — MoreTab was calling it
+// copyToClipboard moved to src/clipboard.js — MoreTab was calling it
 // without an import, so it now lives in a shared module both files import.
 
-// ─── First-week baseline banner ─────────────────────────────────────────────────
+// First-week baseline banner
 // Additive, tab-specific guidance for new beta users while their baseline is
 // forming. It sits ABOVE the real tab content and never hides functional
 // controls — sparse-data copy that reads "baseline is being established" instead
@@ -227,7 +227,7 @@ function FirstWeekCard({ settings, entries, program, ouraConnected, setTab, show
   );
 }
 
-// ─── Primary next action ────────────────────────────────────────────────────────
+// Primary next action
 // The one emphasized row under the coach hero. It answers "what do I do next and
 // how do I log it?" — Start / Continue / Finish depending on session state (see
 // buildNextAction). The filled button is the single primary CTA on Today; every
@@ -235,8 +235,8 @@ function FirstWeekCard({ settings, entries, program, ouraConnected, setTab, show
 // hierarchy reads at a glance. onGo scrolls to the relevant inputs — it never
 // writes data or changes the recommendation.
 export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, onExport, loaded, program, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false }) {
-  // V15.0 · Broadsheet: below 1440px every wrapper is display:contents and
-  // this component lays out byte-identically to V14.
+  // Broadsheet: below 1440px every wrapper is display:contents and
+  // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
   const { C, S } = useTheme();
   const prevReadinessRef = useRef(null); // remembers last band so readiness doesn't flicker (hysteresis)
@@ -253,18 +253,18 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   const realToday = getTodayKey();
   const todayKey  = logDate || realToday;
   const isLoggingPast = logDate && logDate !== realToday;
-  // V3.6 — load grouped Oura + Whoop data for the aggregation model. Only
+  // Load grouped Oura + Whoop data for the aggregation model. Only
   // fetches when both wearables are connected; otherwise the aggregated
   // context is null and the decision engine runs its existing Oura-only path.
   const [ouraGrouped, setOuraGrouped] = useState(null);
   const [whoopGrouped, setWhoopGrouped] = useState(null);
-  const [stravaByDate, setStravaByDate] = useState(null); // V13.3 · normalized Strava activities, grouped by local day
+  const [stravaByDate, setStravaByDate] = useState(null); // normalized Strava activities, grouped by local day
   useEffect(() => {
     let alive = true;
     (async () => {
       if (!loaded || isDemoMode()) return;
       try {
-        perfStart("today"); // V14.2 · instrumentation — Settings → About → Diagnostics
+        perfStart("today"); // instrumentation — Settings → About → Diagnostics
         // These three probes are memoized (60s) + single-flighted, so they now
         // share answers with App boot and the Recovery tab instead of firing
         // three more /status function invocations of their own.
@@ -342,7 +342,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
     settings,
   });
   const todayFuelNeeds = computeStillNeeded(nut, goals);
-  // V15.1 · Broadsheet telemetry plates (mockup Figs 7–10). Pure derivations
+  // Broadsheet telemetry plates. Pure derivations
   // over data already in scope — the load model from entries, wearable
   // summaries from the already-fetched grouped maps, tomorrow from the
   // program. Computed only at the tier; display-only.
@@ -365,7 +365,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
     const dates = Object.keys(ouraGrouped).sort().reverse();
     return dates.length ? { date: dates[0], day: ouraGrouped[dates[0]] } : null;
   })();
-  // V3.6 — Aggregated recovery context (enrichment layer). Null when Whoop is
+  // Aggregated recovery context (enrichment layer). Null when Whoop is
   // not connected, so the decision engine runs its existing Oura-only path.
   const aggregatedContext = (ouraGrouped && whoopGrouped)
     ? buildAggregatedRecoveryContext({
@@ -464,16 +464,16 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
     cardioLogged,
     isRest: todayPlan.isRest,
   });
-  const [sessionModeOpen, setSessionModeOpen] = useState(false); // V7 focused workout runner
+  const [sessionModeOpen, setSessionModeOpen] = useState(false); // focused workout runner
   const [activeLiftingSessionId, setActiveLiftingSessionId] = useState(null);
-  const [cardioSessionOpen, setCardioSessionOpen] = useState(false); // V10 interval runner
+  const [cardioSessionOpen, setCardioSessionOpen] = useState(false); // interval runner
   const [activeCardioSessionId, setActiveCardioSessionId] = useState(null);
-  const [quickEditOpen, setQuickEditOpen] = useState({}); // V18 · Today is the launchpad; grids are deliberate quick edit.
+  const [quickEditOpen, setQuickEditOpen] = useState({}); // Today is the launchpad; grids are deliberate quick edit.
   const activeLiftingSession = programSessions.find((s) => s.id === activeLiftingSessionId) || programSessions.find((s) => (s.lifting || []).length > 0) || { lifting: plannedLifting };
   const activeCardioSession = programSessions.find((s) => s.id === activeCardioSessionId && s.cardio) || programSessions.find((s) => s.cardio) || { id: "main", cardio: p.cardio };
   const checkinRef = useRef(null);
 
-  // V13 front page — ONE primary CTA on the hero, derived from the same
+  // Front page — ONE primary CTA on the hero, derived from the same
   // next-action ladder. Start/continue launches Session Mode directly (the
   // fastest path to logging), cardio opens the interval runner, rest/done
   // scrolls to the check-in. No new write paths: these are the exact same
@@ -522,7 +522,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
 
   return (
     <div>
-      {/* V17.5 · The Box Score — built at the moment of completion from the
+      {/* The Box Score — built at the moment of completion from the
           data already in hand; the finisher writes to the active session's
           cardio slot (or the plain slot on single-session days). */}
       {sessionDone && !isLoggingPast && (
@@ -565,13 +565,13 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           </button>
         </div>
       )}
-      {/* V15.0 · Broadsheet grid — decision rail · session ledger · telemetry
-          (mockup 1a, columns 480px / 1fr / 440px). The three <section>
+      {/* Broadsheet grid — decision rail · session ledger · telemetry
+. The three <section>
           wrappers group EXISTING contiguous blocks; nothing moves in the
           source and no write path changes. Below the tier, container and
           wrappers are display:contents — zero layout effect. */}
       <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)", gap: 20, alignItems: "start" } : { display: "contents" }}>
-      {/* PR Flash — V16.3 (U9): at the tier this celebration spans the full
+      {/* PR Flash — at the tier this celebration spans the full
           spread (gridColumn 1/-1) instead of sitting crammed inside the 480px
           decision rail; on mobile it renders in the same flow position. */}
       {prFlash && (
@@ -595,7 +595,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
         />
       )}
 
-      {/* V18.1.1 · One calm decision surface. Today Coach, day mode,
+      {/* One calm decision surface. Today Coach, day mode,
           live targets, the next meal, and evening closeout now share this
           command card; supporting controls live in focused sheets. */}
       {!isLoggingPast && (
@@ -642,16 +642,16 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       </section>
       <section data-section="session-ledger" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
 
-      {/* V19.3 · Race plan line — week of the plan, phase, countdown. Renders
+      {/* Race plan line — week of the plan, phase, countdown. Renders
              nothing without a plan; resolves against the displayed day. */}
       <RaceWeekLine program={activeProgram} dateKey={todayKey} />
 
       {/* ── 3 · Workout — a collapsed disclosure row on the front page
-             (V13). The row carries plan + completion; expanding reveals the
+. The row carries plan + completion; expanding reveals the
              exact same session blocks and loggers as before, same write
              paths. Opens by default once work is logged, renders plain when
              logging a past day, and a bare rest day skips the fold. ── */}
-      {/* ── 2b · Strava → cardio suggestion (V13.3). Appears only when the
+      {/* ── 2b · Strava → cardio suggestion. Appears only when the
              displayed day has a recorded Strava activity and no manually
              logged cardio — the "ran outside the app" case, including rest
              days and past-day logging. One tap fills the same cardio fields
@@ -762,7 +762,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
             <span style={S.blockTitle}>{"> "}Lifting</span>
             <span style={S.blockStat}>{doneExercises}/{plannedLifting.length} COMPLETE</span>
           </div>
-          {/* V7 · Session Mode — focused one-exercise-at-a-time runner with rest
+          {/* Session Mode — focused one-exercise-at-a-time runner with rest
               timer, last-time, progression hint, and plate math. Same write
               path as the grid below; this is a lens, not a second store. */}
           {!isLoggingPast && doneExercises < plannedLifting.length && (
@@ -789,7 +789,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
             <span style={S.blockTitle}>{"> "}{p.cardio.type}</span>
             <span style={S.blockStat}>{cardioMeta(p.cardio)}</span>
           </div>
-          {/* V10 · Cardio session runner — interval counterpart to Session
+          {/* Cardio session runner — interval counterpart to Session
               Mode. Pre-fills from the plan's notes when unambiguous; logs
               elapsed time through the existing workout.cardio.time path. */}
           {!isLoggingPast && (
@@ -815,7 +815,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       <section data-section="telemetry" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
 
 
-      {/* ── 5 · Fuel + Recovery — quiet nav rows (V13). One line each on
+      {/* ── 5 · Fuel + Recovery — quiet nav rows. One line each on
              the front page; the full story is one tap away. Replaces the old
              readiness one-liner and folds fuel status in without a second
              macro widget. ── */}
@@ -838,7 +838,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           <CheckinCard bod={bod} wo={wo} supplements={todayData.supplements} userSupps={userSupps} updateToday={updateToday} />
         </DisclosureBlock>
       </div>
-      {/* V15.1 · Telemetry plates — broadsheet only (mockup Figs 7–10). */}
+      {/* Telemetry plates — broadsheet only. */}
       {isBroadsheet && !isLoggingPast && (<>
         <div style={S.block} data-plate="load-model">
           <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Load model</span><span style={S.blockStat}>{bsLoad?.zoneInfo?.label?.toUpperCase() || ""}</span></div>
@@ -888,7 +888,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       </section>
       </div>
 
-      {/* V10 · Cardio session runner overlay (lazy) */}
+      {/* Cardio session runner overlay (lazy) */}
       {cardioSessionOpen && (
         <Suspense fallback={null}>
           <CardioSession
@@ -905,7 +905,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
         </Suspense>
       )}
 
-      {/* V7 · Session Mode overlay (V8: lazy-loaded, only fetched on open) */}
+      {/* Session Mode overlay (lazy-loaded, only fetched on open) */}
       {sessionModeOpen && (
         <Suspense fallback={null}>
           <SessionMode
@@ -934,7 +934,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   );
 }
 
-// ─── Check-in Card ──────────────────────────────────────────────────────────────
+// Check-in Card
 // Consolidates Body + Supplements + Notes into one collapsible card. Collapsed by
 // default with a compact summary; expanded reveals the original inputs unchanged.
 // All updateToday paths (body.*, supplements.<name>, workout.notes) are preserved.
@@ -1047,17 +1047,17 @@ function CheckinCard({ bod, wo, supplements, userSupps, updateToday }) {
 }
 
 // Epley formula: weight × (1 + reps/30). Only meaningful for sets ≤ 12 reps.
-// V12 · epley1RM moved to sessionIntelligence.js (canonical home for lift
+// Epley1RM moved to sessionIntelligence.js (canonical home for lift
 // math); imported for local use in ExerciseLogger and re-exported so
 // existing importers (ProgressTab) keep working.
 import { epley1RM, effectiveE1RM } from "./sessionIntelligence";
 export { epley1RM };
 
-// ─── Cardio Notes ─────────────────────────────────────────────────────────────
+// Cardio Notes
 // Collapsible coaching notes block shown above the cardio inputs.
 // Long notes (Hyrox circuits, alternating interval weeks) are collapsed by default
 // so the Today viewport prioritizes the call, next action, and logging inputs.
-// V19.3 · Cardio header data: planned minutes (race-plan runs carry them),
+// Cardio header data: planned minutes (race-plan runs carry them),
 // effort, and the pace target when the plan has one. Old programs show the
 // effort alone, exactly as before.
 function cardioMeta(cardio) {
@@ -1099,7 +1099,7 @@ function CardioNotes({ notes, C, mono }) {
   );
 }
 
-// ─── Exercise Logger ──────────────────────────────────────────────────────────
+// Exercise Logger
 // memo: prevents re-rendering all exercise loggers when unrelated state changes
 // (e.g. nutrition inputs updating on every keystroke in TodayTab)
 const ExerciseLogger = memo(function ExerciseLogger({ exercise, data, onChange, showLabels, onPR, lastSets = null }) {

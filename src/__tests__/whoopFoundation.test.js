@@ -31,7 +31,7 @@ const authSrc = read("src/whoop/auth.js");
 const dataSrc = read("src/whoop/dataLoading.js");
 const settingsSrc = read("src/SettingsScreen.jsx");
 
-// ─── Migration ───────────────────────────────────────────────────────────────
+// Migration
 describe("V2.9 migration — tables + RLS + grants", () => {
   test("creates whoop_oauth_state with 8-char state PK, RLS, server-only grants", () => {
     expect(migrationLower).toMatch(/create table if not exists public\.whoop_oauth_state/);
@@ -84,7 +84,7 @@ describe("V2.9 migration — tables + RLS + grants", () => {
   });
 });
 
-// ─── Netlify function security ───────────────────────────────────────────────
+// Netlify function security
 describe("V2.9 whoop-auth.js — OAuth + sync security", () => {
   test("uses the documented Whoop URLs, v2 base, and requested scopes", () => {
     expect(fnSrc).toContain("https://api.prod.whoop.com/oauth/oauth2/auth");
@@ -153,7 +153,7 @@ describe("V2.9 whoop-auth.js — OAuth + sync security", () => {
   });
 });
 
-// ─── Client modules ──────────────────────────────────────────────────────────
+// Client modules
 describe("V2.9 client whoop modules", () => {
   test("call /api/whoop/* and never read the whoop_tokens table", () => {
     expect(authSrc).toContain("/api/whoop/auth");
@@ -178,7 +178,7 @@ describe("V2.9 client whoop modules", () => {
   });
 });
 
-// ─── Settings UI ─────────────────────────────────────────────────────────────
+// Settings UI
 describe("V2.9 SettingsScreen Whoop UI", () => {
   test("renders Whoop connect/sync/disconnect and preserves Oura", () => {
     expect(settingsSrc).toContain("Connect Whoop");
@@ -195,7 +195,7 @@ describe("V2.9 SettingsScreen Whoop UI", () => {
   });
 });
 
-// ─── Pure normalization (synthetic payloads) ─────────────────────────────────
+// Pure normalization (synthetic payloads)
 describe("V2.9 normalization — synthetic Whoop v2 payloads", () => {
   const recovery = {
     cycle_id: 93845,

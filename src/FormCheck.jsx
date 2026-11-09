@@ -28,7 +28,7 @@ export function FormCheck() {
   const [movement, setMovement] = useState(DEFAULT_MOVEMENT);
   const [phase, setPhase] = useState("idle"); // idle | processing | done | error
   const [analysis, setAnalysis] = useState(null);
-  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // V16.4 · workspace split (mockup 1o)
+  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // workspace split
   const [error, setError] = useState("");
   const [guidance, setGuidance] = useState([]);
   const [processingStep, setProcessingStep] = useState(PROCESSING_STEPS[0]);
@@ -103,7 +103,7 @@ export function FormCheck() {
 
   return (
     <div style={{ padding: 16, fontFamily: mono, color: C.text }}>
-      {/* V16.4 · Form workspace (mockup 1o): capture stage left, findings
+      {/* Form workspace: capture stage left, findings
           docked right at the tier; below it, both wrappers are contents and
           the flow is byte-identical. */}
       <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "1fr 560px", gap: 20, alignItems: "start" } : { display: "contents" }}>
@@ -284,7 +284,7 @@ function RetakeTips({ tips, C, mono }) {
 
 
 function AnalyzabilityCard({ analyzability, C, mono, annot }) {
-  // V1.5: Capture-quality gate shown at the very top of the result. Derived only.
+  // Capture-quality gate shown at the very top of the result. Derived only.
   if (!analyzability || !analyzability.level) return null;
   const level = analyzability.level;
   const score = Number.isFinite(analyzability.score) ? analyzability.score : null;
@@ -330,7 +330,7 @@ function AnalyzabilityCard({ analyzability, C, mono, annot }) {
 }
 
 function MovementMetricsCard({ movementMetrics, C, mono, annot }) {
-  // V1.7: Conservative movement-accuracy proxies. All values are derived scores.
+  // Conservative movement-accuracy proxies. All values are derived scores.
   if (!movementMetrics || typeof movementMetrics !== "object") return null;
   const entries = Object.entries(movementMetrics).filter(([, m]) => m && Number.isFinite(m.score)).slice(0, 6);
   if (entries.length === 0) return null;
@@ -356,7 +356,7 @@ function MovementMetricsCard({ movementMetrics, C, mono, annot }) {
 }
 
 function FormScoreCard({ formScore, confidence, metricConfidence, C, mono, annot }) {
-  // V1.2: Show form score (0-100) and analysis confidence separately.
+  // Show form score (0-100) and analysis confidence separately.
   if (!formScore && !confidence) return null;
   
   const scoreNum = typeof formScore === "number" ? formScore : Number.isFinite(formScore?.score) ? formScore.score : null;
@@ -400,7 +400,7 @@ function FormScoreCard({ formScore, confidence, metricConfidence, C, mono, annot
 }
 
 function TopPriorityCard({ cues, coaching, C, mono, annot }) {
-  // V1.2: Prefer backend coaching.topPriority, fall back to highest-priority cue.
+  // Prefer backend coaching.topPriority, fall back to highest-priority cue.
   const watchCue = Array.isArray(cues) ? cues.find(c => c.severity === "watch") : null;
   const text = coaching?.topPriority || watchCue?.text;
   if (!text) return null;
@@ -414,7 +414,7 @@ function TopPriorityCard({ cues, coaching, C, mono, annot }) {
 }
 
 function WhatLookedGoodCard({ cues, coaching, C, mono, annot }) {
-  // V1.2: Prefer coaching.whatLookedGood, fall back to positive/info cues.
+  // Prefer coaching.whatLookedGood, fall back to positive/info cues.
   const coachingItems = Array.isArray(coaching?.whatLookedGood) ? coaching.whatLookedGood : [];
   const infoCues = Array.isArray(cues) ? cues.filter(c => c.severity === "info").map(c => c.text) : [];
   const items = [...coachingItems, ...infoCues].filter(Boolean).slice(0, 4);
@@ -435,7 +435,7 @@ function WhatLookedGoodCard({ cues, coaching, C, mono, annot }) {
 }
 
 function WatchItemsCard({ cues, coaching, C, mono, annot }) {
-  // V1.2: Prefer coaching.watchItems, fall back to watch/caution cues.
+  // Prefer coaching.watchItems, fall back to watch/caution cues.
   const coachingItems = Array.isArray(coaching?.watchItems) ? coaching.watchItems : [];
   const cueItems = Array.isArray(cues) ? cues.filter(c => c.severity === "watch" || c.severity === "caution").map(c => c.text) : [];
   const items = [...coachingItems, ...cueItems].filter(Boolean).slice(0, 4);
@@ -456,7 +456,7 @@ function WatchItemsCard({ cues, coaching, C, mono, annot }) {
 }
 
 function NextSetCueCard({ coaching, C, mono, annot }) {
-  // V1.2: Show coaching-tier "before next set" guidance
+  // Show coaching-tier "before next set" guidance
   if (!coaching?.nextSetCue) return null;
   
   return (
@@ -468,7 +468,7 @@ function NextSetCueCard({ coaching, C, mono, annot }) {
 }
 
 function CaptureQualityCard({ captureQuality, C, mono, annot }) {
-  // V1.2: Show capture quality breakdown. Supports backend {score,label,checks[]}
+  // Show capture quality breakdown. Supports backend {score,label,checks[]}
   // and legacy mock {lighting,framing,...} shapes.
   if (!captureQuality) return null;
   
@@ -513,7 +513,7 @@ function CaptureQualityCard({ captureQuality, C, mono, annot }) {
 }
 
 function EvidenceCard({ evidence, C, mono, annot }) {
-  // V1.3: Derived evidence only — timestamps/labels/metrics, never images or landmarks.
+  // Derived evidence only — timestamps/labels/metrics, never images or landmarks.
   if (!evidence) return null;
   const keyMoments = Array.isArray(evidence.keyMoments) ? evidence.keyMoments.slice(0, 6) : [];
   const highlights = Array.isArray(evidence.metricHighlights) ? evidence.metricHighlights.slice(0, 4) : [];
@@ -556,7 +556,7 @@ function EvidenceCard({ evidence, C, mono, annot }) {
 }
 
 function ProgressSignalsCard({ progressSignals, C, mono, annot }) {
-  // V1.3: Compact progress-memory surface. All values are derived and safe to save.
+  // Compact progress-memory surface. All values are derived and safe to save.
   if (!progressSignals) return null;
   const metrics = Array.isArray(progressSignals.comparableMetrics) ? progressSignals.comparableMetrics.slice(0, 5) : [];
   const components = Array.isArray(progressSignals.scoreComponents) ? progressSignals.scoreComponents.slice(0, 4) : [];
@@ -640,7 +640,7 @@ function ResultCard({ analysis, onRetake, C, S, mono, annot }) {
   const tips = analysis.retakeTips || [];
   const warnings = analysis.warnings || analysis.validation?.warnings || [];
   
-  // V1.2: Extract new coaching fields
+  // Extract new coaching fields
   const formScore = analysis.formScore;
   const captureQuality = analysis.captureQuality;
   const coaching = analysis.coaching;
@@ -655,19 +655,19 @@ function ResultCard({ analysis, onRetake, C, S, mono, annot }) {
     <div style={card}>
       <div style={label}>Result — {result?.movement || "movement"}</div>
 
-      {/* V1.5: Capture-quality gate + retake coach, above the form score */}
+      {/* Capture-quality gate + retake coach, above the form score */}
       <AnalyzabilityCard analyzability={analyzability} C={C} mono={mono} annot={annot} />
 
-      {/* V1.2: Form Score + Metric Confidence at the top */}
+      {/* Form Score + Metric Confidence at the top */}
       <FormScoreCard formScore={formScore} confidence={result?.confidence} metricConfidence={metricConfidence} C={C} mono={mono} annot={annot} />
 
-      {/* V1.2: Show "What Looked Good" before warnings/issues */}
+      {/* Show "What Looked Good" before warnings/issues */}
       <WhatLookedGoodCard cues={result?.cues} coaching={coaching} C={C} mono={mono} annot={annot} />
 
-      {/* V1.2: Top Priority item */}
+      {/* Top Priority item */}
       <TopPriorityCard cues={result?.cues} coaching={coaching} C={C} mono={mono} annot={annot} />
 
-      {/* V1.2: Watch items (other cautions) */}
+      {/* Watch items (other cautions) */}
       <WatchItemsCard cues={result?.cues} coaching={coaching} C={C} mono={mono} annot={annot} />
 
       {warnings.length > 0 && (
@@ -681,17 +681,17 @@ function ResultCard({ analysis, onRetake, C, S, mono, annot }) {
 
       <div style={{ ...body, marginBottom: 10 }}>{result.summary}</div>
 
-      {/* V1.7: Movement-accuracy consistency proxies */}
+      {/* Movement-accuracy consistency proxies */}
       <MovementMetricsCard movementMetrics={movementMetrics} C={C} mono={mono} annot={annot} />
 
-      {/* V1.3: Evidence + progress memory */}
+      {/* Evidence + progress memory */}
       <EvidenceCard evidence={evidence} C={C} mono={mono} annot={annot} />
       <ProgressSignalsCard progressSignals={progressSignals} C={C} mono={mono} annot={annot} />
 
-      {/* V1.2: Capture quality breakdown */}
+      {/* Capture quality breakdown */}
       <CaptureQualityCard captureQuality={captureQuality} C={C} mono={mono} annot={annot} />
 
-      {/* V1.2: Next set cue / coaching guidance */}
+      {/* Next set cue / coaching guidance */}
       <NextSetCueCard coaching={coaching} C={C} mono={mono} annot={annot} />
 
       {showTimeline && (
@@ -712,7 +712,7 @@ function ResultCard({ analysis, onRetake, C, S, mono, annot }) {
                 <div style={{ ...body, fontSize: 13, fontWeight: 500 }}>{DEPTH_LABEL[rep.depthAssessment] || "Est."}</div>
                 <div style={{ ...dim, fontSize: 11 }}>{rep.tempoSec ? `${rep.tempoSec.toFixed(1)}s` : "—"}</div>
                 <div style={{ ...dim, fontSize: 11 }}>{rep.quality ? `${rep.quality} quality` : "estimated"}</div>
-                {/* V1.2: Show enriched rep notes if present */}
+                {/* Show enriched rep notes if present */}
                 {rep.repNote && <div style={{ ...dim, fontSize: 10.5, marginTop: 3, fontStyle: "italic" }}>{rep.repNote}</div>}
               </div>
             ))}
@@ -744,7 +744,7 @@ function ResultCard({ analysis, onRetake, C, S, mono, annot }) {
               The hosted form check engine could not produce a confident result. Your clip is not stored.
             </div>
           )}
-          {/* V1.2: Show retake recommendation from coaching */}
+          {/* Show retake recommendation from coaching */}
           {coaching?.retakeRecommendation && (
             <div style={{ ...body, fontSize: 13, color: C.lineBright, marginBottom: tips.length > 0 ? 8 : 0 }}>
               📹 {coaching.retakeRecommendation}

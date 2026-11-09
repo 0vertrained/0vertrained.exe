@@ -1,6 +1,5 @@
 // src/__tests__/mainSleepDiscipline.test.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.6 · Main-sleep discipline — pinned against the real-data report behind
+// Main-sleep discipline — pinned against the real-data report behind
 // V16.5.1's "recovery 37 on an ordinary morning". The user's own export shows
 // the actual root cause: the newest day carried ONLY a `late_nap` (1.9h,
 // avg_hrv 39, lowest_hr 68 — nap physiology), and the engine scored it against
@@ -9,7 +8,6 @@
 // the deviation was real, just measured against the wrong kind of sleep.
 // These tests pin: naps never score, never enter baselines, never count as a
 // night of sleep — and split nights sum their long_sleep segments.
-// ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import {
   getSleepDoc, getAnySleepDoc, isMainSleepDoc, mainSleepDurationSeconds,

@@ -1,9 +1,9 @@
 // src/RaceWeekLine.jsx
-// V19.3 · One ruled line on Today: where you are in the race plan.
+// One ruled line on Today: where you are in the race plan.
 //   RACE PLAN · WEEK 3 OF 12            68 DAYS
 //   Base · 140 min of running this week
 // Display only — reads the resolved program's `__raceBuild` marker through
-// describeBuildWeek (the descriptor V19.2 built "for future UI surfaces").
+// describeBuildWeek.
 // Renders nothing when no plan is active.
 
 import { useTheme } from "./theme";

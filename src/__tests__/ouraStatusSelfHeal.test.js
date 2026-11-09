@@ -211,7 +211,7 @@ describe("V12.1 /api/oura/status self-healing (V14 encrypted store)", () => {
     expect(statusFn).toMatch(/resolveUserIdFromBearer\(req\)/);
     expect(statusFn).not.toMatch(/searchParams\.get\(["']user_id["']\)/);
     expect(statusFn).not.toMatch(/body\.user_id/);
-    // V14 · status reads presence via the summary helper — no plaintext token
+    // Status reads presence via the summary helper — no plaintext token
     // selects appear anywhere in the status handler.
     expect(statusFn).toMatch(/getProviderConnectionSummary/);
     expect(statusFn).not.toMatch(/select=refresh_token/);

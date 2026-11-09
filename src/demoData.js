@@ -7,7 +7,7 @@ export function isDemoMode() {
 }
 
 
-// V15.5 · Delegates to the seeded generator in demo/demoDataset.js — 140
+// Delegates to the seeded generator in demo/demoDataset.js — 140
 // program-driven days so every intelligence system fires. Cached: builders are
 // deterministic and consumers call these repeatedly.
 let _entries;

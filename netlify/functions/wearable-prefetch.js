@@ -2,7 +2,7 @@
 // Hourly background wearable prefetch. DB-first UI reads oura_data/whoop_data;
 // this keeps those tables warm without browser polling.
 //
-// V12.2 add-on: after a successful scheduled Oura sync we also materialize a
+// After a successful scheduled Oura sync we also materialize a
 // compact, display-safe latest snapshot into public.wearable_snapshots so a
 // cold open on ANY device can hydrate before a live provider refresh. The
 // snapshot holds ONLY already-derived display numbers — never OAuth tokens,
@@ -36,7 +36,7 @@ const MAX_SNAPSHOT_BYTES = 32 * 1024;
 // matches the wearable_snapshots CHECK constraint without importing helpers.
 const SNAPSHOT_STATUS_FRESH = "fresh";
 
-// ─── Secret-key stripping (mirrors netlify/functions/wearable-snapshot.js) ────
+// Secret-key stripping (mirrors netlify/functions/wearable-snapshot.js)
 // Kept inline so this function stays self-contained like the other netlify
 // functions; the rules must not drift from the writer/reader path.
 const EXACT_SECRET_KEYS = new Set([
@@ -90,7 +90,7 @@ function latestDoc(payload) {
   return docs.length ? docs[docs.length - 1] : null;
 }
 
-// V16.6 · Main-sleep selection for the snapshot, mirroring the client's
+// Main-sleep selection for the snapshot, mirroring the client's
 // normalization rule (src/oura/normalization.js). Oura keys naps to the day
 // they occur on, so "the last doc in data[]" could be an afternoon late_nap or
 // a minutes-long detected segment — the cold-open card then showed nap HRV/RHR
@@ -151,7 +151,7 @@ export function deriveOuraDisplaySnapshot(rows) {
   let chosen = null;
   for (let i = dates.length - 1; i >= 0; i--) {
     const d = byDate[dates[i]];
-    // V16.6 · A day qualifies on readiness or a MAIN sleep; a nap-only newest
+    // A day qualifies on readiness or a MAIN sleep; a nap-only newest
     // day no longer anchors the snapshot.
     if (d.readiness || mainSleepDoc(d.sleep)) { chosen = dates[i]; break; }
   }
@@ -162,7 +162,7 @@ export function deriveOuraDisplaySnapshot(rows) {
   const sleepDoc = mainSleepDoc(day.sleep);
   const activityDoc = latestDoc(day.activity);
 
-  // V16.7 · Personal baselines for the cold-open approximation. The old
+  // Personal baselines for the cold-open approximation. The old
   // mapping graded HRV against a fixed 70 ms and RHR against 50 bpm —
   // population constants that happen to sit near the reporting user's numbers
   // but are meaningless for a 45 ms-baseline or 95 ms-baseline athlete. The
@@ -285,7 +285,7 @@ export function deriveOuraDisplaySnapshot(rows) {
   return stripSecretsDeep(snapshot);
 }
 
-// V14 · supabaseSelect (generic table select) was removed here — enumeration
+// SupabaseSelect (generic table select) was removed here — enumeration
 // goes through listProviderConnectedUserIds, and this file no longer selects
 // token columns from any table.
 
@@ -377,7 +377,7 @@ async function syncOuraUser(userId, origin) {
 // scheduled endpoint, so trusting caller-supplied ids would be an
 // ownership-confusion bug).
 //
-// V14 · Tokens come from resolveProviderTokens (encrypted connected_accounts
+// Tokens come from resolveProviderTokens (encrypted connected_accounts
 // first, one-shot legacy migration). Refreshes an expired / near-expired access
 // token first; refreshAccessToken persists the rotated (Whoop rotates them)
 // refresh token encrypted, BEFORE any data fetch, so a rotated token is never
@@ -431,7 +431,7 @@ export default async (req) => {
   };
 
   try {
-    // V14 · Enumerate via the union of encrypted connected_accounts rows and
+    // Enumerate via the union of encrypted connected_accounts rows and
     // any not-yet-migrated legacy rows, deduped. Per-user token access happens
     // downstream inside oura-sync (encrypted resolve).
     const ouraUserIds = await listProviderConnectedUserIds(
@@ -463,7 +463,7 @@ export default async (req) => {
     summary.oura.error = e?.message || String(e);
   }
 
-  // Scheduled Whoop sync. V14 · Enumerate connected users via the encrypted
+  // Scheduled Whoop sync. Enumerate connected users via the encrypted
   // store union (never selecting plaintext token columns — syncWhoopUser
   // resolves tokens itself), and drive the real server-side sync (whoop-auth.js
   // core) per user, so connected Whoop stays fresh hourly like Oura instead of

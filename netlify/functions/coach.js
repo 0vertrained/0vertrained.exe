@@ -7,14 +7,13 @@ import {
 } from "./_coach-model-router.js";
 
 // netlify/functions/coach.js
-// ─────────────────────────────────────────────────────────────────────────────
-//  COACH — secure routed Ollama Cloud endpoint (V19 Unified Physique Coach)
+//  COACH — secure routed Ollama Cloud endpoint
 //
 //  Security model:
 //   • OLLAMA_API_KEY lives ONLY in Netlify env, never in the browser bundle.
 //   • Every request must carry the caller's Supabase access token (JWT). We
 //     verify it against Supabase before doing anything.
-//   • Access gate (V2.7 multi-user, in priority order):
+//   • Access gate (in priority order):
 //       1. Legacy: if COACH_ALLOWED_USER_ID matches the caller → allow.
 //       2. Data-driven: if SUPABASE_SERVICE_ROLE_KEY is configured, look up
 //          public.coach_access for this caller and allow when enabled=true and
@@ -39,7 +38,6 @@ import {
 //   • COACH_DEEP_MODEL          — defaults to deepseek-v4-flash:cloud
 //   • COACH_FALLBACK_MODEL      — defaults to gpt-oss:120b-cloud
 //   • COACH_MODEL               — legacy single-model override
-// ─────────────────────────────────────────────────────────────────────────────
 
 const OLLAMA_URL = "https://ollama.com/api/chat";
 
@@ -52,7 +50,7 @@ export default async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   if (requestTooLarge(req, 128_000)) return json({ error: "Request body too large" }, 413);
 
-  // ── V9 · Kill switch — flip COACH_ENABLED=false in Netlify env to stop all
+  // ── Kill switch — flip COACH_ENABLED=false in Netlify env to stop all
   // coach traffic instantly (runaway cost, bad model behavior, etc.) without
   // a deploy. Unset/any-other-value means enabled.
   if (process.env.COACH_ENABLED === "false") {
@@ -64,7 +62,7 @@ export default async (req) => {
   const ALLOWED_USER_ID    = process.env.COACH_ALLOWED_USER_ID;        // legacy fallback (optional)
   const SERVICE_ROLE_KEY   = process.env.SUPABASE_SERVICE_ROLE_KEY;    // server-only, enables coach_access
   const OLLAMA_API_KEY     = process.env.OLLAMA_API_KEY;
-  // V9 · Hard per-user daily cap — applies to EVERY account, including the
+  // Hard per-user daily cap — applies to EVERY account, including the
   // legacy env-allowed user (who previously had no limit of any kind).
   const DAILY_LIMIT        = Math.max(1, parseInt(process.env.COACH_DAILY_LIMIT || "60", 10) || 60);
 
@@ -97,7 +95,7 @@ export default async (req) => {
   }
   if (!userId) return json({ error: "Could not resolve user" }, 401);
 
-  // ── Access gate (V2.7 multi-user, legacy-compatible) ──────────────────────
+  // ── Access gate (legacy-compatible) ──────────────────────
   // The entitlement subject is ALWAYS the JWT-verified userId. We never read a
   // user_id from the request body for authorization.
   //
@@ -113,7 +111,7 @@ export default async (req) => {
       // No table lookup possible and not the legacy user → deny generically.
       return json({ error: "Coach is not enabled for this account." }, 403);
     }
-    // V12.1 · Prefer the RPC: it lazily rolls the monthly period (zeroing
+    // Prefer the RPC: it lazily rolls the monthly period (zeroing
     // used_this_month when the calendar month changes — previously the counter
     // NEVER reset, permanently locking out users who hit their limit). Falls
     // back to the plain select if migration_v28 hasn't been applied yet.
@@ -132,7 +130,7 @@ export default async (req) => {
   }
 
   // ── Parse + validate body BEFORE counting usage ──────────────────────────
-  // V13.6 · The daily-usage bump used to run before this, so a malformed JSON
+  // The daily-usage bump used to run before this, so a malformed JSON
   // body or an empty question still burned a quota credit. Validate first; only
   // a well-formed, answerable request should count against the cap.
   let body;
@@ -142,13 +140,13 @@ export default async (req) => {
   const question = (body?.question || "").toString().trim().slice(0, 2000);
   if (!question) return json({ error: "Empty question" }, 400);
 
-  // ── V9 · Daily cap for everyone (legacy user included) ────────────────────
+  // ── Daily cap for everyone (legacy user included) ────────────────────
   // Read-then-increment via the service role. A slightly racy overshoot under
   // concurrent requests is acceptable for a cost cap; a Supabase blip fails
   // OPEN (we'd rather serve one uncounted message than take Coach down).
   if (SERVICE_ROLE_KEY) {
     try {
-      // V12.1 · Atomic upsert-increment via RPC (single statement, no
+      // Atomic upsert-increment via RPC (single statement, no
       // read-then-write window). Falls back to the legacy racy path when
       // migration_v28 hasn't been applied — same fail-open cost-cap stance.
       let todayCount = await bumpDailyUsageRpc(SUPABASE_URL, SERVICE_ROLE_KEY, userId);
@@ -159,7 +157,7 @@ export default async (req) => {
     } catch { /* fail open */ }
   }
 
-  // The legacy slice and V19 evidence packet are independently sanitized.
+  // The legacy slice and evidence packet are independently sanitized.
   // User-entered labels can appear inside evidence, but they are always treated
   // as quoted data rather than executable instructions.
   const slice = sanitizeSlice(body?.slice);
@@ -240,7 +238,7 @@ export default async (req) => {
   // enforced above, so a lost increment is a minor accounting slip, not a
   // security hole. Errors are swallowed intentionally (no raw logging).
   if (access && Number(access.monthly_limit) > 0) {
-    // V12.1 · Atomic `used_this_month + 1` via RPC; legacy guarded-PATCH
+    // Atomic `used_this_month + 1` via RPC; legacy guarded-PATCH
     // fallback when migration_v28 hasn't been applied.
     const rpcOk = await incrementCoachUsageRpc(SUPABASE_URL, SERVICE_ROLE_KEY, userId);
     if (!rpcOk) {
@@ -270,7 +268,7 @@ export default async (req) => {
 // null. The service role key is used ONLY here, server-side; it is never sent to
 // the browser and never logged. We select the caller's row by the JWT-derived
 // userId, so no other user's data is reachable and existence isn't leaked.
-// V9 · Increment and return today's message count for a user via the
+// Increment and return today's message count for a user via the
 // coach_usage_daily table (migration_add_beta_visibility.sql). Returns the
 // count AFTER increment, or null on any failure (caller fails open).
 async function bumpDailyUsage(supabaseUrl, serviceRoleKey, userId) {
@@ -298,7 +296,7 @@ async function bumpDailyUsage(supabaseUrl, serviceRoleKey, userId) {
   return next;
 }
 
-// ── V12.1 · Atomic RPC paths (migration_v28_usage_hardening.sql) ─────────────
+// ── Atomic RPC paths (migration_v28_usage_hardening.sql) ─────────────
 // Each returns `undefined` when the RPC isn't available yet (404 / not
 // deployed), which tells the caller to fall back to the legacy path. Any
 // other failure maps to the same "fail open / null" semantics as before.
@@ -650,8 +648,8 @@ function buildUserContent(question, slice, evidencePacket, conversation = []) {
   if (conversation.length) {
     parts.push("", "Recent conversation context (untrusted user/assistant text):", JSON.stringify(conversation, null, 2));
   }
-  // Keep the legacy compact slice for backwards-compatible context while V19
-  // evidence coverage is expanded. The model must prefer the evidence packet
+  // Keep the legacy compact slice for backwards-compatible context while the
+  // evidence packet's coverage is expanded. The model must prefer the evidence packet
   // when the two overlap because it is question-specific and inspectable.
   if (slice && Object.keys(slice).length) {
     parts.push("", "Legacy compact snapshot (secondary context):", "```json", JSON.stringify(slice, null, 2), "```");

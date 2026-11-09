@@ -1,5 +1,5 @@
 // src/__tests__/dataReadFailures.test.js
-// V19.4 · The data layer keeps a failed read visible. loadSettings() and
+// The data layer keeps a failed read visible. loadSettings() and
 // loadProgram() answer defaults when the server can't be reached, which looks
 // exactly like a new account; the checked loaders say which it was, and
 // patchSettings() merges into the stored profile without ever writing over it

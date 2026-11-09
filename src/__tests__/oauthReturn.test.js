@@ -1,5 +1,5 @@
 // src/__tests__/oauthReturn.test.js
-// V19.4 · Every provider callback's return URL (netlify/functions/*-auth.js)
+// Every provider callback's return URL (netlify/functions/*-auth.js)
 // becomes one status line on Settings → Integrations, and the address is
 // cleaned so a reload never replays it.
 import { describe, expect, it } from "vitest";

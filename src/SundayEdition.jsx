@@ -1,6 +1,5 @@
 // src/SundayEdition.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.2 · The Sunday Edition — the weekly broadsheet overlay.
+// The Sunday Edition — the weekly broadsheet overlay.
 //
 // Renders the pure model from sundayEdition.js in strict anatomy order:
 // masthead → the week in recovery → load ledger → volume digest (exceptions
@@ -8,7 +7,6 @@
 // vocabulary throughout; MethodLine under every figure; the ONE CHANGE is the
 // single full-ink plate on the page. Honest degradation: thin sections say so
 // in one line and step aside.
-// ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from "react";
 import { useTheme } from "./theme";
 import { FigureSection, RuledRow, Sparkline, MethodLine, StatusStamp } from "./whitepaper";

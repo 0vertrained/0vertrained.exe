@@ -1,5 +1,5 @@
 // src/coachingCalibration.js
-// V18.5 · Calibration layer for daily and weekly coaching decisions.
+// Calibration layer for daily and weekly coaching decisions.
 // This module never mutates plans. It measures response/outcome history,
 // exposes source coverage without requiring a particular wearable, and returns
 // conservative decision authority for the weekly coach.

@@ -1,6 +1,5 @@
 // src/recoverySummary.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Recovery presentation helpers (V2.4C — "Readiness + Explanation")
+// Recovery presentation helpers
 //
 // Pure, side-effect-free display summarizers. These do NOT recompute recovery,
 // re-derive Oura payload shapes, or change any scoring. They only reshape the
@@ -12,7 +11,6 @@
 // Coaching-safe language only. No medical diagnosis. Component ledger raw
 // values/baselines/sources are rendered elsewhere and are intentionally NOT
 // hidden by these summaries.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const num = (v) => {
   const n = Number(v);
@@ -286,9 +284,7 @@ export function buildRecoveryHeroMeta(input = {}) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// V3.1 — Wearable source disclosure
-// ─────────────────────────────────────────────────────────────────────────────
+// Wearable source disclosure
 
 // Friendly per-metric labels for the compact source note. Sleep duration and
 // sleep quality collapse to a single "sleep" mention to keep the string short.

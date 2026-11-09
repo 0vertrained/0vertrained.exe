@@ -1,4 +1,3 @@
--- ============================================================
 --  MIGRATION: V9 Beta Visibility — client_errors + coach daily usage
 --  Run this ONCE in: Supabase Dashboard → SQL Editor
 --
@@ -19,7 +18,6 @@
 --  read or write them directly.
 --
 --  This migration is IDEMPOTENT and SAFE to re-run.
--- ============================================================
 
 create table if not exists public.client_errors (
   id uuid primary key default gen_random_uuid(),

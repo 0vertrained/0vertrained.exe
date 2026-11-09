@@ -1,4 +1,4 @@
-// V1.8 — Personalized Coach Layer tests (pure helper).
+// Personalized Coach Layer tests (pure helper).
 import { describe, expect, it } from "vitest";
 import { buildPersonalizedCoachContext, normalizeRecoveryLevel } from "../formCheck/personalizedCoach";
 

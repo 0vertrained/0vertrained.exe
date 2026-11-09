@@ -1,6 +1,5 @@
 // src/ProgressTab.jsx
-// V8 refactor · Extracted verbatim from App.jsx (no behavior change): the
-// Progress tab with its shared subnav, the History Events/Entries toggle,
+// The Progress tab with its shared subnav, the History Events/Entries toggle,
 // and the pace/chart helpers that only Progress uses.
 import { useState, useEffect, lazy, Suspense } from "react";
 import { isDemoMode, DEMO_FORM_HISTORY } from "./demoData";
@@ -55,18 +54,16 @@ const RaceBlockSection = lazyNamed(() => import("./RaceBlockSection"), "RaceBloc
 const RecoveryLoadFigure = lazyNamed(() => import("./sections/TrendCharts"), "RecoveryLoadFigure");
 const LineFigure = lazyNamed(() => import("./sections/Figure"), "LineFigure");
 
-// ─── Progress Tab ─────────────────────────────────────────────────────────────
-// V6 · One shared subnav for every Progress subview. Previously the Summary
-// view had a 5-tab underline bar while each subview had prev/next pager
-// arrows — two navigation metaphors on one screen, neither complete. Now
-// every view renders this same 4-tab bar: Overview · Form · Program ·
+// Progress Tab
+// One shared subnav for every Progress subview, so there is one navigation
+// metaphor on the screen: every view renders this same 4-tab bar: Overview · Form · Program ·
 // History (Timeline + Log merged — both are "what happened," toggled inside
 // History rather than owning separate tabs).
 export function ProgressSubnav({ subView, setSubView, formBadge = 0 }) {
   const { C } = useTheme();
   const mono = C.fontFamily;
-  // V15.2 · At the broadsheet tier this graduates into a sub-masthead: taller,
-  // and FORM carries an unreviewed-checks badge (mockup 1h).
+  // At the broadsheet tier this graduates into a sub-masthead: taller,
+  // and FORM carries an unreviewed-checks badge.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
   const tabs = [
     { key: "charts", label: "Overview", match: ["charts"] },
@@ -150,10 +147,10 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   const { C, S } = useTheme();
   const mono = C.fontFamily;
   const [subView, setSubView] = useState("charts"); // "charts" (Summary) | "log" | "timeline" | "periodization" | "form"
-  // V2.6: the default Summary view is the reflection loop; dense metrics/charts
+  // The default Summary view is the reflection loop; dense metrics/charts
   // collapse behind one disclosure so the score narrative isn't repeated up top.
   const [selectedDay, setSelectedDay] = useState(null);
-  // V15.2 · Broadsheet tier flag + FORM badge. "Unreviewed" = form checks
+  // Broadsheet tier flag + FORM badge. "Unreviewed" = form checks
   // saved after the last time the Form sub-tab was opened (stamped below).
   // A view-timestamp, not fabricated review state.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -167,7 +164,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   const [periodizationSaved, setPeriodizationSaved] = useState(() => normalizePeriodizationSettings(readStoredPeriodization() || {}));
   const [periodizationDraft, setPeriodizationDraft] = useState(periodizationSaved);
   const [periodizationHistory, setPeriodizationHistory] = useState(() => readStoredPeriodizationHistory());
-  const [formCheckHistory, setFormCheckHistory] = useState(() => (isDemoMode() ? DEMO_FORM_HISTORY : loadFormCheckHistory())); // V15.5 · seeded demo checks
+  const [formCheckHistory, setFormCheckHistory] = useState(() => (isDemoMode() ? DEMO_FORM_HISTORY : loadFormCheckHistory())); // seeded demo checks
   useEffect(() => {
     if (subView !== "form") return;
     const now = new Date().toISOString();
@@ -226,7 +223,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   const streak = calcStreak(data);
   const streakColor = streak.count >= 30 ? C.textDim : streak.count >= 7 ? C.green : C.textDim;
 
-  // V18.6 · Dedicated coaching workspace. Outcome lifecycle, plan versions,
+  // Dedicated coaching workspace. Outcome lifecycle, plan versions,
   // projection, monthly review, phase transitions, inbox, and controls live
   // here instead of turning Overview or Today into another dense dashboard.
   if (subView === "coach") {
@@ -312,7 +309,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
       <div>
         <ProgressSubnav subView={subView} setSubView={setSubView} formBadge={formBadge} />
 
-        {/* V15.2 · Broadsheet Program spread (mockup 1j): summary, race block,
+        {/* Broadsheet Program spread: summary, race block,
             and this-week guidance rail left; the week table + block history —
             the part that reads as a table — gets the width. */}
         <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-m) 1fr", gap: 20, alignItems: "start" } : { display: "contents" }}>
@@ -341,7 +338,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
           )}
         </div>
 
-        {/* ── V7 · Race block — countdown, taper flag, station benchmarks ── */}
+        {/* ── Race block — countdown, taper flag, station benchmarks ── */}
         <Suspense fallback={<div style={S.block}><div style={S.annotation}>Loading race block…</div></div>}>
           <RaceBlockSection program={program} />
         </Suspense>
@@ -504,7 +501,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
 
   // ── Form Check sub-view ──
   if (subView === "form") {
-    // V1.4: derived progress memory — aggregate summary + same-movement comparison.
+    // Derived progress memory — aggregate summary + same-movement comparison.
     const fcSummary = buildFormCheckHistorySummary(formCheckHistory);
     const latest = fcSummary.latest;
     const latestCmp = fcSummary.latestComparison;
@@ -512,11 +509,11 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
     const latestFocus = latestCmp?.primaryFocus || latest?.progressSignals?.primaryFocus || null;
     const latestTrend = latest?.progressSignals?.trendKey;
     const chipTone = (tone) => tone === "positive" ? C.green : tone === "negative" ? C.red : C.textDim;
-    // V1.6: multi-check trend coach per movement (derived history only).
+    // Multi-check trend coach per movement (derived history only).
     const trends = buildAllMovementTrends(formCheckHistory);
     const trendTone = (t) => t === "improving" ? C.green : t === "declining" ? C.red : t === "stable" ? C.text : C.textDim;
     const trendLabel = (t) => t === "improving" ? "Improving" : t === "declining" ? "Declining" : t === "stable" ? "Holding steady" : "Not enough data";
-    // V1.8: personalized coach context from recovery + block emphasis + recurring focus.
+    // Personalized coach context from recovery + block emphasis + recurring focus.
     let recoveryColor;
     try {
       const yKey = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
@@ -582,7 +579,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
         </div>
         </section>
         <section data-section="form-trends" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0, gridColumn: 1, gridRow: 1 } : { display: "contents" }}>
-        {/* V1.8: Personalized coach note (derived from recovery + block + history) */}
+        {/* Personalized coach note (derived from recovery + block + history) */}
         {personalized.available && (
           <div style={S.block}>
             <div style={S.blockHead}><span style={S.blockTitle}>{"> "}{personalized.headline || "Personalized Note"}</span></div>
@@ -594,7 +591,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
           </div>
         )}
 
-        {/* V1.6: Movement trend coach cards */}
+        {/* Movement trend coach cards */}
         {trends.length > 0 && (
           <div style={S.block}>
             <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Movement Trends</span><span style={S.blockStat}>{trends.length} MOVE</span></div>
@@ -671,7 +668,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
     );
   }
 
-  // V15.2 · Day detail, shared by both History lenses (mockup 1k). On mobile
+  // Day detail, shared by both History lenses. On mobile
   // the Entries lens keeps its full-screen takeover exactly as before; at the
   // broadsheet tier both lenses dock this alongside the master list instead.
   const dayDetailPanel = selectedDay ? (() => {
@@ -888,7 +885,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
     );
   }
 
-  // ── V2.5 Progress Intelligence Loop — reflection-first default view ──
+  // ── Progress Intelligence Loop — reflection-first default view ──
   // Reshape already-computed objects into the "is the plan working?" hierarchy.
   // Block preview reuses the saved (not draft) block settings; all previews are
   // read-only and suggest-only. No program/workout is written from Progress.
@@ -937,12 +934,10 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
 
   const toneColor = (tone) => tone === "good" ? C.green : tone === "warning" ? C.red : tone === "caution" ? C.text : C.textDim;
 
-  // V16.4 · Overview third column (mockup 1h, completed). The planning
-  // DisclosureBlock is MOBILE CHROME — at the tier the spread IS the unfolded
-  // view (the Recovery V15.1 fold pattern). The three groups below are the
-  // exact JSX previously inlined; mobile composes them in the V13 order with
-  // the fold intact, the broadsheet distributes them: figures → center,
-  // trends + planning → right rail.
+  // Overview third column. The planning DisclosureBlock is mobile chrome: at
+  // the broadsheet tier the spread is the unfolded view, as on Recovery. Mobile
+  // composes the three groups below in reading order with the fold intact; the
+  // broadsheet distributes them: figures → center, trends + planning → right rail.
   const ovTrendsChunk = (<>
       {/* ── 3b · Wearable trend context — source-aware, no fabricated trends ── */}
       <DisclosureBlock label="Wearable context" sub={wearableTrends?.hasEnoughData ? "Source-aware recovery trends" : "Building your baseline"}>
@@ -1079,25 +1074,25 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
 
   </>);
   const ovFiguresGroup = (<>
-      {/* ── V11 · Per-muscle weekly volume audit ── */}
+      {/* ── Per-muscle weekly volume audit ── */}
       <MuscleVolumeSection data={data} />
 
-      {/* ── V12 · Per-lift e1RM trends + stall detection ── */}
+      {/* ── Per-lift e1RM trends + stall detection ── */}
       <LiftIntelligenceSection data={data} />
 
-      {/* ── V12 · Recovery map — what's fresh today ── */}
+      {/* ── Recovery map — what's fresh today ── */}
       <MuscleRecencyMap data={data} />
 
-      {/* ── V7 · Coach calibration — decision responses vs next-day recovery ── */}
+      {/* ── Coach calibration — decision responses vs next-day recovery ── */}
       <CalibrationReport data={data} wearableTrends={wearableTrends} />
 
-      {/* ── V7 · N=1 correlation explorer — collapsed by default ── */}
+      {/* ── N=1 correlation explorer — collapsed by default ── */}
       <CorrelationExplorer data={data} />
 
-      {/* ── V10 · Bodyweight trend — smoothed line over raw weigh-ins ── */}
+      {/* ── Bodyweight trend — smoothed line over raw weigh-ins ── */}
       <WeightTrendFigure data={data} />
 
-      {/* V13.3 · Weekly running miles — manual + Strava, deduped per day. */}
+      {/* Weekly running miles — manual + Strava, deduped per day. */}
       <RunningVolumeFigure data={data} settings={settings} />
 
       <div style={S.block}>
@@ -1127,12 +1122,10 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
     <div>
       <ProgressSubnav subView={subView} setSubView={setSubView} formBadge={formBadge} />
 
-      {/* V15.2 · Broadsheet Overview spread. The mockup's full three-column
-          cut (1h) would slice through the planning-tools DisclosureBlock —
-          stateful chrome — so this ships the structure-respecting two-column
-          form: verdict rail left, plates + tools right (disclosure opened by
-          default at the tier). The 3-col refinement needs the disclosure
-          restructured first; tracked in the plan. */}
+      {/* Broadsheet Overview spread, in two columns: verdict rail left, plates
+          and tools right, with the planning disclosure open by default at the
+          tier. A three-column cut would slice through that stateful disclosure,
+          so it would need restructuring first. */}
       <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)", gap: 20, alignItems: "start" } : { display: "contents" }}>
       <section data-section="ov-verdict" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0, gridColumn: 1, gridRow: 1 } : { display: "contents" }}>
       {/* ── 2 · Limiting Factors ── */}
@@ -1218,7 +1211,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   );
 }
 
-// ─── Run Pace Trend Chart ─────────────────────────────────────────────────────
+// Run Pace Trend Chart
 // Converts pace string "mm:ss" to seconds for charting, back to "mm:ss" for display
 function paceToSeconds(paceStr) {
   if (!paceStr || typeof paceStr !== "string") return null;

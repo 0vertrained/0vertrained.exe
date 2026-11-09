@@ -1,4 +1,3 @@
--- ============================================================
 --  MIGRATION: V2.7 Multi-User Readiness + Beta Hardening
 --  Run this ONCE in: Supabase Dashboard → SQL Editor
 --
@@ -36,10 +35,9 @@
 --    -- revoke coach access:
 --    update public.coach_access set enabled = false
 --    where user_id = '00000000-0000-0000-0000-000000000000';
--- ============================================================
 
 
--- ---------- 1. app_state.max_users (bounded) ----------
+-- 1. app_state.max_users (bounded)
 -- Column may already exist from migration_add_program.sql (default 5).
 -- Add it if missing, then attach a sane bounded constraint. The upper
 -- bound is high-but-finite so a typo can't accidentally open unlimited
@@ -78,7 +76,7 @@ alter table public.profiles
   add column if not exists recovery_salt text;
 
 
--- ---------- 2. Hot-path indexes (idempotent) ----------
+-- 2. Hot-path indexes (idempotent)
 -- These match the app's most common per-user reads. CREATE INDEX IF NOT
 -- EXISTS is safe to re-run. (Not CONCURRENTLY: the SQL Editor runs inside
 -- a transaction, and these tables are small at beta scale.)
@@ -98,7 +96,7 @@ create index if not exists idx_oura_tokens_user
   on public.oura_tokens (user_id);
 
 
--- ---------- 3. coach_access table ----------
+-- 3. coach_access table
 -- One row per user describing coach entitlement. This is the multi-user
 -- replacement for the single COACH_ALLOWED_USER_ID env var. The Netlify
 -- coach function reads this table with the SERVICE ROLE key (server-side
@@ -136,7 +134,7 @@ create trigger coach_access_touch
   for each row execute function public.touch_updated_at();
 
 
--- ---------- 4. Safe coach-access read RPC (optional convenience) ----------
+-- 4. Safe coach-access read RPC (optional convenience)
 -- Returns ONLY the caller's own entitlement, derived from auth.uid().
 -- It never accepts a user_id argument, so it cannot be used to probe
 -- whether other user IDs exist or have access. The UI can call this
@@ -162,7 +160,7 @@ revoke all on function public.my_coach_access() from public, anon;
 grant execute on function public.my_coach_access() to authenticated;
 
 
--- ---------- 5. delete_my_account_data() RPC ----------
+-- 5. delete_my_account_data() RPC
 -- Beta privacy / GDPR-style data deletion. SECURITY DEFINER so it can
 -- delete across the caller's rows regardless of table grants, but it
 -- derives the target STRICTLY from auth.uid() and takes NO arguments,
@@ -236,10 +234,8 @@ revoke all on function public.delete_my_account_data() from public, anon;
 grant execute on function public.delete_my_account_data() to authenticated;
 
 
--- ============================================================
 --  DONE. V2.7 beta hardening applied.
 --
 --  Reminder: coach entitlement is written ONLY by admin/service role.
 --  Users can read their own coach_access row but cannot grant it.
 --  delete_my_account_data() removes the caller's own data only.
--- ============================================================

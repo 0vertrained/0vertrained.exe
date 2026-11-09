@@ -13,7 +13,7 @@ const root = process.cwd();
 describe("Oura user isolation hardening", () => {
   beforeEach(() => {
     localStorage.clear();
-    // V19.4 · The alert history below is dated July 2026 and getAlertHistory
+    // The alert history below is dated July 2026 and getAlertHistory
     // prunes anything older than 14 days from "now", so on the real clock
     // these started failing as the calendar moved on. Pin "now" next to them.
     vi.useFakeTimers({ toFake: ["Date"] });

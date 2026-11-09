@@ -1,15 +1,12 @@
--- ============================================================
 --  MIGRATION: Social features (Leaderboard + PR Board)
 --  Run this in Supabase SQL Editor
--- ============================================================
 --  DESIGN / PRIVACY:
 --   Other users' raw daily entries stay private (RLS unchanged).
 --   We expose ONLY opt-in users' derived leaderboard stats and PR records through
 --   security-definer functions that compute aggregates server-side
 --   and return usernames + numbers — never the underlying entries.
--- ============================================================
 
--- ---------- LEADERBOARD FUNCTION ----------
+-- LEADERBOARD FUNCTION
 -- Returns per-user aggregate stats for a given time window.
 -- period_days: 7 = this week, 30 = this month, 0 = all time
 create or replace function public.get_leaderboard(period_days int default 7)
@@ -57,7 +54,7 @@ $$;
 
 grant execute on function public.get_leaderboard(int) to authenticated;
 
--- ---------- PR BOARD FUNCTION ----------
+-- PR BOARD FUNCTION
 -- Returns the best (heaviest) logged set per exercise per user.
 create or replace function public.get_lifting_prs()
 returns table (
@@ -86,7 +83,7 @@ $$;
 
 grant execute on function public.get_lifting_prs() to authenticated;
 
--- ---------- RUNNING PR FUNCTION ----------
+-- RUNNING PR FUNCTION
 -- Best (fastest) pace and longest run per user.
 create or replace function public.get_running_prs()
 returns table (
@@ -119,7 +116,5 @@ $$;
 
 grant execute on function public.get_running_prs() to authenticated;
 
--- ============================================================
 --  DONE. Leaderboard + PR data is now available via RPC.
 --  Raw entries remain private to each user via RLS.
--- ============================================================

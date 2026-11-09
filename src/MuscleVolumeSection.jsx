@@ -1,5 +1,5 @@
 // src/MuscleVolumeSection.jsx
-// V11 · Per-muscle weekly volume ledger for Progress → Overview. Each trained
+// Per-muscle weekly volume ledger for Progress → Overview. Each trained
 // muscle renders a landmark bar (MEV → MAV band → MRV) with the week's set
 // count positioned on it, a delta vs last week, and a status word. Balance
 // ratios sit behind a disclosure. Unmapped sets are surfaced, never hidden.

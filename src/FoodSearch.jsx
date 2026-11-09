@@ -1,4 +1,4 @@
-// ─── Enhanced Food Search ─────────────────────────────────────────────────────
+// Enhanced Food Search
 // Search priority:
 //   1. Local database (instant, always available)
 //   2. USDA FoodData Central API (millions of foods, free, debounced + cached)

@@ -1,5 +1,5 @@
 // src/push.js
-// V7 · Web Push client. Registers the notification-only service worker,
+// Web Push client. Registers the notification-only service worker,
 // subscribes with the public VAPID key, and stores the subscription server-
 // side via /api/push-subscribe (JWT-verified — see netlify/functions/
 // push-subscribe.js). iOS note: Apple only delivers Web Push to apps ADDED
@@ -72,7 +72,7 @@ export async function enablePush() {
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     });
   }
-  // V12.1 · Send the device's UTC offset so the reminder scheduler can hit
+  // Send the device's UTC offset so the reminder scheduler can hit
   // this subscriber's local evening instead of assuming everyone is Central.
   await authedFetch("/api/push-subscribe", {
     action: "subscribe",
@@ -82,7 +82,7 @@ export async function enablePush() {
   return true;
 }
 
-// V19.4 · Re-register this device's existing subscription with the server.
+// Re-register this device's existing subscription with the server.
 // Before v19.4 the registration POST never reached push-subscribe (the
 // endpoint wasn't routed), so a device that turned notifications on holds a
 // subscription the server never stored: the card says "On" and nothing ever
@@ -114,7 +114,7 @@ export async function disablePush() {
 }
 
 /**
- * V17.3 · Courier preferences — per-type push toggles, applied to all the
+ * Courier preferences — per-type push toggles, applied to all the
  * user's devices server-side. The endpoint is only needed to satisfy the
  * function's payload contract; the update keys off the JWT-verified user.
  * @param {{edition_enabled?: boolean, transitions_enabled?: boolean, reminders_enabled?: boolean}} prefs

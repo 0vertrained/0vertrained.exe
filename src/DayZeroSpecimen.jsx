@@ -1,6 +1,5 @@
 // src/DayZeroSpecimen.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.0 · Day Zero Edition — the specimen plate.
+// Day Zero Edition — the specimen plate.
 //
 // What a cold visitor sees instead of an empty tab: a hand-curated sample of
 // this surface at its best, unmistakably stamped SPECIMEN, followed by
@@ -14,7 +13,6 @@
 //     renders on true zero states).
 //   · Whitepaper vocabulary throughout; red stays error-only; the primary
 //     button is the ONE full-ink element on the page.
-// ─────────────────────────────────────────────────────────────────────────────
 import { useEffect } from "react";
 import { useTheme } from "./theme";
 import { Sparkline } from "./whitepaper";

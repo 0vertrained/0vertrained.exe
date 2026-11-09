@@ -19,7 +19,7 @@ function whoopLoadForDay(day) {
   const workouts = Array.isArray(day?.workout) ? day.workout : day?.workout ? [day.workout] : [];
   const normalized = workouts.map(normalizeWorkout).filter(Boolean);
 
-  // V16.7 · Zone-weighted load, on the manual model's exact currency
+  // Zone-weighted load, on the manual model's exact currency
   // (load = sRPE × minutes — see loadModel.computeSessionLoad). The old
   // strain × 35 mapping SUMMED strains across workouts, but Whoop strain is a
   // logarithmic 0–21 scale and is not additive: on the reporting user's
@@ -64,7 +64,7 @@ function whoopLoadForDay(day) {
   return { load, source: "whoop", confidence: strain ? "medium" : "low", note: `Whoop workout load filled from ${normalized.length} workout(s).` };
 }
 
-// V13.3 · Strava is the highest-fidelity gap fill: real per-workout distance,
+// Strava is the highest-fidelity gap fill: real per-workout distance,
 // duration, and elevation, versus Whoop's day-level strain and Oura's day-level
 // activity calories. Formulas sit on the existing fill scale (Oura uses
 // miles × 45) and stay conservative: they fill missing days, never outrank a

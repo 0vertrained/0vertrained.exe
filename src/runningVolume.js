@@ -1,6 +1,5 @@
 // src/runningVolume.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V13.3 · Weekly running volume — pure math for the Progress figure.
+// Weekly running volume — pure math for the Progress figure.
 //
 // Dedupe rule (one number per day, never both): a day's miles are the
 // MANUALLY logged cardio miles when any exist (getLoggedCardioBlocks — the
@@ -11,7 +10,6 @@
 //
 // Weeks are Monday-anchored calendar weeks (training-week convention),
 // newest last so the sparkline reads left → right into the present.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { getLoggedCardioBlocks } from "./loadModel";
 

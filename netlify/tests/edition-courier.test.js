@@ -1,6 +1,5 @@
 // netlify/tests/edition-courier.test.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.3 · The Courier. Pins:
+// The Courier. Pins:
 //   (1) the local-clock windows — morning 07:xx and Sunday 17:xx — across
 //       whole-hour, half-hour (India +330), and legacy-null offsets;
 //   (2) the transition detector matrix — consecutive days only, stale states
@@ -9,7 +8,6 @@
 //       actions only, never a bare score;
 //   (4) idempotency semantics and prefs plumbing (source guards on the claim
 //       order, the fail-closed rule, and the prefs action).
-// ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import {
   isMorningDue, isSundayEveningDue, localParts, yesterdayKey,

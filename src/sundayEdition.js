@@ -1,10 +1,9 @@
 // src/sundayEdition.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.2 · The Sunday Edition — the weekly review model, pure and deterministic.
+// The Sunday Edition — the weekly review model, pure and deterministic.
 //
 // Reflect → plan → return. The edition composes existing modules (nothing is
 // re-derived with new math): the Morning Edition state machine per day, the
-// V16.7 load currency via buildDailyLoads(asOf), the volume landmarks, the
+// Load currency via buildDailyLoads(asOf), the volume landmarks, the
 // adaptive TDEE ledger, and the check-in divergence notes — into one Mon–Sun
 // broadsheet with a single prescription at the end.
 //
@@ -18,7 +17,6 @@
 //     on. No z-scores, no acronym-first framing.
 //   · Publish window: Sunday 17:00 local through Monday 23:59, covering the
 //     Mon–Sun week that ends that Sunday. Pure of clock via injected `now`.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { classifyRecoveryState } from "./wearables/recoveryTrend";
 import { calcRecoveryScore, calcSleepDebt } from "./wearables/recoveryEngine";
@@ -125,7 +123,7 @@ export function buildSundayEdition({ data = {}, ouraData = {}, whoopData = {}, s
       : `Mostly ${dominant[0].toLowerCase()}; ${transitions.map((t) => `${t.from} → ${t.to} on ${t.day}`).join(", ")}.`;
   const scorePoints = timeline.filter((t) => t.score !== null).map((t) => ({ date: t.date, value: t.score }));
 
-  // Sleep debt as of Sunday (V16.9 reconciled inputs).
+  // Sleep debt as of Sunday.
   const ouraAsOf = truncateMap(ouraData, weekEnd);
   const sleptByDay = recoveryDates(ouraAsOf)
     .map((date) => {
@@ -188,7 +186,7 @@ export function buildSundayEdition({ data = {}, ouraData = {}, whoopData = {}, s
   const avg = (arr) => (arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null);
   const avgCalories = avg(nutritionDays.map((x) => x.cal).filter((v) => v !== null));
   const avgProtein = avg(nutritionDays.map((x) => x.pro).filter((v) => v !== null));
-  // V19.4 · The targets Fuel shows (settings.goals, written by setup and
+  // The targets Fuel shows (settings.goals, written by setup and
   // Settings → Macros). This read settings.macroTargets, which nothing writes,
   // so protein adherence never appeared.
   const proteinTarget = num(settings?.goals?.protein);

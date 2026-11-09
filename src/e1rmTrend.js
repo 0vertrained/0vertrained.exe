@@ -1,5 +1,5 @@
 // src/e1rmTrend.js
-// V12 · Per-lift strength intelligence. Builds an estimated-1RM series per
+// Per-lift strength intelligence. Builds an estimated-1RM series per
 // exercise from logged sets (RIR-effective when RIR is logged — 8 @ RIR 2 is
 // really a 10RM), then classifies the recent trajectory: progressing, flat
 // (stalled), or regressing, with a concrete suggestion for stalls. Pure math;

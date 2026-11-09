@@ -1,13 +1,9 @@
 // src/wearables/recoveryEngine.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Multi-Wearable Recovery Engine
 //
-// V16.1 · Relocated from src/oura/algorithms.js (the audit's acknowledged
-// naming debt): since V16.0 this module arbitrates across sources — Oura
-// primary, Whoop as declared fallback rungs, within-source baselines
-// throughout. A compatibility shim remains at the old path so every existing
-// import keeps working; new code should import from here.
-// ─────────────────────────────────────────────────────────────────────────────
+// Arbitrates across sources: Oura primary, Whoop as declared fallback rungs,
+// within-source baselines throughout. src/oura/algorithms.js re-exports this
+// module for older imports; new code should import from here.
 
 import {
   getSleepDoc, getReadinessDoc, readinessContributor,
@@ -28,7 +24,7 @@ function sampleConfidence(n) {
   return "insufficient";
 }
 
-// ═══ V16.0 · Multi-wearable arbitration (audit F4) ═══════════════════════
+// Multi-wearable arbitration
 // This module is historically Oura-named but is now the multi-source recovery
 // engine. Whoop enters as a declared FALLBACK RUNG per metric — never an
 // average, never a mixed pool. Baselines are strictly within-source (devices
@@ -37,14 +33,14 @@ function sampleConfidence(n) {
 // when both report. Ladders: HRV oura-rmssd → whoop-rmssd → readiness
 // balance · RHR oura-lowest → whoop-rhr · Sleep oura-staging → whoop-perf →
 // readiness fallback. Every rung declares itself via `source`.
-// ═══ V16.5.1 · Physiological SD floors ═══════════════════════════════════
-// The leave-one-out fix (F1) removed an accidental safety net: the old
+// Physiological SD floors
+// The leave-one-out baseline removed an accidental safety net: the old
 // contaminated pool inflated SD. A consistent athlete's tight prior pool can
 // have near-zero sample SD, making a ROUTINE nightly wobble read as |z| > 2.5
 // (real-data report: HRV 8/35 · RHR 3/25 on an ordinary morning). Floors
 // reflect normal night-to-night noise — lnRMSSD ≈ 5% CV, RHR ≈ 1.5 bpm — so
 // they only engage on unnaturally flat pools; genuine crashes still saturate
-// the anchors (the V15.6 repro remains pinned). Floored days say so in detail.
+// the anchors (the repro stays pinned in the tests). Floored days say so in detail.
 const SD_FLOOR_LN_HRV = 0.05;
 const SD_FLOOR_RHR = 1.5;
 const flooredSd = (sd, floor) => ({ sd: Math.max(sd, floor), floored: sd < floor && sd > 0 });
@@ -105,7 +101,7 @@ function hrvBalanceFallbackScore(ouraData, baseline = 0, sampleCount = 0) {
 export function calcHRVScore(ouraData, settings = {}, whoopData = null) {
   const hrvSource = settings.hrvSource || "ourAlgorithm";
 
-  // V15.6 · Leave-one-out baseline (audit F1). The old pool INCLUDED the day
+  // Leave-one-out baseline. The old pool INCLUDED the day
   // being scored, so today's value dragged the mean toward itself and inflated
   // the SD — z-scores were systematically shrunk, worst at small n, exactly
   // when a real HRV crash most needs to register. The pool is now the days
@@ -139,14 +135,14 @@ export function calcHRVScore(ouraData, settings = {}, whoopData = null) {
   }
 
   // Get baseline and SD.
-  // V16.7 · Robust center AND spread (trim 0.1, mirroring the RHR baseline's
+  // Robust center AND spread (trim 0.1, mirroring the RHR baseline's
   // trimmed mean). A single crash night left IN the pool inflated the plain SD
   // and masked the next real dip: on the reporting user's export, the 07-05
   // crash (37 ms in a ~72 ms pool) widened ln-SD 0.15 → 0.24, so a genuine
   // −16% morning nine days later — which BOTH wearables graded low — read as
   // z −0.45 (30/35) here. Trimmed, it reads z −1.09 (21/35), landing between
   // the devices. Ordinary mornings are near-unchanged; the physiological SD
-  // floor (V16.5.1) still guards the tight-pool side.
+  // floor still guards the tight-pool side.
   const baseline = trimmedMean(lnRmssdValues, 0.1);
   const sd = trimmedStdDev(lnRmssdValues, 0.1);
 
@@ -175,7 +171,7 @@ export function calcHRVScore(ouraData, settings = {}, whoopData = null) {
   const { value: todayRmssd, source: todaySource } = hrvRmssdWithSource(todaySleep);
 
   if (!todayRmssd) {
-    // V16.0 · Whoop rung: same-day Whoop rmssd (ms — same unit), z-scored
+    // Whoop rung: same-day Whoop rmssd (ms — same unit), z-scored
     // against WHOOP's own leave-one-out history. Oura's pool never touches it.
     const wToday = whoopHrvToday(whoopData, todayDate);
     const wPool = whoopHrvPool(whoopData, todayDate);
@@ -286,7 +282,7 @@ export function calcHRVScore(ouraData, settings = {}, whoopData = null) {
  */
 export function calcRHRScore(ouraData, whoopData = null) {
   const rhrValues = [];
-  // V15.6 · Leave-one-out baseline (audit F1) — see calcHRVScore. The trimmed
+  // Leave-one-out baseline — see calcHRVScore. The trimmed
   // mean already discards one extreme, but moderate same-day deviations still
   // contaminated the pool; today is now excluded outright.
   const dates = recoveryDates(ouraData).slice(0, 15);
@@ -333,7 +329,7 @@ export function calcRHRScore(ouraData, whoopData = null) {
   const baselineMethod = rhrValues.length >= 5 ? "trimmed mean" : "mean";
   const todayDate = latestRecoveryDay(ouraData);
   const todaySleep = getSleepDoc(ouraData[todayDate]);
-  // V16.0 · Whoop rung: same-day Whoop RHR against Whoop's own trimmed pool
+  // Whoop rung: same-day Whoop RHR against Whoop's own trimmed pool
   // when Oura has no reading (the old shim scored the day as exactly-baseline).
   const ouraToday = rhrValue(todaySleep);
   if (!ouraToday) {
@@ -369,7 +365,7 @@ export function calcRHRScore(ouraData, whoopData = null) {
   // of YOUR standard deviations is this off" which is individual-variance-
   // aware. We blend: 60% z-score-based, 40% raw-delta-based. Falls back to
   // pure delta when SD is 0 (no variance in baseline → z undefined).
-  // V16.7 · Spread robustness matches the trimmed-mean center — see calcHRVScore.
+  // Spread robustness matches the trimmed-mean center — see calcHRVScore.
   const rhrSd = trimmedStdDev(rhrValues, 0.1);
   const { sd: rhrSdEff } = flooredSd(rhrSd, SD_FLOOR_RHR);
   const rhrZ = rhrSdEff > 0 ? (todayRHR - baseline) / rhrSdEff : null;
@@ -423,7 +419,7 @@ export function calcRHRScore(ouraData, whoopData = null) {
     : deltaBase;
 
   // 3-day trend modifier.
-  // V16.6 · Direction fix: rhrValues is built newest-first, but
+  // Direction fix: rhrValues is built newest-first, but
   // linearRegression treats index as time. Feeding it newest-first INVERTED
   // the trend — a genuinely rising RHR (bad) read as a falling slope and
   // earned the +1 bonus, and vice versa. Reverse to chronological order so
@@ -461,7 +457,7 @@ export function calcSleepSubscore(sleepData, ouraData = null, refDate = null) {
     };
   }
 
-  // V16.6 · `durationSecondsOverride` lets a split night (two long_sleep
+  // `durationSecondsOverride` lets a split night (two long_sleep
   // documents on one day) count its FULL summed duration toward the duration
   // component. Staging percentages, efficiency, and latency still read from
   // the primary segment — mixing a summed duration into per-segment ratios
@@ -628,7 +624,7 @@ export function calcTempScore(ouraData) {
   return {
     score: Math.round(score),
     deviation: todayDev.toFixed(2),
-    // V16.6 · The newest date that actually carried a temperature reading. When
+    // The newest date that actually carried a temperature reading. When
     // this is older than the scored day, the temp subscore is standing on a
     // prior night — callers can surface that instead of implying "today".
     deviationDate: deviations[0]?.date || null,
@@ -651,7 +647,7 @@ export function calcRecoveryScore(ouraData, settings = {}, whoopData = null) {
   if (!sleep.nightly) {
     const previousNight = readinessContributor(ouraData[currentDay], "previous_night");
     const sleepBalance = readinessContributor(ouraData[currentDay], "sleep_balance");
-    // V16.0 · Whoop rung before the readiness fallback: sleep performance %
+    // Whoop rung before the readiness fallback: sleep performance %
     // is Whoop's own 0–100 need-relative grade — a direct, honest 0–25 map.
     const wPerf = whoopSleepPerf(whoopData, currentDay);
     if (wPerf !== null) {
@@ -674,12 +670,12 @@ export function calcRecoveryScore(ouraData, settings = {}, whoopData = null) {
   }
   const temp = calcTempScore(ouraData);
 
-  // V15.6 · Renormalized scoring (audit F2). The old sum graded a MISSING
+  // Renormalized scoring. The old sum graded a MISSING
   // signal as its worst case: no HRV that night contributed 0/35 and capped
   // the score at 65 from absence alone. The score is now points over the
   // maxima of signals that actually reported, on the same 0–100 scale, with
-  // confidence carrying the uncertainty. Temp's old neutral-8-on-missing is
-  // superseded by exclusion. If NOTHING reported, the honest answer is null.
+  // confidence carrying the uncertainty; a missing temperature is excluded
+  // rather than scored neutral. If NOTHING reported, the honest answer is null.
   const counted = {
     hrv: hrv.source !== "missing",
     rhr: rhr.source !== "missing",
@@ -731,7 +727,7 @@ export function calcRecoveryScore(ouraData, settings = {}, whoopData = null) {
 
 /**
  * 4.7: Sleep Quality Index (0-100, standalone metric)
- * V16.6 · Tolerates V2 field names: `latency` (the stored payloads never carry
+ * Tolerates V2 field names: `latency` (the stored payloads never carry
  * `sleep_latency`) and an `efficiency` that is already 0–100.
  */
 export function calcSleepQualityIndex(sleepData) {
@@ -773,7 +769,7 @@ export function calcSleepQualityIndex(sleepData) {
 /**
  * 4.8: Training Readiness Recommendation
  *
- * V16.6 · Input semantics clarified. `hrvTrend` is a SLOPE in lnRMSSD
+ * Input semantics clarified. `hrvTrend` is a SLOPE in lnRMSSD
  * units/day and `rhrTrend` a SLOPE in bpm/day — that is what the ±0.02 and
  * ±0.5 thresholds were designed against. The dashboard was passing today's
  * HRV z-score and RHR delta-from-baseline instead, so the "trend" points were
@@ -875,7 +871,7 @@ export function getHRVRecommendation(zScore, weeklyCV) {
 /**
  * 4.11: Sleep Debt (7-day rolling, hours)
  *
- * V15.5.1 · Rewritten after a real-data report: the app showed 9h of debt
+ * Rewritten after a real-data report: the app showed 9h of debt
  * while both Oura and Whoop showed 0. Two flaws in the old formula:
  *   1. A hardcoded 8h baseline. The wearables grade against a PERSONALIZED
  *      need; a healthy 7.2h sleeper accrued ~5.6h/week of phantom debt here —
@@ -913,7 +909,7 @@ export function calcSleepDebt(sleepData, opts = {}) {
     const samples = (baselineSamples && baselineSamples.length >= 5 ? baselineSamples
       : sleepData.length >= 5 ? sleepData : null);
     if (samples) {
-      // V16.9 · Floor lowered 7 → 6.5. The 7h floor manufactured phantom debt
+      // Floor lowered 7 → 6.5. The 7h floor manufactured phantom debt
       // for every sub-7h sleeper (a 6.4h median athlete accrued ~4h/week of
       // invisible deficit) — contradicting both wearables, which learn need
       // from the person. 6.5 matches the wearable-need clamp's lower bound;

@@ -15,7 +15,7 @@ const run = (label, command, args, options = {}) => {
 };
 
 run("tests passed", "npm", ["run", "test"]);
-// V12.1 · Static analysis. Rule ERRORS fail the gate (no-undef caught two
+// Static analysis. Rule ERRORS fail the gate (no-undef caught two
 // real ReferenceErrors on its first run); warnings inform but don't block.
 run("lint passed", "npm", ["run", "lint"]);
 run("production build passed", "npm", ["run", "build"]);

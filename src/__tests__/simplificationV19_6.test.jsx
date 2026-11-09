@@ -1,6 +1,6 @@
 // src/__tests__/simplificationV19_6.test.jsx
 // @vitest-environment jsdom
-// V19.6 · Less on every screen. Pins:
+// Less on every screen. Pins:
 //   · Recovery reads the morning once: check-in + verdict, what changed, data
 //     trust, then everything else under Technical details (source guard — the
 //     connected dashboard's mount is a fixture project; the demo build is the

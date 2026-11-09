@@ -12,7 +12,7 @@ import {
   vdotFromRace,
 } from "../runPaces";
 
-// V19.3 · Pace engine. Reference values are Daniels' published VDOT tables,
+// Pace engine. Reference values are Daniels' published VDOT tables,
 // which were generated from the same Daniels & Gilbert equations.
 
 describe("vdotFromRace", () => {

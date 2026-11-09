@@ -1,9 +1,7 @@
 // src/oura/coachContext.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Oura Coach Context Builder
 //
 // Builds compact Oura recovery summaries for LLM coach injection.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { calcRecoveryScore, calcHRVScore, calcRHRScore } from "./algorithms";
 import { calcOuraDataQuality, getTrainingRecommendation } from "./insights";

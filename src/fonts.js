@@ -1,5 +1,5 @@
 // src/fonts.js
-// V12.1 · Self-hosted fonts via @fontsource, replacing the render-blocking
+// Self-hosted fonts via @fontsource, replacing the render-blocking
 // Google Fonts <link> in index.html. Same families and weights as the old
 // request; woff2 files ship from /assets with immutable caching, so first
 // paint no longer waits on fonts.googleapis.com and the CSP no longer needs

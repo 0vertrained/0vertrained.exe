@@ -1,6 +1,5 @@
 // src/setGhosts.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V17.5 · Ghost taps — the highest-frequency interaction in the product,
+// Ghost taps — the highest-frequency interaction in the product,
 // reduced from typing to one tap.
 //
 // Design rules (the intuition contract, each pinned by test):
@@ -16,7 +15,6 @@
 //       > last time, final set (when today plans more sets than last time).
 //   · The chip SAYS its source ("from set 2" / "last time · Jul 12") — a
 //     suggestion you can't audit is a suggestion you can't trust.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const numOr = (v, fb = 0) => {
   const n = parseFloat(v);

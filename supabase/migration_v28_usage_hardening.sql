@@ -1,6 +1,4 @@
--- ============================================================
---  V12.1 (v28) — Coach usage hardening + push reminder prefs
--- ============================================================
+--  V12.1 — Coach usage hardening + push reminder prefs
 --  Fixes three findings from the V12 audit:
 --
 --  1. BUG · used_this_month never reset. The daily cap resets naturally
@@ -23,7 +21,6 @@
 --  coach.js calls them via /rest/v1/rpc/* with the service key and falls back
 --  to the legacy read-then-write path if this migration hasn't run yet, so
 --  deploy order doesn't matter.
--- ============================================================
 
 -- ── 1 · Monthly period tracking on coach_access ─────────────────────────────
 
@@ -105,7 +102,7 @@ grant execute on function public.ovt_bump_daily_usage(uuid)      to service_role
 -- while opting out of the nightly check-in nudge.
 --
 -- GUARDED: push is an optional feature — push_subscriptions only exists if
--- migration_add_push_subscriptions.sql (V7) was run. On databases without it
+-- migration_add_push_subscriptions.sql was run. On databases without it
 -- this section skips with a notice instead of aborting the whole transaction
 -- (the coach fixes above matter regardless of push). If you enable push
 -- later, the V7 migration now creates these columns itself, so nothing more

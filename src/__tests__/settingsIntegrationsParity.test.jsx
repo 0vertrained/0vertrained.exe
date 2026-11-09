@@ -50,7 +50,7 @@ describe("Settings integrations parity", () => {
   });
 });
 
-// V19.4 · Coming back from a wearable's OAuth screen lands on Integrations
+// Coming back from a wearable's OAuth screen lands on Integrations
 // with the result, and confirming the connection no longer closes Settings.
 describe("V19.4 Integrations landing", () => {
   const renderLanding = (props = {}) => {

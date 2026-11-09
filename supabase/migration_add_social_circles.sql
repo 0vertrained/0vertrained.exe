@@ -1,7 +1,5 @@
--- ============================================================
 --  V4.5 Social Circles — private, invite-code group aggregates
 --  Run this in the Supabase SQL Editor.
--- ============================================================
 --  DESIGN / PRIVACY:
 --    • Circles are PRIVATE and invite-only. Joining a circle is the opt-in.
 --    • Circles expose ONLY derived aggregates (usernames + counts/sums) for
@@ -12,9 +10,8 @@
 --    • security definer + set search_path = public on every function.
 --    • Writes go through RPCs only; tables have no direct write policies, so a
 --      malicious client cannot insert itself into a circle or tamper with rows.
--- ============================================================
 
--- ---------- TABLES ----------
+-- TABLES
 create table if not exists public.social_circles (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
@@ -36,7 +33,7 @@ create index if not exists social_circle_members_user_idx
 create index if not exists social_circles_invite_code_idx
   on public.social_circles(invite_code);
 
--- ---------- MEMBERSHIP HELPER (avoids recursive RLS) ----------
+-- MEMBERSHIP HELPER (avoids recursive RLS)
 -- security definer so it can read membership without tripping the members RLS
 -- policy that itself calls this function.
 create or replace function public.is_circle_member(p_circle uuid)
@@ -54,7 +51,7 @@ $$;
 
 grant execute on function public.is_circle_member(uuid) to authenticated;
 
--- ---------- ROW LEVEL SECURITY ----------
+-- ROW LEVEL SECURITY
 alter table public.social_circles enable row level security;
 alter table public.social_circle_members enable row level security;
 
@@ -72,7 +69,7 @@ create policy social_circle_members_select on public.social_circle_members
   for select to authenticated
   using (user_id = auth.uid() or public.is_circle_member(circle_id));
 
--- ---------- CREATE CIRCLE ----------
+-- CREATE CIRCLE
 -- Creates a circle owned by the caller and adds them as the owner-member.
 -- Returns { ok, circle_id, name, invite_code }.
 create or replace function public.create_circle(p_name text)
@@ -125,7 +122,7 @@ $$;
 
 grant execute on function public.create_circle(text) to authenticated;
 
--- ---------- JOIN CIRCLE ----------
+-- JOIN CIRCLE
 -- Joins the caller to a circle by invite code. Returns { ok, circle_id, name }.
 create or replace function public.join_circle(p_code text)
 returns jsonb
@@ -170,7 +167,7 @@ $$;
 
 grant execute on function public.join_circle(text) to authenticated;
 
--- ---------- LIST MY CIRCLES ----------
+-- LIST MY CIRCLES
 -- Returns { ok, circles: [{ circle_id, name, role, is_owner, member_count }] }
 -- for the caller only. Invite code is included solely for circles the caller
 -- owns, so they can re-share it.
@@ -210,7 +207,7 @@ $$;
 
 grant execute on function public.list_my_circles() to authenticated;
 
--- ---------- CIRCLE AGGREGATE SUMMARY ----------
+-- CIRCLE AGGREGATE SUMMARY
 -- Members-only. Returns per-member DERIVED aggregates for the period — usernames
 -- plus counts/sums. Numeric JSON fields are regex-guarded before casting. Never
 -- returns raw entries, payloads, biometrics, notes, coach chat, or tokens.
@@ -307,7 +304,5 @@ $$;
 
 grant execute on function public.get_circle_summary(uuid, int) to authenticated;
 
--- ============================================================
 --  DONE. Private invite-only circles with aggregate summaries.
 --  Raw entries remain private; only derived counts/sums are exposed.
--- ============================================================

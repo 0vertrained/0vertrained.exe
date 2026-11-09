@@ -13,7 +13,7 @@ document.addEventListener("wheel", (event) => {
   if (target instanceof HTMLInputElement && target.type === "number" && document.activeElement === target) target.blur();
 }, { capture: true, passive: true });
 
-// V9 · Wire global error capture before the app mounts so even render-time
+// Wire global error capture before the app mounts so even render-time
 // failures on first paint are reported.
 initErrorReporting();
 

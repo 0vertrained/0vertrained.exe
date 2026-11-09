@@ -1,6 +1,5 @@
 // src/sections/StravaCardioRow.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// V13.3 · Strava → cardio ledger suggestion.
+// Strava → cardio ledger suggestion.
 //
 // When the displayed day has Strava activity but no manually logged cardio,
 // this renders one quiet ruled row: what was recorded, a single "Use for
@@ -16,7 +15,6 @@
 //   · Dismiss is per-day, remembered locally, and never nags again.
 //   · Disappears on its own the moment manual cardio exists.
 // Ghost-weight actions only: Today's single filled CTA stays the hero's.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
 import { useTheme } from "../theme";

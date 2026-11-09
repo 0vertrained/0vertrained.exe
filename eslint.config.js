@@ -1,5 +1,5 @@
 // eslint.config.js
-// V12.1 · First static analysis in the repo. The 1000+ vitest tests cover the
+// First static analysis in the repo. The 1000+ vitest tests cover the
 // logic; ESLint covers the class of bug tests structurally miss — stale hook
 // closures (react-hooks/exhaustive-deps), undefined references, accidental
 // shadowing of the wrong scope. Wired into the quality gate: rule *errors*

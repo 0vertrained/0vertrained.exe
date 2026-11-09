@@ -1,11 +1,9 @@
 // src/__tests__/checkinMorning.test.js
-// ─────────────────────────────────────────────────────────────────────────────
-// V16.8 · Morning check-in. Pins the doctrine: taps land on the EXISTING 1–10
+// Morning check-in. Pins the doctrine: taps land on the EXISTING 1–10
 // body fields (one truth with TodayTab), caution-only at the resolver (a rough
 // check-in demotes one step; a great one never raises), the score itself is
 // never modified, and divergence between feel and metrics is said out loud in
 // both directions — silence otherwise.
-// ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import {
   CHECKIN_ROWS, readCheckin, checkinSeverity, checkinEvidenceLine,

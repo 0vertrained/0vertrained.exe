@@ -1,12 +1,10 @@
 // src/whoop/WhoopStrainCard.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// Whoop Strain display card (V3.0 Whoop Display Cards)
+// Whoop Strain display card
 //
 // Compact, display-only card for the Recovery tab. Shows Whoop day strain (from
 // the cycle record), the highest workout strain of the day, and average / max
 // heart rate. Display only — it does NOT feed the recovery algorithm and does
 // NOT auto-complete workouts. Missing fields render as "—".
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { useTheme } from "../theme";
 

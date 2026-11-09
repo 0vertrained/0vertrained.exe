@@ -1,6 +1,5 @@
 // src/wearables/snapshot.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Client helpers for the DB-first wearable snapshot slice (V12.2).
+// Client helpers for the DB-first wearable snapshot slice.
 //
 // Recovery hydrates from the fastest available source in this order:
 //   session cache → localStorage snapshot → SERVER snapshot (here) → live data.
@@ -12,7 +11,6 @@
 // field can never reach the UI even if the server regressed.
 //
 // Demo mode returns a synthetic, empty, display-safe shape (no network).
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { supabase } from "../supabaseClient";
 import { isDemoMode } from "../demoData";

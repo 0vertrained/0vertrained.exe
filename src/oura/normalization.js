@@ -1,12 +1,11 @@
 // src/oura/normalization.js
-// ─────────────────────────────────────────────────────────────────────────────
 // Oura Data Normalization
 //
 // Converts raw Oura API responses to internal schema and provides payload helpers.
 //
-// V16.6 · Main-sleep discipline. Real-data root cause behind the "recovery 37
-// on an ordinary morning" class of reports (V16.5.1 floored the SD but the
-// deviation was REAL — relative to the wrong reference): Oura keys naps to the
+// Main-sleep discipline. Real-data root cause behind the "recovery 37
+// on an ordinary morning" class of reports (the SD floor did not explain them:
+// the deviation was REAL — relative to the wrong reference): Oura keys naps to the
 // calendar day they occur on, so an afternoon `late_nap` synced before tonight's
 // main sleep becomes the newest day's ONLY sleep doc. The engine then scored
 // nap HRV/RHR (physiologically lower HRV, higher RHR — that's what naps are)
@@ -17,11 +16,10 @@
 // now returns MAIN sleep only, so a nap can never be a day's recovery signal
 // and nap-only days drop out of `recoveryDates` unless readiness reported.
 // Naps stay readable via `getAnySleepDoc` for display surfaces that want them.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Normalize Oura sleep data to internal schema.
- * V16.6 · Accepts the stored V2 shape ({ data: [...] }) in addition to the
+ * Accepts the stored V2 shape ({ data: [...] }) in addition to the
  * legacy { sleep: [...] } draft shape, prefers the main sleep document, and
  * maps the V2 field names (`efficiency` is already 0–100, `latency`,
  * `average_hrv`, embedded `readiness.temperature_deviation`).
@@ -71,12 +69,9 @@ export function normalizeReadiness(ouraReadiness) {
 
 /**
  * Normalize Oura activity data.
- * V16.6 · This previously required the legacy { activity: [...] } wrapper and
- * read draft-era field names, so the stored V2 payload ({ data: [{
- * equivalent_walking_distance, active_calories, ... }] }) ALWAYS normalized to
- * null — the Oura load-fill rung in wearableWorkoutLoad was dead code. Now
- * unwraps every stored shape and exposes both the V2 names and the camelCase
- * keys the load model reads.
+ * Unwraps every stored shape — the { activity: [...] } wrapper as well as the
+ * V2 payload ({ data: [{ equivalent_walking_distance, active_calories, ... }] })
+ * — and exposes both the V2 names and the camelCase keys the load model reads.
  */
 export function normalizeActivity(ouraActivity) {
   const a = firstDoc(ouraActivity);
@@ -126,9 +121,7 @@ export function normalizeSpO2(ouraSpO2) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Internal payload helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Oura V2 payload helpers. The sync endpoint stores raw responses like
 // { data: [{ ...daily_sleep_document }] }, while older draft code expected
@@ -158,7 +151,7 @@ function finiteNum(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-// ─── V16.6 · Main-sleep classification ──────────────────────────────────────
+// Main-sleep classification
 // Oura V2 `type` values observed in the wild: long_sleep (the main sleep),
 // sleep (short detected segments, often minutes), late_nap / nap, rest,
 // deleted. Naps and short segments carry physiologically DIFFERENT HRV/RHR
@@ -248,11 +241,11 @@ export function mainSleepDurationSeconds(day) {
   return total > 0 ? total : null;
 }
 
-// V16.9 · Nap minutes for DURATION accounting (sleep debt) only. Naps repay
+// Nap minutes for DURATION accounting (sleep debt) only. Naps repay
 // sleep need — both wearables credit them (Whoop's need carries an explicit
 // nap deduction; Oura counts all sleep in daily totals) — but they stay
-// excluded from HRV/RHR physiology baselines, where the V16.6 main-sleep
-// discipline is about signal comparability, not hours. Deleted docs and the
+// excluded from HRV/RHR physiology baselines, where the main-sleep
+// rule is about signal comparability, not hours. Deleted docs and the
 // main-sleep segments themselves never count here.
 export function napSleepDurationSeconds(day) {
   const docs = docsFromPayload(day?.sleep).filter(
@@ -283,7 +276,7 @@ export function latestDay(ouraData) {
 
 // Dates that carry usable recovery signal (a MAIN sleep and/or readiness
 // document), newest first. Oura frequently syncs a newest calendar date that
-// is heartrate-only or (V16.6) NAP-only before tonight's main sleep exists;
+// is heartrate-only or NAP-only before tonight's main sleep exists;
 // scoring off that date collapses recovery. These helpers are the canonical
 // way to pick the day to score.
 export function recoveryDates(ouraData) {
@@ -339,7 +332,7 @@ export function rhrValue(sleep) {
 }
 
 export function tempDeviation(sleep, readiness) {
-  // V16.6 · V2 sleep documents no longer carry a top-level skin-temperature
+  // V2 sleep documents no longer carry a top-level skin-temperature
   // field, but every sleep doc embeds a `readiness` block whose
   // temperature_deviation matches the standalone readiness document. Reading
   // it here means a day whose standalone readiness has not synced yet can

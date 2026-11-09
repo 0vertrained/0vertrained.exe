@@ -1,5 +1,5 @@
 -- migrations/V17_0_events.sql
--- V17.0 · First-party funnel events (optional — the app and the log-event
+-- First-party funnel events (optional — the app and the log-event
 -- function run fine without this table; the sink no-ops until it exists).
 -- Run once in the Supabase SQL editor when you want queryable funnel numbers
 -- for the beta go/no-go call.

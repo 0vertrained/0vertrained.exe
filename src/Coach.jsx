@@ -12,7 +12,6 @@ import { MarkdownMessage } from "./MarkdownMessage";
 import { buildOutcomeLoop } from "./coachingOutcomeLoop";
 import { buildCoachEvidencePacket } from "./coachEvidence";
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  Coach — embedded AI assistant (mobile-first floating button + slide-up sheet)
 //
 //  Visibility gate: only renders when the logged-in user's id matches
@@ -20,7 +19,6 @@ import { buildCoachEvidencePacket } from "./coachEvidence";
 //  security gate is enforced server-side in netlify/functions/coach.js, which
 //  re-verifies the Supabase JWT and the allowed user id. Never rely on this
 //  client flag for security.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Visibility gate now lives in coachEnabled.js so the app shell can check it
 // without importing this (lazy-loaded) module. Re-exported here so existing
@@ -224,8 +222,8 @@ export function Coach({ data, settings, program, todayKey, todayName, userId, op
   const [msgs, setMsgs]       = useState([]);   // { role:'user'|'coach'|'error', text }
   const [busy, setBusy]       = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // V15.3 · slide-over (mockup 1n)
-  // V16.2 (U5) · Escape closes the slide-over at the tier — parity with the
+  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // slide-over
+  // Escape closes the slide-over at the tier — parity with the
   // palette's keyboard model.
   useEffect(() => {
     if (!open || !isBroadsheet) return;
@@ -283,9 +281,9 @@ export function Coach({ data, settings, program, todayKey, todayName, userId, op
       const slice = buildSlice({ data, settings, program, todayKey, todayName });
 
       // Inject AI-eligible unified recovery context. When both Oura and Whoop are connected
-      // the V3.1 resolver layers Whoop strain/respiratory-rate + mixed-signal
-      // flags on top of the canonical Oura summary; Oura-only degrades to the
-      // exact legacy behavior. Never averages sources, never re-scores recovery.
+      // the resolver layers Whoop strain/respiratory-rate + mixed-signal
+      // flags on top of the canonical Oura summary; Oura-only gives the plain
+      // Oura summary. Never averages sources, never re-scores recovery.
       try {
         const ouraConnected = await isOuraConnected();
         const whoopConnected = await isWhoopConnected().catch(() => false);
@@ -373,8 +371,8 @@ export function Coach({ data, settings, program, todayKey, todayName, userId, op
             aria-modal="true"
             aria-label="Coach"
             style={{
-              // V15.3 · At the tier the sheet becomes a right slide-over so
-              // Today stays legible behind the scrim (mockup 1n).
+              // At the tier the sheet becomes a right slide-over so
+              // Today stays legible behind the scrim.
               ...(isBroadsheet
                 ? { width: 480, maxWidth: "40vw", height: "100dvh", alignSelf: "flex-end", marginLeft: "auto" }
                 : { width: "100%", maxWidth: "var(--ovt-content-width)", height: "85dvh" }),

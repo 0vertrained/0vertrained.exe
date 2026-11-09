@@ -55,7 +55,7 @@ function renderToday(overrides = {}) {
 describe("TodayTab Oura linked crash reproduction", () => {
   it("renders after Oura linked data loads", async () => {
     renderToday();
-    // V18.1.1: the integrated Today Command Center is the stable render anchor.
+    // The integrated Today Command Center is the stable render anchor.
     expect(screen.getAllByText(/Today command/i).length).toBeGreaterThan(0);
     await waitFor(() => expect(screen.queryByText(/Something broke here/i)).toBeNull());
   });

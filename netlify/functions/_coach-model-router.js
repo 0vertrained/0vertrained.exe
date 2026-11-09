@@ -1,5 +1,5 @@
 // netlify/functions/_coach-model-router.js
-// V19.0 · Deterministic task routing for Ollama Cloud coach models.
+// Deterministic task routing for Ollama Cloud coach models.
 // Model selection is server-owned and environment-overridable. The browser
 // cannot select an arbitrary model or bypass the fallback policy.
 
