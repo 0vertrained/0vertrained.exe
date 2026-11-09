@@ -1,4 +1,4 @@
-# V19 Coach Deployment and Rollback
+# Coach deployment and rollback
 
 ## Required environment
 
