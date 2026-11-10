@@ -9,7 +9,7 @@
 
 # ── Secrets Scanner — omit only intentionally public browser env values ─
 [build.environment]
-  SECRETS_SCAN_OMIT_KEYS = "VITE_COACH_OPEN,VITE_VAPID_PUBLIC_KEY,VAPID_PUBLIC_KEY,VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_USDA_API_KEY,VITE_COACH_USER_ID,VITE_OURA_CLIENT_ID,SUPABASE_URL,SUPABASE_ANON_KEY,COACH_ALLOWED_USER_ID,OURA_CLIENT_ID,GOOGLE_HEALTH_CLIENT_ID,STRAVA_CLIENT_ID,COACH_ROUTING_MODE,COACH_FAST_MODEL,COACH_MAIN_MODEL,COACH_DEEP_MODEL,COACH_FALLBACK_MODEL"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_COACH_OPEN,VITE_TURNSTILE_SITE_KEY,VITE_VAPID_PUBLIC_KEY,VAPID_PUBLIC_KEY,VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_USDA_API_KEY,VITE_COACH_USER_ID,VITE_OURA_CLIENT_ID,SUPABASE_URL,SUPABASE_ANON_KEY,COACH_ALLOWED_USER_ID,OURA_CLIENT_ID,GOOGLE_HEALTH_CLIENT_ID,STRAVA_CLIENT_ID,COACH_ROUTING_MODE,COACH_FAST_MODEL,COACH_MAIN_MODEL,COACH_DEEP_MODEL,COACH_FALLBACK_MODEL"
 
 # ── Security Headers ─────────────────────────────────────────
 [[headers]]
@@ -28,7 +28,12 @@
     #  · style-src/font-src drop Google's domains — fonts are self-hosted via
     #    @fontsource (src/fonts.js). style-src keeps 'unsafe-inline' because
     #    React style props require it.
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://*.supabase.co https://api.nal.usda.gov https://cloud.ouraring.com https://api.ouraring.com https://api.prod.whoop.com https://accounts.google.com https://www.googleapis.com https://health.googleapis.com https://www.strava.com https://www.strava.com/api/v3; media-src 'self' blob: data:; img-src 'self' data: blob:; frame-ancestors 'none'; form-action 'self' https://cloud.ouraring.com https://api.prod.whoop.com https://accounts.google.com https://www.strava.com;"
+    # The human check on sign-in (src/humanCheck.js): script-src and
+    # frame-src name challenges.cloudflare.com, which serves Turnstile's
+    # script and the frame it runs in. The page asks for neither until
+    # someone starts to sign in, and never in a build without
+    # VITE_TURNSTILE_SITE_KEY.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://*.supabase.co https://api.nal.usda.gov https://cloud.ouraring.com https://api.ouraring.com https://api.prod.whoop.com https://accounts.google.com https://www.googleapis.com https://health.googleapis.com https://www.strava.com https://www.strava.com/api/v3; media-src 'self' blob: data:; img-src 'self' data: blob:; frame-ancestors 'none'; form-action 'self' https://cloud.ouraring.com https://api.prod.whoop.com https://accounts.google.com https://www.strava.com;"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
 
 [[headers]]
