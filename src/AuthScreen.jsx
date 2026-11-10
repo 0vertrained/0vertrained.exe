@@ -1,7 +1,7 @@
 // src/AuthScreen.jsx
 // Public landing + private beta authentication, including a complete
 // server-verified recovery-phrase reset flow.
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTheme } from "./theme";
 import { useIsDesktop } from "./ui/useMediaQuery";
 // GetSignupStatus was dynamically imported below while this module
@@ -9,11 +9,18 @@ import { useIsDesktop } from "./ui/useMediaQuery";
 // could never split a chunk and was pure overhead. One static import now.
 import { signUp, logIn, resetPasswordWithRecovery, getSignupStatus } from "./auth";
 import { buildSupportMailto } from "./appMeta";
+import HumanCheck from "./HumanCheck";
 import LandingPage, { Wordmark } from "./landing/LandingPage";
 
+// Shown while Cloudflare's box is waiting for the person (HumanCheck.jsx).
+const HUMAN_STEP = "One more step: confirm you're human in the box below.";
+
 export default function AuthScreen({ onAuthed }) {
-  const { C, S } = useTheme();
+  const { C, S, themeId } = useTheme();
   const isDesktop = useIsDesktop();
+  const humanCheck = useRef(null);
+  // Cloudflare's box is open and waiting for the person. Kept apart from `notice`, which every submit clears.
+  const [humanStep, setHumanStep] = useState(false);
   const [mode, setMode] = useState("login"); // login | signup | recovery
   const [signupAvailable, setSignupAvailable] = useState(false);
   const [username, setUsername] = useState("");
@@ -54,6 +61,18 @@ export default function AuthScreen({ onAuthed }) {
     setRecoveryConfirm("");
   };
 
+  // The token an attempt sends with it where the human check is on (undefined where it is off). Null when the check
+  // could not finish, which has then been said.
+  const humanToken = async () => {
+    try {
+      return { token: await humanCheck.current?.token() };
+    } catch (problem) {
+      setBusy(false);
+      setError(problem.message);
+      return null;
+    }
+  };
+
   const submit = async (event) => {
     event?.preventDefault();
     setError("");
@@ -85,14 +104,19 @@ export default function AuthScreen({ onAuthed }) {
       if (password !== confirm) { setError("Passwords do not match."); setBusy(false); return; }
       if (!recovery.trim() || recovery.trim().length < 8) { setError("Set a recovery phrase (8+ chars)."); setBusy(false); return; }
       if (recovery.trim() !== recoveryConfirm.trim()) { setError("Recovery phrases do not match."); setBusy(false); return; }
-      const res = await signUp({ username: cleanUsername, password, recoveryPhrase: recovery.trim() });
+      const human = await humanToken();
+      if (!human) return;
+      const res = await signUp({ username: cleanUsername, password, recoveryPhrase: recovery.trim(), captchaToken: human.token });
       setBusy(false);
-      if (res.error) { setError(res.error); return; }
+      // A token is good once, so a failed attempt needs a new one before the next.
+      if (res.error) { humanCheck.current?.renew(); setError(res.error); return; }
       onAuthed(res.user);
     } else {
-      const res = await logIn({ username: cleanUsername, password });
+      const human = await humanToken();
+      if (!human) return;
+      const res = await logIn({ username: cleanUsername, password, captchaToken: human.token });
       setBusy(false);
-      if (res.error) { setError(res.error); return; }
+      if (res.error) { humanCheck.current?.renew(); setError(res.error); return; }
       onAuthed(res.user);
     }
   };
@@ -115,7 +139,8 @@ export default function AuthScreen({ onAuthed }) {
       <LandingPage />
 
       <section id="signin" aria-label={authTitle} style={{ position: isDesktop ? "sticky" : "static", top: 24, alignSelf: "start", scrollMarginTop: 18 }}>
-        <form style={authCardStyle} onSubmit={submit}>
+        {/* The human check starts when someone first touches the form, and not for a visitor who only reads the page. */}
+        <form style={authCardStyle} onSubmit={submit} onFocus={() => humanCheck.current?.begin()}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, borderBottom: `1px solid ${C.line}`, paddingBottom: 12, marginBottom: 18 }}>
             {S.isSerif ? <Wordmark size={21} compact /> : <div style={S.authTitle}>Hybrid Athlete</div>}
             <div style={{ fontFamily: C.monoFamily, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textFaint }}>{eyebrow}</div>
@@ -157,7 +182,15 @@ export default function AuthScreen({ onAuthed }) {
           )}
 
           {error && <div style={S.authError} role="alert">{error}</div>}
-          {notice && <div style={{ ...S.authNote, color: C.text, borderLeft: `2px solid ${C.text}`, paddingLeft: 10 }} role="status">{notice}</div>}
+          {(humanStep || notice) && <div style={{ ...S.authNote, color: C.text, borderLeft: `2px solid ${C.text}`, paddingLeft: 10 }} role="status">{humanStep ? HUMAN_STEP : notice}</div>}
+
+          {mode !== "recovery" && (
+            <HumanCheck
+              ref={humanCheck}
+              theme={themeId === "whitepaperLight" ? "light" : "dark"}
+              onInteractive={setHumanStep}
+            />
+          )}
 
           <button type="submit" style={primaryBtn} disabled={busy}>
             {busy ? "..." : mode === "signup" ? "Create Account" : mode === "recovery" ? "Reset Password" : "Sign In"}
