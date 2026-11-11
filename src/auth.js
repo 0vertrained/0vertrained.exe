@@ -41,6 +41,14 @@ function checkRateLimit() {
   return null;
 }
 
+// With CAPTCHA protection on, Supabase checks the human check's token with
+// Cloudflare before it looks at a password, and refuses a request whose token
+// is missing, already used or not accepted (humanCheck.js, docs/human-check.md).
+const HUMAN_CHECK_REFUSED = "The human check didn't go through. Try again; if it keeps happening, reload the page.";
+const refusedByHumanCheck = (error) => error?.code === "captcha_failed" || /captcha/i.test(error?.message || "");
+// The token rides along only when there is one, so nothing changes where the check is off.
+const withHumanCheck = (captchaToken) => (captchaToken ? { options: { captchaToken } } : {});
+
 // Sanitize username: lowercase, trim, only allow alphanumeric + dots + underscores
 function sanitizeUsername(username) {
   return String(username).trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
@@ -80,7 +88,7 @@ export async function isSignupOpen() {
   return open;
 }
 
-export async function signUp({ username, password, recoveryPhrase }) {
+export async function signUp({ username, password, recoveryPhrase, captchaToken }) {
   // Re-check cap server-side before proceeding
   const { open, current, max } = await getSignupStatus();
   if (!open) {
@@ -99,8 +107,10 @@ export async function signUp({ username, password, recoveryPhrase }) {
   const { data, error } = await supabase.auth.signUp({
     email: internalId,
     password,
+    ...withHumanCheck(captchaToken),
   });
   if (error) {
+    if (refusedByHumanCheck(error)) return { error: HUMAN_CHECK_REFUSED };
     // A "user already registered" here usually means a previous signup
     // created the auth user but the profile insert failed (network blip, cap
     // race). The username is reserved by that auth account, and logging in
@@ -150,7 +160,7 @@ export async function signUp({ username, password, recoveryPhrase }) {
   return { user: data.user };
 }
 
-export async function logIn({ username, password }) {
+export async function logIn({ username, password, captchaToken }) {
   const rateLimitError = checkRateLimit();
   if (rateLimitError) return { error: rateLimitError };
   const cleanUsername = sanitizeUsername(username);
@@ -159,7 +169,13 @@ export async function logIn({ username, password }) {
   const { data, error } = await supabase.auth.signInWithPassword({
     email: internalId,
     password,
+    ...withHumanCheck(captchaToken),
   });
+  // Not a wrong password, so it is not counted as one: Supabase never got as far as the password.
+  if (error && refusedByHumanCheck(error)) {
+    loginAttempts.count = Math.max(0, loginAttempts.count - 1);
+    return { error: HUMAN_CHECK_REFUSED };
+  }
   if (error) return { error: "Invalid username or password." };
   // Clear the rate limit counter on success
   loginAttempts.count = 0;

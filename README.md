@@ -37,7 +37,7 @@ netlify/functions/    serverless endpoints and scheduled jobs; netlify/tests/ co
 supabase/             schema.sql and the migrations, in the order the migration_* names suggest
 public/               the PWA shell, service worker, icons and legal pages
 scripts/              the quality gate, test runner, icon generation, version sync
-docs/                 the provider integration standard and the coach deployment runbook
+docs/                 the provider integration standard, the coach deployment runbook and the human check's setup
 CHANGELOG.md          one entry per release
 ```
 
@@ -50,8 +50,11 @@ CHANGELOG.md          one entry per release
 - Account recovery uses a PBKDF2-derived phrase hash with versioned KDF parameters and atomic rate-limit
   buckets by username and address.
 - Scheduled functions are not publicly routable; the one external scheduler endpoint checks a shared secret.
-- The CSP allows only the app's own origin and the provider APIs it talks to; the quality gate scans the
-  production build for secrets before every deploy.
+- Sign-in and sign-up can require Cloudflare Turnstile's human check, which Supabase verifies before it looks at
+  a password. It is off until both sides are switched on, and Cloudflare is contacted only once someone starts
+  to sign in ([docs/human-check.md](docs/human-check.md)).
+- The CSP allows only the app's own origin, the provider APIs it talks to, and the script and frame of that
+  human check; the quality gate scans the production build for secrets before every deploy.
 
 ## Running it
 
@@ -66,6 +69,7 @@ npm run quality:gate   # tests, lint, production and demo builds, secret scan: w
 
 The client reads `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_VAPID_PUBLIC_KEY` and
 `VITE_USDA_API_KEY` at build time; `VITE_DEMO_MODE=true` builds the seeded demo, which needs none of them.
+`VITE_TURNSTILE_SITE_KEY`, when set, turns on the human check in the sign-in form.
 The functions read their configuration from the Netlify environment (Supabase service role, provider client
 ids and secrets, VAPID keys, the token encryption key, the Ollama key, `OURA_SYNC_SECRET`); see the comment
 at the top of each function for what it needs. Apply `supabase/schema.sql`, then the migrations, in the

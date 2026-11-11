@@ -3,6 +3,10 @@
 One entry per release, newest first, from the first beta builds to the current version. The detailed notes each
 release shipped with are in the repository's history, before the notes were folded into this file.
 
+## 19.6.2 — A human check at the door
+
+Sign-in and sign-up can ask Cloudflare Turnstile to confirm a person is there, and Supabase checks the answer before it looks at a password. It stays off until a site key is set and Supabase is told to ask, and Cloudflare is contacted only once someone starts to sign in.
+
 ## 19.6.1 — The sleep-debt ceiling holds
 
 ## 19.6.0 — Less on every screen
