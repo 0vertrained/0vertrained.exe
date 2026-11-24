@@ -12,6 +12,7 @@ import {
   randomState,
   redirect,
   resolveUserIdFromBearer,
+  secretsMatch,
   serviceHeaders,
   storeProviderOAuthState,
   updateConnectedAccount,
@@ -24,6 +25,10 @@ const STRAVA_API_BASE = "https://www.strava.com/api/v3";
 const STRAVA_SCOPES = "read,activity:read,activity:read_all,profile:read_all";
 const MAX_SYNC_DAYS = 90;
 const TOKEN_NEAR_EXPIRY_MS = 5 * 60 * 1000;
+// Strava's webhook events are a few hundred bytes.
+const WEBHOOK_MAX_BYTES = 4_096;
+const WEBHOOK_UPDATE_KEYS = ["title", "type", "private", "authorized"];
+const STRAVA_ID = /^[1-9][0-9]{0,19}$/;
 
 function envReady() {
   return Boolean(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET && process.env.STRAVA_REDIRECT_URI && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -41,7 +46,11 @@ async function exchangeToken(body) {
     body: JSON.stringify(body),
   });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data?.message || `strava_token_${r.status}`);
+  if (!r.ok) {
+    const error = new Error(data?.message || `strava_token_${r.status}`);
+    error.status = r.status;
+    throw error;
+  }
   return data;
 }
 
@@ -286,69 +295,190 @@ async function handleDisconnect(req) {
   return json({ ok: true });
 }
 
-async function handleWebhook(req) {
+function requestTooLarge(req, maxBytes) {
+  const len = Number(req.headers.get("content-length") || 0);
+  return Number.isFinite(len) && len > maxBytes;
+}
+
+// A Strava webhook event, cut down to the fields this handler uses. Null when
+// it isn't one: an unknown object or aspect type, or an id that isn't a
+// positive integer.
+export function parseStravaEvent(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const objectType = body.object_type;
+  const aspectType = body.aspect_type;
+  if (objectType !== "activity" && objectType !== "athlete") return null;
+  if (!["create", "update", "delete"].includes(aspectType)) return null;
+  const ownerId = String(body.owner_id ?? "");
+  const objectId = String(body.object_id ?? "");
+  if (!STRAVA_ID.test(ownerId) || !STRAVA_ID.test(objectId)) return null;
+  const updates = {};
+  if (body.updates && typeof body.updates === "object" && !Array.isArray(body.updates)) {
+    for (const key of WEBHOOK_UPDATE_KEYS) {
+      const value = body.updates[key];
+      if (typeof value === "boolean") updates[key] = value;
+      else if (typeof value === "string") updates[key] = value.slice(0, 200);
+    }
+  }
+  return {
+    objectType,
+    aspectType,
+    ownerId,
+    objectId,
+    subscriptionId: body.subscription_id == null ? null : String(body.subscription_id),
+    eventTime: Number.isFinite(Number(body.event_time)) ? Number(body.event_time) : null,
+    updates,
+  };
+}
+
+// Strava doesn't sign its webhook events. With STRAVA_WEBHOOK_SECRET set, the
+// callback registered with Strava is /api/strava/webhook/<secret>, and a
+// request to any other webhook path is answered 404 without being read.
+function webhookPathAllowed(pathSecret, env = process.env) {
+  const expected = env.STRAVA_WEBHOOK_SECRET;
+  if (!expected) return true;
+  return secretsMatch(pathSecret || "", expected);
+}
+
+// Whether Strava still lets this app read the athlete's data: true, false
+// once access was revoked, or null when Strava couldn't say (rate limit,
+// outage, no usable token).
+async function stravaStillAuthorized(account) {
+  let accessToken;
+  try {
+    accessToken = await getAccessTokenForAccount(account);
+  } catch (error) {
+    return error?.status === 400 || error?.status === 401 ? false : null;
+  }
+  if (!accessToken) return null;
+  const r = await fetch(`${STRAVA_API_BASE}/athlete`, { headers: { "authorization": `Bearer ${accessToken}`, "accept": "application/json" } });
+  if (r.ok) return true;
+  if (r.status === 401) return false;
+  return null;
+}
+
+async function storedActivityExists(supabaseUrl, serviceKey, userId, activityId) {
+  const r = await fetch(`${supabaseUrl}/rest/v1/activities?user_id=eq.${encodeURIComponent(userId)}&source_provider=eq.strava&provider_activity_id=eq.${encodeURIComponent(activityId)}&select=id&limit=1`, { headers: serviceHeaders(serviceKey) });
+  if (!r.ok) return false;
+  const rows = await r.json().catch(() => []);
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+// True only when Strava answers 404 for the activity, so it really is gone.
+async function stravaActivityGone(account, activityId) {
+  let accessToken;
+  try {
+    accessToken = await getAccessTokenForAccount(account);
+  } catch {
+    return false;
+  }
+  if (!accessToken) return false;
+  const r = await fetch(`${STRAVA_API_BASE}/activities/${encodeURIComponent(activityId)}`, { headers: { "authorization": `Bearer ${accessToken}`, "accept": "application/json" } });
+  return r.status === 404;
+}
+
+async function handleWebhook(req, pathSecret = "") {
+  if (!webhookPathAllowed(pathSecret)) return json({ error: "Not found" }, 404);
   const url = new URL(req.url);
   if (req.method === "GET") {
     const verifyToken = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN;
-    if (verifyToken && url.searchParams.get("hub.verify_token") === verifyToken) {
+    if (verifyToken && secretsMatch(url.searchParams.get("hub.verify_token") || "", verifyToken)) {
       return json({ "hub.challenge": url.searchParams.get("hub.challenge") || "" });
     }
     return json({ error: "Invalid verify token" }, 403);
   }
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  const body = await req.json().catch(() => ({}));
-  const ownerId = body.owner_id ? String(body.owner_id) : null;
-  await fetch(`${process.env.SUPABASE_URL}/rest/v1/provider_webhook_events`, {
+  if (requestTooLarge(req, WEBHOOK_MAX_BYTES)) return json({ error: "Request body too large" }, 413);
+  const text = await req.text().catch(() => "");
+  if (text.length > WEBHOOK_MAX_BYTES) return json({ error: "Request body too large" }, 413);
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = null;
+  }
+  const event = parseStravaEvent(body);
+  if (!event) return json({ error: "Not a Strava webhook event" }, 400);
+  const subscriptionId = process.env.STRAVA_SUBSCRIPTION_ID;
+  if (subscriptionId && event.subscriptionId !== String(subscriptionId)) return json({ error: "Unknown subscription" }, 403);
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) return json({ error: "Server not configured" }, 500);
+  const r = await fetch(`${supabaseUrl}/rest/v1/connected_accounts?provider=eq.strava&provider_user_id=eq.${encodeURIComponent(event.ownerId)}&select=user_id&limit=1`, { headers: serviceHeaders(serviceKey) });
+  const userId = r.ok ? (await r.json().catch(() => []))?.[0]?.user_id : null;
+  // An athlete nobody here has connected: acknowledge it and keep nothing.
+  if (!userId) return json({ ok: true });
+
+  await fetch(`${supabaseUrl}/rest/v1/provider_webhook_events`, {
     method: "POST",
-    headers: serviceHeaders(process.env.SUPABASE_SERVICE_ROLE_KEY, { "content-type": "application/json", "Prefer": "return=minimal" }),
-    body: JSON.stringify({ provider: PROVIDERS.STRAVA, provider_user_id: ownerId, object_id: body.object_id ? String(body.object_id) : null, event_type: body.object_type || "activity", aspect_type: body.aspect_type || null, payload: body, processed_at: new Date().toISOString() }),
+    headers: serviceHeaders(serviceKey, { "content-type": "application/json", "Prefer": "return=minimal" }),
+    body: JSON.stringify({
+      provider: PROVIDERS.STRAVA,
+      provider_user_id: event.ownerId,
+      object_id: event.objectId,
+      event_type: event.objectType,
+      aspect_type: event.aspectType,
+      payload: { object_type: event.objectType, aspect_type: event.aspectType, object_id: event.objectId, owner_id: event.ownerId, subscription_id: event.subscriptionId, event_time: event.eventTime, updates: event.updates },
+      processed_at: new Date().toISOString(),
+    }),
   }).catch(() => null);
-  if (ownerId) {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const r = await fetch(`${supabaseUrl}/rest/v1/connected_accounts?provider=eq.strava&provider_user_id=eq.${encodeURIComponent(ownerId)}&select=user_id&limit=1`, { headers: serviceHeaders(serviceKey) });
-    const userId = r.ok ? (await r.json().catch(() => []))?.[0]?.user_id : null;
-    if (userId) {
-      // Deauthorization purge — the API Agreement requires deleting an
-      // athlete's data when they revoke access from Strava's side. Strava
-      // signals this as an athlete-update event with authorized:"false".
-      const authorizedFlag = body?.updates?.authorized;
-      const isDeauth = body.object_type === "athlete" && (authorizedFlag === "false" || authorizedFlag === false);
-      if (isDeauth) {
-        try {
-          await deleteProviderData(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA);
-          await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "deauthorized_purged", status: "success", message: "Athlete revoked access on Strava; tokens and imported data deleted." });
-        } catch {
-          await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "deauthorize_purge_failed", status: "error", message: "Deauthorization received but purge failed; retry via disconnect." }).catch(() => null);
-        }
-        return json({ ok: true });
-      }
-      // Targeted sync — a create/update event costs one API call for
-      // that activity instead of a paged backfill, keeping webhook traffic
-      // inside the rate budget. Deletes drop the single normalized row.
-      if (body.object_type === "activity" && body.object_id) {
-        try {
-          if (body.aspect_type === "delete") {
-            await fetch(`${supabaseUrl}/rest/v1/activities?user_id=eq.${encodeURIComponent(userId)}&source_provider=eq.strava&provider_activity_id=eq.${encodeURIComponent(String(body.object_id))}`, {
+
+  // Deauthorization purge — the API Agreement requires deleting an athlete's
+  // data when they revoke access from Strava's side. Strava signals this as an
+  // athlete-update event with authorized:"false". Anyone can send that event,
+  // so the purge waits until Strava itself refuses this app's token.
+  const authorizedFlag = event.updates.authorized;
+  if (event.objectType === "athlete" && (authorizedFlag === "false" || authorizedFlag === false)) {
+    const account = await getConnectedAccount(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA);
+    const authorized = account ? await stravaStillAuthorized(account).catch(() => null) : null;
+    if (authorized === true) {
+      await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "deauthorize_ignored", status: "error", message: "A deauthorization event arrived, but Strava still accepts this app's token; nothing was deleted." });
+      return json({ ok: true });
+    }
+    if (authorized === null) {
+      await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "deauthorize_unconfirmed", status: "error", message: "A deauthorization event arrived, but Strava couldn't confirm it; nothing was deleted yet." });
+      // Strava retries a delivery that fails, so a real revocation gets another try.
+      return json({ error: "Could not confirm the deauthorization with Strava" }, 503);
+    }
+    try {
+      await deleteProviderData(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA);
+      await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "deauthorized_purged", status: "success", message: "Athlete revoked access on Strava; tokens and imported data deleted." });
+    } catch {
+      await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "deauthorize_purge_failed", status: "error", message: "Deauthorization received but purge failed; retry via disconnect." }).catch(() => null);
+    }
+    return json({ ok: true });
+  }
+  // Targeted sync — a create/update event costs one API call for that
+  // activity instead of a paged backfill, keeping webhook traffic inside the
+  // rate budget. A delete drops the single normalized row, once Strava
+  // confirms the activity is gone.
+  if (event.objectType === "activity") {
+    try {
+      if (event.aspectType === "delete") {
+        if (await storedActivityExists(supabaseUrl, serviceKey, userId, event.objectId)) {
+          const account = await getConnectedAccount(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA);
+          if (account && await stravaActivityGone(account, event.objectId)) {
+            await fetch(`${supabaseUrl}/rest/v1/activities?user_id=eq.${encodeURIComponent(userId)}&source_provider=eq.strava&provider_activity_id=eq.${encodeURIComponent(event.objectId)}`, {
               method: "DELETE",
               headers: serviceHeaders(serviceKey, { "Prefer": "return=minimal" }),
             });
-          } else {
-            const account = await getConnectedAccount(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA);
-            const accessToken = account ? await getAccessTokenForAccount(account) : null;
-            if (accessToken) {
-              const ar = await fetch(`${STRAVA_API_BASE}/activities/${encodeURIComponent(String(body.object_id))}`, { headers: { "authorization": `Bearer ${accessToken}`, "accept": "application/json" } });
-              if (ar.ok) {
-                const activity = await ar.json().catch(() => null);
-                if (activity) await upsertActivities(supabaseUrl, serviceKey, [activityRow(userId, activity)]);
-              }
-            }
           }
-        } catch { /* best-effort: the next full sync reconciles */ }
+        }
+      } else {
+        const account = await getConnectedAccount(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA);
+        const accessToken = account ? await getAccessTokenForAccount(account) : null;
+        if (accessToken) {
+          const ar = await fetch(`${STRAVA_API_BASE}/activities/${encodeURIComponent(event.objectId)}`, { headers: { "authorization": `Bearer ${accessToken}`, "accept": "application/json" } });
+          if (ar.ok) {
+            const activity = await ar.json().catch(() => null);
+            if (activity) await upsertActivities(supabaseUrl, serviceKey, [activityRow(userId, activity)]);
+          }
+        }
       }
-      await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "webhook_received", status: "success", counts: { object_id: body.object_id || null }, message: `Strava ${body.aspect_type || "event"} webhook received.` });
-    }
+    } catch { /* best-effort: the next full sync reconciles */ }
   }
+  await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "webhook_received", status: "success", counts: { object_id: event.objectId }, message: `Strava ${event.aspectType} webhook received.` });
   return json({ ok: true });
 }
 
@@ -356,6 +486,8 @@ export const config = { path: "/api/strava/*" };
 
 export default async (req) => {
   const path = new URL(req.url).pathname;
+  const webhook = path.match(/\/api\/strava\/webhook(?:\/([^/]+))?\/?$/);
+  if (webhook) return await handleWebhook(req, webhook[1] || "");
   if (path.endsWith("/api/strava/auth")) return await handleAuth(req);
   if (path.endsWith("/api/strava/callback")) return await handleCallback(req);
   if (path.endsWith("/api/strava/status")) return await handleStatus(req);
@@ -363,6 +495,5 @@ export default async (req) => {
   if (path.endsWith("/api/strava/counts")) return await handleCounts(req);
   if (path.endsWith("/api/strava/events")) return await handleEvents(req);
   if (path.endsWith("/api/strava/disconnect")) return await handleDisconnect(req);
-  if (path.endsWith("/api/strava/webhook")) return await handleWebhook(req);
   return json({ error: "Not found" }, 404);
 };

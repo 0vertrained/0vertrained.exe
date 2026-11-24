@@ -59,6 +59,7 @@ STRAVA_CLIENT_SECRET=
 STRAVA_REDIRECT_URI=
 STRAVA_WEBHOOK_VERIFY_TOKEN=
 STRAVA_WEBHOOK_SECRET=
+STRAVA_SUBSCRIPTION_ID=
 ```
 
 Do not expose any of the above as `VITE_*` variables.
@@ -90,7 +91,7 @@ This repo now includes first-pass provider-standard OAuth and sync endpoints for
 - `GET /api/strava/counts`
 - `GET /api/strava/events`
 - `POST /api/strava/disconnect`
-- `GET|POST /api/strava/webhook`
+- `GET|POST /api/strava/webhook/<STRAVA_WEBHOOK_SECRET>`
 
 ### Current behavior
 
@@ -107,6 +108,15 @@ Strava sync stores normalized rows in:
 
 Strava records are created with `ai_eligible = false` and `ai_exclusion_reason = 'strava_api_terms'` by default. Google Health/Fitbit records inherit the provider-standard AI eligibility policy and should still be gated by explicit user consent before inclusion in AI Coach context.
 
+### Webhook security
+
+Strava doesn't sign its webhook events, so the handler treats each one as a hint:
+
+- A deauthorization purges a user's Strava data only after Strava itself refuses the stored token. If Strava can't answer, the handler returns 503 so Strava retries the delivery.
+- An activity delete removes the stored row only after Strava answers 404 for that activity.
+- Events for athletes nobody connected are acknowledged and not stored, bodies over 4 KB are refused, and only the fields the handler uses are kept.
+- With `STRAVA_WEBHOOK_SECRET` set, the callback is `/api/strava/webhook/<secret>` and every other webhook path answers 404. Use a long random value, and register that full URL as the subscription's `callback_url`. `STRAVA_SUBSCRIPTION_ID`, when set, refuses events from any other subscription.
+
 ### Required env vars
 
 ```txt
@@ -119,6 +129,8 @@ STRAVA_CLIENT_ID=
 STRAVA_CLIENT_SECRET=
 STRAVA_REDIRECT_URI=https://YOUR_DOMAIN/api/strava/callback
 STRAVA_WEBHOOK_VERIFY_TOKEN=
+STRAVA_WEBHOOK_SECRET=
+STRAVA_SUBSCRIPTION_ID=
 ```
 
 ### Database migrations
