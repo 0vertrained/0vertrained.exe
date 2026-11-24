@@ -63,7 +63,8 @@ export function decryptSecret(ciphertext, env = process.env) {
   if (!key) return null;
   const [version, ivB64, tagB64, encryptedB64] = String(ciphertext).split(".");
   if (version !== "v1" || !ivB64 || !tagB64 || !encryptedB64) return null;
-  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivB64, "base64url"));
+  // A full 16-byte tag only: GCM would otherwise accept a truncated tag, which is far easier to forge.
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivB64, "base64url"), { authTagLength: 16 });
   decipher.setAuthTag(Buffer.from(tagB64, "base64url"));
   const decrypted = Buffer.concat([
     decipher.update(Buffer.from(encryptedB64, "base64url")),

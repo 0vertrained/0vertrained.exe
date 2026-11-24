@@ -43,6 +43,11 @@ describe("provider integration standard", () => {
     expect(encrypted).not.toContain("refresh-token");
     expect(decryptSecret(encrypted, env)).toBe("refresh-token");
 
+    // A truncated authentication tag is refused rather than checked on fewer bytes.
+    const [version, iv, tag, body] = encrypted.split(".");
+    const shortTag = Buffer.from(tag, "base64url").subarray(0, 4).toString("base64url");
+    expect(() => decryptSecret([version, iv, shortTag, body].join("."), env)).toThrow();
+
     const row = buildConnectedAccountRecord({
       userId: "user-1",
       provider: PROVIDERS.WHOOP,
