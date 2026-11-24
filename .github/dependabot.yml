@@ -13,10 +13,16 @@ updates:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
     open-pull-requests-limit: 3
+    # Hijacked releases are usually caught and pulled within days, so wait a
+    # week before proposing one.
+    cooldown:
+      default-days: 7
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
