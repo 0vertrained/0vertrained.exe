@@ -11,7 +11,7 @@
 // • OURA_SYNC_SECRET — secret key for scheduler (Authorization: Bearer header)
 // • SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — server-to-server Supabase access
 
-import { resolveProviderTokens, persistProviderTokens, PROVIDERS } from "./_provider-standard.js";
+import { resolveProviderTokens, persistProviderTokens, PROVIDERS, secretsMatch } from "./_provider-standard.js";
 
 const OURA_API_BASE = "https://api.ouraring.com/v2/usercollection";
 
@@ -161,9 +161,9 @@ export default async (req) => {
   const SECRET = process.env.OURA_SYNC_SECRET;
   if (!SECRET) return json({ error: "Sync not configured" }, 500);
 
-  // Verify secret
+  // Verify secret, in constant time
   const authHeader = req.headers.get("authorization") || "";
-  if (authHeader !== `Bearer ${SECRET}`) {
+  if (!secretsMatch(authHeader, `Bearer ${SECRET}`)) {
     return json({ error: "Unauthorized" }, 401);
   }
 

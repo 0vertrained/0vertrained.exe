@@ -199,6 +199,14 @@ export async function resolveUserIdFromBearer(req, env = process.env) {
   return user?.id || null;
 }
 
+/** Compares a presented secret with the expected one in constant time, whatever their lengths. */
+export function secretsMatch(presented, expected) {
+  if (typeof presented !== "string" || typeof expected !== "string" || !expected) return false;
+  const a = crypto.createHash("sha256").update(presented).digest();
+  const b = crypto.createHash("sha256").update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 export function randomState(length = 32) {
   return crypto.randomBytes(length).toString("base64url").slice(0, length);
 }
