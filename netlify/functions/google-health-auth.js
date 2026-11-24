@@ -12,6 +12,7 @@ import {
   randomState,
   redirect,
   resolveUserIdFromBearer,
+  secretsMatch,
   serviceHeaders,
   storeProviderOAuthState,
   updateConnectedAccount,
@@ -439,11 +440,26 @@ async function handleDisconnect(req) {
   return json({ ok: true });
 }
 
+const WEBHOOK_MAX_BYTES = 64_000;
+
 async function handleWebhook(req) {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  const token = req.headers.get("x-google-health-webhook-token") || req.headers.get("x-webhook-token") || new URL(req.url).searchParams.get("token");
-  if (process.env.GOOGLE_HEALTH_WEBHOOK_SECRET && token !== process.env.GOOGLE_HEALTH_WEBHOOK_SECRET) return json({ error: "Invalid webhook token" }, 403);
-  const body = await req.json().catch(() => ({}));
+  // Without a secret there is no webhook: an open endpoint would let anyone write rows.
+  const secret = process.env.GOOGLE_HEALTH_WEBHOOK_SECRET;
+  if (!secret) return json({ error: "Not found" }, 404);
+  const token = req.headers.get("x-google-health-webhook-token") || req.headers.get("x-webhook-token") || new URL(req.url).searchParams.get("token") || "";
+  if (!secretsMatch(token, secret)) return json({ error: "Invalid webhook token" }, 403);
+  const len = Number(req.headers.get("content-length") || 0);
+  if (Number.isFinite(len) && len > WEBHOOK_MAX_BYTES) return json({ error: "Request body too large" }, 413);
+  const text = await req.text().catch(() => "");
+  if (text.length > WEBHOOK_MAX_BYTES) return json({ error: "Request body too large" }, 413);
+  let body = {};
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) body = parsed;
+  } catch {
+    // not JSON: the event is stored with an empty payload
+  }
   await fetch(`${process.env.SUPABASE_URL}/rest/v1/provider_webhook_events`, {
     method: "POST",
     headers: serviceHeaders(process.env.SUPABASE_SERVICE_ROLE_KEY, { "content-type": "application/json", "Prefer": "return=minimal" }),

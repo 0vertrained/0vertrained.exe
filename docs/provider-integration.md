@@ -117,6 +117,8 @@ Strava doesn't sign its webhook events, so the handler treats each one as a hint
 - Events for athletes nobody connected are acknowledged and not stored, bodies over 4 KB are refused, and only the fields the handler uses are kept.
 - With `STRAVA_WEBHOOK_SECRET` set, the callback is `/api/strava/webhook/<secret>` and every other webhook path answers 404. Use a long random value, and register that full URL as the subscription's `callback_url`. `STRAVA_SUBSCRIPTION_ID`, when set, refuses events from any other subscription.
 
+The Google Health/Fitbit webhook stays off until `GOOGLE_HEALTH_WEBHOOK_SECRET` is set, and then needs that value in the `x-google-health-webhook-token` header.
+
 ### Required env vars
 
 ```txt
