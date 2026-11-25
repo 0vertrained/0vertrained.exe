@@ -28,10 +28,10 @@ const secretPatterns = [
   /ANTHROPIC_API_KEY/i,
   /refresh_token/i,
   /sk-ant/i,
-  // \b: require a boundary before "sk-" — the self-hosted Space Grotesk font
-  // files ("...grotesk-latin-400-normal-<hash>.woff2") otherwise match this
-  // generic key shape. Real keys ("sk-proj-…", "sk-ant-…") follow a quote,
-  // space, or delimiter, so the boundary is always present for them.
+  // \b: require a boundary before "sk-" so a hashed asset name that happens
+  // to contain "…sk-…" cannot match this generic key shape. Real keys
+  // ("sk-proj-…", "sk-ant-…") follow a quote, space, or delimiter, so the
+  // boundary is always present for them.
   /\bsk-[A-Za-z0-9_-]{20,}/,
 ];
 const scanFiles = [];

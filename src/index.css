@@ -3,7 +3,7 @@
 html, body {
   background: #FAF9F6;
   color: #1A1A1A;
-  font-family: 'IBM Plex Sans', 'Inter', sans-serif;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
