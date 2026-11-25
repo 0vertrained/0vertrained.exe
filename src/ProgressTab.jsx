@@ -7,7 +7,7 @@
 import { Fragment, useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { useTheme } from "./theme";
-import { Icon, QuickNumber } from "./ui/ledger";
+import { Icon, LinkRow, QuickNumber } from "./ui/ledger";
 import { useTopBar } from "./ui/shell";
 import { DEFAULT_PROGRAM, getTodayKey, getDayName } from "./constants";
 import { calcRecoveryScore, calcWeeklyReview } from "./recovery";
@@ -78,7 +78,7 @@ function secondsToPace(secs) {
 }
 
 // Progress tab
-export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, onSaveCoachingSettings, initialSubView = null, onOpenDay, onExit }) {
+export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, onSaveCoachingSettings, initialSubView = null, onOpenDay, onExit, onOpenEdition = null }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
   // Train links straight to the block ("program") and to history; Back from
@@ -732,6 +732,10 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
       <button type="button" className={isBroadsheet ? "btn btn-p" : "btn btn-p btn-b"} onClick={() => setSubView("review")} style={{ marginTop: 6, alignSelf: isBroadsheet ? "flex-start" : undefined }}>Open the weekly review</button>
     </section>
   );
+  // Sunday evening: the week's edition, while it is out.
+  const editionLine = typeof onOpenEdition === "function" && (
+    <LinkRow label="The Sunday Edition is out" sub="Your week, ending on one change" onClick={onOpenEdition} style={{ borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }} />
+  );
   const allTime = (
     <section aria-labelledby="all-time" data-section="ov-plates" style={column(8)}>
       <h2 id="all-time" className="t-h">All time</h2>
@@ -753,6 +757,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 32, alignItems: "start" }}>
             <div style={column(24)}>
+              {editionLine}
               {reviewCard}
               {allTime}
             </div>
@@ -792,6 +797,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   return (
     <div className="shell" data-screen="progress">
       <div className="main" style={{ gap: 16 }}>
+        {editionLine}
         {reviewCard}
         <section aria-labelledby="trends" data-section="ov-trends" style={column(4)}>
           <h2 id="trends" className="t-h">Trends</h2>

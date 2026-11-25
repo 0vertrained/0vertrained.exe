@@ -8,7 +8,7 @@ import { useState, useEffect, useRef, memo, lazy, Suspense } from "react";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { buildWhoopSummary } from "./whoop";
 import { perfStart, perfMark } from "./perf";
-import { Icon, Switch } from "./ui/ledger";
+import { Icon, LinkRow, Switch } from "./ui/ledger";
 import { copyToClipboard } from "./clipboard";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey } from "./constants";
 import { calcRecoveryScore, resolveRecovery, computeRecoveryBaseline } from "./recovery";
@@ -183,7 +183,7 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR }) {
   );
 }
 
-export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null }) {
+export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null }) {
   // Broadsheet: below 1440px every wrapper is display:contents and
   // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -583,6 +583,10 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
 
       {!isLoggingPast && (
         <>
+          {/* Sunday evening: the week's edition, while it is out. */}
+          {typeof onOpenEdition === "function" && (
+            <LinkRow label="The Sunday Edition is out" sub="Your week, ending on one change" onClick={onOpenEdition} style={{ borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }} />
+          )}
           <CallCard ops={ops} decision={todayDecision} recommendation={dailyRecommendation} sessionTitle={sessionTitle} exerciseCount={totalExercises} primary={primary} isRest={todayPlan.isRest} finished={finished} onOpenRecovery={() => setTab?.("Recovery")} />
           <FuelSnapshot ops={ops} onOpenFuel={() => setTab?.("Fuel")} />
         </>

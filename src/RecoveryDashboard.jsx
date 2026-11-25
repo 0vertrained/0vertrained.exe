@@ -132,7 +132,7 @@ const getRawRecoveryMetrics = (ouraData, sleepDebt) => {
   };
 };
 
-export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, todayPlan = null, onOpenCheckin = null, onOpenIntegrations = null }) {
+export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, todayPlan = null, onOpenCheckin = null, onOpenIntegrations = null, openEdition = false, onEditionClosed = null }) {
   // Hydrate synchronously from the fastest available last-known snapshot:
   //   1) the in-memory session cache (survives tab switches this session), else
   //   2) the persisted, user-scoped, secret-free wearable snapshot (survives a
@@ -621,8 +621,9 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
 
   return (
     <>
-      {showEdition && editionRaw && (
-        <SundayEdition data={data} ouraData={editionRaw.oura} whoopData={editionRaw.whoop} settings={settings} onClose={() => setShowEdition(false)} />
+      {/* Asked for from Today or Progress, the edition opens as soon as its week is loaded. */}
+      {(showEdition || openEdition) && editionRaw && (
+        <SundayEdition data={data} ouraData={editionRaw.oura} whoopData={editionRaw.whoop} settings={settings} onClose={() => { setShowEdition(false); onEditionClosed?.(); }} />
       )}
       <RecoveryConnected
         view={{

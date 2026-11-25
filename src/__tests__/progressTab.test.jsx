@@ -77,6 +77,14 @@ describe("Progress home", () => {
     expect(rows[4]).toMatch(/14 days logged, searchable/);
   });
 
+  it("offers the Sunday Edition only while one is out", () => {
+    const onOpenEdition = vi.fn();
+    const out = mount({ onOpenEdition });
+    fireEvent.click(out.ui.getByRole("button", { name: /^The Sunday Edition is out/ }));
+    expect(onOpenEdition).toHaveBeenCalledTimes(1);
+    expect(mount().ui.queryByRole("button", { name: /Sunday Edition/ })).toBeNull();
+  });
+
   it("states the streak as a fact, with no pressure attached", () => {
     const { ui } = mount();
     expect(ui.getByText("Logging streak: 14 days.")).toBeTruthy();

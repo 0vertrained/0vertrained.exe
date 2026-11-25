@@ -25,6 +25,7 @@ import { buildProgramPlan, buildProgramBuilderSettingsPatch } from "./programBui
 import { loadOuraData, calcRecoveryScore as calcOuraRecovery, clearAlertHistory } from "./oura";
 import { loadWhoopData } from "./whoop";
 import { readWearableSnapshot } from "./wearableSnapshotCache";
+import { editionWindow } from "./sundayEdition";
 import { perfStart, perfMark } from "./perf";
 import { isCoachEnabled } from "./coachEnabled";
 import { DEMO_USER, DEMO_SETTINGS, buildDemoEntries, buildDemoOuraData, getDemoWhoopData, isDemoMode } from "./demoData";
@@ -76,6 +77,8 @@ function AppInner({ onThemeChange }) {
   const [todayIntent, setTodayIntent] = useState(null);
   // Which sub-view Progress opens on when Train sends someone there.
   const [progressLanding, setProgressLanding] = useState(null);
+  // Today and Progress can ask Recovery to open on the week's edition.
+  const [editionAsked, setEditionAsked] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false); // Coach chat sheet — was a floating self-positioned
                                                       // button that overlapped the header; now a normal
                                                       // controlled overlay triggered from the quick-action sheet.
@@ -1051,6 +1054,7 @@ function AppInner({ onThemeChange }) {
   const shortDay = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const closeOverlay = () => {
     setOverlay(null);
+    setEditionAsked(false);
     const top = tabScrollPositions.current[tab] ?? 0;
     requestAnimationFrame(() => window.scrollTo({ top, left: 0, behavior: "auto" }));
   };
@@ -1063,6 +1067,11 @@ function AppInner({ onThemeChange }) {
   const bar = (!overlay && screenBar) || tabBar;
   const logActions = coachEnabled ? [...QUICK_ACTIONS, COACH_ACTION] : QUICK_ACTIONS;
   const changeTab = (t) => { setProgressLanding(null); navigateTo(t); setSelectedDay(null); };
+  // The Sunday Edition is drawn from wearable mornings, so its doors show only
+  // on a connected account, and only while an edition is out.
+  const openEdition = ouraConnected && !dayZero.recovery.isZero && editionWindow(new Date()).available
+    ? () => { setEditionAsked(true); navigateTo("Recovery"); }
+    : null;
 
   return (
     <div className={`ot ovt-app-shell${isDesktop ? "" : " has-tabs"}`}>
@@ -1112,7 +1121,7 @@ function AppInner({ onThemeChange }) {
             <Suspense fallback={null}>
             {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /> : loaded && dayZero.recovery.isZero
               ? <DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} />
-              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} todayPlan={liveProgram?.[todayName]?.type || null} onOpenIntegrations={() => openSettings("integrations")} /></>}
+              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} todayPlan={liveProgram?.[todayName]?.type || null} onOpenIntegrations={() => openSettings("integrations")} openEdition={editionAsked} onEditionClosed={() => setEditionAsked(false)} /></>}
             </Suspense>
             </ErrorBoundary>
           </div>
@@ -1128,7 +1137,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.today.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.today.isZero
               ? <DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />
-              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} />}
+              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} />}
             </div>
           )}
           {tab === "Train" && (
@@ -1151,7 +1160,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.progress.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.progress.isZero
               ? <DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} />
-              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab key={progressLanding || "overview"} initialSubView={progressLanding} data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onExit={progressLanding ? () => { setProgressLanding(null); navigateTo("Train"); } : undefined} /></>}
+              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab key={progressLanding || "overview"} initialSubView={progressLanding} data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onExit={progressLanding ? () => { setProgressLanding(null); navigateTo("Train"); } : undefined} onOpenEdition={openEdition} /></>}
             </div>
           )}
           </>)}

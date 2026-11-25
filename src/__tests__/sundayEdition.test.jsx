@@ -227,6 +227,22 @@ describe("V17.2 surface (source guards)", () => {
   });
 });
 
+describe("ways into the edition", () => {
+  it("Today and Progress get a way in only on a connected account while an edition is out", () => {
+    const app = read("src/App.jsx");
+    expect(app).toContain("const openEdition = ouraConnected && !dayZero.recovery.isZero && editionWindow(new Date()).available");
+    expect(app).toContain('() => { setEditionAsked(true); navigateTo("Recovery"); }');
+    expect(app.match(/onOpenEdition=\{openEdition\}/g)).toHaveLength(2);
+    // Recovery opens the edition when asked, and the ask ends when it closes or Recovery does.
+    expect(app).toContain("openEdition={editionAsked} onEditionClosed={() => setEditionAsked(false)}");
+    expect(app).toMatch(/const closeOverlay = \(\) => \{\s*setOverlay\(null\);\s*setEditionAsked\(false\);/);
+    expect(read("src/RecoveryDashboard.jsx")).toContain("{(showEdition || openEdition) && editionRaw && (");
+    for (const file of ["src/TodayTab.jsx", "src/ProgressTab.jsx"]) {
+      expect(read(file)).toContain('<LinkRow label="The Sunday Edition is out" sub="Your week, ending on one change" onClick={onOpenEdition}');
+    }
+  });
+});
+
 describe("The Sunday Edition, mounted", () => {
   it("is a full-screen dialog that ends on one change, and Done closes it", () => {
     const f = healthyFixture();
