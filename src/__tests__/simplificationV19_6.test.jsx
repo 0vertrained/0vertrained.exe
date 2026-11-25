@@ -137,7 +137,7 @@ describe("Settings", () => {
 
 describe("Profile hub", () => {
   const mount = () => wrap(
-    <MoreTab program={DEFAULT_PROGRAM} onSaveProgram={vi.fn()} onApplyGeneratedProgram={vi.fn()} settings={{}} allData={{}} showToast={vi.fn()} myUsername="athlete" onSettings={vi.fn()} onLogout={vi.fn()} exportJSON={vi.fn()} exportCSV={vi.fn()} fileRef={{ current: null }} onPasteImport={vi.fn()} onSaveCoachPreferences={vi.fn()} />,
+    <MoreTab program={DEFAULT_PROGRAM} onSaveProgram={vi.fn()} onApplyGeneratedProgram={vi.fn()} settings={{}} allData={{}} showToast={vi.fn()} onSettings={vi.fn()} onLogout={vi.fn()} exportJSON={vi.fn()} exportCSV={vi.fn()} fileRef={{ current: null }} onPasteImport={vi.fn()} onSaveCoachPreferences={vi.fn()} />,
   );
 
   it("lost the duplicate Theme row, the feedback form and the demo link", () => {
@@ -147,7 +147,7 @@ describe("Profile hub", () => {
     expect(screen.queryByText(/share demo page/i)).toBeNull();
     expect(screen.getByText("Settings")).toBeTruthy();
     expect(screen.getByText("Log out")).toBeTruthy();
-    expect(screen.getByText("Social boards")).toBeTruthy();
+    expect(screen.queryByText("Social boards")).toBeNull();
   });
 
   it("Coach memory is collapsed until opened", () => {

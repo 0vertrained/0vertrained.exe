@@ -194,7 +194,7 @@ export function buildOnboardingBuilderInput({ goal, builderPrefs, generatedAt } 
 }
 
 // Settings patch
-// Builds ONLY the fields onboarding owns. Never returns theme/social/dietary/
+// Builds ONLY the fields onboarding owns. Never returns theme/dietary/
 // supplements so a merge can preserve those untouched.
 export function buildOnboardingSettingsPatch({
   goal,
@@ -224,7 +224,7 @@ export function buildOnboardingSettingsPatch({
 }
 
 // Merge an onboarding payload onto existing settings, preserving every field the
-// setup flow does not own (theme, socialOptIn, dietaryRestrictions, supplements,
+// setup flow does not own (theme, dietaryRestrictions, supplements,
 // ouraConnected, username, …). Pure — App.jsx uses this before saveSettings().
 export function mergeOnboardingSettings(existing, payload) {
   const base = existing && typeof existing === "object" ? existing : {};

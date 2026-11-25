@@ -239,7 +239,6 @@ const PRIVACY_LEDGER = [
   ["Account", "Username + password/recovery phrase. No public real-world identity required."],
   ["Wearables", "Oura and Whoop are opt-in. Tokens stay server-side and are deleted when disconnected."],
   ["Coach", "Receives a compact, sanitized training/recovery summary — not OAuth tokens or full raw logs."],
-  ["Social", "Leaderboards and PR boards are opt-in and show only handle-level aggregate stats."],
 ];
 
 function TrustRail({ C }) {

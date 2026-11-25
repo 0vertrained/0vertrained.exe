@@ -77,7 +77,6 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   const [supps, setSupps]     = useState([...settings.supplements]);
   const [newSupp, setNewSupp] = useState("");
   const [dietary, setDietary] = useState([...(settings.dietaryRestrictions || [])]);
-  const [socialOptIn, setSocialOptIn] = useState(settings.socialOptIn === true);
   const [trainingCues, setTrainingCues] = useState({ haptics: true, restAudio: false, ...(settings.trainingCues || {}) });
   const [section, setSection] = useState(() => (SETTINGS_SECTIONS.some(([key]) => key === initialSection) ? initialSection : "goals"));
   // Opened straight onto a later section (Integrations sits off-screen in the
@@ -466,7 +465,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
     prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
   );
 
-  const handleSave = () => onSave({ goals, supplements: supps, dietaryRestrictions: dietary, socialOptIn, trainingCues });
+  const handleSave = () => onSave({ goals, supplements: supps, dietaryRestrictions: dietary, trainingCues });
 
   const submitRecoveryPhrase = async () => {
     setRecErr(""); setRecMsg("");
@@ -529,7 +528,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
     ...S.cell, background: C.text, color: C.bg, border: "none", width: "100%",
     cursor: busy ? "default" : "pointer", fontSize: 13.5, fontWeight: 600,
   });
-  // Ledger-style checkbox indicator shared by dietary / theme / social toggles.
+  // Ledger-style checkbox indicator shared by the dietary and theme toggles.
   const checkDot = { width: 6, height: 6, borderRadius: 0, background: C.bg };
   const checkBox = (on, marginLeft) => ({
     width: 16, height: 16, borderRadius: 0,
@@ -1043,30 +1042,6 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
                   {whoopMsg}
                 </div>
               )}
-            </div>
-
-            <div style={{ marginTop: 24 }}>
-              <label style={lbl}>Social Sharing</label>
-              <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 12, lineHeight: 1.6 }}>
-                Opt in before your username and derived leaderboard / PR stats appear to other users. Raw daily entries stay private.
-              </div>
-              <button
-                type="button"
-                onClick={() => setSocialOptIn(v => !v)}
-                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: C.bg, border: `1px solid ${socialOptIn ? C.text : C.line}`, borderRadius: 0, padding: "14px 16px", cursor: "pointer", fontFamily: mono, textAlign: "left" }}
-              >
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: socialOptIn ? C.text : C.textDim, letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                    {socialOptIn ? "Sharing enabled" : "Sharing disabled"}
-                  </div>
-                  <div style={{ fontSize: 11, color: C.textFaint, marginTop: 4 }}>
-                    {socialOptIn ? "Your derived scores can appear on Social boards." : "You are hidden from Social boards."}
-                  </div>
-                </div>
-                <div style={checkBox(socialOptIn, 12)}>
-                  {socialOptIn && <div style={checkDot} />}
-                </div>
-              </button>
             </div>
           </>
         )}

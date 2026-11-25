@@ -194,63 +194,6 @@ export async function saveProgram(programPayload) {
   return { ok: true };
 }
 
-// Social: Leaderboard + PRs
-
-export async function loadLeaderboard(periodDays = 7) {
-  const { data, error } = await supabase.rpc("get_leaderboard", { period_days: periodDays });
-  if (error) { console.error("Leaderboard load failed:", error); return []; }
-  return data || [];
-}
-
-export async function loadLiftingPRs() {
-  const { data, error } = await supabase.rpc("get_lifting_prs");
-  if (error) { console.error("Lifting PR load failed:", error); return []; }
-  return data || [];
-}
-
-export async function loadRunningPRs() {
-  const { data, error } = await supabase.rpc("get_running_prs");
-  if (error) { console.error("Running PR load failed:", error); return []; }
-  return data || [];
-}
-
-export async function loadSocialSummary(periodDays = 7) {
-  const { data, error } = await supabase.rpc("get_social_summary", { period_days: periodDays });
-  if (error) { console.error("Social summary load failed:", error); return { ok: false, error }; }
-  return { ok: true, data };
-}
-
-// Social Circles
-// Private, invite-only aggregate circles. Each wrapper returns { ok, data } or
-// { ok:false, error }. The RPC itself returns a jsonb envelope with its own `ok`
-// flag for domain errors (invalid code, not a member, etc.); we surface that as
-// data so the UI can show specific copy. A thrown/absent-RPC error (e.g. the
-// migration hasn't been applied yet) comes back as { ok:false, error } so the UI
-// can fail gracefully and point to the migration.
-export async function listMyCircles() {
-  const { data, error } = await supabase.rpc("list_my_circles");
-  if (error) { console.error("List circles failed:", error); return { ok: false, error }; }
-  return { ok: true, data };
-}
-
-export async function createCircle(name) {
-  const { data, error } = await supabase.rpc("create_circle", { p_name: name });
-  if (error) { console.error("Create circle failed:", error); return { ok: false, error }; }
-  return { ok: true, data };
-}
-
-export async function joinCircle(code) {
-  const { data, error } = await supabase.rpc("join_circle", { p_code: code });
-  if (error) { console.error("Join circle failed:", error); return { ok: false, error }; }
-  return { ok: true, data };
-}
-
-export async function loadCircleSummary(circleId, periodDays = 7) {
-  const { data, error } = await supabase.rpc("get_circle_summary", { p_circle: circleId, period_days: periodDays });
-  if (error) { console.error("Circle summary failed:", error); return { ok: false, error }; }
-  return { ok: true, data };
-}
-
 // Settings
 
 export const DEFAULT_SETTINGS = {
@@ -266,7 +209,6 @@ export const DEFAULT_SETTINGS = {
     "Fish Oil", "Vitamin D", "Magnesium", "BCAAs", "Caffeine", "Electrolytes"
   ],
   dietaryRestrictions: [],
-  socialOptIn: false,
   theme: "whitepaperLight",
   trainingCues: { haptics: true, restAudio: false },
   onboarded: false,
@@ -336,7 +278,6 @@ function normalizeStoredSettings(data) {
     goals: { ...DEFAULT_SETTINGS.goals, ...(s.goals || {}) },
     supplements: s.supplements || DEFAULT_SETTINGS.supplements,
     dietaryRestrictions: s.dietaryRestrictions || DEFAULT_SETTINGS.dietaryRestrictions,
-    socialOptIn: s.socialOptIn === true || s.socialOptIn === "true",
     theme: (function(th) {
       if (th === "minimal" || th === "instrumentLight") return "whitepaperLight";
       if (th === "instrument") return "whitepaperDark";

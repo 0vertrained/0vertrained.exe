@@ -761,7 +761,7 @@ function AppInner({ onThemeChange }) {
     const setup = typeof payload === "string" ? { programPreset: payload } : (payload || {});
 
     // Merge onboarding fields over existing settings without clobbering
-    // theme / social / dietary / supplements / oura state.
+    // theme / dietary / supplements / oura state.
     let mergedSettings = mergeOnboardingSettings(settings, {
       goal: setup.goal,
       dataMode: setup.dataMode,
@@ -1075,7 +1075,6 @@ function AppInner({ onThemeChange }) {
             onPasteImport={() => setImportOpen(true)}
             onSettings={() => { openSettings(); setOverlay(null); }}
             onLogout={handleLogout}
-            myUsername={myUsername}
             settings={settings}
             allData={data}
             showToast={showToast}

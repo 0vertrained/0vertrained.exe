@@ -1,17 +1,15 @@
 // src/MoreTab.jsx
 // Extracted verbatim from App.jsx (no behavior change): the
-// Profile hub (MoreTab) with ProgramTab, ProgramEditor, SocialTab,
-// CirclesSection, PR boards, CoachPreferencesCard, and hub primitives.
-import { useState, useEffect, useRef } from "react";
+// Profile hub (MoreTab) with ProgramTab, ProgramEditor, CoachPreferencesCard,
+// and hub primitives.
+import { useState, useEffect } from "react";
 import { useTheme } from "./theme";
 import { copyToClipboard } from "./clipboard";
 import { DEFAULT_PROGRAM, DAYS, PROGRAM_PRESETS, PRESET_LINEUP, presetProgram, getTodayKey } from "./constants";
 import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
 import { seedSupersetPrefsFromProgram } from "./liftLogPrefs";
 import { buildSplitSessionsFromLegacy, getProgramSessions, usesProgramSessions } from "./programSessions";
-import { loadLeaderboard, loadLiftingPRs, loadRunningPRs, loadSocialSummary, listMyCircles, createCircle, joinCircle, loadCircleSummary } from "./data";
 import { summarizeProgramForHub } from "./moreHub";
-import { buildLeaderboardHero, getBoardAverages, buildHighlights, buildPRComparison, getGapToNext, normalizeSocialSummary, buildDeltaBadge } from "./socialSummary";
 import { DEFAULT_COACH_PREFERENCES, normalizeCoachPreferences, mergeCoachPreferences, buildCoachMemoryExport, summarizeRecentTrend } from "./coachMemory";
 import { ProgramBuilderPanel } from "./ProgramBuilderPanel";
 import { NotificationsCard } from "./NotificationsCard";
@@ -570,495 +568,6 @@ function SessionProgramEditor({ draft, setDraft, openDay, setOpenDay, onCancel, 
   );
 }
 
-// Social Tab (Leaderboard + PR Board)
-const LEADERBOARD_CATEGORIES = [
-  { key: "total_miles",   label: "Miles",    unit: "mi",  decimals: 1 },
-  { key: "workouts_done", label: "Workouts", unit: "",    decimals: 0 },
-  { key: "protein_days",  label: "Protein",  unit: "days", decimals: 0 },
-  { key: "total_volume",  label: "Volume",   unit: "lbs", decimals: 0 },
-  { key: "water_days",    label: "Water",    unit: "days", decimals: 0 },
-];
-
-const PERIODS = [
-  { key: 7,  label: "This Week" },
-  { key: 30, label: "This Month" },
-  { key: 0,  label: "All Time" },
-];
-
-function socialFormat(value, cat) {
-  const n = parseFloat(value) || 0;
-  return cat?.decimals === 0 ? String(Math.round(n)) : n.toFixed(cat?.decimals ?? 1);
-}
-
-// Private invite-only Circles
-// A small aggregate-only group surface. Circles are invite-code join, and expose
-// ONLY derived member aggregates (usernames + counts/sums) computed server-side —
-// never raw logs, biometrics, feeds, comments, or DMs. When the migration hasn't
-// been applied the wrappers return { ok:false }, and we show a graceful notice
-// rather than an error state.
-const CIRCLE_ERRORS = {
-  name_required: "Enter a circle name first.",
-  code_required: "Enter an invite code first.",
-  invalid_code: "That invite code didn't match any circle.",
-  too_many_circles: "You've reached the circle limit.",
-  not_authenticated: "Sign in to use circles.",
-  not_a_member: "You're not a member of that circle.",
-  code_generation_failed: "Couldn't generate a code — try again.",
-};
-
-function CirclesSection({ myUsername }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-  const [circles, setCircles] = useState([]);
-  const [available, setAvailable] = useState(true); // false → migration not applied
-  const [loading, setLoading] = useState(true);
-  const [nameInput, setNameInput] = useState("");
-  const [codeInput, setCodeInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
-  const [summary, setSummary] = useState(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-
-  const refresh = async () => {
-    setLoading(true);
-    const res = await listMyCircles();
-    if (!res.ok) { setAvailable(false); setLoading(false); return; }
-    setAvailable(true);
-    const env = res.data;
-    if (env && env.ok) {
-      const list = Array.isArray(env.circles) ? env.circles : [];
-      setCircles(list);
-      setSelectedId((cur) => cur || (list[0]?.circle_id ?? null));
-    } else {
-      setCircles([]);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => { let c = false; (async () => { if (!c) await refresh(); })(); return () => { c = true; }; }, []);
-
-  useEffect(() => {
-    if (!selectedId) { setSummary(null); return; }
-    let cancelled = false;
-    setSummaryLoading(true);
-    loadCircleSummary(selectedId, 7).then((res) => {
-      if (cancelled) return;
-      setSummary(res.ok && res.data && res.data.ok ? res.data : null);
-      setSummaryLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [selectedId]);
-
-  const onCreate = async () => {
-    if (busy) return;
-    setBusy(true); setNotice(null);
-    const res = await createCircle(nameInput.trim());
-    if (!res.ok) { setAvailable(false); setBusy(false); return; }
-    const env = res.data;
-    if (env && env.ok) { setNameInput(""); setSelectedId(env.circle_id); await refresh(); setNotice(`Circle created · invite code ${env.invite_code}`); }
-    else setNotice(CIRCLE_ERRORS[env?.error] || "Couldn't create circle.");
-    setBusy(false);
-  };
-
-  const onJoin = async () => {
-    if (busy) return;
-    setBusy(true); setNotice(null);
-    const res = await joinCircle(codeInput.trim());
-    if (!res.ok) { setAvailable(false); setBusy(false); return; }
-    const env = res.data;
-    if (env && env.ok) { setCodeInput(""); setSelectedId(env.circle_id); await refresh(); setNotice(`Joined ${env.name || "circle"}.`); }
-    else setNotice(CIRCLE_ERRORS[env?.error] || "Couldn't join circle.");
-    setBusy(false);
-  };
-
-  const caption = { fontSize: 10, color: C.textFaint, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono };
-  const small = { fontSize: 11, color: C.textDim, lineHeight: 1.55, letterSpacing: "0.03em" };
-  const card = { ...S.block, background: C.bg };
-  const input = { flex: 1, minWidth: 0, background: C.inputBg, border: `1px solid ${C.line}`, color: C.text, fontFamily: mono, fontSize: 11.5, padding: "8px 9px", letterSpacing: "0.04em" };
-  const btn = { background: C.block, border: `1px solid ${C.textDim}`, color: C.text, fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", padding: "8px 11px", cursor: busy ? "default" : "pointer", flexShrink: 0, opacity: busy ? 0.6 : 1 };
-  const pill = (active) => ({ padding: "4px 10px", background: "none", border: `1px solid ${active ? C.text : C.lineBright}`, color: active ? C.text : C.textFaint, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 });
-
-  const selected = circles.find((c) => c.circle_id === selectedId) || null;
-
-  return (
-    <section style={card}>
-      <div style={S.blockHead}>
-        <span style={S.blockTitle}>{"> "}Circles</span>
-        <span style={S.blockStat}>invite-only</span>
-      </div>
-      <div style={{ ...small, marginBottom: 10 }}>
-        Private, invite-only groups that share <strong>aggregate stats only</strong> — usernames, counts, and totals for members.
-        No feeds, comments, or DMs, and never raw logs, biometrics, or Coach chat.
-      </div>
-
-      {!available ? (
-        <div style={{ ...small, color: C.textFaint, border: `1px solid ${C.line}`, padding: "10px 11px" }}>
-          Circles aren't available yet. Apply the <span style={{ color: C.text }}>V4.5 social circles</span> migration
-          (supabase/migration_add_social_circles.sql) to enable invite-only group aggregates.
-        </div>
-      ) : (
-        <>
-          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-            <input style={input} value={nameInput} maxLength={40} placeholder="New circle name"
-              onChange={(e) => setNameInput(e.target.value)} />
-            <button type="button" style={btn} disabled={busy} onClick={onCreate}>Create</button>
-          </div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-            <input style={input} value={codeInput} maxLength={12} placeholder="Invite code"
-              onChange={(e) => setCodeInput(e.target.value.toUpperCase())} />
-            <button type="button" style={btn} disabled={busy} onClick={onJoin}>Join</button>
-          </div>
-
-          {notice && <div style={{ ...small, color: C.text, marginBottom: 10 }}>{notice}</div>}
-
-          {loading ? (
-            <div style={{ ...small, color: C.textDim }}>Loading circles…</div>
-          ) : circles.length === 0 ? (
-            <div style={small}>No circles yet — create one and share its invite code, or join with a code from a friend.</div>
-          ) : (
-            <>
-              <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 10 }}>
-                {circles.map((c) => (
-                  <button type="button" key={c.circle_id} style={pill(c.circle_id === selectedId)} onClick={() => setSelectedId(c.circle_id)}>
-                    {c.name}{c.member_count ? ` · ${c.member_count}` : ""}
-                  </button>
-                ))}
-              </div>
-
-              {selected && selected.is_owner && selected.invite_code && (
-                <div style={{ ...small, marginBottom: 8 }}>
-                  Invite code for <span style={{ color: C.text }}>{selected.name}</span>: <span style={{ color: C.text, letterSpacing: "0.14em" }}>{selected.invite_code}</span>
-                </div>
-              )}
-
-              {summaryLoading ? (
-                <div style={{ ...small, color: C.textDim }}>Loading circle aggregates…</div>
-              ) : summary && Array.isArray(summary.members) && summary.members.length > 0 ? (
-                <div>
-                  <div style={{ ...caption, marginBottom: 6 }}>{summary.name} · last 7 days · aggregate only</div>
-                  {summary.members.map((m) => {
-                    const isMe = m.username === myUsername;
-                    return (
-                      <div key={m.username} style={{ padding: "9px 0", borderBottom: `1px solid ${C.line}`, borderLeft: isMe ? `2px solid ${C.text}` : "2px solid transparent", paddingLeft: isMe ? 8 : 0 }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "baseline" }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                            {m.username}{isMe && <span style={{ fontSize: 10, fontWeight: 400 }}> (you)</span>}
-                          </div>
-                          <div style={{ ...small, fontSize: 10 }}>
-                            {Math.round(m.workouts_done || 0)} workouts · {Math.round(m.total_volume || 0)} vol · {(Number(m.total_miles) || 0).toFixed(1)} mi · {Math.round(m.protein_days || 0)} protein days
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : selected ? (
-                <div style={small}>No shared aggregates yet — members appear here once they opt into Social Sharing and log training.</div>
-              ) : null}
-            </>
-          )}
-        </>
-      )}
-    </section>
-  );
-}
-
-function SocialTab({ myUsername, socialOptIn }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-  const [view, setView]               = useState("leaderboard");
-  const [period, setPeriod]           = useState(7);
-  const [category, setCategory]       = useState("total_miles");
-  const [board, setBoard]             = useState([]);
-  const [liftPRs, setLiftPRs]         = useState([]);
-  const [runPRs, setRunPRs]           = useState([]);
-  const [prFilter, setPrFilter]       = useState("lifting");
-  const [loading, setLoading]         = useState(true);
-  const [serverSummary, setServerSummary] = useState(null);
-
-  // Leaderboard cache: key = period_days, value = { rows, ts }
-  // 5-minute TTL prevents refetch on every period toggle while keeping data fresh.
-  const lbCache = useRef({});
-  const CACHE_TTL = 5 * 60 * 1000;
-
-  useEffect(() => {
-    let cancelled = false;
-    const cached = lbCache.current[period];
-    const now = Date.now();
-    if (cached && now - cached.ts < CACHE_TTL) {
-      setBoard(cached.rows);
-      setLoading(false);
-    } else {
-      setLoading(true);
-      loadLeaderboard(period).then(rows => {
-        if (!cancelled) {
-          lbCache.current[period] = { rows, ts: Date.now() };
-          setBoard(rows);
-          setLoading(false);
-        }
-      });
-    }
-    // Server summary is fetched even when the older leaderboard cache hits;
-    // otherwise rank deltas/highlights can lag behind the visible board.
-    loadSocialSummary(period).then(result => {
-      if (!cancelled && result.ok && result.data) {
-        setServerSummary(normalizeSocialSummary(result.data));
-      } else if (!cancelled) {
-        setServerSummary(null);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [period]);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadLiftingPRs().then(rows => { if (!cancelled) setLiftPRs(rows); });
-    loadRunningPRs().then(rows => { if (!cancelled) setRunPRs(rows); });
-    return () => { cancelled = true; };
-  }, []);
-
-  const cat = LEADERBOARD_CATEGORIES.find(c => c.key === category) || LEADERBOARD_CATEGORIES[0];
-  // Prefer server leaderboard rows when available (single RPC vs 3 separate calls)
-  const activeBoard = (serverSummary?.leaderboard?.length) ? serverSummary.leaderboard : board;
-  const ranked = [...activeBoard]
-    .map(r => ({ ...r, value: parseFloat(r[category]) || 0 }))
-    .sort((a, b) => b.value - a.value);
-  const leaderVal = ranked.length ? ranked[0].value : 0;
-  const hero = buildLeaderboardHero({ board: activeBoard, myUsername, category });
-  const bestCategory = hero.bestCategory;
-  const localAverages = getBoardAverages(activeBoard);
-  const averages = serverSummary?.boardAverages && Object.keys(serverSummary.boardAverages).length
-    ? { ...localAverages, ...serverSummary.boardAverages }
-    : localAverages;
-  const prCompare = buildPRComparison({ liftPRs, runPRs, myUsername });
-  const periodLabel = PERIODS.find(p => p.key === period)?.label || "Board";
-  const myRow = activeBoard.find(r => r.username === myUsername) || null;
-
-  // Gap to the person one rank above (more motivational than leader gap)
-  const gapToNext = getGapToNext(activeBoard, myUsername, category);
-  // Build a gap label preferring next-rank gap over leader gap
-  let gapToNextLabel = null;
-  if (hero.hasData && gapToNext !== null) {
-    const formatted = cat.decimals === 0 ? Math.round(gapToNext) : gapToNext.toFixed(cat.decimals);
-    gapToNextLabel = `${formatted} ${cat.unit} to next rank`.trim();
-  }
-
-  // Period-over-period rank movement from server (workouts-based primary metric)
-  const deltaBadge = buildDeltaBadge(serverSummary?.currentUser?.rankDelta ?? null);
-
-  // Server highlights override local highlights when available
-  const serverHighlights = serverSummary?.highlights?.length
-    ? serverSummary.highlights.map(h => {
-        const catMeta = LEADERBOARD_CATEGORIES.find(c => c.key === h.category);
-        return {
-          id:    `server_${h.category}`,
-          label: `${catMeta?.label ?? h.category} Leader`,
-          value: catMeta?.decimals === 0 ? String(Math.round(h.value)) : h.value.toFixed(catMeta?.decimals ?? 1),
-          unit:  catMeta?.unit ?? '',
-          note:  h.username,
-          tone:  h.username === myUsername ? 'good' : 'neutral',
-        };
-      })
-    : null;
-  const highlights = (serverHighlights || buildHighlights({ board: activeBoard, liftPRs, runPRs, myUsername })).slice(0, 6);
-
-  const caption = { fontSize: 10, color: C.textFaint, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono };
-  const small = { fontSize: 11, color: C.textDim, lineHeight: 1.55, letterSpacing: "0.03em" };
-  const card = { ...S.block, background: C.bg };
-  const pill = (active) => ({ padding:"4px 10px", background:"none", border:`1px solid ${active ? C.text : C.lineBright}`, color: active ? C.text : C.textFaint, fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", fontFamily:mono, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 });
-
-  return (
-    <div>
-      <section style={{ ...card, paddingTop: 16 }}>
-        <div style={S.blockHead}>
-          <span style={S.blockTitle}>{"> "}Social Hub</span>
-          <span style={S.blockStat}>{socialOptIn ? "visible" : "private"}</span>
-        </div>
-        <div style={{ fontFamily: S.fontSerif, fontSize: 24, lineHeight: 1.05, color: C.text, letterSpacing: "-0.03em" }}>
-          {socialOptIn
-            ? (hero.hasData ? `#${hero.rank} in ${cat.label}` : "Shared boards, not raw logs")
-            : "Private mode is on"}
-        </div>
-        <div style={{ ...small, marginTop: 8 }}>
-          {socialOptIn
-            ? (hero.hasData
-                ? `${periodLabel}: ${gapToNextLabel || hero.gapLabel}${bestCategory ? ` · strongest board: ${bestCategory.label} (#${bestCategory.rank})` : ""}${deltaBadge ? ` · ${deltaBadge}` : ""}.`
-                : "You are opted in, but this board needs logged data before your rank appears.")
-            : "You can view boards, but your stats stay hidden until Settings → Social Sharing is enabled."}
-        </div>
-      </section>
-
-      <section style={card}>
-        <div style={S.blockHead}>
-          <span style={S.blockTitle}>{"> "}Privacy boundary</span>
-          <span style={S.blockStat}>opt-in only</span>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <div>
-            <div style={caption}>Shared if enabled</div>
-            <div style={{ ...small, marginTop: 5 }}>Username, leaderboard aggregates, PR numbers.</div>
-          </div>
-          <div>
-            <div style={caption}>Never shared</div>
-            <div style={{ ...small, marginTop: 5 }}>Raw logs, biometrics, Oura/Whoop payloads, Coach chat, notes.</div>
-          </div>
-        </div>
-      </section>
-
-      <CirclesSection myUsername={myUsername} />
-
-      <div style={{ display:"flex", borderBottom:`1px solid ${C.line}`, background:C.panel }}>
-        <button type="button" onClick={() => setView("leaderboard")} style={{ flex:1, padding:"10px 8px", background:"none", border:"none", borderBottom: view==="leaderboard" ? `1px solid ${C.text}` : "1px solid transparent", marginBottom:-1, color: view==="leaderboard" ? C.text : C.textFaint, fontSize:11, letterSpacing:"0.14em", textTransform:"uppercase", fontFamily:mono, cursor:"pointer" }}>Leaderboard</button>
-        <button type="button" onClick={() => setView("prs")} style={{ flex:1, padding:"10px 8px", background:"none", border:"none", borderBottom: view==="prs" ? `1px solid ${C.text}` : "1px solid transparent", marginBottom:-1, color: view==="prs" ? C.text : C.textFaint, fontSize:11, letterSpacing:"0.14em", textTransform:"uppercase", fontFamily:mono, cursor:"pointer" }}>PR Board</button>
-      </div>
-
-      {view === "leaderboard" && (
-        <>
-          <div style={{ padding:"10px 16px", borderBottom:`1px solid ${C.line}`, display:"flex", gap:6, overflowX:"auto" }}>
-            {PERIODS.map(p => <button type="button" key={p.key} onClick={() => setPeriod(p.key)} style={pill(period===p.key)}>{p.label}</button>)}
-          </div>
-          <div style={{ padding:"8px 16px", borderBottom:`1px solid ${C.line}`, display:"flex", gap:4, overflowX:"auto" }}>
-            {LEADERBOARD_CATEGORIES.map(c2 => <button type="button" key={c2.key} onClick={() => setCategory(c2.key)} style={pill(category===c2.key)}>{c2.label}</button>)}
-          </div>
-
-          <section style={card}>
-            <div style={S.blockHead}>
-              <span style={S.blockTitle}>{"> "}My week vs board</span>
-              <span style={S.blockStat}>{periodLabel}</span>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(2, 1fr)", gap:1, background:C.line, border:`1px solid ${C.line}` }}>
-              {LEADERBOARD_CATEGORIES.slice(0, 4).map(c2 => {
-                const mine = myRow ? parseFloat(myRow[c2.key]) || 0 : 0;
-                const avg = averages[c2.key] || 0;
-                const leader = ranked.length ? parseFloat(ranked[0][c2.key]) || 0 : 0;
-                return (
-                  <div key={c2.key} style={{ background:C.bg, padding:"10px 9px" }}>
-                    <div style={caption}>{c2.label}</div>
-                    <div style={{ fontFamily:S.fontSerif, fontSize:20, color:C.text, marginTop:4 }}>{socialFormat(mine, c2)}</div>
-                    <div style={{ ...small, fontSize:10 }}>Avg {socialFormat(avg, c2)} · Lead {socialFormat(leader, c2)} {c2.unit}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          <section style={card}>
-            <div style={S.blockHead}>
-              <span style={S.blockTitle}>{"> "}Board highlights</span>
-              <span style={S.blockStat}>derived only</span>
-            </div>
-            {highlights.length === 0 ? <div style={small}>No shared highlights yet — boards populate as opted-in athletes log training.</div> : (
-              <div style={{ display:"grid", gap:7 }}>
-                {highlights.map(h => (
-                  <div key={h.id} style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:12, alignItems:"baseline", padding:"8px 0", borderBottom:`1px solid ${C.line}` }}>
-                    <div><div style={caption}>{h.label}</div><div style={{ ...small, marginTop:2 }}>{h.note}</div></div>
-                    <div style={{ textAlign:"right" }}><span style={{ fontFamily:S.fontSerif, fontSize:20, color:h.tone === "good" ? C.green : C.text }}>{h.value}</span><span style={{ ...caption, marginLeft:4 }}>{h.unit}</span></div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {loading ? (
-            <div style={{ padding:24, color:C.textDim, fontSize:11.5 }}>Loading leaderboard…</div>
-          ) : ranked.length === 0 ? (
-            <div style={{ padding:24, color:C.textDim, fontSize:11.5 }}>No shared data yet — opt in and log workouts to populate.</div>
-          ) : (
-            <section style={{ ...card, paddingBottom: 8 }}>
-              <div style={S.blockHead}>
-                <span style={S.blockTitle}>{"> "}{cat.label} board</span>
-                <span style={S.blockStat}>{periodLabel}</span>
-              </div>
-              {ranked.map((r, i) => {
-                const isMe = r.username === myUsername;
-                const widthPct = leaderVal > 0 ? Math.round((r.value / leaderVal) * 100) : 0;
-                return (
-                  <div key={r.username} style={{ padding:"10px 0", borderBottom:`1px solid ${C.line}`, borderLeft:isMe ? `2px solid ${C.text}` : "2px solid transparent", paddingLeft:isMe ? 8 : 0 }}>
-                    <div style={{ display:"grid", gridTemplateColumns:"28px 1fr auto", gap:8, alignItems:"baseline" }}>
-                      <span style={{ fontSize:15, fontWeight:600, color:i===0 ? C.green : C.textDim, textAlign:"center" }}>{i+1}</span>
-                      <div><div style={{ fontSize:13.5, fontWeight:600, color:C.text, letterSpacing:"0.04em", textTransform:"uppercase" }}>{r.username}{isMe && <span style={{ fontSize:10, color:C.text, fontWeight:400 }}> (you)</span>}</div><div style={{ ...small, fontSize:10 }}>{r.workouts_done} workouts</div></div>
-                      <div style={{ textAlign:"right" }}><div style={{ fontSize:18, fontWeight:600, color:i===0 ? C.green : C.text }}>{socialFormat(r.value, cat)}</div><div style={caption}>{cat.unit}</div></div>
-                    </div>
-                    <div style={{ height:2, background:C.line, marginTop:8 }}><div style={{ height:"100%", width:`${widthPct}%`, background:isMe ? C.green : C.textFaint }} /></div>
-                  </div>
-                );
-              })}
-            </section>
-          )}
-        </>
-      )}
-
-      {view === "prs" && (
-        <>
-          <div style={{ padding:"8px 16px", borderBottom:`1px solid ${C.line}`, display:"flex", gap:4 }}>
-            <button type="button" onClick={() => setPrFilter("lifting")} style={pill(prFilter==="lifting")}>Lifting</button>
-            <button type="button" onClick={() => setPrFilter("running")} style={pill(prFilter==="running")}>Running</button>
-          </div>
-          {prFilter === "lifting" && <LiftingPRBoard prs={liftPRs} myUsername={myUsername} comparisons={prCompare.lifting} />}
-          {prFilter === "running" && <RunningPRBoard prs={runPRs} myUsername={myUsername} comparison={prCompare.running} />}
-        </>
-      )}
-    </div>
-  );
-}
-
-function LiftingPRBoard({ prs, myUsername, comparisons = [] }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-  const caption = { fontSize: 10, color: C.textFaint, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono };
-  const small = { fontSize: 11, color: C.textDim, lineHeight: 1.5 };
-  if (!prs?.length) return <div style={{ padding:24, color:C.textDim, fontSize:11.5 }}>No lifting PRs yet — log some sets.</div>;
-  return (
-    <div>
-      <section style={S.block}>
-        <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Lifting records</span><span style={S.blockStat}>board vs you</span></div>
-        {comparisons.map(c => {
-          const youHold = c.boardHolder === myUsername;
-          return (
-            <div key={c.exercise} style={{ padding:"10px 0", borderBottom:`1px solid ${C.line}` }}>
-              <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"baseline" }}>
-                <div><div style={{ fontSize:13, letterSpacing:"0.08em", textTransform:"uppercase", color:C.text }}>{c.exercise}</div><div style={small}>Board: {c.boardHolder || "—"} · {Math.round(c.boardBest)} lb</div></div>
-                <div style={{ textAlign:"right" }}><div style={{ fontFamily:S.fontSerif, fontSize:20, color:youHold ? C.green : C.text }}>{c.myBest ? Math.round(c.myBest) : "—"}</div><div style={caption}>{youHold ? "you hold it" : c.myBest ? `${Math.round(c.gap)} lb gap` : "no PR yet"}</div></div>
-              </div>
-            </div>
-          );
-        })}
-      </section>
-    </div>
-  );
-}
-
-function RunningPRBoard({ prs, myUsername, comparison }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-  const caption = { fontSize: 10, color: C.textFaint, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono };
-  if (!prs?.length) return <div style={{ padding:24, color:C.textDim, fontSize:11.5 }}>No running PRs yet — log some runs.</div>;
-  const dist = comparison?.distance;
-  const pace = comparison?.pace;
-  return (
-    <div>
-      <section style={S.block}>
-        <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Running records</span><span style={S.blockStat}>distance + pace</span></div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:1, background:C.line, border:`1px solid ${C.line}` }}>
-          <div style={{ background:C.bg, padding:"10px 9px" }}>
-            <div style={caption}>Longest run</div>
-            <div style={{ fontFamily:S.fontSerif, fontSize:24, color:dist?.boardHolder === myUsername ? C.green : C.text }}>{dist?.myBest ? dist.myBest.toFixed(1) : "—"}</div>
-            <div style={{ fontSize:11, color:C.textDim, lineHeight:1.5 }}>Board: {dist?.boardHolder || "—"} · {(dist?.boardBest || 0).toFixed(1)} mi</div>
-            <div style={caption}>{dist?.boardHolder === myUsername ? "you hold it" : dist?.myBest ? `${dist.gap.toFixed(1)} mi gap` : "no run PR yet"}</div>
-          </div>
-          <div style={{ background:C.bg, padding:"10px 9px" }}>
-            <div style={caption}>Fastest pace</div>
-            <div style={{ fontFamily:S.fontSerif, fontSize:24, color:pace?.boardHolder === myUsername ? C.green : C.text }}>{pace?.myBestStr || "—"}</div>
-            <div style={{ fontSize:11, color:C.textDim, lineHeight:1.5 }}>Board: {pace?.boardHolder || "—"} · {pace?.boardBestStr || "—"}/mi</div>
-            <div style={caption}>{pace?.boardHolder === myUsername ? "you hold it" : pace?.gapSec != null ? `${Math.round(pace.gapSec)} sec gap` : "no pace PR yet"}</div>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 // More Tab
 // More: management hub
 // Small consistent header for every More subview: a "← More" back-to-hub button
@@ -1176,10 +685,10 @@ function CoachPreferencesCard({ settings, allData, onSave, showToast }) {
   );
 }
 
-export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, exportJSON, exportCSV, fileRef, onPasteImport, onSettings, onLogout, myUsername, settings, allData, showToast, onSaveCoachPreferences }) {
+export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, exportJSON, exportCSV, fileRef, onPasteImport, onSettings, onLogout, settings, allData, showToast, onSaveCoachPreferences }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
-  const [subView, setSubView] = useState("hub"); // "hub" | "program" | "social"
+  const [subView, setSubView] = useState("hub"); // "hub" | "program"
   const [programAction, setProgramAction] = useState(null); // "generate" | "switch" | "edit" | null
   const backToHub = () => { setSubView("hub"); setProgramAction(null); };
   const openProgram = (action) => { setProgramAction(action); setSubView("program"); };
@@ -1195,14 +704,6 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
       <div>
         <MoreSubHeader title="Training Plan" onBack={backToHub} />
         <ProgramTab program={program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={onApplyGeneratedProgram} settings={settings} initialAction={programAction} />
-      </div>
-    );
-  }
-  if (subView === "social") {
-    return (
-      <div>
-        <MoreSubHeader title="Social" onBack={backToHub} />
-        <SocialTab myUsername={myUsername} socialOptIn={settings?.socialOptIn === true} />
       </div>
     );
   }
@@ -1234,7 +735,7 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
         <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Account + Data</span></div>
         <div style={groupDesc}>Settings, integrations, and local backups.</div>
         <HubAction label="Settings" sublabel="Macro targets · supplements · theme" onClick={onSettings} />
-        <div style={note}>Oura and social sharing are managed in Settings.</div>
+        <div style={note}>Wearable connections are managed in Settings.</div>
         <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:12 }}>
           <div style={{ fontSize:10.5, color:C.textFaint, letterSpacing:"0.12em", textTransform:"uppercase" }}>Data · synced live, export for a local backup</div>
           <button style={{ ...S.foodBtn, marginTop:0 }} onClick={exportJSON}>Export Full Backup [JSON]</button>
@@ -1260,10 +761,9 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
           <span style={S.blockTitle}>{"> "}App</span>
           <span style={S.blockStat}>Beta build</span>
         </div>
-        <div style={groupDesc}>Notifications, coach memory, and the social boards. Theme lives in Settings.</div>
+        <div style={groupDesc}>Notifications and coach memory. Theme lives in Settings.</div>
         <NotificationsCard showToast={showToast} />
         <CoachPreferencesCard settings={settings} allData={allData} onSave={onSaveCoachPreferences} showToast={showToast} />
-        <HubAction label="Social boards" sublabel="Leaderboard, PR board and circles · sharing is opt-in under Settings" onClick={() => setSubView("social")} />
         <div style={note}>Something confusing? Settings → About has a privacy-safe beta feedback note.</div>
       </div>
     </div>

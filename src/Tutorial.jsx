@@ -52,7 +52,7 @@ const SLIDES = [
     kicker: "Privacy boundary",
     title: "Private by design,\nuseful by default",
     body: "Manual logs stay private to your account. Wearable connections are opt-in. The coach receives a sanitized training/recovery slice, not secrets.",
-    hint: "Social boards are opt-in and show handle-level stats only.",
+    hint: "Export a full backup any time from Profile.",
     ledger: [["Coach", "summary only"], ["Wearables", "opt-in"], ["Data", "export / delete"]],
   },
 ];

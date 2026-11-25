@@ -82,7 +82,7 @@
       <div class="eyebrow">Legal · Privacy policy</div>
       <h1>Privacy Policy</h1>
       <p class="updated">0VERTRAINED — Last updated: November 24, 2026</p>
-      <p>This Privacy Policy explains how 0VERTRAINED ("0VERTRAINED," "we," "us," or "the App") collects, uses, discloses, stores, and protects information when you use the App, connect supported wearables, use AI coaching, enable notifications, or participate in opt-in social features.</p>
+      <p>This Privacy Policy explains how 0VERTRAINED ("0VERTRAINED," "we," "us," or "the App") collects, uses, discloses, stores, and protects information when you use the App, connect supported wearables, use AI coaching, or enable notifications.</p>
       <p>This policy is written for the current app architecture. It is not a substitute for legal advice, and the policy should be reviewed by counsel before a commercial launch or expansion into new jurisdictions.</p>
     </div>
 
@@ -94,7 +94,6 @@
         <div class="row"><strong>Manual first</strong><span>The App works with manual logging. Oura, Whoop, Google Health/Fitbit, and Strava connections are optional.</span></div>
         <div class="row"><strong>Derived only</strong><span>Wearable snapshots are display-safe derived values.</span></div>
         <div class="row"><strong>API limits</strong><span>Google Health/Fitbit and Strava data are used only for user-authorized app features and are subject to each provider's API rules.</span></div>
-        <div class="row"><strong>Opt in sharing</strong><span>Social leaderboards and PR boards are opt-in and expose only handle-level aggregate stats.</span></div>
       </div>
     </section>
 
@@ -139,10 +138,9 @@
         <li>Coach usage counts may be stored to enforce daily or monthly beta limits.</li>
       </ul>
 
-      <h3>Notifications, social features, diagnostics, and device storage</h3>
+      <h3>Notifications, diagnostics, and device storage</h3>
       <ul>
         <li>Push notification subscription data, including endpoint, p256dh key, auth key, reminder preference, and timezone offset, if you enable browser notifications.</li>
-        <li>Opt-in social-circle, leaderboard, and PR-board data such as username/handle, circle membership, invite code, aggregate stats, and PR records. Raw daily entries remain private.</li>
         <li>Client error reports such as error message, stack trace, component stack, source, path, app version, user agent, and timestamp.</li>
         <li>First-party product events tied to your account, such as which first-run screens you saw, which first-step buttons you tapped, whether a wearable connected, and when your first readiness verdict appeared, each with a timestamp. These are stored in our own database, are not shared with analytics or advertising services, and are used only to understand whether the App works for new users.</li>
         <li>Browser localStorage data used for offline-first performance, including recent entries, program/settings cache, coach conversation history, and local UI preferences.</li>
@@ -155,7 +153,7 @@
         <li>Provide the App, authenticate accounts, sync data, and keep your account separate from other users.</li>
         <li>Display dashboards for Today, Recovery, Fuel, Progress, Profile, and related app views.</li>
         <li>Generate readiness, recovery, load, nutrition, program, trend, and coaching insights.</li>
-        <li>Operate optional wearable sync, optional push notifications, optional AI Coach, and optional social features.</li>
+        <li>Operate optional wearable sync, optional push notifications, and optional AI Coach.</li>
         <li>Debug crashes, prevent abuse, enforce beta limits, maintain security, and improve reliability.</li>
         <li>Respond to privacy, support, deletion, export, or security requests.</li>
         <li>Comply with applicable law, including data-security and breach-notification obligations.</li>
@@ -167,7 +165,7 @@
       <p>Where the GDPR or UK GDPR applies, we rely on the following legal bases:</p>
       <div class="ledger">
         <div class="row"><strong>Contract</strong><span>To create and operate your account and provide the App features you request.</span></div>
-        <div class="row"><strong>Consent</strong><span>For optional wearable connections, optional push notifications, optional social sharing, and any other feature where the App asks you to opt in.</span></div>
+        <div class="row"><strong>Consent</strong><span>For optional wearable connections, optional push notifications, and any other feature where the App asks you to opt in.</span></div>
         <div class="row"><strong>Legitimate interests</strong><span>For security, abuse prevention, diagnostics, service reliability, and limited product improvement that does not override your privacy rights.</span></div>
         <div class="row"><strong>Legal obligation</strong><span>When we must preserve, disclose, or notify about information to comply with applicable law.</span></div>
       </div>
@@ -182,10 +180,10 @@
         <li><strong>Netlify:</strong> hosting, serverless functions, wearable sync endpoints, notification endpoints, and API routing.</li>
         <li><strong>Oura, Whoop, Google Health/Fitbit, and Strava:</strong> authorization and data syncing only when you connect those services. Their own terms, privacy policies, API rules, and account controls apply to their services.</li>
         <li><strong>Google API data:</strong> Google Health/Fitbit data is used only to provide and improve user-facing 0VERTRAINED features you authorize. We do not sell Google user data, use it for advertising, or use it to train generalized AI or machine-learning models. 0VERTRAINED's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.</li>
-        <li><strong>Strava API data:</strong> Strava data is displayed back to the connected user and used for activity import/sync features. We do not disclose Strava-sourced activity data to other users through public feeds, leaderboards, or AI Coach by default.</li>
+        <li><strong>Strava API data:</strong> Strava data is displayed back to the connected user and used for activity import/sync features. We do not disclose Strava-sourced activity data to other users, and it is excluded from AI Coach by default.</li>
         <li><strong>Ollama Cloud:</strong> server-side AI Coach processing when you use the coach feature. The App's server sends a sanitized coaching context and your coach message to models hosted by Ollama Cloud.</li>
         <li><strong>Browser push services:</strong> push notifications are routed through browser/platform notification infrastructure if you enable notifications.</li>
-        <li><strong>Other users:</strong> only for opt-in social features, where visible data is limited to handle-level aggregate stats, PR records, circle membership, and information you choose to share.</li>
+        <li><strong>Other users:</strong> none. The App does not show your data to other users.</li>
         <li><strong>Legal and safety:</strong> if necessary to comply with law, respond to lawful requests, protect rights and safety, investigate abuse, or enforce the Terms.</li>
       </ul>
     </section>
@@ -199,7 +197,7 @@
       <h2>7. Storage, security, and local device data</h2>
       <ul>
         <li>Data in transit is encrypted via HTTPS/TLS.</li>
-        <li>Supabase Row Level Security is used so authenticated users can access only their own owner-scoped rows, except for explicitly opt-in aggregate social features.</li>
+        <li>Supabase Row Level Security is used so authenticated users can access only their own owner-scoped rows.</li>
         <li>Wearable OAuth tokens are stored server-side, encrypted at rest, and are not returned to browser clients.</li>
         <li>Service role keys, OAuth client secrets, and AI provider keys are server-side environment variables and should not be committed to source control.</li>
         <li>Some data is cached in browser localStorage for offline-first use. Anyone with access to your unlocked device/browser profile may be able to view local cached data.</li>

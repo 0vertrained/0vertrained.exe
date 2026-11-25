@@ -330,3 +330,21 @@ describe("module constants", () => {
     expect(PROGRESS_UNLOCK_DAYS).toBe(3);
   });
 });
+
+describe("buildBetaFeedbackText — version stamp", () => {
+  const settings = { onboarded: true, setup: { goal: "strength", dataMode: "oura" }, username: "secretUser42" };
+
+  it("stamps the caller-provided version and stays privacy-safe", () => {
+    const text = buildBetaFeedbackText({ tab: "More", settings, loggedDays: 4, userAgent: "UA", note: "great", version: "V4.5" });
+    expect(text).toContain("V4.5");
+    expect(text).not.toContain("secretUser42");
+    for (const term of ["token", "secret", "password", "oura_access", "bearer"]) {
+      expect(text.toLowerCase()).not.toContain(term);
+    }
+  });
+
+  it("defaults to the frozen label when no version is passed", () => {
+    const text = buildBetaFeedbackText({ tab: "Today", settings, loggedDays: 0 });
+    expect(text).toContain("V2.8");
+  });
+});
