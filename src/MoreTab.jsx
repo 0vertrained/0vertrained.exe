@@ -1226,7 +1226,7 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
         <HubAction label="Edit weekly program" sublabel="Adjust days, exercises, and cardio" onClick={() => openProgram("edit")} variant="primary" />
         <HubAction label="Switch preset" sublabel="Preview and load a ready-made split" onClick={() => openProgram("switch")} />
         <HubAction label="Race plan" sublabel={isRunPlanSpec(program?.__raceBuild) ? `${program.__raceBuild.raceName} · edit or end it` : "Train for a 5K, 10K or half, built around your lifting"} onClick={() => openProgram("race")} />
-        <div style={note}>Block and periodization guidance lives in Progress → Block.</div>
+        <div style={note}>Block and periodization guidance lives in Progress → Program.</div>
       </div>
 
       {/* 2 — Account + Data */}

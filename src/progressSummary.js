@@ -398,7 +398,7 @@ export function buildBlockProgressPreview({ plan = null, action = null } = {}) {
       actionLabel: null,
       riskTone: "neutral",
       rationale:
-        "Set up a block in the Periodization view to see week-by-week guidance here.",
+        "Set up a block in Progress → Program to see week-by-week guidance here.",
       suggestOnlyNote,
     };
   }
