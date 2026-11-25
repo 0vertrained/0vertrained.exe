@@ -1,35 +1,34 @@
 // src/CardioSession.jsx
-// Cardio session runner — the interval counterpart to Session Mode.
-// Three phases: setup (preset chips + work/rest/round steppers, pre-filled
-// from the program's cardio notes when unambiguous), running (segment
-// countdown, round counter, pause/skip), done (summary + one-tap log of the
-// elapsed time through the EXISTING workout.cardio.time write path).
-// Timer math is timestamp-based so backgrounded tabs don't drift.
+// The interval runner: the cardio counterpart to the session runner.
+// Three phases: setup (presets and work, rest, rounds and warm-up steppers,
+// filled from the plan's steps or notes when they are unambiguous), running
+// (what you are in now, the time left in it, the round, what is next, and
+// Pause, Skip segment and End), then done (the elapsed time and one tap to log
+// it through the existing workout.cardio.time write path).
+// Timer math is timestamp-based so a backgrounded tab does not drift.
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useTheme } from "./theme";
+import { Flow, Icon, TopBar } from "./ui/ledger";
 import { CARDIO_PRESETS, normalizePlan, buildSegments, totalPlannedSeconds, fmtSeconds, suggestPlanFromNotes, suggestPlanFromSteps } from "./cardioSession";
 import { triggerHaptic, useScreenWakeLock } from "./sessionDevice";
 
+const NBSP = "\u00a0";
+const KIND = { work: "Work", rest: "Rest", warmup: "Warm-up" };
+
 function Stepper({ label, value, display, onChange, step, min, max }) {
-  const { C } = useTheme();
-  const mono = C.fontFamily;
-  const btn = { width: 40, height: 40, background: "none", border: `1px solid ${C.lineBright}`, color: C.text, fontFamily: mono, fontSize: 16, cursor: "pointer" };
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
-      <span style={{ fontSize: 11, color: C.textDim, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: mono }}>{label}</span>
-      <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button type="button" style={btn} onClick={() => onChange(Math.max(min, value - step))} aria-label={`Decrease ${label}`}>−</button>
-        <span style={{ fontFamily: C.serifFamily, fontSize: 18, color: C.text, minWidth: 52, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{display}</span>
-        <button type="button" style={btn} onClick={() => onChange(Math.min(max, value + step))} aria-label={`Increase ${label}`}>+</button>
-      </span>
+    <div className="row" style={{ minHeight: 64 }}>
+      <span className="t-bs grow">{label}</span>
+      <div className="step" role="group" aria-label={label} style={{ width: 216 }}>
+        <button type="button" aria-label={`Less ${label.toLowerCase()}`} onClick={() => onChange(Math.max(min, value - step))}><Icon name="minus" /></button>
+        <span className="stepv"><span className="n-md">{display}</span></span>
+        <button type="button" aria-label={`More ${label.toLowerCase()}`} onClick={() => onChange(Math.min(max, value + step))}><Icon name="plus" /></button>
+      </div>
     </div>
   );
 }
 
 export function CardioSession({ open, onClose, cardio, onLogTime, showToast, settings }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
   // Structured race-plan steps win; prose parsing stays the fallback.
   const suggested = useMemo(() => suggestPlanFromSteps(cardio?.steps) || suggestPlanFromNotes(cardio?.notes), [cardio]);
   const hapticsEnabled = settings?.trainingCues?.haptics !== false;
@@ -42,6 +41,7 @@ export function CardioSession({ open, onClose, cardio, onLogTime, showToast, set
   const [pausedRemaining, setPausedRemaining] = useState(null);
   const [now, setNow] = useState(Date.now());
   const startedAtRef = useRef(null);
+  const [startedAt, setStartedAt] = useState(null);
   const elapsedRef = useRef(0);
 
   const segments = useMemo(() => buildSegments(plan), [plan]);
@@ -53,6 +53,7 @@ export function CardioSession({ open, onClose, cardio, onLogTime, showToast, set
       setPlan(suggested || normalizePlan(CARDIO_PRESETS[0]));
       setSegIdx(0); setSegEndsAt(null); setPausedRemaining(null);
       elapsedRef.current = 0; startedAtRef.current = null;
+      setStartedAt(null);
     }
   }, [open, suggested]);
 
@@ -83,6 +84,7 @@ export function CardioSession({ open, onClose, cardio, onLogTime, showToast, set
 
   const start = () => {
     startedAtRef.current = Date.now();
+    setStartedAt(startedAtRef.current);
     setSegIdx(0);
     setSegEndsAt(Date.now() + segments[0].seconds * 1000);
     setPhase("running");
@@ -105,97 +107,97 @@ export function CardioSession({ open, onClose, cardio, onLogTime, showToast, set
   };
 
   const workRounds = segments.filter(s => s.kind === "work").length;
-  const currentRound = seg?.round || 0;
   const paused = phase === "running" && segEndsAt === null;
-  const segTone = seg?.kind === "work" ? C.text : seg?.kind === "rest" ? C.green : C.textDim;
+  const nextSeg = segments[segIdx + 1] || null;
+  const elapsedNow = phase === "running" && startedAt ? Math.max(0, Math.round((now - startedAt) / 1000)) : 0;
+  const planLine = `${plan.rounds}${NBSP}×${NBSP}${fmtSeconds(plan.work)} work${plan.rest ? ` · ${fmtSeconds(plan.rest)} rest` : ""}`;
+  const title = cardio?.type || "Intervals";
+  // The plan's own words, cut at a word when they run long.
+  const notes = String(cardio?.notes || "").trim();
+  const planNote = notes.length > 110 ? `${notes.slice(0, 110).replace(/\s+\S*$/, "")}…` : notes;
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 350, background: C.bg, display: "flex", flexDirection: "column" }} role="dialog" aria-modal="true" aria-label="Cardio session">
-      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.line}`, background: C.panel, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <button type="button" onClick={onClose} style={{ background: "none", border: "none", color: C.textDim, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer", padding: 0 }}>← Exit</button>
-        <span style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textDim, fontFamily: mono }}>
-          {cardio?.type || "Cardio"} · {phase === "setup" ? "setup" : phase === "done" ? "complete" : `round ${currentRound}/${workRounds}`}
-        </span>
-      </div>
+    <Flow label="Cardio session" onClose={onClose} data-screen="intervals">
+      <div className="shell">
+        <TopBar title={title} close="Close" onClose={onClose} />
 
-      {phase === "setup" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-          {suggested && (
-            <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.55, marginBottom: 12, padding: "9px 11px", border: `1px solid ${C.line}` }}>
-              Pre-filled from today's plan: "{(cardio?.notes || "").slice(0, 80)}"
+        {phase === "setup" && (
+          <>
+            <div className="main">
+              {suggested && <p className="banner"><Icon name="info" size="s" /><span>Filled from today’s plan{planNote ? `: “${planNote}”` : "."}</span></p>}
+              <section aria-labelledby="iv-presets" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <h2 id="iv-presets" className="t-ss">Presets</h2>
+                <div className="chips">
+                  {CARDIO_PRESETS.map((preset) => {
+                    const normal = normalizePlan(preset);
+                    const on = normal.work === plan.work && normal.rest === plan.rest && normal.rounds === plan.rounds && normal.warmup === plan.warmup;
+                    return <button key={preset.key} type="button" className="chip" aria-pressed={on} onClick={() => setPlan(normal)}>{preset.label}</button>;
+                  })}
+                </div>
+              </section>
+              <section aria-labelledby="iv-plan" style={{ display: "flex", flexDirection: "column" }}>
+                <div className="sec"><h2 id="iv-plan" className="t-ss">Plan</h2><span className="t-s c2">Total {fmtSeconds(totalPlannedSeconds(plan))}</span></div>
+                <div className="rows">
+                  <Stepper label="Work" value={plan.work} display={fmtSeconds(plan.work)} step={15} min={5} max={3600} onChange={v => setPlan({ ...plan, work: v })} />
+                  <Stepper label="Rest" value={plan.rest} display={fmtSeconds(plan.rest)} step={15} min={0} max={3600} onChange={v => setPlan({ ...plan, rest: v })} />
+                  <Stepper label="Rounds" value={plan.rounds} display={String(plan.rounds)} step={1} min={1} max={50} onChange={v => setPlan({ ...plan, rounds: v })} />
+                  <Stepper label="Warm-up" value={plan.warmup} display={fmtSeconds(plan.warmup)} step={60} min={0} max={1800} onChange={v => setPlan({ ...plan, warmup: v })} />
+                </div>
+              </section>
             </div>
-          )}
-          <div style={{ fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: C.textDim, fontFamily: mono, marginBottom: 8 }}>Presets</div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
-            {CARDIO_PRESETS.map(p => (
-              <button key={p.key} type="button" onClick={() => setPlan(normalizePlan(p))}
-                style={{ border: `1px solid ${C.lineBright}`, background: C.panel, color: C.textDim, fontSize: 11, fontFamily: mono, padding: "8px 11px", cursor: "pointer" }}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <div style={{ fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: C.textDim, fontFamily: mono, marginBottom: 4 }}>Plan</div>
-          <Stepper label="Work" value={plan.work} display={fmtSeconds(plan.work)} step={15} min={5} max={3600} onChange={v => setPlan({ ...plan, work: v })} />
-          <Stepper label="Rest" value={plan.rest} display={fmtSeconds(plan.rest)} step={15} min={0} max={3600} onChange={v => setPlan({ ...plan, rest: v })} />
-          <Stepper label="Rounds" value={plan.rounds} display={String(plan.rounds)} step={1} min={1} max={50} onChange={v => setPlan({ ...plan, rounds: v })} />
-          <Stepper label="Warm-up" value={plan.warmup} display={fmtSeconds(plan.warmup)} step={60} min={0} max={1800} onChange={v => setPlan({ ...plan, warmup: v })} />
-          <div style={{ fontSize: 11, color: C.textFaint, fontFamily: mono, margin: "12px 0 16px" }}>
-            Total planned · {fmtSeconds(totalPlannedSeconds(plan))}
-          </div>
-          <button type="button" onClick={start} style={{ width: "100%", background: C.text, color: C.bg, border: `1px solid ${C.text}`, padding: "14px", fontFamily: mono, fontSize: 11.5, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, cursor: "pointer" }}>
-            Start →
-          </button>
-        </div>
-      )}
+            <div className="foot"><button type="button" className="btn btn-p btn-lg btn-b" onClick={start}>Start</button></div>
+          </>
+        )}
 
-      {phase === "running" && seg && (
-        <>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 16px", textAlign: "center" }}>
-            <div style={{ fontSize: 11.5, letterSpacing: "0.3em", textTransform: "uppercase", color: segTone, fontFamily: mono, fontWeight: 600 }}>
-              {paused ? "Paused" : seg.kind}
-            </div>
-            <div style={{ fontFamily: C.serifFamily, fontSize: 88, fontWeight: 500, letterSpacing: "-0.03em", color: paused ? C.textDim : C.text, lineHeight: 1, fontVariantNumeric: "tabular-nums", margin: "10px 0" }}>
-              {fmtSeconds(remaining)}
-            </div>
-            {seg.kind !== "warmup" && (
-              <div style={{ fontSize: 11.5, color: C.textDim, fontFamily: mono, letterSpacing: "0.08em" }}>
-                Round {seg.round} of {workRounds}
+        {phase === "running" && seg && (
+          <>
+            <div className="main" style={{ gap: 16 }}>
+              <p className="n">{planLine}</p>
+              <p className="sr" role="status">{paused ? "Paused." : `${KIND[seg.kind]}${seg.kind !== "warmup" ? `, round ${seg.round} of ${workRounds}` : ""}.`}</p>
+              <section className="card" aria-label="Current segment" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "24px 16px", ...(seg.kind === "work" && !paused ? { borderColor: "var(--ink)", borderWidth: 2 } : {}) }}>
+                <p className="stamp" style={{ display: "flex", alignItems: "center", gap: 6 }}>{paused && <Icon name="pause" size="s" />}{paused ? "Paused" : KIND[seg.kind]}</p>
+                <p role="timer" aria-label={`${fmtSeconds(remaining)} left in this segment`} style={{ font: "600 88px/88px var(--f-data)", letterSpacing: "-.03em", fontVariantNumeric: "tabular-nums", color: paused ? "var(--ink-2)" : "var(--ink)" }}>{fmtSeconds(remaining)}</p>
+                <span className="bar bar-t" aria-hidden="true" style={{ width: "100%" }}><i style={{ width: `${Math.max(0, Math.min(100, (1 - remaining / Math.max(1, seg.seconds)) * 100))}%` }} /></span>
+                {seg.kind !== "warmup" && <p className="t-b">Round <span className="n">{seg.round}</span> of <span className="n">{workRounds}</span></p>}
+                <div role="img" aria-label={`${segments.slice(0, segIdx).filter((s) => s.kind === "work").length} of ${workRounds} work rounds done`} style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                  {segments.filter((s) => s.kind === "work").map((s) => {
+                    const done = seg.kind === "warmup" ? false : s.round < seg.round || (s.round === seg.round && seg.kind === "rest");
+                    const here = seg.kind === "work" && s.round === seg.round;
+                    return <i key={s.round} style={{ width: 14, height: 14, borderRadius: 3, border: here ? "3px solid var(--ink)" : "1px solid var(--edge)", background: done ? "var(--ink)" : "transparent" }} />;
+                  })}
+                </div>
+              </section>
+              <div style={{ display: "flex", gap: 24 }}>
+                <div className="kv grow"><span className="t-c c2">Next</span><span className="t-b">{nextSeg ? <>{KIND[nextSeg.kind]} <span className="n">{fmtSeconds(nextSeg.seconds)}</span></> : "Finish"}</span></div>
+                <div className="kv grow"><span className="t-c c2">Elapsed</span><span className="n">{fmtSeconds(elapsedNow)}</span></div>
               </div>
-            )}
-            {/* Segment strip — where you are in the session */}
-            <div style={{ display: "flex", gap: 3, marginTop: 22, maxWidth: 320, flexWrap: "wrap", justifyContent: "center" }}>
-              {segments.map((s, i) => (
-                <span key={i} style={{ width: s.kind === "warmup" ? 18 : 10, height: 4, background: i < segIdx ? C.text : i === segIdx ? (s.kind === "rest" ? C.green : C.text) : C.line, opacity: i === segIdx ? 1 : i < segIdx ? 0.6 : 1 }} />
-              ))}
             </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${C.line}`, background: C.panel }}>
-            <button type="button" onClick={paused ? resume : pause} style={{ ...S.smallBtn, flex: 1, padding: "13px", borderColor: C.text, color: C.text }}>{paused ? "Resume" : "Pause"}</button>
-            <button type="button" onClick={skip} style={{ ...S.smallBtn, flex: 1, padding: "13px" }}>Skip →</button>
-            <button type="button" onClick={endEarly} style={{ ...S.smallBtn, flex: 1, padding: "13px" }}>End</button>
-          </div>
-        </>
-      )}
+            <div className="foot">
+              <button type="button" className="btn btn-p btn-lg btn-b" onClick={paused ? resume : pause}><Icon name={paused ? "play" : "pause"} size="s" />{paused ? "Resume" : "Pause"}</button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <button type="button" className="btn btn-s" onClick={skip}>Skip segment</button>
+                <button type="button" className="btn btn-s" onClick={endEarly}>End</button>
+              </div>
+            </div>
+          </>
+        )}
 
-      {phase === "done" && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", textAlign: "center" }}>
-          <div style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: C.textDim, fontFamily: mono }}>Session complete</div>
-          <div style={{ fontFamily: C.serifFamily, fontSize: 56, fontWeight: 500, color: C.text, lineHeight: 1.1, margin: "8px 0", fontVariantNumeric: "tabular-nums" }}>
-            {fmtSeconds(elapsedRef.current)}
-          </div>
-          <div style={{ fontSize: 11.5, color: C.textDim, fontFamily: mono, marginBottom: 24 }}>
-            {workRounds} rounds planned · {cardio?.type || "cardio"}
-          </div>
-          <button
-            type="button"
-            onClick={() => { onLogTime?.(fmtSeconds(elapsedRef.current)); showToast?.("Time logged"); onClose(); }}
-            style={{ width: "100%", maxWidth: 320, background: C.text, color: C.bg, border: `1px solid ${C.text}`, padding: "14px", fontFamily: mono, fontSize: 11.5, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, cursor: "pointer", marginBottom: 10 }}
-          >
-            Log {fmtSeconds(elapsedRef.current)} to today →
-          </button>
-          <button type="button" onClick={onClose} style={{ ...S.smallBtn, width: "100%", maxWidth: 320, padding: "12px" }}>Close without logging</button>
-        </div>
-      )}
-    </div>
+        {phase === "done" && (
+          <>
+            <div className="main" style={{ alignItems: "center", justifyContent: "center", textAlign: "center", gap: 8 }}>
+              <p className="stamp">Session over</p>
+              <p className="n-xl">{fmtSeconds(elapsedRef.current)}</p>
+              <p className="t-s c2">{workRounds} rounds planned · {title}</p>
+            </div>
+            <div className="foot">
+              <button type="button" className="btn btn-p btn-lg btn-b" onClick={() => { onLogTime?.(fmtSeconds(elapsedRef.current)); showToast?.("Time logged"); onClose(); }}>Log {fmtSeconds(elapsedRef.current)} to today</button>
+              <button type="button" className="btn btn-s btn-b" onClick={onClose}>Close without logging</button>
+            </div>
+          </>
+        )}
+      </div>
+    </Flow>
   );
 }
+
+export default CardioSession;
