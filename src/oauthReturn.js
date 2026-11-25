@@ -7,7 +7,6 @@
 //   Oura    /settings?oura_connected=true        /settings?oura_error=<code>
 //   Whoop   /?whoop=connected#/settings          /?whoop_error=<code>#/settings
 //   Strava  /?strava=connected#/settings         /?strava_error=<code>#/settings
-//   Google  /?google_health=connected#/settings  /?google_health_error=<code>#/settings
 // A bare /settings or #/settings (the links older builds rendered) opens
 // Integrations too.
 //
@@ -20,10 +19,9 @@ const PROVIDERS = [
   { id: "oura", label: "Oura", connected: (p) => p.get("oura_connected") === "true", errorKey: "oura_error" },
   { id: "whoop", label: "Whoop", connected: (p) => p.get("whoop") === "connected", errorKey: "whoop_error" },
   { id: "strava", label: "Strava", connected: (p) => p.get("strava") === "connected", errorKey: "strava_error" },
-  { id: "google_health", label: "Google Health", connected: (p) => p.get("google_health") === "connected", errorKey: "google_health_error" },
 ];
 
-const RETURN_KEYS = ["oura_connected", "oura_error", "whoop", "whoop_error", "strava", "strava_error", "google_health", "google_health_error"];
+const RETURN_KEYS = ["oura_connected", "oura_error", "whoop", "whoop_error", "strava", "strava_error"];
 const SETTINGS_HASHES = ["#/settings", "#settings"];
 
 // Oura and Whoop pull the last 14 days while connecting (before the
@@ -32,12 +30,11 @@ const CONNECTED_COPY = {
   oura: "Oura connected. Connecting also syncs your last 14 days; the result is below.",
   whoop: "Whoop connected. Connecting also syncs your last 14 days; the result is below.",
   strava: "Strava connected. Tap Sync now below to bring in your recent activities.",
-  google_health: "Google Health connected. Sync status is below.",
 };
 
 // The codes the callbacks send (netlify/functions/*-auth.js), in words. Strava
-// and Google pass the provider's own message when the token exchange fails
-// ("Bad Request" arrives here as "badrequest"), and their own
+// passes the provider's own message when the token exchange fails
+// ("Bad Request" arrives here as "badrequest"), and its own
 // strava_token_<status>, so anything about tokens, grants or a rejected
 // request reads as a sign-in that couldn't be completed.
 function reasonFor(code) {

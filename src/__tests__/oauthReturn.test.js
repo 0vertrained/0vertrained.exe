@@ -17,7 +17,6 @@ describe("reading the return", () => {
     ["/settings?oura_connected=true", "oura", /^Oura connected\./],
     ["/?whoop=connected#/settings", "whoop", /^Whoop connected\./],
     ["/?strava=connected#/settings", "strava", /^Strava connected\. Tap Sync now/],
-    ["/?google_health=connected#/settings", "google_health", /^Google Health connected\./],
   ])("%s → connected", (url, provider, text) => {
     const r = readOAuthReturn(loc(url));
     expect(r.section).toBe("integrations");
@@ -34,13 +33,12 @@ describe("reading the return", () => {
     expect(readOAuthReturn(loc("/?strava_error=token_store_failed#/settings")).notice.text).toMatch(/^Strava didn't connect: the connection couldn't be saved/);
   });
 
-  it("reads Strava's and Google's pass-through exchange errors as a sign-in that didn't complete", () => {
-    // strava-auth.js / google-health-auth.js forward the provider's own message or strava_token_<status>.
+  it("reads Strava's pass-through exchange errors as a sign-in that didn't complete", () => {
+    // strava-auth.js forwards the provider's own message or strava_token_<status>.
     for (const raw of ["Bad Request", "strava_token_401", "invalid_grant", "Unauthorized"]) {
       expect(readOAuthReturn(loc(`/?strava_error=${encodeURIComponent(raw)}#/settings`)).notice.text)
         .toBe("Strava didn't connect: the sign-in couldn't be completed. You can try again below.");
     }
-    expect(readOAuthReturn(loc("/?google_health_error=server_error#/settings")).notice.text).toMatch(/temporary problem/);
   });
 
   it("shows an unknown code only as a short code, so a crafted link can't write the sentence", () => {
@@ -66,7 +64,7 @@ describe("cleaning the address", () => {
     expect(cleanOAuthReturnUrl(loc("/settings?oura_connected=true"))).toBe("/");
     expect(cleanOAuthReturnUrl(loc("/?whoop=connected#/settings"))).toBe("/");
     expect(cleanOAuthReturnUrl(loc("/?strava_error=x&ref=mail#/settings"))).toBe("/?ref=mail");
-    expect(cleanOAuthReturnUrl(loc("/?google_health=connected#/demo"))).toBe("/#/demo");
+    expect(cleanOAuthReturnUrl(loc("/?strava=connected#/demo"))).toBe("/#/demo");
   });
 });
 
@@ -80,8 +78,6 @@ describe("in step with the callbacks", () => {
     ["whoop-auth.js", "/?whoop_error="],
     ["strava-auth.js", "/?strava=connected#/settings"],
     ["strava-auth.js", "/?strava_error="],
-    ["google-health-auth.js", "/?google_health=connected#/settings"],
-    ["google-health-auth.js", "/?google_health_error="],
   ])("%s redirects to %s…", (file, marker) => {
     expect(fn(file)).toContain(marker);
   });

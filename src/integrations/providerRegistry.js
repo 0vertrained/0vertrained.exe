@@ -12,7 +12,6 @@
 export const PROVIDERS = Object.freeze({
   OURA: "oura",
   WHOOP: "whoop",
-  GOOGLE_HEALTH: "google_health",
   STRAVA: "strava",
   MANUAL: "manual",
   MIXED: "mixed",
@@ -60,26 +59,6 @@ export const providerCapabilities = Object.freeze({
       resting_hr: "primary",
       respiratory_rate: "primary",
       strain: "primary",
-      workouts: "secondary",
-    }),
-  }),
-  [PROVIDERS.GOOGLE_HEALTH]: Object.freeze({
-    label: "Fitbit by Google / Google Health",
-    role: "recovery_and_activity",
-    normalizedTables: ["health_daily_summaries", "activities"],
-    supportsOAuth: true,
-    supportsBackfill: true,
-    supportsWebhooks: true,
-    aiEligibleDefault: true,
-    aiExclusionReason: null,
-    metrics: Object.freeze({
-      sleep: "primary",
-      hrv: "primary",
-      resting_hr: "primary",
-      respiratory_rate: "primary",
-      spo2: "primary",
-      steps: "primary",
-      active_minutes: "primary",
       workouts: "secondary",
     }),
   }),
@@ -173,7 +152,6 @@ export function shouldExcludeProviderFromCoach(provider, options = {}) {
 
 export function normalizeProviderName(provider) {
   const value = String(provider || "").trim().toLowerCase();
-  if (value === "fitbit" || value === "google_fitbit" || value === "fitbit_google") return PROVIDERS.GOOGLE_HEALTH;
   if (value === "manual_entry") return PROVIDERS.MANUAL;
   return value;
 }

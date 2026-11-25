@@ -24,13 +24,13 @@ describe("provider integration standard", () => {
     });
   });
 
-  test("keeps Google Health/Fitbit as an AI-eligible recovery source when opted in", () => {
-    expect(providerCapabilities[PROVIDERS.GOOGLE_HEALTH].supportsWebhooks).toBe(true);
-    expect(getAiPolicyForProvider(PROVIDERS.GOOGLE_HEALTH, { userOptedIn: true })).toMatchObject({
+  test("keeps Oura as an AI-eligible recovery source when opted in", () => {
+    expect(providerCapabilities[PROVIDERS.OURA].role).toBe("recovery");
+    expect(getAiPolicyForProvider(PROVIDERS.OURA, { userOptedIn: true })).toMatchObject({
       aiEligible: true,
       aiExclusionReason: null,
     });
-    expect(getAiPolicyForProvider(PROVIDERS.GOOGLE_HEALTH, { userOptedIn: false })).toMatchObject({
+    expect(getAiPolicyForProvider(PROVIDERS.OURA, { userOptedIn: false })).toMatchObject({
       aiEligible: false,
       aiExclusionReason: "user_opt_out",
     });

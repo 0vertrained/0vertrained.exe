@@ -9,7 +9,7 @@
 // message, timestamp). These helpers reshape that metadata for display — they
 // never re-derive sync state or fabricate data.
 
-const SOURCE_LABELS = { whoop: "Whoop", oura: "Oura", google_health: "Google Health", strava: "Strava" };
+const SOURCE_LABELS = { whoop: "Whoop", oura: "Oura", strava: "Strava" };
 const EVENT_LABELS = {
   sync: "Sync",
   connect: "Connect",

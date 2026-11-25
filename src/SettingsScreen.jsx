@@ -5,7 +5,6 @@ import { useTheme } from "./theme";
 import { DIETARY_TAGS } from "./mealPlan";
 import { getOuraAuthUrl, disconnectOura, getOuraSyncEvents, getOuraTokenStatus, getOuraSyncCounts, syncOuraNow } from "./oura";
 import { getWhoopAuthUrl, getWhoopTokenStatus, syncWhoopNow, disconnectWhoop, getWhoopSyncCounts, getWhoopSyncEvents } from "./whoop";
-import { getGoogleHealthAuthUrl, getGoogleHealthTokenStatus, syncGoogleHealthNow, disconnectGoogleHealth, getGoogleHealthSyncCounts, getGoogleHealthSyncEvents } from "./googleHealth";
 import { getStravaAuthUrl, getStravaTokenStatus, syncStravaNow, disconnectStrava, getStravaSyncCounts, getStravaSyncEvents } from "./strava";
 import { buildSyncTimeline, buildSyncHealthBadge, formatSyncCounts } from "./recovery/wearableSyncEvents";
 import { ONBOARDING_GOALS, ONBOARDING_DATA_MODES } from "./onboardingSetup";
@@ -19,10 +18,6 @@ import { APP_VERSION, SUPPORT_EMAIL, buildSupportMailto } from "./appMeta";
 
 const GOAL_LABELS = Object.fromEntries(ONBOARDING_GOALS.map(g => [g.id, g.label]));
 const DATA_MODE_LABELS = Object.fromEntries(ONBOARDING_DATA_MODES.map(m => [m.id, m.label]));
-
-// Temporarily keep Google Health/Fitbit code in place, but keep the public UI disabled
-// until Google data-access verification is complete.
-const GOOGLE_HEALTH_INTEGRATION_ENABLED = false;
 
 // Sync event debug timeline — metadata only, no raw payloads. Oura and Whoop
 // rendered byte-identical timelines; this is that one grammar. `showCounts`
@@ -135,36 +130,12 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   // Sync event debug timeline.
   const [whoopEvents, setWhoopEvents] = useState([]);
 
-  // Google Health / Fitbit — provider-standard OAuth and sync.
-  const [_googleHealthStatus, setGoogleHealthStatus] = useState(null);
-  const [_googleHealthBusy, setGoogleHealthBusy] = useState(false);
-  const [googleHealthMsg, setGoogleHealthMsg] = useState("");
-  const [_googleHealthCounts, setGoogleHealthCounts] = useState(null);
-  const [_googleHealthEvents, setGoogleHealthEvents] = useState([]);
-
   // Strava — activity import only; excluded from AI Coach by policy.
   const [stravaStatus, setStravaStatus] = useState(null);
   const [stravaBusy, setStravaBusy] = useState(false);
   const [stravaMsg, setStravaMsg] = useState("");
   const [stravaCounts, setStravaCounts] = useState(null);
   const [stravaEvents, setStravaEvents] = useState([]);
-
-  const refreshGoogleHealthStatus = async () => {
-    const status = await getGoogleHealthTokenStatus();
-    setGoogleHealthStatus(status);
-    if (status?.connected) {
-      const [counts, eventsRes] = await Promise.all([
-        getGoogleHealthSyncCounts(),
-        getGoogleHealthSyncEvents(20),
-      ]);
-      setGoogleHealthCounts(counts);
-      setGoogleHealthEvents(eventsRes?.events || []);
-    } else {
-      setGoogleHealthCounts(null);
-      setGoogleHealthEvents([]);
-    }
-    return status;
-  };
 
   const refreshStravaStatus = async () => {
     const status = await getStravaTokenStatus();
@@ -204,25 +175,20 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
     if (section !== "integrations") return;
     let alive = true;
     (async () => {
-      const [status, ouraStat, googleStat, stravaStat] = await Promise.all([
+      const [status, ouraStat, stravaStat] = await Promise.all([
         getWhoopTokenStatus(),
         getOuraTokenStatus(),
-        GOOGLE_HEALTH_INTEGRATION_ENABLED
-          ? getGoogleHealthTokenStatus()
-          : Promise.resolve({ connected: false, disabled: true }),
         getStravaTokenStatus(),
       ]);
       if (!alive) return;
       setWhoopStatus(status);
       setOuraStatus(ouraStat);
-      setGoogleHealthStatus(googleStat);
       setStravaStatus(stravaStat);
       // Persist the durable flag only once the server confirms a live connection
       // (e.g. after returning from the OAuth redirect with ?whoop=connected).
       const connectionPatch = {};
       if (status?.connected && settings.whoopConnected !== true) connectionPatch.whoopConnected = true;
       if (ouraStat?.connected && settings.ouraConnected !== true) connectionPatch.ouraConnected = true;
-      if (GOOGLE_HEALTH_INTEGRATION_ENABLED && googleStat?.connected && settings.googleHealthConnected !== true) connectionPatch.googleHealthConnected = true;
       if (stravaStat?.connected && settings.stravaConnected !== true) connectionPatch.stravaConnected = true;
       if (Object.keys(connectionPatch).length) {
         // Quietly when the shell offers it: the full Save path closes
@@ -251,15 +217,6 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
         setOuraCounts(ouraCountsRes);
         setOuraEvents(ouraEventsRes?.events || []);
       }
-      if (GOOGLE_HEALTH_INTEGRATION_ENABLED && (googleStat?.connected || settings?.googleHealthConnected)) {
-        const [googleCountsRes, googleEventsRes] = await Promise.all([
-          getGoogleHealthSyncCounts(),
-          getGoogleHealthSyncEvents(20),
-        ]);
-        if (!alive) return;
-        setGoogleHealthCounts(googleCountsRes);
-        setGoogleHealthEvents(googleEventsRes?.events || []);
-      }
       if (stravaStat?.connected || settings?.stravaConnected) {
         const [stravaCountsRes, stravaEventsRes] = await Promise.all([
           getStravaSyncCounts(),
@@ -273,50 +230,6 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
-
-  const handleGoogleHealthConnect = async () => {
-    setGoogleHealthMsg("");
-    if (!GOOGLE_HEALTH_INTEGRATION_ENABLED) {
-      setGoogleHealthMsg("Fitbit by Google is coming soon.");
-      return;
-    }
-    const url = await getGoogleHealthAuthUrl();
-    if (url) window.location.href = url;
-    else setGoogleHealthMsg("Could not start Google Health/Fitbit connection.");
-  };
-
-  const _handleGoogleHealthSync = async (days = 30) => {
-    if (!GOOGLE_HEALTH_INTEGRATION_ENABLED) {
-      setGoogleHealthMsg("Fitbit by Google is coming soon.");
-      return;
-    }
-    setGoogleHealthBusy(true);
-    setGoogleHealthMsg(`Syncing last ${days} days…`);
-    const res = await syncGoogleHealthNow(days);
-    if (res?.error) {
-      console.warn("Google Health sync failed:", res.error);
-      setGoogleHealthMsg(friendlySyncError(res.error, "Google Health/Fitbit"));
-    } else {
-      setGoogleHealthMsg(`Synced ${res?.synced ?? 0} record(s) over ${res?.days ?? days} days.`);
-    }
-    await refreshGoogleHealthStatus();
-    setGoogleHealthBusy(false);
-  };
-
-  const _handleGoogleHealthDisconnect = async () => {
-    if (!GOOGLE_HEALTH_INTEGRATION_ENABLED) {
-      setGoogleHealthMsg("Fitbit by Google is coming soon.");
-      return;
-    }
-    if (!(await confirm({ message: "Disconnect Google Health/Fitbit? This removes imported Google Health data.", confirmLabel: "Disconnect", destructive: true }))) return;
-    setGoogleHealthBusy(true);
-    await disconnectGoogleHealth();
-    await refreshGoogleHealthStatus();
-    setGoogleHealthCounts(null);
-    onSave({ ...settings, googleHealthConnected: false });
-    setGoogleHealthMsg("Disconnected.");
-    setGoogleHealthBusy(false);
-  };
 
   const handleStravaConnect = async () => {
     setStravaMsg("");
@@ -755,37 +668,6 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
               <div role="status" data-testid="integrations-notice" style={{ ...statusBox, marginBottom: 16, fontWeight: 500, lineHeight: 1.6, color: notice.tone === "error" ? C.red : C.text, border: `1px solid ${notice.tone === "error" ? C.red : C.text}` }}>
                 {notice.text}
               </div>
-            )}
-
-            {/* Google Health / Fitbit Connection — not shown until the
-                integration is enabled. A "Coming soon" card is a promise on a
-                settings screen, not a setting. */}
-            {GOOGLE_HEALTH_INTEGRATION_ENABLED && (
-            <div style={{ marginBottom: 20 }}>
-              <label style={lbl}>Fitbit by Google / Google Health</label>
-              <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 12, lineHeight: 1.6 }}>
-                Connect your Google account to bring Fitbit sleep, recovery, and activity data into the app.
-              </div>
-              <button
-                type="button"
-                disabled
-                onClick={handleGoogleHealthConnect}
-                style={{
-                  ...connectBtn(true),
-                  background: C.cell,
-                  color: C.textFaint,
-                  border: `1px solid ${C.line}`,
-                  cursor: "not-allowed",
-                }}
-              >
-                Coming soon
-              </button>
-              {googleHealthMsg && (
-                <div style={{ fontSize: 11, color: C.textDim, marginTop: 8, lineHeight: 1.6, fontFamily: mono }}>
-                  {googleHealthMsg}
-                </div>
-              )}
-            </div>
             )}
 
             {/* Strava Connection */}
