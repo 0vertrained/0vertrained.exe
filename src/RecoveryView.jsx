@@ -396,7 +396,7 @@ function Trust({ view }) {
       <Ledger
         title="Today’s read"
         rows={[
-          ["Score", recovery ? `${recovery.score ?? "—"} of 100 from ${heroMeta.source.toLowerCase()}, for ${recovery.scoredDay || heroMeta.latestDay || "the latest usable day"}` : null],
+          ["Score", recovery ? `${recovery.score ?? "—"} of 100 from ${heroMeta.source}, for ${recovery.scoredDay || heroMeta.latestDay || "the latest usable day"}` : null],
           ["Call", resolvedRecommendation?.label ? `${resolvedRecommendation.label}${resolvedRecommendation.readiness && resolvedRecommendation.readiness !== "n/a" ? ` · ${resolvedRecommendation.readiness}` : ""}` : null],
           ["Confidence", `${sentence(blendedRecommendation?.confidence || confidence?.level || "unknown")}. ${sentence(blendedRecommendation?.wearableAdjustment?.reason || confidence?.reason || "pending")}`, (blendedRecommendation?.confidence || confidence?.level) === "low"],
           ["Last sync", syncFreshness, stale],
