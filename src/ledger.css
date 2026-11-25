@@ -81,6 +81,7 @@ html, body { background: var(--bg); color: var(--ink); }
 /* A full-screen flow (session runner, Box Score, Sunday Edition) covers the shell and hides the tab bar. */
 .flow-screen { position: fixed; inset: 0; z-index: var(--z-timer); background: var(--bg); overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
 .flow-screen > .shell { min-height: 100%; }
+.ot .flow-screen:focus-visible { outline: none !important; }
 
 /* Desktop shell: the tabs move into the top bar */
 .dtop { display: flex; align-items: center; gap: 8px; min-height: 64px; padding: 0 32px; border-bottom: 1px solid var(--line); flex-wrap: wrap; flex: none; position: sticky; top: 0; z-index: var(--z-sticky); background: var(--bg); }
@@ -230,6 +231,10 @@ a.row:active, button.row:active { background: var(--press); }
 .step button { height: 56px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); display: flex; align-items: center; justify-content: center; }
 .step-xl button { height: 64px; }
 .stepv { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-width: 0; }
+/* The stepper's value is a field too, so 187.5 can be typed as well as nudged */
+.stepin { min-width: 2ch; max-width: 100%; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; text-align: right; appearance: textfield; -moz-appearance: textfield; }
+.stepin::-webkit-outer-spin-button, .stepin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stepin::placeholder { color: var(--ink-3); }
 /* Set grid: one exercise's sets as rows of fields. Set number, two measures, reps in reserve, done. */
 .sets { display: flex; flex-direction: column; gap: 8px; padding: 12px 0 4px; }
 .sets + .sets { border-top: 1px solid var(--line); }

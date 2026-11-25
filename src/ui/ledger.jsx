@@ -145,6 +145,42 @@ export function Sheet({ open, title, onClose, children, closeLabel = "Close" }) 
   );
 }
 
+// A full-screen flow: the session runner, the interval runner, the Box Score.
+// It covers the shell and its tab bar, keeps the keyboard inside, closes on
+// Esc and hands focus back to whatever opened it. A sheet opened inside the
+// flow handles its own keys while it is up.
+export function Flow({ label, onClose, children, ...rest }) {
+  const ref = useRef(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    const opener = document.activeElement;
+    const frame = requestAnimationFrame(() => ref.current?.focus());
+    const onKeyDown = (event) => {
+      const root = ref.current;
+      if (!root || root.querySelector(".sheet")) return;
+      if (event.key === "Escape") { onCloseRef.current?.(); return; }
+      if (event.key !== "Tab") return;
+      const items = root.querySelectorAll("button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex='-1'])");
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      // Focus that has slipped out (its control was removed) comes back in.
+      if (!root.contains(active)) { event.preventDefault(); (event.shiftKey ? last : first).focus(); }
+      else if (event.shiftKey && (active === first || active === root)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKeyDown);
+      requestAnimationFrame(() => opener?.isConnected && opener.focus?.());
+    };
+  }, []);
+  return <div ref={ref} className="flow-screen" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} {...rest}>{children}</div>;
+}
+
 // A toast says what just happened. If the action can be undone, Undo is a real
 // button and is live at once.
 export function Toast({ children, action, onAction, role = "status" }) {
