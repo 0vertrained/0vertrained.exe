@@ -136,10 +136,11 @@ export function HistoryModeToggle({ subView, setSubView }) {
   );
 }
 
-export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, onSaveCoachingSettings }) {
+export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, onSaveCoachingSettings, initialSubView = null }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
-  const [subView, setSubView] = useState("charts"); // "charts" (Summary) | "coach" | "periodization" | "timeline" | "log"
+  // Train links straight to the block ("program") and to history.
+  const [subView, setSubView] = useState(initialSubView === "program" ? "periodization" : initialSubView === "history" ? "timeline" : "charts"); // "charts" (Summary) | "coach" | "periodization" | "timeline" | "log"
   // The default Summary view is the reflection loop; dense metrics/charts
   // collapse behind one disclosure so the score narrative isn't repeated up top.
   const [selectedDay, setSelectedDay] = useState(null);

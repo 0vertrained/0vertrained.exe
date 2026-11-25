@@ -19,7 +19,8 @@ import { isRunPlanSpec } from "./runPlanGenerator";
 import { describeBuildWeek, keepRacePlan } from "./raceBuild";
 import { formatPlanDate, raceWeekCopy } from "./RaceWeekLine";
 
-function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings, initialAction }) {
+// Exported for Train, which is now the home of the plan.
+export function ProgramTab({  program, onSaveProgram, onApplyGeneratedProgram, settings, initialAction }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
   const { confirm, confirmDialog } = useConfirm();
