@@ -17,7 +17,7 @@ import { ReadinessSpecimen } from "./ReadinessSpecimen";
 
 // ── Compliance copy (exported so the test suite can lock the exact strings) ──
 export const ABSTRACT_TEXT =
-  "0VERTRAINED is a private training ledger for hybrid athletes. You log strength, cardio, nutrition, body metrics, and daily recovery check-ins — or import them from a wearable — and the app reconciles training load against sleep, HRV, and fueling to answer one question each morning: how hard should today be? An optional AI Coach and camera-based Form Check give feedback on request; both are opt-in and off by default.";
+  "0VERTRAINED is a private training ledger for hybrid athletes. You log strength, cardio, nutrition, body metrics, and daily recovery check-ins — or import them from a wearable — and the app reconciles training load against sleep, HRV, and fueling to answer one question each morning: how hard should today be? An optional AI Coach gives feedback on request; it is opt-in and off by default.";
 
 export const GOOGLE_DATA_ROWS = [
   ["We access", "With your permission, 0VERTRAINED connects to your Google account to read Fitbit health and activity data: sleep, heart rate and HRV, resting heart rate, respiratory rate, SpO2, steps, active minutes and Active Zone Minutes, calories, and exercise sessions."],

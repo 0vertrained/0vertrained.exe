@@ -239,7 +239,6 @@ const PRIVACY_LEDGER = [
   ["Account", "Username + password/recovery phrase. No public real-world identity required."],
   ["Wearables", "Oura and Whoop are opt-in. Tokens stay server-side and are deleted when disconnected."],
   ["Coach", "Receives a compact, sanitized training/recovery summary — not OAuth tokens or full raw logs."],
-  ["Form Check", "Keeps derived summaries such as tempo, depth and bar path; raw videos are not stored."],
   ["Social", "Leaderboards and PR boards are opt-in and show only handle-level aggregate stats."],
 ];
 
@@ -373,7 +372,7 @@ export default function DemoPage({ onClose }) {
           <Plate C={C} label="Fuel" caption="Macros, protein scaled to bodyweight, hydration and meal plans — tuned to the day's work."><FuelMock C={C} /></Plate>
           <Plate C={C} label="Program" caption="Generated weekly programming with editable splits, equipment, cardio preference and deload logic."><BlockMock C={C} /></Plate>
           <Plate C={C} label="Wearables + trends" caption="Oura and Whoop can sync in the background, but manual recovery remains first-class."><TrendMock C={C} /></Plate>
-          <Plate C={C} label="Coach + form check" caption="A server-side coach and movement analyzer read derived summaries, not secrets or raw videos."><CoachMock C={C} /></Plate>
+          <Plate C={C} label="Coach" caption="A server-side coach reads a derived training and recovery summary, never secrets."><CoachMock C={C} /></Plate>
         </div>
       </div>
 

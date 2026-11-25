@@ -51,9 +51,9 @@ const SLIDES = [
   {
     kicker: "Privacy boundary",
     title: "Private by design,\nuseful by default",
-    body: "Manual logs stay private to your account. Wearable connections are opt-in. Form Check stores derived summaries, not raw video. The coach receives a sanitized training/recovery slice, not secrets.",
+    body: "Manual logs stay private to your account. Wearable connections are opt-in. The coach receives a sanitized training/recovery slice, not secrets.",
     hint: "Social boards are opt-in and show handle-level stats only.",
-    ledger: [["Coach", "summary only"], ["Form", "derived-only"], ["Data", "export / delete"]],
+    ledger: [["Coach", "summary only"], ["Wearables", "opt-in"], ["Data", "export / delete"]],
   },
 ];
 
@@ -537,7 +537,6 @@ function PrivacySummary({ T, mono, serif, dataMode }) {
   const points = [
     ["Manual recovery is first-class", "Sleep, energy, soreness and stress you log produce a full recovery score. No wearable is required to get a readiness call."],
     ["Wearables are optional", "Oura and Whoop stay disconnected until you link them in Settings → Integrations. Tokens stay server-side and disconnecting deletes provider data from the app."],
-    ["Form Check keeps summaries, not video", "Recorded lifts are analysed through the privacy-preserving Form Check flow and only derived summaries (depth, tempo, bar path) are saved. Raw videos are not stored."],
     ["Coach gets a summary, not secrets", "The AI coach receives a compact training and recovery context only when you use it. OAuth tokens, passwords and recovery phrases are never included."],
     ["Your data stays yours", "Entries are private to your account and work offline. Export a full copy from Profile, and request deletion from the legal contact."],
   ];
