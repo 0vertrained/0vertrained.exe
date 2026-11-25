@@ -92,7 +92,7 @@ describe("V17.5 Box Score — headline priority and honest math", () => {
   it("a genuine e1RM PR wins the headline and names the prior best", () => {
     const data = { ...base, "2026-07-20": day({ Bench: { sets: [S(205, 8)] } }) };
     const b = buildBoxScore({ data, todayKey: "2026-07-20", todayName: "Push" });
-    expect(b.headline).toBe("PR: Bench.");
+    expect(b.headline).toBe("A record on Bench.");
     expect(b.prs[0].priorBest).toBeGreaterThan(0);
   });
 
@@ -100,7 +100,7 @@ describe("V17.5 Box Score — headline priority and honest math", () => {
     const data = { ...base, "2026-07-20": day({ Bench: { sets: [S(205, 8, { type: "drop", segments: [{ weight: "155", reps: "10" }] })] } }) };
     const b = buildBoxScore({ data, todayKey: "2026-07-20", todayName: "Push" });
     expect(b.prs).toHaveLength(0);
-    expect(b.headline).not.toMatch(/^PR/);
+    expect(b.headline).not.toMatch(/record/i);
   });
 
   it("tonnage compares against the last SAME-weekday session and reports the delta", () => {
@@ -136,7 +136,7 @@ describe("V17.5 Box Score — headline priority and honest math", () => {
     const half = b.banked.find((m) => m.today === 1); // 2 secondary-credited sets
     expect(half).toBeTruthy();
     expect(b.skips).toEqual([{ name: "Cable Fly", reason: "equipment" }]);
-    expect(b.method).toMatch(/secondaries count half/);
+    expect(b.method).toMatch(/secondary muscle count half/);
   });
 });
 

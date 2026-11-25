@@ -6,7 +6,7 @@
 // line. The Box Score tells the session's actual story from data the app
 // already computes:
 //   headline (strict priority: PRs → strength arrows → tonnage jump →
-//   first-on-record → "Session banked.") · tonnage vs the last same-name
+//   first-on-record → skips named → done as written) · tonnage vs the last same-name
 //   session · today's PRs vs ALL history · e1RM direction per anchor lift ·
 //   sets banked per muscle against the weekly landmarks · skips, named
 //   honestly.
@@ -54,7 +54,10 @@ export function buildBoxScore({ data = {}, todayKey, todayName = null } = {}) {
   for (const [name, exData] of exercises) {
     const todaysSets = doneStraightSets(exData);
     if (!todaysSets.length) continue;
-    const todayBest = Math.max(...todaysSets.map((s) => effectiveE1RM(numOr(s.weight), numOr(s.reps), s.rir)));
+    const bestSet = todaysSets.reduce((best, s) => (
+      effectiveE1RM(numOr(s.weight), numOr(s.reps), s.rir) > effectiveE1RM(numOr(best.weight), numOr(best.reps), best.rir) ? s : best
+    ));
+    const todayBest = effectiveE1RM(numOr(bestSet.weight), numOr(bestSet.reps), bestSet.rir);
     let priorBest = 0;
     for (const [k, d] of Object.entries(data)) {
       if (k >= todayKey) continue;
@@ -63,7 +66,7 @@ export function buildBoxScore({ data = {}, todayKey, todayName = null } = {}) {
       }
     }
     if (priorBest > 0 && todayBest > priorBest + 0.5) {
-      prs.push({ name, e1rm: Math.round(todayBest), priorBest: Math.round(priorBest) });
+      prs.push({ name, e1rm: Math.round(todayBest), priorBest: Math.round(priorBest), set: { weight: numOr(bestSet.weight), reps: numOr(bestSet.reps) } });
     }
     // Direction arrow from the real series (today vs previous point).
     const series = buildE1RMSeries(data, name);
@@ -96,6 +99,7 @@ export function buildBoxScore({ data = {}, todayKey, todayName = null } = {}) {
       return {
         key, label: row?.label || key, today: Math.round(sets * 2) / 2,
         weekSets: row?.sets ?? null,
+        range: row ? { min: row.landmarks.mev, max: row.landmarks.mrv } : null,
         weekNote: row ? `${row.sets} this week · ${row.landmarks.mev}–${row.landmarks.mrv} range` : null,
       };
     });
@@ -105,19 +109,40 @@ export function buildBoxScore({ data = {}, todayKey, todayName = null } = {}) {
     .filter(([, exData]) => exData?.skipped)
     .map(([name, exData]) => ({ name, reason: String(exData.skipped) }));
 
+  // ── Lift by lift: sets done and which way strength moved, for the table.
+  const lifts = exercises
+    .map(([name, exData]) => {
+      const done = (exData?.sets || []).filter((s) => s.done).length;
+      const arrow = arrows.find((a) => a.name === name);
+      const trend = exData?.skipped ? "skipped"
+        : prs.some((pr) => pr.name === name) ? "pr"
+        : arrow?.dir === "↗" ? "up"
+        : arrow?.dir === "↘" ? "down"
+        : arrow ? "steady"
+        : null;
+      return { name: exData?.performedName || name, sets: done, trend, reason: exData?.skipped ? String(exData.skipped) : null };
+    })
+    .filter((lift) => lift.sets > 0 || lift.trend === "skipped");
+  const liftsDone = lifts.filter((lift) => lift.trend !== "skipped").length;
+
   // ── Headline: strict priority. ──
+  const sessionName = todayName || "session";
   let headline;
   if (prs.length) {
-    headline = prs.length === 1 ? `PR: ${prs[0].name}.` : `${prs.length} PRs today.`;
+    headline = prs.length === 1 ? `A record on ${prs[0].name}.` : `${prs.length} records today.`;
   } else if (arrows.some((a) => a.dir === "↗")) {
     const up = arrows.find((a) => a.dir === "↗");
-    headline = `Strength moving — ${up.name} ↗.`;
+    headline = `${up.name} is moving up.`;
   } else if (tonnageDeltaPct !== null && tonnageDeltaPct >= 10) {
-    headline = `Biggest ${todayName || "session"} in a while — up ${tonnageDeltaPct}%.`;
+    headline = `Biggest ${sessionName} in a while, up ${tonnageDeltaPct}%.`;
   } else if (priorSameDayKey === null && tonnage > 0) {
-    headline = `First ${todayName || "session"} on record — the baseline is set.`;
+    headline = `First ${sessionName} on record. The baseline is set.`;
+  } else if (skips.length && liftsDone > 0) {
+    headline = `${liftsDone} of ${lifts.length}. The rest can wait.`;
+  } else if (liftsDone > 0) {
+    headline = `${todayName || "Session"}, done as written.`;
   } else {
-    headline = "Session banked.";
+    headline = "Session logged.";
   }
 
   return {
@@ -127,9 +152,10 @@ export function buildBoxScore({ data = {}, todayKey, todayName = null } = {}) {
       ? { priorDate: priorSameDayKey, priorTonnage, deltaPct: tonnageDeltaPct }
       : null,
     prs, arrows, banked, skips,
+    lifts, liftsDone,
     method: priorSameDayKey
-      ? `vs your last ${todayName || "same-day"} session · e1RM from straight sets only · secondaries count half`
-      : "e1RM from straight sets only · secondaries count half",
+      ? `Compared with your last ${todayName || "same-day"} session. Estimated one-rep max uses straight sets only. Sets for a secondary muscle count half.`
+      : "Estimated one-rep max uses straight sets only. Sets for a secondary muscle count half.",
   };
 }
 
