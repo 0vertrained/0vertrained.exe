@@ -144,9 +144,12 @@ async function finishSetup({ dataMode = /^Manual only\./ } = {}) {
 const primaryTab = (name) => within(screen.getByRole("navigation", { name: "Primary" })).getByRole("button", { name });
 const tab = (name) => fireEvent.click(primaryTab(name));
 const openRecovery = () => fireEvent.click(screen.getByRole("button", { name: /^Recovery/ }));
+// Today is live once the call card offers the day's session; the card names it.
+const startButton = () => screen.findByRole("button", { name: /^(Start|Continue) session/ }, WAIT);
+const liveToday = async () => { await startButton(); return document.querySelector('[data-ui="today-command-center"]'); };
 
 describe("V19.4 front door — a new account reaches a logger", () => {
-  it("signs in → setup → Today is live → a logger in two taps → the first set banked on the third", async () => {
+  it("signs in → setup → Today is live → a logger in one tap → the first set banked on the second", async () => {
     render(<App />);
     await finishSetup();
 
@@ -158,14 +161,13 @@ describe("V19.4 front door — a new account reaches a logger", () => {
     expect(lifts.length).toBeGreaterThan(0); // the fixed date really is a lifting day
 
     // Today is the live tab, not the sample.
-    const workout = await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
     expect(screen.queryByTestId("specimen-stamp")).toBeNull();
 
-    // Tap 1 opens the day's workout, tap 2 starts the session: that's the logger.
-    fireEvent.click(workout);
-    fireEvent.click(await screen.findByRole("button", { name: "Start session →" }, WAIT));
+    // Tap 1 starts the session from the call card: that's the logger.
+    fireEvent.click(await startButton());
     const runner = await screen.findByRole("dialog", { name: /workout session/ }, WAIT);
-    // The numbers, then tap 3 banks the set.
+    // The numbers, then tap 2 banks the set.
     fireEvent.change(within(runner).getByLabelText("Load"), { target: { value: "135" } });
     fireEvent.change(within(runner).getByLabelText("Reps"), { target: { value: "5" } });
     fireEvent.click(within(runner).getByRole("button", { name: "Bank set 1" }));
@@ -181,13 +183,13 @@ describe("V19.4 front door — a new account reaches a logger", () => {
   it("after setup, Fuel and Recovery are live too: a manual setup gets the manual check-in, not a sample", async () => {
     render(<App />);
     await finishSetup();
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
 
     tab("Fuel");
     await waitFor(() => expect(screen.queryByTestId("specimen-stamp")).toBeNull(), WAIT);
 
     tab("Today");
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
     openRecovery();
     expect(await screen.findByText("Manual check-in is primary.", {}, WAIT)).toBeTruthy();
     expect(screen.queryByTestId("specimen-stamp")).toBeNull();
@@ -196,7 +198,7 @@ describe("V19.4 front door — a new account reaches a logger", () => {
   it("a wearable setup shows Recovery's sample until it connects, and its one action opens Integrations", async () => {
     render(<App />);
     await finishSetup({ dataMode: /^Wearable connected\./ });
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
 
     openRecovery();
     expect(await screen.findByTestId("specimen-stamp", {}, WAIT)).toBeTruthy();
@@ -214,7 +216,7 @@ describe("V19.4 front door — a new account reaches a logger", () => {
     expect(h.store.settings).toBeNull();
 
     fireEvent.click(finish);
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
     expect(h.store.settings).toMatchObject({ onboarded: true });
   }, 20000);
 });
@@ -324,7 +326,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
   it("nothing from one account carries into the next after logout → login", async () => {
     h.store.settings = { ...PROFILE, username: "alice", goals: { ...PROFILE.goals, calories: 2400 } };
     render(<App />);
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
 
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^Log out/ }, WAIT));
@@ -339,7 +341,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     expect(document.body.textContent).not.toMatch(/alice/);
 
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^Settings/ }, WAIT));
     expect((await screen.findByDisplayValue("3000", {}, WAIT))).toBeTruthy(); // the second account's own targets
@@ -351,8 +353,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     h.store.settings = { ...PROFILE };
     h.store.failEntrySaves = true; // the first account's save fails and queues
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT));
-    fireEvent.click(await screen.findByRole("button", { name: "Start session →" }, WAIT));
+    fireEvent.click(await startButton());
     const runner = await screen.findByRole("dialog", { name: /workout session/ }, WAIT);
     fireEvent.change(within(runner).getByLabelText("Load"), { target: { value: "135" } });
     fireEvent.change(within(runner).getByLabelText("Reps"), { target: { value: "5" } });
@@ -367,7 +368,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
 
     h.store.failEntrySaves = false;
     await act(async () => { h.authCb("SIGNED_IN", { user: { id: "user-b", email: "b@example.com" }, access_token: "t2" }); });
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
     await act(async () => { await new Promise((r) => setTimeout(r, 1200)); }); // past the 700 ms save debounce and the queue flush
     const leaked = dataLayer.saveEntry.mock.calls.slice(callsBefore)
       .filter(([, payload]) => Object.values(payload?.workout?.exercises || {}).some((ex) => ex.sets?.some((set) => set.weight === "135")));
@@ -413,7 +414,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
   it("signed out from another tab with Settings open: the next sign-in doesn't reopen Settings on defaults", async () => {
     h.store.settings = { ...PROFILE };
     render(<App />);
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^Settings/ }, WAIT));
     await screen.findByText("Targets & Sources", {}, WAIT);
@@ -421,7 +422,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     await act(async () => { h.authCb("SIGNED_OUT", null); });
     await waitFor(() => expect(screen.queryByText("Targets & Sources")).toBeNull(), WAIT);
     await act(async () => { h.authCb("SIGNED_IN", { user: h.user, access_token: "t3" }); });
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
     expect(screen.queryByText("Targets & Sources")).toBeNull();
     expect(dataLayer.saveSettings).not.toHaveBeenCalled();
   }, 20000);
@@ -430,7 +431,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     h.store.settings = { ...PROFILE };
     h.store.entries = { "2026-10-20": { body: { weight: "201.5" } } };
     render(<App />);
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Export Full Backup/ }, WAIT));
     await screen.findByText(/JSON Backup/, {}, WAIT);
@@ -439,7 +440,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     await act(async () => { h.authCb("SIGNED_OUT", null); });
     h.store.entries = {};
     await act(async () => { h.authCb("SIGNED_IN", { user: { id: "user-b", email: "b@example.com" }, access_token: "t4" }); });
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
     expect(screen.queryByText(/JSON Backup/)).toBeNull();
     expect(document.body.textContent).not.toMatch(/201\.5/);
 
@@ -448,7 +449,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     await screen.findByText(/Paste Backup/, {}, WAIT);
     await act(async () => { h.authCb("SIGNED_OUT", null); });
     await act(async () => { h.authCb("SIGNED_IN", { user: h.user, access_token: "t5" }); });
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
     expect(screen.queryByText(/Paste Backup/)).toBeNull();
   }, 20000);
 
@@ -461,8 +462,8 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     expect(await screen.findByTestId("account-unavailable", {}, WAIT)).toBeTruthy();
     expect(localStorage.getItem(`ovt-cache-${h.user.id}`)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    const workout = await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
-    expect(workout.textContent).toMatch(/Real Monday/);
+    const call = await liveToday();
+    expect(call.textContent).toMatch(/Real Monday/);
   }, 20000);
 
   it("an offline launch keeps this device's settings and program: no setup wizard, no default program", async () => {
@@ -472,11 +473,11 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     h.store.failProgramReads = 1;
     render(<App />);
 
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
     await waitFor(() => expect(dataLayer.loadSettingsChecked).toHaveBeenCalled(), WAIT);
     await act(async () => { await new Promise((r) => setTimeout(r, 150)); });
     expect(screen.queryByRole("button", { name: /Skip the welcome tour/ })).toBeNull();
-    expect(screen.getByRole("button", { name: /^Workout — Monday/ }).textContent).toMatch(/Cached Monday/);
+    expect(document.querySelector('[data-ui="today-command-center"]').textContent).toMatch(/Cached Monday/);
     const cached = JSON.parse(localStorage.getItem(`ovt-cache-${h.user.id}`));
     expect(cached.settings.onboarded).toBe(true);
     expect(cached.program.Monday.type).toBe("Cached Monday");
@@ -522,7 +523,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     h.store.settings = { ...PROFILE };
     h.store.historyIncomplete = true;
     render(<App />);
-    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    await liveToday();
 
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Export Full Backup/ }, WAIT));

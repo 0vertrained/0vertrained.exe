@@ -25,11 +25,11 @@ describe("broadsheet shell (V15.0)", () => {
       expect(src).toContain(`data-section="${id}"`);
     }
     expect(src).toContain('gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)"');
-    // Every broadsheet style branches to display:contents below the tier.
-    const wrappers = src.match(/isBroadsheet \? \{[^}]+\} : \{ display: "contents" \}/g) || [];
-    expect(wrappers.length).toBeGreaterThanOrEqual(4); // container + 3 sections
-    // The session ledger opens by default on the broadsheet.
-    expect(src).toContain("defaultOpen={workoutStarted || isBroadsheet}");
+    // The two rails dissolve into the single column below the tier; the plan
+    // keeps its own section there so the heading and its rows stay together.
+    const rails = src.match(/isBroadsheet \? \{[^}]+\} : \{ display: "contents" \}/g) || [];
+    expect(rails.length).toBe(2);
+    expect(src).toMatch(/data-section="session-ledger"[^>]*aria-labelledby="today-plan"/);
   });
 
   it("the top bar carries the drawn mark, and no streak", () => {
@@ -73,7 +73,7 @@ describe("broadsheet shell (V15.0)", () => {
     }
     expect(src).not.toContain('data-plate="fuel-remaining"');
     expect(src).not.toContain('data-plate="tomorrow-outlook"');
-    expect(read("src/PhysiqueOSPanel.jsx")).toContain('data-ui="today-command-center"');
+    expect(read("src/TodayCall.jsx")).toContain('data-ui="today-command-center"');
     // Gated on the tier and never on a past-day log.
     expect(src).toContain("{isBroadsheet && !isLoggingPast && (<>");
   });

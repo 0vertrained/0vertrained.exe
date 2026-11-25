@@ -1118,10 +1118,10 @@ function AppInner({ onThemeChange }) {
           <Suspense fallback={null}>
           {accountUnavailable ? <div className="legacy-screen"><AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /></div> : (<>
           {tab === "Today" && (
-            <div className="legacy-screen">
+            <div className={loaded && !dayZero.today.isZero ? "today-screen" : "legacy-screen"}>
             {loaded && dayZero.today.isZero
               ? <DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />
-              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} />}
+              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} />}
             </div>
           )}
           {tab === "Train" && (

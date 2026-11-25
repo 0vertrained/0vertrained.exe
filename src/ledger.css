@@ -75,6 +75,8 @@ html, body { background: var(--bg); color: var(--ink); }
 .back { display: flex; align-items: center; gap: 0; min-height: 44px; padding-right: 6px; margin-left: -10px; font: 500 14px/20px var(--f-ui); color: var(--ink-2); flex: none; }
 .foot { flex: none; margin-top: auto; position: sticky; bottom: 0; z-index: var(--z-sticky); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
 /* A screen that has not been rebuilt yet still styles itself inline; this gives it the column and clears the tab bar. */
+.today-screen { width: 100%; max-width: var(--ovt-shell-width, var(--ovt-content-width)); margin: 0 auto; display: flex; flex-direction: column; flex: 1 1 auto; }
+.today-screen > .shell { max-width: none; }
 .legacy-screen { width: 100%; max-width: var(--ovt-shell-width, var(--ovt-content-width)); margin: 0 auto; padding-bottom: calc(16px + var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
 /* A full-screen flow (session runner, Box Score, Sunday Edition) covers the shell and hides the tab bar. */
 .flow-screen { position: fixed; inset: 0; z-index: var(--z-timer); background: var(--bg); overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
@@ -135,6 +137,8 @@ html, body { background: var(--bg); color: var(--ink); }
 .btn[aria-busy="true"] { cursor: progress; }
 .ibtn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 8px; flex: none; }
 .ibtn-o { border: 1px solid var(--edge); background: var(--surface); }
+.ibtn-o[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.ibtn-o[aria-pressed="false"] .i { color: var(--ink-3); }
 
 /* Hover is for pointers only, so a tap never leaves a hover state stuck on a phone */
 @media (hover: hover) and (pointer: fine) {
@@ -226,6 +230,14 @@ a.row:active, button.row:active { background: var(--press); }
 .step button { height: 56px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); display: flex; align-items: center; justify-content: center; }
 .step-xl button { height: 64px; }
 .stepv { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-width: 0; }
+/* Set grid: one exercise's sets as rows of fields. Set number, two measures, reps in reserve, done. */
+.sets { display: flex; flex-direction: column; gap: 8px; padding: 12px 0 4px; }
+.sets + .sets { border-top: 1px solid var(--line); }
+.sets-h, .sets-r { display: grid; grid-template-columns: 20px minmax(0, 1fr) minmax(0, 1fr) 60px 44px; gap: 8px; align-items: center; }
+.sets-h { font: 500 13px/16px var(--f-ui); color: var(--ink-2); text-align: center; }
+.sets-h > :first-child, .sets-r > :first-child { text-align: left; }
+.sets-r .input { height: 44px; padding: 0 6px; text-align: center; }
+.sets-r.is-done .input { background: var(--sunk); }
 /* The suggestion under the first empty row: one tap fills the set */
 .ghost { display: flex; align-items: center; gap: 8px; min-height: 44px; width: 100%; padding: 0 0 0 28px; text-align: left; border-bottom: 1px dashed var(--edge); }
 /* A drop set or rest-pause hanging off its set */

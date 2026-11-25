@@ -1,13 +1,14 @@
 // src/TodayTab.jsx
-// Extracted verbatim from App.jsx (no behavior change): the
-// Today tab plus its private pieces — Today command center, TodayPlanCard,
-// FirstWeekCard, PrimaryNextAction, CheckinCard, CardioNotes, ExerciseLogger,
-// and the epley1RM helper (exported; ProgressTab uses it too).
+// Today: how am I, what do I do, where am I on fuel. The check-in folds to a
+// line, the call sits under it with the day's one primary action, then the
+// plan, the day's progress and the daily log. The pieces private to this
+// screen (FirstWeekCard, RunFields, QuickEdit, DailyLog, CardioNotes,
+// ExerciseLogger) live below it.
 import { useState, useEffect, useRef, memo, lazy, Suspense } from "react";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { buildWhoopSummary } from "./whoop";
 import { perfStart, perfMark } from "./perf";
-import { useTheme } from "./theme";
+import { Icon, Switch } from "./ui/ledger";
 import { copyToClipboard } from "./clipboard";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey } from "./constants";
 import { calcRecoveryScore, resolveRecovery, computeRecoveryBaseline } from "./recovery";
@@ -21,13 +22,11 @@ import { buildDailyLoads, computeRollingLoads, findUnloggedLoadDays, getLoadZone
 import { buildDecisionContext, getDailyRecommendation } from "./decisionEngine";
 import { suggestWorkoutAdjustments } from "./adaptiveTraining";
 import { computeStillNeeded } from "./fuelNeeds";
-import { summarizeCheckin } from "./checkin";
 import { MorningCheckin } from "./MorningCheckin";
-import { summarizeManualRecovery } from "./manualRecovery";
 import { buildTodayDecision, buildDecisionResponseEntry } from "./todayDecision";
 import { getDecisionFeedbackBrief } from "./decisionFeedback";
 import { SessionComplete } from "./SessionComplete";
-import { LoadingShell, NavRow, DisclosureBlock, AdvisoryNote } from "./ui/primitives";
+import { LoadingShell, AdvisoryNote } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
 import { buildTodayPlan, buildNextAction } from "./todaySummary";
 import { CascadeSet } from "./CascadeSet";
@@ -39,63 +38,19 @@ import { flattenProgramLifting, getProgramSessions, usesProgramSessions } from "
 import { buildWearableLoadRows } from "./wearableWorkoutLoad";
 import { TRACKING_MODES, completedSetCount, isCompletedSet, isExerciseHandled, reconcileExerciseSets, resolveTrackingMode, validateSet } from "./workoutLogging";
 import { isFirstWeekUser, countLoggedDays, buildFirstWeekChecklist, summarizeChecklist, buildFirstWeekCoachCopy, buildBetaFeedbackText, resolveDataMode } from "./firstWeekJourney";
-import { PhysiqueOSPanel } from "./PhysiqueOSPanel";
+import { useDayOps, CallCard, FuelSnapshot, DayProgress, CallSheets } from "./TodayCall";
 import { RaceWeekLine } from "./RaceWeekLine";
+import { isRunCardio } from "./raceBuild";
 
 // SessionMode is lazy — it only loads when a session actually starts,
 // keeping it out of the initial bundle.
 const SessionMode = lazy(() => import("./SessionMode").then(m => ({ default: m.SessionMode })));
 const CardioSession = lazy(() => import("./CardioSession").then(m => ({ default: m.CardioSession })));
 
-function RestDayLogCard({ recovery }) {
-  const { C, S } = useTheme();
-  const [expanded, setExpanded] = useState(false);
-  const components = Object.values(recovery?.components || {});
-  return (
-    <div style={S.block}>
-      <div style={S.blockHead}>
-        <span style={S.blockTitle}>Rest Day</span>
-        <span style={S.blockStat}>Recovery focus</span>
-      </div>
-      <div style={{ fontSize:13, color:C.textDim, marginBottom: components.length ? 10 : 0 }}>No training scheduled. Focus on recovery.</div>
-      {components.length > 0 && (
-        <>
-          <button
-            type="button"
-            onClick={() => setExpanded(v => !v)}
-            aria-expanded={expanded}
-            style={{ background:"none", border:"none", color:C.textDim, fontFamily:C.fontFamily, fontSize:11, letterSpacing:"0.1em", textTransform:"uppercase", cursor:"pointer", padding:0 }}
-          >
-            {expanded ? "▾ Hide recovery factors" : "▸ Show recovery factors"}
-          </button>
-          {expanded && (
-            <div style={{ fontSize:11.5, color:C.textDim, marginTop:8 }}>
-              {components.map(comp => (
-                <div key={comp.label} style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", borderBottom:`1px solid ${C.line}` }}>
-                  <span style={{ letterSpacing:"0.05em" }}>{comp.label} <span style={{ color:C.textFaint }}>· {comp.value}</span></span>
-                  <span style={{ color: comp.score/comp.max >= 0.7 ? C.green : comp.score/comp.max >= 0.4 ? C.textDim : C.red }}>{comp.score}/{comp.max}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-// copyToClipboard moved to src/clipboard.js — MoreTab was calling it
-// without an import, so it now lives in a shared module both files import.
-
-// First-week baseline banner
-// Additive, tab-specific guidance for new beta users while their baseline is
-// forming. It sits ABOVE the real tab content and never hides functional
-// controls — sparse-data copy that reads "baseline is being established" instead
-// of a blank or judgmental screen. Renders nothing outside the first week.
-
+// First week
+// A new account's setup checklist: where the baseline stands, the one next
+// step, and the full list behind a disclosure. It never blocks Today.
 function FirstWeekCard({ settings, entries, program, ouraConnected, setTab, showToast }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
   const [expanded, setExpanded] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -112,11 +67,6 @@ function FirstWeekCard({ settings, entries, program, ouraConnected, setTab, show
 
   const goTo = (item) => { if (item?.targetTab && setTab) setTab(item.targetTab); };
 
-  const statusGlyph = (status) =>
-    status === "done" ? "✓" : status === "next" ? "→" : "·";
-  const statusColor = (status) =>
-    status === "done" ? C.text : status === "next" ? C.text : C.textFaint;
-
   const copyFeedback = async () => {
     const text = buildBetaFeedbackText({
       tab: "Today",
@@ -131,117 +81,113 @@ function FirstWeekCard({ settings, entries, program, ouraConnected, setTab, show
       showToast?.("Beta note copied");
     } else {
       setFallbackText(text);
-      showToast?.("Select all + copy");
+      showToast?.("Select all, then copy");
     }
   };
 
   return (
-    <section style={{ ...S.block, background: C.block }}>
-      <div style={S.blockHead}>
-        <span style={S.blockTitle}>{"> "}Baseline week</span>
-        <span style={S.blockStat}>{summary.label}</span>
-      </div>
-
-      {/* One-line explanation */}
-      <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.5 }}>
+    <section className="card" data-section="first-week" aria-labelledby="first-week" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="sec"><h2 id="first-week" className="t-h">Baseline week</h2><span className="t-s c2">{summary.label}</span></div>
+      <p className="t-s c2">
         {summary.complete
-          ? "Setup checklist complete — keep logging to firm up your baseline."
-          : "Establishing your baseline — aim for 3–7 logged days."}
-      </div>
+          ? "Setup checklist complete. Keep logging to firm up your baseline."
+          : "The app is learning what is normal for you. Aim for 3 to 7 logged days."}
+      </p>
 
-      {/* Next step + CTA */}
       {summary.next && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textFaint }}>Next step</div>
-            <div style={{ fontSize: 13.5, color: C.text, marginTop: 3, lineHeight: 1.35 }}>{summary.next.label}</div>
-          </div>
-          <button type="button" onClick={() => goTo(summary.next)}
-            style={{ ...S.smallBtn, borderColor: C.text, color: C.text, whiteSpace: "nowrap", flexShrink: 0 }}>
-            {summary.next.cta} →
-          </button>
+        <div className="row" style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>
+          <span className="kv grow"><span className="t-c c2">Next step</span><span className="t-bs">{summary.next.label}</span></span>
+          <button type="button" className="btn btn-s btn-sm" onClick={() => goTo(summary.next)}>{summary.next.cta}</button>
         </div>
       )}
 
-      {/* Expand / collapse full checklist */}
-      <button type="button" onClick={() => setExpanded((v) => !v)}
-        style={{ background: "none", border: "none", color: C.textDim, fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", padding: "10px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
-        <span>{expanded ? "▾" : "▸"}</span>
-        <span>{expanded ? "Hide checklist" : `Show all steps (${summary.done}/${summary.total})`}</span>
+      <button type="button" className="btn btn-g btn-sm" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)} style={{ alignSelf: "flex-start", paddingLeft: 0 }}>
+        {expanded ? "Hide checklist" : `Show all steps (${summary.done} of ${summary.total})`}
       </button>
 
       {expanded && (
-        <div style={{ marginTop: 8 }}>
-          {checklist.map((item) => (
-            <div key={item.id} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, padding: "8px 0", borderTop: `1px solid ${C.line}` }}>
-              <div style={{ display: "flex", gap: 8, minWidth: 0 }}>
-                <span style={{ fontFamily: mono, fontSize: 13.5, color: statusColor(item.status), flexShrink: 0, width: 12, textAlign: "center" }}>{statusGlyph(item.status)}</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: item.status === "done" ? C.textDim : C.text, lineHeight: 1.35, textDecoration: item.status === "done" ? "line-through" : "none" }}>{item.label}</div>
-                  <div style={{ fontSize: 11, color: C.textFaint, lineHeight: 1.45, marginTop: 2 }}>{item.detail}</div>
-                </div>
-              </div>
-              {item.status !== "done" && (
-                <button type="button" onClick={() => goTo(item)}
-                  style={{ background: "none", border: `1px solid ${C.line}`, color: C.textDim, fontFamily: mono, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer", padding: "4px 8px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                  {item.cta}
-                </button>
-              )}
-            </div>
-          ))}
-
-          {/* First-week coach note — conservative, baseline-building language */}
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
-            <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textFaint }}>{coach.headline}</div>
-            <div style={{ fontSize: 11.5, color: C.textDim, lineHeight: 1.5, marginTop: 4 }}>{coach.body}</div>
+        <>
+          <ul className="rows">
+            {checklist.map((item) => (
+              <li key={item.id} className="row" style={{ alignItems: "flex-start", paddingTop: 4 }}>
+                <Icon name={item.status === "done" ? "done" : "open"} className={item.status === "done" ? "good" : "c2"} />
+                <span className="kv grow"><span className="t-bs">{item.label}{item.status === "done" && <span className="sr"> (done)</span>}</span><span className="t-s c2">{item.detail}</span></span>
+                {item.status !== "done" && <button type="button" className="btn btn-s btn-sm" onClick={() => goTo(item)}>{item.cta}</button>}
+              </li>
+            ))}
+          </ul>
+          <div className="kv" style={{ borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+            <h3 className="t-ss">{coach.headline}</h3>
+            <p className="t-s c2">{coach.body}</p>
           </div>
-        </div>
+        </>
       )}
 
-      {/* Beta feedback note */}
-      <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
+      <div style={{ borderTop: "1px solid var(--line)", paddingTop: 4, display: "flex", flexDirection: "column", gap: 8 }}>
         {!feedbackOpen ? (
-          <button type="button" onClick={() => setFeedbackOpen(true)}
-            style={{ background: "none", border: "none", color: C.textDim, fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", padding: 0 }}>
-            ＋ Beta feedback note
-          </button>
+          <button type="button" className="btn btn-g btn-sm" onClick={() => setFeedbackOpen(true)} style={{ alignSelf: "flex-start", paddingLeft: 0 }}>Write a beta feedback note</button>
         ) : (
-          <div>
-            <div style={{ fontSize: 11, color: C.textFaint, lineHeight: 1.5, marginBottom: 6 }}>
-              // Copies a plain-text note (app version, tab, logged days, setup goal/mode, browser). No personal logs or account details are included.
-            </div>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
-              placeholder="What worked, what was confusing, what you'd change…"
-              style={{ ...S.notesInput, marginTop: 0, fontSize: 13.5 }} />
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <button type="button" onClick={copyFeedback} style={{ ...S.smallBtn, borderColor: C.text, color: C.text }}>Copy beta feedback note</button>
-              <button type="button" onClick={() => { setFeedbackOpen(false); setFallbackText(null); }} style={S.smallBtn}>Close</button>
+          <>
+            <label className="field" style={{ paddingTop: 6 }}>
+              <span className="lbl">Beta feedback note</span>
+              <span className="hint">Copies a plain-text note: app version, tab, logged days, setup goal and mode, browser. No personal logs or account details.</span>
+              <textarea className="input area" value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="What worked, what was confusing, what you’d change" />
+            </label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" className="btn btn-s btn-sm" onClick={copyFeedback}>Copy beta feedback note</button>
+              <button type="button" className="btn btn-g btn-sm" onClick={() => { setFeedbackOpen(false); setFallbackText(null); }}>Close</button>
             </div>
             {fallbackText && (
-              <textarea readOnly value={fallbackText} onFocus={(e) => e.target.select()} rows={6}
-                style={{ ...S.notesInput, marginTop: 8, fontSize: 11.5, fontFamily: mono }} />
+              <textarea className="input area n" readOnly aria-label="Beta feedback note to copy" value={fallbackText} onFocus={(e) => e.target.select()} rows={6} />
             )}
-          </div>
+          </>
         )}
       </div>
     </section>
   );
 }
 
-// Primary next action
-// The one emphasized row under the coach hero. It answers "what do I do next and
-// how do I log it?" — Start / Continue / Finish depending on session state (see
-// buildNextAction). The filled button is the single primary CTA on Today; every
-// other control (accept/keep, feedback) stays an outline/secondary weight so the
-// hierarchy reads at a glance. onGo scrolls to the relevant inputs — it never
-// writes data or changes the recommendation.
-export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, onExport, loaded, program, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false }) {
+// Miles, time and pace for one run. Pace fills itself from the other two (see
+// the effect in TodayTab), so it is offered last.
+function RunFields({ logged = {}, planned = null, onChange }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+      <label className="field"><span className="lbl">Miles</span><input className="input n" type="number" inputMode="decimal" autoComplete="off" placeholder={String(planned?.miles || "")} value={logged.miles || ""} onChange={(e) => onChange("miles", e.target.value)} /></label>
+      <label className="field"><span className="lbl">Time</span><input className="input n" type="text" inputMode="numeric" autoComplete="off" placeholder="mm:ss" value={logged.time || ""} onChange={(e) => onChange("time", e.target.value)} /></label>
+      <label className="field"><span className="lbl">Pace</span><input className="input n" type="text" autoComplete="off" placeholder="/mi" value={logged.pace || ""} onChange={(e) => onChange("pace", e.target.value)} /></label>
+    </div>
+  );
+}
+
+// Quick edit: every exercise of a session with its sets, for correcting a log
+// without opening the runner. Same write path as the runner.
+function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", paddingBottom: 8 }}>
+      <ul className="rows" style={{ paddingBottom: 8 }}>
+        {lifting.map((exercise, index) => {
+          const exerciseData = workout.exercises[exercise.name] || {};
+          const handled = isExerciseHandled(exercise, exerciseData);
+          return (
+            <li key={`${exercise.name}-queue-${index}`} className="row" style={{ minHeight: 36 }}>
+              <span className={`t-s grow clip${handled ? " c2" : ""}`}>{exerciseData.performedName || exercise.name}</span>
+              <span className="n-s c2">{exerciseData.skipped ? "Skipped" : `${completedSetCount(exercise, exerciseData)}/${exercise.sets}`}</span>
+            </li>
+          );
+        })}
+      </ul>
+      {lifting.map((ex, i) => (
+        <ExerciseLogger key={ex.name + i} exercise={ex} data={workout.exercises[ex.name] || {}} lastSets={lastSessionSets(allData, ex.name, todayKey)} onChange={(v) => updateToday(`workout.exercises.${ex.name}`, v)} onPR={onPR} />
+      ))}
+    </div>
+  );
+}
+
+export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null }) {
   // Broadsheet: below 1440px every wrapper is display:contents and
   // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
-  const { C, S } = useTheme();
   const prevReadinessRef = useRef(null); // remembers last band so readiness doesn't flicker (hysteresis)
-  const mono = C.fontFamily;
   const activeProgram = program || DEFAULT_PROGRAM;
   const p   = activeProgram[todayName] || DEFAULT_PROGRAM[todayName];
   const programSessions = getProgramSessions(p);
@@ -429,7 +375,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       }
     }
     if (w > prevBest && prevBest > 0) {
-      setPrFlash(`// new PR — ${exName} ${w} lbs`);
+      setPrFlash({ name: exName, weight: w });
       setTimeout(() => setPrFlash(null), 3500);
     }
   };
@@ -473,23 +419,33 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   const activeLiftingSession = programSessions.find((s) => s.id === activeLiftingSessionId) || programSessions.find((s) => (s.lifting || []).length > 0) || { lifting: plannedLifting };
   const activeCardioSession = programSessions.find((s) => s.id === activeCardioSessionId && s.cardio) || programSessions.find((s) => s.cardio) || { id: "main", cardio: p.cardio };
   const checkinRef = useRef(null);
+  const planRef = useRef(null);
+  // The run-by-hand fields: opened on request, and whenever a run sits there.
+  const hasPlainCardio = !sessionAwareProgram && Boolean(p.cardio);
+  const unplannedRunLogged = !hasPlainCardio && ((parseFloat(wo.cardio?.miles) || 0) > 0 || String(wo.cardio?.time || "").trim() !== "");
+  const [runOpen, setRunOpen] = useState(false);
 
-  // Front page — ONE primary CTA on the hero, derived from the same
-  // next-action ladder. Start/continue launches Session Mode directly (the
-  // fastest path to logging), cardio opens the interval runner, rest/done
-  // scrolls to the check-in. No new write paths: these are the exact same
-  // setters the in-block buttons already use. The jump mini-nav is gone —
-  // the disclosure rows below replace it as the page's table of contents.
-  const scrollToCheckin = () => checkinRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  // Targets, day mode, closeout and the sheets behind the call.
+  const ops = useDayOps({
+    todayKey, todayData, updateToday, showToast, goals, settings,
+    recommendation: dailyRecommendation, decision: todayDecision, adaptiveSuggestion,
+    programDay: p, totalExercises, doneExercises, hasCardio: hasPlannedCardio, cardioLogged,
+    isRest: todayPlan.isRest, wearableSteps: todayOuraSteps,
+  });
+
+  // The call card's primary action runs the same ladder as before: start or
+  // continue opens the session runner, cardio opens the interval runner, and
+  // a finished or rest day goes to closing it out. No new write paths: these
+  // are the same setters the plan rows use.
   const runNextAction = () => {
     if (!nextAction) return;
-    if (nextAction.target === "checkin") { scrollToCheckin(); return; }
     if (nextAction.status === "cardio") {
       const sid = programSessions.find((s) => s.cardio)?.id;
       if (sid) setActiveCardioSessionId(sid);
       setCardioSessionOpen(true);
       return;
     }
+    if (nextAction.status !== "start" && nextAction.status !== "continue") { ops.setSheet("closeout"); return; }
     if (sessionAwareProgram) {
       const firstIncomplete = programSessions.find((s) => {
         const lifts = s.lifting || [];
@@ -504,28 +460,65 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
     }
     setSessionModeOpen(true);
   };
-  const ctaLabel = !nextAction ? null
-    : nextAction.status === "start" ? `Start session — ${todayName}`
-    : nextAction.status === "continue" ? `Continue session — ${doneExercises}/${totalExercises} done`
-    : nextAction.status === "cardio" ? "Start cardio"
-    : nextAction.status === "done" ? "Wrap up — log check-in"
-    : "Log check-in";
 
-  const workoutStarted = doneExercises > 0 || cardioLogged;
-  const workoutSubParts = [];
-  if (plannedLifting.length > 0) workoutSubParts.push(`${doneExercises}/${plannedLifting.length} exercises`);
-  if (hasPlannedCardio) workoutSubParts.push(cardioLogged ? "cardio logged" : "cardio planned");
-  const workoutSub = [todayPlan.plannedLabel, workoutSubParts.join(" · ")].filter(Boolean).join(" — ");
+  // A request from outside Today (the Log sheet, or Train): start the session
+  // if there is one to start, or show the run fields. It is handed back once
+  // acted on, so coming back to Today later does not repeat it.
+  const intentNonce = intent?.nonce;
+  useEffect(() => {
+    if (!intentNonce || !loaded) return;
+    const toPlan = () => requestAnimationFrame(() => planRef.current?.scrollIntoView?.({ behavior: "auto", block: "start" }));
+    if (intent.kind === "run") { setRunOpen(true); toPlan(); }
+    else if (!isLoggingPast && ["start", "continue", "cardio"].includes(nextAction?.status)) runNextAction();
+    else toPlan();
+    onIntentHandled?.();
+  }, [intentNonce, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Stable loading shell — render a non-empty command-center skeleton (hero +
-  // plan + quick-log placeholders) instead of a blank Today while data loads.
+  // Stable loading shell — render a non-empty skeleton instead of a blank
+  // Today while data loads.
   if (!loaded) return <LoadingShell plan={getSkeletonPlan("Today")} />;
 
+  const sessionTitle = todayPlan.plannedLabel || todayName;
+  // With one lifting session the call card starts it and its plan row only
+  // edits; with several, each row starts its own.
+  const liftingSessionCount = programSessions.filter((s) => (s.lifting || []).length > 0).length;
+  const longDay = (date) => date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const shiftDay = (offset) => {
+    const date = new Date(`${todayKey}T12:00:00`);
+    date.setDate(date.getDate() + offset);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    return { key, date };
+  };
+  const prevDay = shiftDay(-1);
+  const nextDay = shiftDay(1);
+  // The one primary action on the call card, from the same ladder as before:
+  // start, continue, cardio, then closing out the day.
+  const primary = isLoggingPast ? null
+    : ops.storedCloseout ? { label: "Review the closed day", onGo: () => ops.setSheet("closeout"), quiet: true }
+    : !nextAction ? null
+    : nextAction.status === "start" ? { label: "Start session", onGo: runNextAction }
+    : nextAction.status === "continue" ? { label: `Continue session · ${doneExercises} of ${totalExercises} done`, onGo: runNextAction }
+    : nextAction.status === "cardio" ? { label: isRunCardio(activeCardioSession?.cardio) ? "Start run" : "Start cardio", onGo: runNextAction }
+    : { label: "Close out the day", onGo: () => ops.setSheet("closeout") };
+
+  // One planned cardio block: what is planned, the runner, and the three fields.
+  const cardioBlock = ({ cardio, logged, path, onStart, startLabel }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0 8px" }}>
+      <div className="row">
+        <Icon name="run" />
+        <span className="kv grow"><span className="t-bs clip">{cardio.type}</span><span className="t-s c2">{cardioMeta(cardio) || "Cardio"}</span></span>
+        {!isLoggingPast && onStart && <button type="button" className="btn btn-s btn-sm" onClick={onStart}>{startLabel}</button>}
+      </div>
+      {cardio.notes && <CardioNotes notes={cardio.notes} />}
+      <RunFields logged={logged} planned={cardio} onChange={(field, value) => updateToday(`${path}.${field}`, value)} />
+    </div>
+  );
+
   return (
-    <div>
-      {/* The Box Score — built at the moment of completion from the
-          data already in hand; the finisher writes to the active session's
-          cardio slot (or the plain slot on single-session days). */}
+    <div className="shell" data-screen="today">
+      {/* The Box Score, built at the moment of completion from the data
+          already in hand; the finisher writes to the active session's cardio
+          slot (or the plain slot on single-session days). */}
       {sessionDone && !isLoggingPast && (
         <SessionComplete
           boxScore={buildBoxScore({ data: allData, todayKey, todayName })}
@@ -538,7 +531,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
               } else {
                 updateToday("workout.cardio.miles", String(c.miles ?? ""));
               }
-              showToast?.("Finisher logged — add your time on the day card anytime");
+              showToast?.("Finisher logged. Add your time on Today whenever you like.");
               setSessionDone(false);
             },
           } : null}
@@ -546,78 +539,228 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
         />
       )}
 
-      {/* The app header already owns the date for the normal Today view. Keep a
-          date control only when a past day is actively being logged, where the
-          selected date is essential context rather than duplicate chrome. */}
+      {/* Broadsheet grid: decision rail, session ledger, telemetry. Below the
+          tier the container and the three sections are display:contents, so a
+          phone reads them as one column in source order. */}
+      <div className="main" style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)", gap: 24, alignItems: "start" } : undefined}>
+
+      {/* Logging a past day: step by a day, pick a date, and say plainly that
+          the call belongs to today only. */}
       {isLoggingPast && (
-        <div style={{ padding:"9px 16px", borderBottom:`1px solid ${C.line}`, background:C.panel, display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ fontSize:10, color:C.textDim, letterSpacing:"0.12em", textTransform:"uppercase" }}>Logging for</span>
-            <input
-              type="date"
-              value={logDate || realToday}
-              max={realToday}
-              onChange={e => setLogDate(e.target.value === realToday ? null : e.target.value)}
-              style={{ background:"none", border:"none", color: C.textDim, fontSize:11.5, fontFamily:mono, outline:"none", cursor:"pointer", letterSpacing:"0.04em" }}
-            />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, ...(isBroadsheet ? { gridColumn: "1 / -1" } : null) }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button type="button" className="ibtn ibtn-o" aria-label={`Previous day, ${longDay(prevDay.date)}`} onClick={() => setLogDate(prevDay.key)}><Icon name="back" /></button>
+            <label className="grow" style={{ display: "flex", minWidth: 0 }}>
+              <span className="sr">Day being logged</span>
+              <input className="input n" type="date" value={logDate || realToday} max={realToday} onChange={(e) => setLogDate(!e.target.value || e.target.value === realToday ? null : e.target.value)} />
+            </label>
+            <button type="button" className="ibtn ibtn-o" aria-label={`Next day, ${longDay(nextDay.date)}`} onClick={() => setLogDate(nextDay.key >= realToday ? null : nextDay.key)}><Icon name="next" /></button>
           </div>
-          <button onClick={() => setLogDate(null)} style={{ background:"none", border:`1px solid ${C.lineBright}`, color:C.textDim, fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", cursor:"pointer", fontFamily:mono, padding:"3px 8px" }}>
-            Back to Today
-          </button>
+          <p className="banner"><Icon name="info" size="s" /><span>You are editing a past day. The call is only shown for today.</span></p>
         </div>
       )}
-      {/* Broadsheet grid — decision rail · session ledger · telemetry
-. The three <section>
-          wrappers group EXISTING contiguous blocks; nothing moves in the
-          source and no write path changes. Below the tier, container and
-          wrappers are display:contents — zero layout effect. */}
-      <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)", gap: 20, alignItems: "start" } : { display: "contents" }}>
-      {/* PR Flash — at the tier this celebration spans the full
-          spread (gridColumn 1/-1) instead of sitting crammed inside the 480px
-          decision rail; on mobile it renders in the same flow position. */}
+
+      {/* A record: the tag is stamped, then one pass of light crosses it. */}
       {prFlash && (
-        <div style={{ ...(isBroadsheet ? { gridColumn: "1 / -1" } : null), background: C.bg, border: `1px solid ${C.text}`, padding:"10px 16px", fontSize:11.5, color:C.text, letterSpacing:"0.08em", fontWeight:600 }}>
-          {prFlash}
+        <div className="banner" role="status" style={{ alignItems: "center", borderColor: "var(--earned)", ...(isBroadsheet ? { gridColumn: "1 / -1" } : null) }}>
+          <span className="tag tag-e mo-stamp mo-foil" style={{ "--d": "200ms" }}>PR</span>
+          <span className="grow"><span className="t-ss">{prFlash.name}</span><br /><span className="t-s c2">{prFlash.weight}{"\u00a0"}lb is your heaviest set on record.</span></span>
         </div>
       )}
+
       <section data-section="decision-rail" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
 
-      {/* ── First-week setup card — new beta users only, and only for today
-             (not when logging a past day). Compact, additive, navigates existing
-             tabs. Disappears once the baseline week is behind them. ── */}
+      {/* First-week setup: new accounts only, and only for today. */}
       {!isLoggingPast && firstWeek && (
-        <FirstWeekCard
-          settings={settings}
-          entries={allData}
-          program={program}
-          ouraConnected={ouraConnected}
-          setTab={setTab}
-          showToast={showToast}
-        />
+        <FirstWeekCard settings={settings} entries={allData} program={program} ouraConnected={ouraConnected} setTab={setTab} showToast={showToast} />
       )}
 
       {/* The check-in comes before the call: rate how you feel before the
           number tells you. It folds to one line once answered. */}
       <MorningCheckin body={bod} updateToday={updateToday} />
 
-      {/* One calm decision surface. Today Coach, day mode,
-          live targets, the next meal, and evening closeout now share this
-          command card; supporting controls live in focused sheets. */}
       {!isLoggingPast && (
-        <PhysiqueOSPanel
-          todayKey={todayKey}
-          todayData={todayData}
-          updateToday={updateToday}
-          showToast={showToast}
-          goals={goals}
-          settings={settings}
-          recommendation={dailyRecommendation}
+        <>
+          <CallCard ops={ops} decision={todayDecision} recommendation={dailyRecommendation} sessionTitle={sessionTitle} exerciseCount={totalExercises} primary={primary} isRest={todayPlan.isRest} onOpenRecovery={() => setTab?.("Recovery")} />
+          <FuelSnapshot ops={ops} onOpenFuel={() => setTab?.("Fuel")} />
+        </>
+      )}
+      </section>
+
+      <section data-section="session-ledger" ref={planRef} aria-labelledby="today-plan" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 8, minWidth: 0 } : { display: "flex", flexDirection: "column", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 12, scrollMarginTop: 64 }}>
+        <h2 id="today-plan" className="t-ss">{isLoggingPast ? "Training" : "Today’s plan"}</h2>
+
+        {/* Race plan line: week of the plan, phase, countdown. Renders nothing without a plan. */}
+        <RaceWeekLine program={activeProgram} dateKey={todayKey} />
+
+        <div className="rows">
+        {sessionAwareProgram && programSessions.map((session) => {
+          const lifts = session.lifting || [];
+          const sessionDoneCount = lifts.filter((exercise) => isExerciseHandled(exercise, wo.exercises[exercise.name] || {})).length;
+          const sessionStarted = lifts.some((exercise) => completedSetCount(exercise, wo.exercises[exercise.name] || {}) > 0 || Boolean(wo.exercises[exercise.name]?.skipped));
+          const open = Boolean(quickEditOpen[session.id]);
+          return (
+            <div key={session.id}>
+              {lifts.length > 0 && (
+                <div className="row">
+                  <Icon name="train" />
+                  <span className="kv grow"><span className="t-bs clip">{session.label} · {session.title}</span><span className="t-s c2">Lifting · {sessionDoneCount} of {lifts.length}{"\u00a0"}exercises done</span></span>
+                  {!isLoggingPast && liftingSessionCount > 1 && sessionDoneCount < lifts.length && (
+                    <button type="button" className="btn btn-s btn-sm" onClick={() => { setActiveLiftingSessionId(session.id); setSessionModeOpen(true); }}>{sessionStarted ? "Continue" : "Start"}</button>
+                  )}
+                  <button type="button" className="btn btn-s btn-sm" aria-expanded={open} onClick={() => setQuickEditOpen((current) => ({ ...current, [session.id]: !open }))}>{open ? "Hide" : "Quick edit"}</button>
+                </div>
+              )}
+              {session.emphasis && <p className="t-s c2" style={{ paddingBottom: 4 }}>{session.emphasis}</p>}
+              {open && <QuickEdit lifting={lifts} workout={wo} allData={allData} todayKey={todayKey} updateToday={updateToday} onPR={checkPR} />}
+              {session.cardio && cardioBlock({
+                cardio: session.cardio,
+                logged: wo.cardioSessions?.[session.id] || {},
+                path: `workout.cardioSessions.${session.id}`,
+                onStart: () => { setActiveCardioSessionId(session.id); setCardioSessionOpen(true); },
+                startLabel: isRunCardio(session.cardio) ? "Start run" : "Start cardio",
+              })}
+            </div>
+          );
+        })}
+
+        {!sessionAwareProgram && plannedLifting.length > 0 && (
+          <div>
+            <div className="row">
+              <Icon name="train" />
+              <span className="kv grow"><span className="t-bs clip">{p.type || "Lifting"}</span><span className="t-s c2">Lifting · {doneExercises} of {plannedLifting.length}{"\u00a0"}exercises done</span></span>
+              <button type="button" className="btn btn-s btn-sm" aria-expanded={Boolean(quickEditOpen.main)} onClick={() => setQuickEditOpen((current) => ({ ...current, main: !current.main }))}>{quickEditOpen.main ? "Hide" : "Quick edit"}</button>
+            </div>
+            {quickEditOpen.main && <QuickEdit lifting={plannedLifting} workout={wo} allData={allData} todayKey={todayKey} updateToday={updateToday} onPR={checkPR} />}
+          </div>
+        )}
+
+        {!sessionAwareProgram && p.cardio && cardioBlock({
+          cardio: p.cardio,
+          logged: wo.cardio || {},
+          path: "workout.cardio",
+          onStart: () => setCardioSessionOpen(true),
+          startLabel: isRunCardio(p.cardio) ? "Start run" : "Start cardio",
+        })}
+
+        {/* A run nobody planned still gets logged: the same three fields, on any day. */}
+        {!hasPlainCardio && (
+          <div>
+            <div className="row">
+              <Icon name="run" />
+              <span className="kv grow"><span className="t-bs">{hasPlannedCardio ? "Another run" : "Run"}</span><span className="t-s c2">{unplannedRunLogged ? `${wo.cardio.miles || "—"}${"\u00a0"}mi · ${wo.cardio.time || "no time"}` : "Not logged"}</span></span>
+              <button type="button" className="btn btn-s btn-sm" aria-expanded={runOpen || unplannedRunLogged} onClick={() => setRunOpen((open) => !open)}>{runOpen ? "Hide" : unplannedRunLogged ? "Edit" : "Log run"}</button>
+            </div>
+            {runOpen && <div style={{ paddingBottom: 8 }}><RunFields logged={wo.cardio || {}} onChange={(field, value) => updateToday(`workout.cardio.${field}`, value)} /></div>}
+          </div>
+        )}
+
+        {isLoggingPast && plannedLifting.length === 0 && !hasPlannedCardio && (
+          <div className="row"><Icon name="done" className="good" /><span className="kv grow"><span className="t-bs">Rest day</span><span className="t-s c2">No training was planned.</span></span></div>
+        )}
+        </div>
+
+        {/* Strava: appears only when the displayed day has a recorded
+            activity and no cardio logged by hand. One tap fills the same
+            cardio fields the loggers above write. */}
+        {stravaSuggestion && (() => {
+          const suggestionEntry = stravaSuggestion.dateKey === todayKey ? todayData : (allData?.[stravaSuggestion.dateKey] || defaultDay());
+          const applyAtDate = (path, value) => {
+            if (stravaSuggestion.dateKey === todayKey) updateToday(path, value);
+            else updateEntryAtDate?.(stravaSuggestion.dateKey, path, value);
+          };
+          return (
+            <StravaCardioRow
+              activities={stravaSuggestion.activities}
+              cardio={suggestionEntry.workout?.cardio}
+              cardioSessions={suggestionEntry.workout?.cardioSessions}
+              dateKey={stravaSuggestion.dateKey}
+              dayLabel={stravaSuggestion.dayLabel}
+              isToday={stravaSuggestion.dateKey === realToday}
+              onApply={(fill) => {
+                applyAtDate("workout.cardio.miles", fill.miles);
+                applyAtDate("workout.cardio.time", fill.time);
+                const label = stravaSuggestion.dayLabel === "Today" ? "Today’s cardio"
+                  : stravaSuggestion.dayLabel === "Yesterday" ? "Yesterday’s cardio"
+                  : `Cardio for ${stravaSuggestion.dayLabel}`;
+                showToast(`${label} filled from Strava`);
+              }}
+            />
+          );
+        })()}
+      </section>
+
+      <section data-section="telemetry" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
+        {!isLoggingPast && (
+          <div style={isBroadsheet ? undefined : { borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+            <DayProgress ops={ops} />
+          </div>
+        )}
+
+        <div ref={checkinRef} style={{ scrollMarginTop: 64, borderTop: "1px solid var(--line)", paddingTop: 4 }}>
+          <DailyLog bod={bod} wo={wo} supplements={todayData.supplements} userSupps={userSupps} updateToday={updateToday} defaultOpen={Boolean(isLoggingPast)} />
+        </div>
+
+        {isLoggingPast && <button type="button" className="btn btn-p btn-b" onClick={() => setLogDate(null)}>Back to today</button>}
+
+        {/* Telemetry: 1440 px and up only. */}
+        {isBroadsheet && !isLoggingPast && (<>
+          <section className="card" data-plate="load-model" aria-labelledby="load-model" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="sec"><h2 id="load-model" className="t-ss">Training load</h2><span className="t-s c2">{bsLoad?.zoneInfo?.label || ""}</span></div>
+            {bsLoad && bsLoad.rolling.zone !== "insufficient_data" ? (
+              <>
+                <dl style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+                  <div className="kv"><dt className="t-c c2">Last 7 days</dt><dd className="n-md">{Math.round(bsLoad.rolling.acute)}</dd></div>
+                  <div className="kv"><dt className="t-c c2">Last 28 days</dt><dd className="n-md">{Math.round(bsLoad.rolling.chronic)}</dd></div>
+                  <div className="kv"><dt className="t-c c2">Ratio</dt><dd className="n-md">{bsLoad.rolling.ratio.toFixed(2)}</dd></div>
+                </dl>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 32 }} role="img" aria-label="Daily load over the last 14 days">
+                  {bsLoad.daily.slice(0, 14).reverse().map((d, i) => {
+                    const max = Math.max(...bsLoad.daily.slice(0, 14).map((x) => x.load || 0), 1);
+                    return <div key={i} style={{ flex: 1, height: `${Math.max(((d.load || 0) / max) * 100, 4)}%`, background: (d.load || 0) > 0 ? "var(--ink)" : "var(--line)", borderRadius: 1 }} />;
+                  })}
+                </div>
+                <p className="t-c c2">Daily load, last 14 days</p>
+                {(() => { const f = (whoopGrouped || stravaByDate) ? findUnloggedLoadDays(bsLoad.daily, whoopGrouped, { window: 14, stravaByDate }) : []; return f.length > 0 ? (
+                  <AdvisoryNote compact>{f.length} unlogged-load day{f.length > 1 ? "s" : ""} — ratio understates load</AdvisoryNote>
+                ) : null; })()}
+              </>
+            ) : (
+              <p className="t-s c2">Not enough training history for the load ratio yet. It needs about two weeks of logged sessions.</p>
+            )}
+          </section>
+          {(bsWhoop?.cycle || bsOuraLatest?.day?.activity) && (
+            <section className="card" data-plate="wearable-load" aria-labelledby="wearable-load" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div className="sec"><h2 id="wearable-load" className="t-ss">From your wearables</h2><span className="t-s c2">Shown only, never scored</span></div>
+              <ul className="rows">
+                {Number.isFinite(bsWhoop?.cycle?.strain) && (
+                  <li className="row" style={{ minHeight: 36 }}><span className="t-s grow">Whoop strain</span><span className="n-s">{bsWhoop.cycle.strain.toFixed(1)}</span></li>
+                )}
+                {bsOuraLatest?.day?.activity && (
+                  <li className="row" style={{ minHeight: 36 }}>
+                    <span className="t-s grow">Oura activity</span>
+                    <span className="n-s">
+                      {[Number.isFinite(bsOuraLatest.day.activity.active_calories) ? `${bsOuraLatest.day.activity.active_calories} kcal` : null,
+                        Number.isFinite(bsOuraLatest.day.activity.steps) ? `${bsOuraLatest.day.activity.steps.toLocaleString()} steps` : null,
+                      ].filter(Boolean).join(" · ") || "synced"}
+                    </span>
+                  </li>
+                )}
+              </ul>
+            </section>
+          )}
+        </>)}
+      </section>
+      </div>
+
+      {!isLoggingPast && (
+        <CallSheets
+          ops={ops}
           decision={todayDecision}
-          adaptiveSuggestion={adaptiveSuggestion}
           currentResponse={decisionResponse}
           onResponse={recordDecisionResponse}
           feedbackBrief={decisionFeedbackBrief}
-          cta={ctaLabel ? { label: ctaLabel, onGo: runNextAction, status: nextAction?.status, target: nextAction?.target } : null}
+          onOpenRecovery={() => setTab?.("Recovery")}
           adjustment={adaptiveSuggestion && !todayPlan.isRest ? {
             suggestion: adaptiveSuggestion,
             accepted: acceptedTrainingSuggestion,
@@ -634,264 +777,8 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
               title: adaptiveSuggestion.title,
             }),
           } : null}
-          programDay={p}
-          totalExercises={totalExercises}
-          doneExercises={doneExercises}
-          hasCardio={hasPlannedCardio}
-          cardioLogged={cardioLogged}
-          isRest={todayPlan.isRest}
-          wearableSteps={todayOuraSteps}
-          onOpenFuel={() => setTab?.("Fuel")}
         />
       )}
-      </section>
-      <section data-section="session-ledger" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
-
-      {/* Race plan line — week of the plan, phase, countdown. Renders
-             nothing without a plan; resolves against the displayed day. */}
-      <RaceWeekLine program={activeProgram} dateKey={todayKey} />
-
-      {/* ── 3 · Workout — a collapsed disclosure row on the front page
-. The row carries plan + completion; expanding reveals the
-             exact same session blocks and loggers as before, same write
-             paths. Opens by default once work is logged, renders plain when
-             logging a past day, and a bare rest day skips the fold. ── */}
-      {/* ── 2b · Strava → cardio suggestion. Appears only when the
-             displayed day has a recorded Strava activity and no manually
-             logged cardio — the "ran outside the app" case, including rest
-             days and past-day logging. One tap fills the same cardio fields
-             the loggers below write; pace derives from the existing autofill. ── */}
-      {stravaSuggestion && (() => {
-        const suggestionEntry = stravaSuggestion.dateKey === todayKey
-          ? todayData
-          : (allData?.[stravaSuggestion.dateKey] || defaultDay());
-        const applyAtDate = (path, value) => {
-          if (stravaSuggestion.dateKey === todayKey) updateToday(path, value);
-          else updateEntryAtDate?.(stravaSuggestion.dateKey, path, value);
-        };
-        return (
-          <StravaCardioRow
-            activities={stravaSuggestion.activities}
-            cardio={suggestionEntry.workout?.cardio}
-            cardioSessions={suggestionEntry.workout?.cardioSessions}
-            dateKey={stravaSuggestion.dateKey}
-            dayLabel={stravaSuggestion.dayLabel}
-            isToday={stravaSuggestion.dateKey === realToday}
-            onApply={(fill) => {
-              applyAtDate("workout.cardio.miles", fill.miles);
-              applyAtDate("workout.cardio.time", fill.time);
-              const label = stravaSuggestion.dayLabel === "Today"
-                ? "Today’s cardio"
-                : stravaSuggestion.dayLabel === "Yesterday"
-                  ? "Yesterday’s cardio"
-                  : `Cardio for ${stravaSuggestion.dayLabel}`;
-              showToast(`${label} filled from Strava`);
-            }}
-          />
-        );
-      })()}
-
-      {plannedLifting.length === 0 && !hasPlannedCardio ? (
-        <RestDayLogCard recovery={recovery} />
-      ) : (
-      <DisclosureBlock
-        label={`Workout — ${todayName}`}
-        sub={workoutSub}
-        defaultOpen={workoutStarted || isBroadsheet}
-        plain={isLoggingPast}
-      >
-
-      {sessionAwareProgram && programSessions.map((session) => {
-        const sessionDoneCount = (session.lifting || []).filter((exercise) =>
-          isExerciseHandled(exercise, wo.exercises[exercise.name] || {})
-        ).length;
-        const sessionStarted = (session.lifting || []).some((exercise) =>
-          completedSetCount(exercise, wo.exercises[exercise.name] || {}) > 0 || Boolean(wo.exercises[exercise.name]?.skipped)
-        );
-        const sessionQuickEditOpen = Boolean(quickEditOpen[session.id]);
-        const loggedCardio = wo.cardioSessions?.[session.id] || { miles:"", time:"", pace:"" };
-        return (
-          <div key={session.id} style={S.block}>
-            <div style={S.blockHead}>
-              <span style={S.blockTitle}>{"> "}{session.label} · {session.title}</span>
-              <span style={S.blockStat}>{sessionDoneCount}/{(session.lifting||[]).length} COMPLETE</span>
-            </div>
-            {session.emphasis && <div style={{ fontSize:11, color:C.textDim, marginBottom:10, lineHeight:1.5 }}>{session.emphasis}</div>}
-            {(session.lifting||[]).length > 0 && !isLoggingPast && sessionDoneCount < (session.lifting||[]).length && (
-              <button type="button" onClick={() => { setActiveLiftingSessionId(session.id); setSessionModeOpen(true); }} style={{ width: "100%", background: "transparent", color: C.text, border: `1px solid ${C.lineBright}`, padding: "12px", fontFamily: mono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500, cursor: "pointer", marginBottom: 10 }}>
-                {sessionStarted ? `Resume ${session.label} · ${sessionDoneCount}/${(session.lifting||[]).length}` : `Start ${session.label} lifting`} →
-              </button>
-            )}
-            {(session.lifting||[]).length > 0 && (
-              <div style={{ borderTop:`1px solid ${C.line}`, marginTop:4 }}>
-                {(session.lifting||[]).map((exercise, index) => {
-                  const exerciseData = wo.exercises[exercise.name] || {};
-                  const count = completedSetCount(exercise, exerciseData);
-                  return (
-                    <div key={`${exercise.name}-queue-${index}`} style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:10, alignItems:"center", padding:"8px 0", borderBottom:`1px solid ${C.line}` }}>
-                      <span style={{ fontSize:11.5, color:isExerciseHandled(exercise, exerciseData)?C.textDim:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{exerciseData.performedName || exercise.name}</span>
-                      <span style={{ fontFamily:mono, fontSize:9.5, color:exerciseData.skipped?C.amber:isExerciseHandled(exercise, exerciseData)?C.green:C.textFaint }}>{exerciseData.skipped?"SKIP":`${count}/${exercise.sets}`}</span>
-                    </div>
-                  );
-                })}
-                <button type="button" onClick={() => setQuickEditOpen((current) => ({ ...current, [session.id]: !sessionQuickEditOpen }))} style={{ width:"100%", marginTop:8, padding:"9px", border:`1px solid ${C.lineBright}`, background:"none", color:C.textDim, fontFamily:mono, fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", cursor:"pointer" }}>
-                  {sessionQuickEditOpen ? "Hide quick edit" : "Quick edit sets"}
-                </button>
-              </div>
-            )}
-            {sessionQuickEditOpen && (session.lifting||[]).map((ex, i) => (
-              <ExerciseLogger key={ex.name+i} exercise={ex} data={wo.exercises[ex.name]||{}} lastSets={lastSessionSets(allData, ex.name, todayKey)} onChange={v => updateToday(`workout.exercises.${ex.name}`, v)} showLabels={i===0} onPR={checkPR} />
-            ))}
-            {session.cardio && (
-              <div style={{ marginTop:(session.lifting||[]).length?12:0, paddingTop:(session.lifting||[]).length?10:0, borderTop:(session.lifting||[]).length?`1px solid ${C.line}`:"none" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                  <span style={{ fontSize:11.5, color:C.text, letterSpacing:"0.08em", textTransform:"uppercase" }}>{session.cardio.type}</span>
-                  <span style={{ fontSize:11, color:C.textDim }}>{cardioMeta(session.cardio)}</span>
-                </div>
-                {!isLoggingPast && <button type="button" onClick={() => { setActiveCardioSessionId(session.id); setCardioSessionOpen(true); }} style={{ width: "100%", background: "transparent", color: C.text, border: `1px solid ${C.lineBright}`, padding: "11px", fontFamily: mono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500, cursor: "pointer", marginBottom: 12 }}>Start {session.label} cardio →</button>}
-                {session.cardio.notes && <CardioNotes notes={session.cardio.notes} C={C} mono={mono} />}
-                <div style={S.cardio}>
-                  <div style={S.cardioCell}><input style={S.cardioInput} type="number" inputMode="decimal" placeholder={String(session.cardio.miles||"")} value={loggedCardio.miles || ""} onChange={e => updateToday(`workout.cardioSessions.${session.id}.miles`, e.target.value)} /><div style={S.cardioL}>Miles</div></div>
-                  <div style={S.cardioCell}><input style={S.cardioInput} type="text" inputMode="numeric" placeholder="mm:ss" value={loggedCardio.time || ""} onChange={e => updateToday(`workout.cardioSessions.${session.id}.time`, e.target.value)} /><div style={S.cardioL}>Time</div></div>
-                  <div style={S.cardioCell}><input style={S.cardioInput} type="text" placeholder="/mi" value={loggedCardio.pace || ""} onChange={e => updateToday(`workout.cardioSessions.${session.id}.pace`, e.target.value)} /><div style={S.cardioL}>Pace</div></div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {!sessionAwareProgram && plannedLifting.length > 0 && (
-        <div style={S.block}>
-          <div style={S.blockHead}>
-            <span style={S.blockTitle}>{"> "}Lifting</span>
-            <span style={S.blockStat}>{doneExercises}/{plannedLifting.length} COMPLETE</span>
-          </div>
-          {/* Session Mode — focused one-exercise-at-a-time runner with rest
-              timer, last-time, progression hint, and plate math. Same write
-              path as the grid below; this is a lens, not a second store. */}
-          {!isLoggingPast && doneExercises < plannedLifting.length && (
-            <button
-              type="button"
-              onClick={() => setSessionModeOpen(true)}
-              style={{ width: "100%", background: "transparent", color: C.text, border: `1px solid ${C.lineBright}`, padding: "12px", fontFamily: mono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500, cursor: "pointer", marginBottom: 10 }}
-            >
-              {doneExercises > 0 ? `Resume session · ${doneExercises}/${plannedLifting.length}` : "Start session"} →
-            </button>
-          )}
-          <button type="button" onClick={() => setQuickEditOpen((current) => ({ ...current, main: !current.main }))} style={{ width:"100%", padding:"9px", border:`1px solid ${C.lineBright}`, background:"none", color:C.textDim, fontFamily:mono, fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", cursor:"pointer", marginBottom:quickEditOpen.main?10:0 }}>
-            {quickEditOpen.main ? "Hide quick edit" : "Quick edit sets"}
-          </button>
-          {quickEditOpen.main && plannedLifting.map((ex, i) => (
-            <ExerciseLogger key={ex.name+i} exercise={ex} data={wo.exercises[ex.name]||{}} lastSets={lastSessionSets(allData, ex.name, todayKey)} onChange={v => updateToday(`workout.exercises.${ex.name}`, v)} showLabels={i===0} onPR={checkPR} />
-          ))}
-        </div>
-      )}
-
-      {!sessionAwareProgram && p.cardio && (
-        <div style={S.block}>
-          <div style={S.blockHead}>
-            <span style={S.blockTitle}>{"> "}{p.cardio.type}</span>
-            <span style={S.blockStat}>{cardioMeta(p.cardio)}</span>
-          </div>
-          {/* Cardio session runner — interval counterpart to Session
-              Mode. Pre-fills from the plan's notes when unambiguous; logs
-              elapsed time through the existing workout.cardio.time path. */}
-          {!isLoggingPast && (
-            <button
-              type="button"
-              onClick={() => setCardioSessionOpen(true)}
-              style={{ width: "100%", background: "transparent", color: C.text, border: `1px solid ${C.lineBright}`, padding: "11px", fontFamily: mono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500, cursor: "pointer", marginBottom: 12 }}
-            >
-              Start cardio session →
-            </button>
-          )}
-          {p.cardio.notes && <CardioNotes notes={p.cardio.notes} C={C} mono={mono} />}
-          <div style={S.cardio}>
-            <div style={S.cardioCell}><input style={S.cardioInput} type="number" inputMode="decimal" placeholder={String(p.cardio.miles||"")} value={wo.cardio.miles} onChange={e => updateToday("workout.cardio.miles", e.target.value)} /><div style={S.cardioL}>Miles</div></div>
-            <div style={S.cardioCell}><input style={S.cardioInput} type="text" inputMode="numeric" placeholder="mm:ss" value={wo.cardio.time} onChange={e => updateToday("workout.cardio.time", e.target.value)} /><div style={S.cardioL}>Time</div></div>
-            <div style={S.cardioCell}><input style={S.cardioInput} type="text" placeholder="/mi" value={wo.cardio.pace} onChange={e => updateToday("workout.cardio.pace", e.target.value)} /><div style={S.cardioL}>Pace</div></div>
-          </div>
-        </div>
-      )}
-      </DisclosureBlock>
-      )}
-      </section>
-      <section data-section="telemetry" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
-
-
-      {/* ── 5 · Fuel + Recovery — quiet nav rows. One line each on
-             the front page; the full story is one tap away. Replaces the old
-             readiness one-liner and folds fuel status in without a second
-             macro widget. ── */}
-      {!isLoggingPast && dailyRecommendation && (
-        <NavRow
-          label="Recovery"
-          sub={`${typeof dailyRecommendation.readinessIndex === "number" ? dailyRecommendation.readinessIndex + " · " : ""}${dailyRecommendation.summary}`}
-          onClick={() => setTab && setTab("Recovery")}
-        />
-      )}
-
-      {/* ── 6 · Check-in / supplements / notes — secondary, below the main flow ── */}
-      <div ref={checkinRef} style={{ scrollMarginTop: 100 }}>
-        <DisclosureBlock
-          label="Daily log"
-          sub="Body metrics · supplements · notes"
-          defaultOpen={isLoggingPast}
-          plain={isLoggingPast}
-        >
-          <CheckinCard bod={bod} wo={wo} supplements={todayData.supplements} userSupps={userSupps} updateToday={updateToday} />
-        </DisclosureBlock>
-      </div>
-      {/* Telemetry plates — broadsheet only. */}
-      {isBroadsheet && !isLoggingPast && (<>
-        <div style={S.block} data-plate="load-model">
-          <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Load model</span><span style={S.blockStat}>{bsLoad?.zoneInfo?.label?.toUpperCase() || ""}</span></div>
-          {bsLoad && bsLoad.rolling.zone !== "insufficient_data" ? (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
-                <div><div style={{ fontSize: 18, fontWeight: 600, color: C.text, fontFamily: mono }}>{Math.round(bsLoad.rolling.acute)}</div><div style={{ fontSize: 9.5, color: C.textFaint, letterSpacing: "0.08em" }}>ACUTE 7D</div></div>
-                <div><div style={{ fontSize: 18, fontWeight: 600, color: C.text, fontFamily: mono }}>{Math.round(bsLoad.rolling.chronic)}</div><div style={{ fontSize: 9.5, color: C.textFaint, letterSpacing: "0.08em" }}>CHRONIC 28D</div></div>
-                <div><div style={{ fontSize: 18, fontWeight: 600, color: C.text, fontFamily: mono }}>{bsLoad.rolling.ratio.toFixed(2)}</div><div style={{ fontSize: 9.5, color: C.textFaint, letterSpacing: "0.08em" }}>A:C RATIO</div></div>
-              </div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 28 }} aria-hidden="true">
-                {bsLoad.daily.slice(0, 14).reverse().map((d, i) => {
-                  const max = Math.max(...bsLoad.daily.slice(0, 14).map(x => x.load || 0), 1);
-                  return <div key={i} style={{ flex: 1, height: `${Math.max(((d.load || 0) / max) * 100, 4)}%`, background: (d.load || 0) > 0 ? C.text : C.line }} />;
-                })}
-              </div>
-              <div style={{ fontSize: 9.5, color: C.textFaint, letterSpacing: "0.1em", marginTop: 4 }}>DAILY LOAD · LAST 14D</div>
-              {(() => { const f = (whoopGrouped || stravaByDate) ? findUnloggedLoadDays(bsLoad.daily, whoopGrouped, { window: 14, stravaByDate }) : []; return f.length > 0 ? (
-                <AdvisoryNote compact>{f.length} unlogged-load day{f.length > 1 ? "s" : ""} — ratio understates load</AdvisoryNote>
-              ) : null; })()}
-            </>
-          ) : (
-            <div style={{ fontSize: 11, color: C.textFaint }}>Insufficient training history for the A:C model — needs ~2 weeks of logged sessions.</div>
-          )}
-        </div>
-        {(bsWhoop?.cycle || bsOuraLatest?.day?.activity) && (
-          <div style={S.block} data-plate="wearable-load">
-            <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Wearable load</span><span style={S.blockStat}>DISPLAY ONLY</span></div>
-            {Number.isFinite(bsWhoop?.cycle?.strain) && (
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, padding: "5px 0", borderBottom: `1px solid ${C.line}` }}>
-                <span style={{ color: C.textDim }}>Whoop strain</span><span style={{ color: C.text, fontFamily: mono }}>{bsWhoop.cycle.strain.toFixed(1)}</span>
-              </div>
-            )}
-            {bsOuraLatest?.day?.activity && (
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, padding: "5px 0" }}>
-                <span style={{ color: C.textDim }}>Oura activity</span>
-                <span style={{ color: C.text, fontFamily: mono }}>
-                  {[Number.isFinite(bsOuraLatest.day.activity.active_calories) ? `${bsOuraLatest.day.activity.active_calories} kcal` : null,
-                    Number.isFinite(bsOuraLatest.day.activity.steps) ? `${bsOuraLatest.day.activity.steps.toLocaleString()} steps` : null,
-                  ].filter(Boolean).join(" · ") || "synced"}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-      </>)}
-      </section>
-      </div>
 
       {/* Cardio session runner overlay (lazy) */}
       {cardioSessionOpen && (
@@ -939,111 +826,80 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   );
 }
 
-// Check-in Card
-// Consolidates Body + Supplements + Notes into one collapsible card. Collapsed by
-// default with a compact summary; expanded reveals the original inputs unchanged.
-// All updateToday paths (body.*, supplements.<name>, workout.notes) are preserved.
-function CheckinCard({ bod, wo, supplements, userSupps, updateToday }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-  const [open, setOpen] = useState(false);
-  const [metricsOpen, setMetricsOpen] = useState(false);
-  const summary = summarizeCheckin({
-    body: bod,
-    workout: wo,
-    supplements,
-    supplementNames: userSupps,
-  });
-  const recoverySummary = summarizeManualRecovery(bod);
-  const metricInputs = [
-    ["restingHeartRate", "RHR", "bpm", "numeric"],
-    ["hrv", "HRV", "ms", "decimal"],
-    ["motivation", "Motivation", "1-10", "numeric"],
-  ];
+// Daily log
+// Weight, sleep and the optional recovery numbers, the illness flag,
+// supplements and a note, behind one disclosure. Every updateToday path
+// (body.*, supplements.<name>, workout.notes) is the one it has always been.
+function DailyLog({ bod, wo, supplements, userSupps, updateToday, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const taken = userSupps.filter((s) => supplements?.[s]).length;
+  // What is in the log so far, in plain words, for the closed row.
+  const summary = [
+    bod.weight ? `${bod.weight}\u00a0lb` : null,
+    bod.sleep ? `${bod.sleep}\u00a0h sleep` : null,
+    userSupps.length ? `${taken} of ${userSupps.length} supplements` : null,
+    wo.notes ? "note added" : null,
+  ].filter(Boolean).join(" · ") || "Nothing logged yet";
+  const field = (key, label, inputMode) => (
+    <label className="field" key={key}>
+      <span className="lbl">{label}</span>
+      <input className="input n" type="number" inputMode={inputMode} autoComplete="off" value={bod[key] || ""} onChange={(e) => updateToday(`body.${key}`, e.target.value)} />
+    </label>
+  );
 
   return (
-    <div style={S.block}>
-      <button
-        type="button"
-        style={{ ...S.blockHead, width:"100%", background:"none", border:"none", padding:0, marginBottom: open ? 10 : 0, cursor: "pointer", textAlign:"left" }}
-        onClick={() => setOpen(o => !o)}
-        aria-expanded={open}
-      >
-        <span style={S.blockTitle}>{"> "}Check-in</span>
-        <span style={S.blockStat}>{open ? "▲ hide" : "▼ show"}</span>
+    <section data-section="daily-log" aria-label="Daily log" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <button type="button" className="row" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span className="kv grow">
+          <span className="t-bs">Daily log</span>
+          <span className="t-s c2">{open ? "Weight, sleep, resting heart rate, HRV, supplements, notes" : summary}</span>
+        </span>
+        <Icon name={open ? "up" : "down"} size="s" className="c2" />
       </button>
 
-      {!open && (
-        <div style={{ display:"grid", gap:5 }}>
-          <div style={{ fontSize: 13, color: C.textDim, fontFamily: mono, letterSpacing: "0.02em" }}>
-            {summary.join("  ·  ")}
+      {open && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px 16px" }}>
+            {field("weight", "Weight (lb)", "decimal")}
+            {field("sleep", "Sleep (h)", "decimal")}
+            {field("restingHeartRate", "Resting HR (bpm)", "numeric")}
+            {field("hrv", "HRV (ms)", "decimal")}
           </div>
-          {recoverySummary && (
-            <div style={{ fontSize: 11, color: C.textFaint, fontFamily: mono, letterSpacing: "0.02em", lineHeight:1.45 }}>
-              {recoverySummary}
+
+          <button type="button" className="btn btn-g btn-sm" aria-expanded={moreOpen} onClick={() => setMoreOpen((o) => !o)} style={{ alignSelf: "flex-start", paddingLeft: 0 }}>
+            {moreOpen ? "Hide motivation and illness flag" : "More: motivation, illness flag"}
+          </button>
+          {moreOpen && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <label className="field" style={{ maxWidth: 180 }}>
+                <span className="lbl">Motivation (1 to 10)</span>
+                <input className="input n" type="number" inputMode="numeric" min="1" max="10" autoComplete="off" value={bod.motivation || ""} onChange={(e) => updateToday("body.motivation", e.target.value)} />
+              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44 }}>
+                <span className="kv grow"><span id="illness-flag" className="t-bs">Illness or injury today</span><span className="t-s c2">When this is on, the call stays easy at most.</span></span>
+                <Switch checked={Boolean(bod.illnessOrInjury)} onChange={(next) => updateToday("body.illnessOrInjury", next)} labelledBy="illness-flag" />
+              </div>
             </div>
           )}
-        </div>
-      )}
 
-      {open && (<>
-        <div style={{ ...S.bodyLine, gridTemplateColumns: "1fr 1fr" }}>
-          <div style={S.bodyCell}><input style={S.bodyInput} type="number" inputMode="decimal" placeholder="0" value={bod.weight}   onChange={e => updateToday("body.weight",   e.target.value)} /><div style={S.bodyL}>Weight lbs</div></div>
-          <div style={S.bodyCell}><input style={S.bodyInput} type="number" inputMode="decimal" placeholder="0" value={bod.sleep}    onChange={e => updateToday("body.sleep",    e.target.value)} /><div style={S.bodyL}>Sleep hrs</div></div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setMetricsOpen(o => !o)}
-          style={{ ...S.smallBtn, width:"100%", marginTop:10, justifyContent:"space-between", color: metricsOpen ? C.text : C.textDim }}
-          aria-expanded={metricsOpen}
-        >
-          <span>i · recovery metrics</span>
-          <span>{metricsOpen ? "hide" : "optional"}</span>
-        </button>
-        {metricsOpen && (
-          <div style={{ marginTop:8, padding:"10px", border:`1px solid ${C.lineBright}`, background:C.cell }}>
-            <div style={{ fontSize:11, color:C.textDim, lineHeight:1.5, marginBottom:10 }}>
-              Manual recovery is first-class: the check-in above covers sleep quality, soreness, stress and energy. Add motivation and any illness/injury flag here; HRV/RHR stay as context until a real baseline exists.
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="sec"><h3 className="t-ss">Supplements</h3><span className="t-s c2">{taken} of {userSupps.length}</span></div>
+            <div className="chips">
+              {userSupps.map((s) => {
+                const on = Boolean(supplements?.[s]);
+                return <button key={s} type="button" className="chip" aria-pressed={on} onClick={() => updateToday(`supplements.${s}`, !on)}>{s}</button>;
+              })}
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(2, minmax(0, 1fr))", gap:8 }}>
-              {metricInputs.map(([key, label, placeholder, inputMode]) => (
-                <div key={key} style={S.bodyCell}>
-                  <input
-                    style={S.bodyInput}
-                    type="number"
-                    inputMode={inputMode}
-                    placeholder={placeholder}
-                    value={bod[key] || ""}
-                    onChange={e => updateToday(`body.${key}`, e.target.value)}
-                  />
-                  <div style={S.bodyL}>{label}</div>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => updateToday("body.illnessOrInjury", !bod.illnessOrInjury)}
-              aria-pressed={Boolean(bod.illnessOrInjury)}
-              style={{ ...S.smallBtn, width:"100%", marginTop:8, justifyContent:"space-between", color: bod.illnessOrInjury ? C.red : C.textDim, borderColor: bod.illnessOrInjury ? C.red : C.lineBright }}
-            >
-              <span>Illness / injury flag</span>
-              <span>{bod.illnessOrInjury ? "flagged" : "clear"}</span>
-            </button>
           </div>
-        )}
 
-        <div style={{ fontSize: 10, color: C.textFaint, letterSpacing: "0.14em", textTransform: "uppercase", margin: "14px 0 6px" }}>Supplements</div>
-        <div style={S.supps}>
-          {userSupps.map(s => {
-            const on = supplements?.[s];
-            return <button key={s} style={{ ...S.supp, ...(on ? S.suppOn : {}) }} onClick={() => updateToday(`supplements.${s}`, !on)}>{on?"✓ ":""}{s}</button>;
-          })}
-        </div>
-
-        <input style={S.notesInput} placeholder="how did it feel..." value={wo.notes} onChange={e => updateToday("workout.notes", e.target.value)} />
-      </>)}
-    </div>
+          <label className="field">
+            <span className="lbl">Notes for today (optional)</span>
+            <textarea className="input area" rows={2} value={wo.notes || ""} onChange={(e) => updateToday("workout.notes", e.target.value)} />
+          </label>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -1054,62 +910,42 @@ function CheckinCard({ bod, wo, supplements, userSupps, updateToday }) {
 import { epley1RM, effectiveE1RM } from "./sessionIntelligence";
 export { epley1RM };
 
-// Cardio Notes
-// Collapsible coaching notes block shown above the cardio inputs.
-// Long notes (Hyrox circuits, alternating interval weeks) are collapsed by default
-// so the Today viewport prioritizes the call, next action, and logging inputs.
-// Cardio header data: planned minutes (race-plan runs carry them),
-// effort, and the pace target when the plan has one. Old programs show the
-// effort alone, exactly as before.
+// Planned minutes (race-plan runs carry them), effort, and the pace target
+// when the plan has one. Old programs show the effort alone.
 function cardioMeta(cardio) {
   return [
-    Number(cardio?.minutes) > 0 ? `${cardio.minutes} MIN` : null,
-    (cardio?.effort || "").toUpperCase() || null,
+    Number(cardio?.minutes) > 0 ? `${cardio.minutes}\u00a0min` : null,
+    cardio?.effort || null,
     cardio?.targetPace || null,
   ].filter(Boolean).join(" · ");
 }
 
-function CardioNotes({ notes, C, mono }) {
+// Session notes above the cardio fields. A short note is shown as it is; a
+// long one (interval ladders, alternating weeks) folds behind a disclosure so
+// the fields stay in reach, and opens as one line per sentence.
+function CardioNotes({ notes }) {
   const [open, setOpen] = useState(false);
-  const SHORT = notes.length <= 60;
-  if (SHORT) {
-    return (
-      <div style={{ fontSize:13, color:C.textDim, lineHeight:1.6, padding:"0 0 10px", borderBottom:`1px solid ${C.lineBright}`, marginBottom:10, fontStyle:"italic" }}>
-        {notes}
-      </div>
-    );
-  }
+  if (notes.length <= 60) return <p className="t-s c2">{notes}</p>;
   return (
-    <div style={{ marginBottom:10 }}>
-      <button onClick={() => setOpen(o => !o)} style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", background:open ? C.cell : "none", border:`1px solid ${C.lineBright}`, padding:"7px 10px", cursor:"pointer", marginBottom: open ? 0 : 0 }}>
-        <span style={{ fontSize:11, color:C.text, letterSpacing:"0.14em", textTransform:"uppercase" }}>Session notes</span>
-        <span style={{ fontSize:11, color:C.textFaint }}>{open ? "▲ hide" : "▼ show"}</span>
-      </button>
-      {open && (
-        <div style={{ background:C.cell, border:`1px solid ${C.lineBright}`, borderTop:"none", padding:"10px 10px 10px" }}>
-          {/* Split on sentence-ending punctuation to show as digestible lines */}
-          {notes.split(/(?<=\.)\s+/).map((sentence, i) => (
-            <div key={i} style={{ fontSize:13, color:C.textDim, lineHeight:1.65, marginBottom:4, display:"flex", gap:6 }}>
-              <span style={{ color:C.text, flexShrink:0 }}>·</span>
-              <span style={{ fontStyle:"italic" }}>{sentence}</span>
-            </div>
-          ))}
-        </div>
-      )}
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <button type="button" className="btn btn-g btn-sm" aria-expanded={open} onClick={() => setOpen((o) => !o)} style={{ alignSelf: "flex-start", paddingLeft: 0 }}>{open ? "Hide session notes" : "Session notes"}</button>
+      {open && <ul className="lst">{notes.split(/(?<=\.)\s+/).map((line, i) => <li key={i}>{line}</li>)}</ul>}
     </div>
   );
 }
 
-// Exercise Logger
-// memo: prevents re-rendering all exercise loggers when unrelated state changes
-// (e.g. nutrition inputs updating on every keystroke in TodayTab)
-const ExerciseLogger = memo(function ExerciseLogger({ exercise, data, onChange, showLabels, onPR, lastSets = null }) {
-  const { C, S } = useTheme();
+// Exercise logger
+// One exercise as a grid of sets: load, reps, reps in reserve, and a done
+// toggle per row. Quick edit uses it to correct a log without the runner.
+// memo: keeps every grid from re-rendering when unrelated state changes
+// (a keystroke in a nutrition field, say).
+const ExerciseLogger = memo(function ExerciseLogger({ exercise, data, onChange, onPR, lastSets = null }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [errors, setErrors] = useState({});
   const mode = resolveTrackingMode(exercise);
   const sets = reconcileExerciseSets(exercise, data.sets || []);
   const done = sets.filter((set) => isCompletedSet(set, exercise)).length;
+  const name = data.performedName || exercise.name;
   const best1RM = sets.reduce((best, set) => {
     if (!isCompletedSet(set, exercise) || (set.type && set.type !== "straight")) return best;
     const estimate = effectiveE1RM(set.weight, set.reps, set.rir);
@@ -1137,65 +973,61 @@ const ExerciseLogger = memo(function ExerciseLogger({ exercise, data, onChange, 
     if (onPR && set.weight) onPR(exercise.name, set.weight);
   };
 
-  const labels = mode === TRACKING_MODES.TIMED_HOLD ? ["sec", "+ lbs"]
-    : mode === TRACKING_MODES.CARRY ? ["lbs", "yards"]
-      : mode === TRACKING_MODES.ASSISTED_REPS ? ["assist", "reps"]
-        : mode === TRACKING_MODES.BODYWEIGHT_REPS ? ["+ lbs", "reps"]
-          : ["lbs", "reps"];
-
-  const firstField = (set, index) => {
-    if (mode === TRACKING_MODES.TIMED_HOLD) {
-      return <input style={{ ...S.cell, ...(set.done ? S.cellSet : {}) }} type="number" inputMode="numeric" placeholder={String(exercise.reps)} value={set.duration || ""} onChange={(event) => updateSet(index, "duration", event.target.value)} aria-label={`Set ${index + 1} duration`} />;
-    }
-    if (mode === TRACKING_MODES.ASSISTED_REPS) {
-      return <input style={{ ...S.cell, ...(set.done ? S.cellSet : {}) }} type="number" inputMode="decimal" placeholder="—" value={set.assistance || ""} onChange={(event) => updateSet(index, "assistance", event.target.value)} aria-label={`Set ${index + 1} assistance`} />;
-    }
-    return <input style={{ ...S.cell, ...(set.done ? S.cellSet : {}) }} type="number" inputMode="decimal" placeholder={mode === TRACKING_MODES.BODYWEIGHT_REPS ? "0" : "—"} value={set.weight || ""} onChange={(event) => updateSet(index, "weight", event.target.value)} aria-label={`Set ${index + 1} load`} />;
-  };
-  const secondField = (set, index) => {
-    if (mode === TRACKING_MODES.TIMED_HOLD) {
-      return <input style={{ ...S.cell, ...(set.done ? S.cellSet : {}) }} type="number" inputMode="decimal" placeholder="0" value={set.weight || ""} onChange={(event) => updateSet(index, "weight", event.target.value)} aria-label={`Set ${index + 1} added load`} />;
-    }
-    if (mode === TRACKING_MODES.CARRY) {
-      return <input style={{ ...S.cell, ...(set.done ? S.cellSet : {}) }} type="number" inputMode="numeric" placeholder={String(exercise.reps)} value={set.distance || ""} onChange={(event) => updateSet(index, "distance", event.target.value)} aria-label={`Set ${index + 1} distance`} />;
-    }
-    return <input style={{ ...S.cell, ...(set.done ? S.cellSet : {}) }} type="number" inputMode="numeric" placeholder={String(exercise.reps)} value={set.reps || ""} onChange={(event) => updateSet(index, "reps", event.target.value)} aria-label={`Set ${index + 1} reps`} />;
-  };
+  // Column heads and the two fields each tracking mode logs. Each field keeps
+  // the set property it has always written.
+  const columns = mode === TRACKING_MODES.TIMED_HOLD ? [
+    { head: "Seconds", prop: "duration", label: "duration", inputMode: "numeric", placeholder: String(exercise.reps) },
+    { head: "Added lb", prop: "weight", label: "added load", inputMode: "decimal", placeholder: "0" },
+  ] : mode === TRACKING_MODES.CARRY ? [
+    { head: "lb", prop: "weight", label: "load", inputMode: "decimal", placeholder: "" },
+    { head: "Yards", prop: "distance", label: "distance", inputMode: "numeric", placeholder: String(exercise.reps) },
+  ] : mode === TRACKING_MODES.ASSISTED_REPS ? [
+    { head: "Assist lb", prop: "assistance", label: "assistance", inputMode: "decimal", placeholder: "" },
+    { head: "Reps", prop: "reps", label: "reps", inputMode: "numeric", placeholder: String(exercise.reps) },
+  ] : [
+    { head: mode === TRACKING_MODES.BODYWEIGHT_REPS ? "Added lb" : "lb", prop: "weight", label: "load", inputMode: "decimal", placeholder: mode === TRACKING_MODES.BODYWEIGHT_REPS ? "0" : "" },
+    { head: "Reps", prop: "reps", label: "reps", inputMode: "numeric", placeholder: String(exercise.reps) },
+  ];
+  const ghostable = mode !== TRACKING_MODES.TIMED_HOLD && mode !== TRACKING_MODES.CARRY;
 
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={S.exName}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6, flex: 1, minWidth: 0 }}>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{data.performedName || exercise.name}</span>
-          {exercise.notes && (
-            <button type="button" onClick={() => setNoteOpen((open) => !open)} aria-label={noteOpen ? "Hide exercise note" : "Show exercise note"} aria-expanded={noteOpen}
-              style={{ background: "none", border: "none", color: noteOpen ? C.text : C.textFaint, fontSize: 11, fontFamily: "monospace", letterSpacing: "0.08em", padding: "0 8px", cursor: "pointer", flexShrink: 0, minHeight: 44, minWidth: 36, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
-              {noteOpen ? "▲" : "i"}
-            </button>
-          )}
-        </div>
-        <span style={S.exTarget}>{exercise.sets}×{exercise.reps} · {done}/{exercise.sets}{best1RM > 0 && <span style={{ color: C.textDim, marginLeft: 6 }}>~ {best1RM} lbs 1RM</span>}</span>
+    <section className="sets" aria-label={name}>
+      <div className="sec">
+        <h3 className="t-ss grow clip">{name}</h3>
+        <span className="n-s c2">{exercise.sets}{" "}×{" "}{exercise.reps} · {done}/{exercise.sets}</span>
       </div>
-      {noteOpen && exercise.notes && <div style={{ fontSize: 11, color: C.textDim, fontStyle: "italic", lineHeight: 1.55, padding: "5px 10px", marginBottom: 8, background: C.cell, borderLeft: `2px solid ${C.green}` }}>{exercise.notes}</div>}
-      {showLabels && <div style={S.colTag}><span style={S.colTagSpan}/><span style={S.colTagSpan}>{labels[0]}</span><span style={S.colTagSpan}>{labels[1]}</span><span style={S.colTagSpan}>rir</span><span style={S.colTagSpan}/></div>}
-      {data.skipped && <button type="button" data-testid="skip-tag" onClick={() => onChange({ ...data, skipped: undefined })} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 8px 6px", fontFamily: C.fontFamily, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textDim }}>skipped · {data.skipped} · tap to undo</button>}
+      {best1RM > 0 && <p className="t-s c2">Estimated one-rep max <span className="n-s">{best1RM}{" "}lb</span></p>}
+      {exercise.notes && (
+        <>
+          <button type="button" className="btn btn-g btn-sm" aria-expanded={noteOpen} onClick={() => setNoteOpen((open) => !open)} style={{ alignSelf: "flex-start", paddingLeft: 0 }}>{noteOpen ? "Hide exercise note" : "Show exercise note"}</button>
+          {noteOpen && <p className="banner">{exercise.notes}</p>}
+        </>
+      )}
+      {data.skipped && (
+        <div className="row" data-testid="skip-tag">
+          <span className="t-s c2 grow">Skipped: {data.skipped}</span>
+          <button type="button" className="btn btn-s btn-sm" onClick={() => onChange({ ...data, skipped: undefined })}>Undo skip</button>
+        </div>
+      )}
+      <div className="sets-h" aria-hidden="true"><span>Set</span><span>{columns[0].head}</span><span>{columns[1].head}</span><span>RIR</span><span>Done</span></div>
       {sets.map((set, index) => (
-        <div key={index}>
-          {index === firstEmptyIndex(sets) && mode !== TRACKING_MODES.TIMED_HOLD && mode !== TRACKING_MODES.CARRY && (
+        <div key={index} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {ghostable && index === firstEmptyIndex(sets) && (
             <GhostChip ghost={ghostForSet(sets, index, lastSets)} onFill={({ weight, reps }) => onChange({ ...data, sets: sets.map((entry, setIndex) => setIndex === index ? { ...entry, weight, reps } : entry) })} />
           )}
-          <div style={S.setLine}>
-            <span style={S.setN}>{index + 1}</span>
-            {firstField(set, index)}
-            {secondField(set, index)}
-            <input style={{ ...S.cell, ...(set.done ? S.cellSet : {}) }} type="number" inputMode="numeric" min="0" max="9" placeholder="—" aria-label={`Set ${index + 1} RIR`} value={set.rir || ""} onChange={(event) => updateSet(index, "rir", event.target.value)} />
-            <button type="button" style={{ ...S.x, ...(set.done ? S.xOn : {}) }} onClick={() => toggleDone(index)} aria-label={`Mark set ${index + 1} ${set.done ? "not done" : "done"}`}>{set.done ? "✓" : "○"}</button>
+          <div className={`sets-r${set.done ? " is-done" : ""}`}>
+            <span className="n-s c2">{index + 1}</span>
+            {columns.map((column) => (
+              <input key={column.prop} className="input n" type="number" inputMode={column.inputMode} autoComplete="off" placeholder={column.placeholder} value={set[column.prop] || ""} onChange={(event) => updateSet(index, column.prop, event.target.value)} aria-label={`${name}, set ${index + 1} ${column.label}`} aria-invalid={errors[index] ? "true" : undefined} />
+            ))}
+            <input className="input n" type="number" inputMode="numeric" min="0" max="9" autoComplete="off" value={set.rir || ""} onChange={(event) => updateSet(index, "rir", event.target.value)} aria-label={`${name}, set ${index + 1} reps in reserve`} />
+            <button type="button" className="ibtn ibtn-o" aria-pressed={Boolean(set.done)} aria-label={`${name}, set ${index + 1} done`} onClick={() => toggleDone(index)}><Icon name="check" size="s" /></button>
           </div>
-          {errors[index] && <div role="status" style={{ padding: "4px 0 2px 26px", color: C.red, fontFamily: C.fontFamily, fontSize: 10 }}>{errors[index]}</div>}
+          {errors[index] && <p className="err" role="alert"><Icon name="warn" size="s" />{errors[index]}</p>}
           <CascadeSet set={set} showOffer isLast={index === sets.length - 1} onChange={(nextSet) => onChange({ ...data, sets: sets.map((entry, setIndex) => setIndex === index ? nextSet : entry) })} />
         </div>
       ))}
-    </div>
+    </section>
   );
 }); // end memo(ExerciseLogger)
 

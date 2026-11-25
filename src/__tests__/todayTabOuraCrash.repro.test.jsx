@@ -55,8 +55,9 @@ function renderToday(overrides = {}) {
 describe("TodayTab Oura linked crash reproduction", () => {
   it("renders after Oura linked data loads", async () => {
     renderToday();
-    // The integrated Today Command Center is the stable render anchor.
-    expect(screen.getAllByText(/Today command/i).length).toBeGreaterThan(0);
+    // The call card is the stable render anchor.
+    expect(document.querySelector('[data-ui="today-command-center"] h2#call')).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Recovery score \d+ of 100/ })).toBeTruthy();
     await waitFor(() => expect(screen.queryByText(/Something broke here/i)).toBeNull());
   });
 });
