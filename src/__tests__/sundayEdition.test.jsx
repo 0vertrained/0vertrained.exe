@@ -14,7 +14,10 @@
 //   (7) the dashboard masthead line renders inside the window and opens the
 //       overlay, with no new nav items.
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import { vi } from "vitest";
+import { ThemeProvider } from "../theme";
+import { SundayEdition } from "../SundayEdition";
 import { buildSundayEdition, editionWindow } from "../sundayEdition";
 import { defaultDay } from "../constants";
 import { readFileSync } from "node:fs";
@@ -193,9 +196,9 @@ describe("V17.2 volume digest — exceptions only", () => {
 });
 
 describe("V17.2 surface (source guards)", () => {
-  it("overlay anatomy order: masthead → recovery → load → volume → fuel → diary → one change → footer", () => {
+  it("anatomy order: masthead → recovery → load → sets → fuel → felt against numbers → one change → footer", () => {
     const src = read("src/SundayEdition.jsx");
-    const order = ["The Sunday Edition", "The week in recovery", "Load ledger", "Volume digest", "Fuel week", "Divergence diary", "one-change", "Next edition Sunday."];
+    const order = ['<TopBar title="The Sunday Edition"', "The week in recovery", ">Training load<", ">Sets by muscle<", ">Fuel<", "How you felt against the numbers", 'data-testid="one-change"', "Next edition Sunday."];
     let last = -1;
     for (const marker of order) {
       const at = src.indexOf(marker);
@@ -204,7 +207,7 @@ describe("V17.2 surface (source guards)", () => {
     }
   });
 
-  it("MethodLine sits under the edition's figures", () => {
+  it("a method line sits under the edition's figures", () => {
     const src = read("src/SundayEdition.jsx");
     for (const id of ["method-edition-recovery", "method-edition-load", "method-edition-volume"]) {
       expect(src).toContain(id);
@@ -221,5 +224,30 @@ describe("V17.2 surface (source guards)", () => {
     expect(view.indexOf('data-testid="sunday-edition-line"')).toBeLessThan(view.indexOf("{verdict && <Call "));
     // The raw stash is deliberately outside the session cache:
     expect(src).not.toMatch(/editionRaw:\s/);
+  });
+});
+
+describe("The Sunday Edition, mounted", () => {
+  it("is a full-screen dialog that ends on one change, and Done closes it", () => {
+    const f = healthyFixture();
+    const onClose = vi.fn();
+    const view = render(
+      <ThemeProvider>
+        <SundayEdition data={f.data} ouraData={f.oura} whoopData={f.whoop} settings={f.settings} now={SUN_5PM} onClose={onClose} />
+      </ThemeProvider>
+    );
+    const ui = within(view.container);
+    const dialog = ui.getByRole("dialog", { name: "The Sunday Edition" });
+    expect(within(dialog).getByRole("heading", { level: 1 }).textContent).toBe("The Sunday Edition");
+    // Seven mornings, each as a row of the week's table.
+    expect(within(ui.getByRole("table", { name: /The week in recovery/ })).getAllByRole("row")).toHaveLength(8);
+    const change = within(ui.getByTestId("one-change"));
+    expect(change.getByText("One change for next week")).toBeTruthy();
+    expect(change.getAllByRole("heading")).toHaveLength(1);
+    // The one change is the last section before the sign-off.
+    const sections = [...view.container.querySelectorAll("section")];
+    expect(sections[sections.length - 1].getAttribute("data-testid")).toBe("one-change");
+    fireEvent.click(ui.getByRole("button", { name: "Done" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

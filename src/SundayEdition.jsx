@@ -1,141 +1,136 @@
 // src/SundayEdition.jsx
-// The Sunday Edition — the weekly broadsheet overlay.
+// The Sunday Edition: the week, read once, ending on exactly one change.
 //
-// Renders the pure model from sundayEdition.js in strict anatomy order:
-// masthead → the week in recovery → load ledger → volume digest (exceptions
-// only) → fuel week → divergence diary → THE ONE CHANGE → footer. Whitepaper
-// vocabulary throughout; MethodLine under every figure; the ONE CHANGE is the
-// single full-ink plate on the page. Honest degradation: thin sections say so
-// in one line and step aside.
+// Draws the pure model from sundayEdition.js in a fixed order: the week in
+// recovery, training load, sets by muscle (exceptions only), fuel, how the
+// week felt against the numbers, then the one change. A thin section says so
+// in a line and steps aside. Nothing here is re-graded in hindsight: each
+// morning is shown as it was scored that day.
 import { useMemo } from "react";
-import { useTheme } from "./theme";
-import { FigureSection, RuledRow, Sparkline, MethodLine, StatusStamp } from "./whitepaper";
+import { Flow, TopBar, Method } from "./ui/ledger";
+import { LineChart, ColumnChart } from "./sections/charts";
 import { buildSundayEdition } from "./sundayEdition";
 
+const NBSP = "\u00a0";
+const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
+
 export function SundayEdition({ data, ouraData, whoopData, settings, onClose, now = null }) {
-  const { C, S } = useTheme();
   const model = useMemo(
     () => buildSundayEdition({ data, ouraData, whoopData, settings, now: now || new Date() }),
     [data, ouraData, whoopData, settings, now]
   );
   const { edition, recoveryWeek, loadLedger, volumeDigest, fuelWeek, divergenceDiary, oneChange, completeness } = model;
-  const annot = { fontFamily: S.fontAnnot, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textFaint };
-  const rolling = recoveryWeek.scorePoints.length >= 4
-    ? recoveryWeek.scorePoints.map((p, i, arr) => {
-        const win = arr.slice(Math.max(0, i - 2), i + 1);
-        return { date: p.date, value: win.reduce((a, x) => a + x.value, 0) / win.length };
-      })
-    : null;
+  const loadByDate = Object.fromEntries(loadLedger.days.map((day) => [day.date, day.load]));
+  const scored = recoveryWeek.scorePoints.map((point, index, all) => {
+    const window = all.slice(Math.max(0, index - 2), index + 1);
+    return { date: point.date, value: point.value, also: all.length >= 4 ? Math.round(window.reduce((sum, item) => sum + item.value, 0) / window.length) : null };
+  });
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="The Sunday Edition" style={{ position: "fixed", inset: 0, zIndex: 400, background: C.bg, overflowY: "auto" }}>
-      <div style={{ maxWidth: "var(--ovt-content-width)", margin: "0 auto", padding: "0 0 40px" }}>
+    <Flow label="The Sunday Edition" onClose={onClose} data-testid="sunday-edition">
+      <div className="shell">
+        <TopBar title="The Sunday Edition" close="Close" onClose={onClose} />
+        <div className="main">
+          <div className="mo-print" style={column(20)}>
+            <header style={{ ...column(8), borderTop: "3px solid var(--ink)", paddingTop: 12 }}>
+              <p className="t-s c2">Edition {edition.number}</p>
+              <h2 className="t-xl">The week of {edition.label}</h2>
+            </header>
+            {completeness.caveat && <p className="banner">{completeness.caveat}</p>}
 
-        {/* Masthead */}
-        <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.text}`, display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-          <div>
-            <div style={{ fontFamily: S.fontSerif, fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: C.text }}>The Sunday Edition</div>
-            <div style={{ ...annot, marginTop: 2 }}>№ {edition.number} · {edition.label}</div>
-          </div>
-          <button type="button" onClick={onClose} style={{ background: "none", border: "none", color: C.textDim, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: C.fontFamily, cursor: "pointer", padding: "8px 0" }}>Close ×</button>
-        </div>
+            <section aria-labelledby="edition-recovery" style={column(8)}>
+              <div className="sec"><h3 id="edition-recovery" className="t-title">The week in recovery</h3><span className="t-s c2">{completeness.wearableMornings} of 7 mornings</span></div>
+              <table className="tbl" aria-labelledby="edition-recovery">
+                <thead><tr><th scope="col">Day</th><th scope="col">State</th><th scope="col" style={{ textAlign: "right" }}>Score</th><th scope="col" style={{ textAlign: "right", paddingRight: 0 }}>Load</th></tr></thead>
+                <tbody>
+                  {recoveryWeek.timeline.map((day) => (
+                    <tr key={day.date}>
+                      <th scope="row">{day.dayName}</th>
+                      <td>{day.stateName === "—" ? "No reading" : day.stateName}</td>
+                      <td className="n-s">{day.score ?? "—"}</td>
+                      <td className="n-s">{loadByDate[day.date] != null ? Math.round(loadByDate[day.date]) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {scored.length >= 2 && (
+                <LineChart
+                  label={`Line chart of the week’s recovery score, from ${scored[0].value} to ${scored[scored.length - 1].value}.`}
+                  points={scored}
+                  second={scored.length >= 4}
+                  height={96}
+                />
+              )}
+              <p className="t-b">{recoveryWeek.summary}</p>
+              {recoveryWeek.sleepDebt && <p className="t-s">Sleep this week: {recoveryWeek.sleepDebt.debtHours}{NBSP}h of debt, {String(recoveryWeek.sleepDebt.band).toLowerCase()}.</p>}
+              <Method testId="method-edition-recovery" method="Each morning is scored and classed exactly as it was that day. Nothing is re-graded in hindsight." />
+            </section>
 
-        {completeness.caveat && (
-          <div style={{ margin: "12px 16px 0", fontFamily: S.fontSerif, fontStyle: "italic", fontSize: 13, color: C.textDim, lineHeight: 1.5 }}>
-            {completeness.caveat}
-          </div>
-        )}
+            <section aria-labelledby="edition-load" style={column(8)}>
+              <div className="sec"><h3 id="edition-load" className="t-title">Training load</h3>{loadLedger.zoneLabel && <span className="tag tag-f">{loadLedger.zoneLabel}</span>}</div>
+              <p className="t-s">
+                {loadLedger.weekTotal} this week{loadLedger.deltaPct !== null ? `, ${loadLedger.deltaPct === 0 ? "level with" : `${Math.abs(loadLedger.deltaPct)}% ${loadLedger.deltaPct > 0 ? "up on" : "down on"}`} last week` : ""}.
+              </p>
+              <ColumnChart
+                label={`Bar chart of training load by day this week. The week’s total is ${loadLedger.weekTotal}.`}
+                columns={loadLedger.days.map((day) => ({ key: day.date, value: Math.round(day.load), x: day.dayName.slice(0, 1) }))}
+                height={96}
+              />
+              <Method testId="method-edition-load" method="Load is counted in effort-minutes across lifting and cardio, the same currency as Training load in Recovery." />
+            </section>
 
-        {/* 1 · The week in recovery */}
-        <FigureSection title="The week in recovery" right={<StatusStamp>{completeness.wearableMornings}/7 mornings</StatusStamp>}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 4, marginBottom: 10 }}>
-            {recoveryWeek.timeline.map((t) => (
-              <div key={t.date} style={{ textAlign: "center", flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: C.monoFamily, fontSize: 9.5, letterSpacing: "0.08em", color: C.textFaint }}>{t.dayName}</div>
-                <div style={{ fontFamily: C.monoFamily, fontSize: 12, color: t.score === null ? C.textFaint : C.text, marginTop: 2 }}>{t.score ?? "·"}</div>
-                <div style={{ fontFamily: S.fontAnnot, fontSize: 8.5, letterSpacing: "0.04em", textTransform: "uppercase", color: t.stateKey === "deload" ? C.text : C.textFaint, fontWeight: t.stateKey === "deload" ? 700 : 400, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.stateName === "—" ? "" : t.stateName}</div>
-              </div>
-            ))}
-          </div>
-          {recoveryWeek.scorePoints.length >= 2 && (
-            <Sparkline points={recoveryWeek.scorePoints} overlayPoints={rolling} width={260} height={40} label="the week's line" />
-          )}
-          <div style={{ fontFamily: S.fontSerif, fontStyle: "italic", fontSize: 13.5, color: C.textDim, lineHeight: 1.45, marginTop: 10 }}>
-            {recoveryWeek.summary}
-          </div>
-          {recoveryWeek.sleepDebt && (
-            <RuledRow label="Sleep this week" value={`${recoveryWeek.sleepDebt.debtHours}h debt · ${recoveryWeek.sleepDebt.band}`} />
-          )}
-          <MethodLine testId="method-edition-recovery" method="each morning scored and classified exactly as it was that day — nothing re-graded in hindsight" />
-        </FigureSection>
+            <section aria-labelledby="edition-volume" style={column(8)}>
+              <h3 id="edition-volume" className="t-title">Sets by muscle</h3>
+              {!volumeDigest.ready || volumeDigest.exceptions.length === 0 ? (
+                <p className="t-s">{volumeDigest.line}{volumeDigest.ready ? " Nothing to fix here." : ""}</p>
+              ) : (
+                <ul className="lst">{volumeDigest.exceptions.map((exception) => <li key={exception.key}>{exception.line}</li>)}</ul>
+              )}
+              <Method testId="method-edition-volume" method="Exceptions only. A muscle inside its range does not need your attention this week." />
+            </section>
 
-        {/* 2 · Load ledger */}
-        <FigureSection title="Load ledger" right={loadLedger.zoneLabel ? <StatusStamp>{loadLedger.zoneLabel}</StatusStamp> : null}>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 54, marginBottom: 8 }}>
-            {loadLedger.days.map((d) => {
-              const max = Math.max(...loadLedger.days.map((x) => x.load), 1);
-              return (
-                <div key={d.date} style={{ flex: 1, textAlign: "center" }}>
-                  <div style={{ height: 40, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-                    <div style={{ width: "60%", height: `${Math.max(2, (d.load / max) * 40)}px`, background: d.load > 0 ? C.text : C.line }} />
-                  </div>
-                  <div style={{ fontFamily: C.monoFamily, fontSize: 9, color: C.textFaint, marginTop: 3 }}>{d.dayName}</div>
-                </div>
-              );
-            })}
-          </div>
-          <RuledRow label="This week" value={`${loadLedger.weekTotal} au${loadLedger.deltaPct !== null ? ` · ${loadLedger.deltaPct > 0 ? "+" : ""}${loadLedger.deltaPct}% vs last` : ""}`} />
-          <MethodLine testId="method-edition-load" method="load counted in effort-minutes across lifting and cardio — the same currency as the Training Load figure" />
-        </FigureSection>
+            <section aria-labelledby="edition-fuel" style={column(8)}>
+              <h3 id="edition-fuel" className="t-title">Fuel</h3>
+              <p className="t-s">{fuelWeek.line}</p>
+              {(fuelWeek.avgCalories !== null || fuelWeek.tdee) && (
+                <ul className="rows">
+                  {fuelWeek.avgCalories !== null && (
+                    <li className="row"><span className="t-bs grow">Calories, daily average</span><span className="n-s">{fuelWeek.avgCalories.toLocaleString("en-US")}{fuelWeek.calorieTarget ? ` of ${fuelWeek.calorieTarget.toLocaleString("en-US")}` : ""}</span></li>
+                  )}
+                  {fuelWeek.tdee && (
+                    <li className="row"><span className="t-bs grow">Measured burn</span><span className="n-s">{fuelWeek.tdee.value.toLocaleString("en-US")}{NBSP}kcal a day</span></li>
+                  )}
+                </ul>
+              )}
+              {fuelWeek.tdee && <Method testId="method-edition-fuel" method={`Measured from ${fuelWeek.tdee.spanDays} days of what you ate against what you weighed, not a formula.`} />}
+            </section>
 
-        {/* 3 · Volume digest — exceptions only */}
-        <FigureSection title="Volume digest" right={volumeDigest.ready ? <StatusStamp>{volumeDigest.line}</StatusStamp> : null}>
-          {!volumeDigest.ready ? (
-            <div style={{ fontSize: 12.5, color: C.textDim, lineHeight: 1.6 }}>{volumeDigest.line}</div>
-          ) : volumeDigest.exceptions.length === 0 ? (
-            <div style={{ fontFamily: S.fontSerif, fontStyle: "italic", fontSize: 13.5, color: C.textDim, lineHeight: 1.5 }}>{volumeDigest.line} Nothing to fix here.</div>
-          ) : (
-            volumeDigest.exceptions.map((e) => (
-              <div key={e.key} style={{ fontSize: 12.5, color: C.text, lineHeight: 1.6, padding: "5px 0", borderBottom: `1px solid ${C.line}` }}>{e.line}</div>
-            ))
-          )}
-          <MethodLine testId="method-edition-volume" method="exceptions only — muscles inside their productive range don't need your attention this week" />
-        </FigureSection>
+            {divergenceDiary.length > 0 && (
+              <section aria-labelledby="edition-diary" style={column(8)}>
+                <h3 id="edition-diary" className="t-title">How you felt against the numbers</h3>
+                <ul className="rows">
+                  {divergenceDiary.map((entry) => (
+                    <li key={entry.date} className="row" style={{ alignItems: "flex-start", paddingTop: 10, paddingBottom: 10 }}>
+                      <span className="t-ss" style={{ flex: "0 0 48px" }}>{entry.dayName}</span>
+                      <span className="kv grow"><span className="t-s">{entry.note}</span>{entry.resolution && <span className="t-s c2">{entry.resolution}</span>}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
-        {/* 4 · Fuel week */}
-        <FigureSection title="Fuel week" right={<StatusStamp>{fuelWeek.daysLogged}/7 logged</StatusStamp>}>
-          <div style={{ fontFamily: S.fontSerif, fontStyle: "italic", fontSize: 13.5, color: C.textDim, lineHeight: 1.5, marginBottom: fuelWeek.daysLogged ? 8 : 0 }}>{fuelWeek.line}</div>
-          {fuelWeek.avgCalories !== null && <RuledRow label="Calories · avg" value={`${fuelWeek.avgCalories.toLocaleString()}${fuelWeek.calorieTarget ? ` / ${fuelWeek.calorieTarget.toLocaleString()} target` : ""}`} />}
-          {fuelWeek.tdee && <RuledRow label="Measured burn" value={`${fuelWeek.tdee.value.toLocaleString()} kcal/day`} />}
-          {fuelWeek.tdee && <MethodLine testId="method-edition-fuel" method={`from your ${fuelWeek.tdee.spanDays}-day intake-vs-weight ledger — not a formula guess`} />}
-        </FigureSection>
-
-        {/* 5 · Divergence diary */}
-        {divergenceDiary.length > 0 && (
-          <FigureSection title="Divergence diary" right={<StatusStamp>feel vs metrics</StatusStamp>}>
-            {divergenceDiary.map((d) => (
-              <div key={d.date} style={{ padding: "6px 0", borderBottom: `1px solid ${C.line}` }}>
-                <div style={{ fontFamily: C.monoFamily, fontSize: 10, letterSpacing: "0.1em", color: C.textFaint }}>{d.dayName.toUpperCase()}</div>
-                <div style={{ fontSize: 12.5, color: C.textDim, lineHeight: 1.55, marginTop: 2 }}>{d.note}</div>
-                {d.resolution && <div style={{ fontFamily: S.fontSerif, fontStyle: "italic", fontSize: 12.5, color: C.text, lineHeight: 1.5, marginTop: 3 }}>{d.resolution}</div>}
-              </div>
-            ))}
-          </FigureSection>
-        )}
-
-        {/* 6 · THE ONE CHANGE — the closing full-ink plate */}
-        <div data-testid="one-change" style={{ margin: "18px 16px 0", background: C.text, color: C.panel, padding: "16px 16px 14px" }}>
-          <div style={{ fontFamily: S.fontAnnot, fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", opacity: 0.75, marginBottom: 8 }}>The one change</div>
-          <div style={{ fontFamily: S.fontSerif, fontSize: 18, fontWeight: 500, lineHeight: 1.3, letterSpacing: "-0.01em" }}>{oneChange.text}</div>
-          <div style={{ fontFamily: S.fontAnnot, fontSize: 10.5, letterSpacing: "0.04em", opacity: 0.75, lineHeight: 1.5, marginTop: 8 }}>
-            Why: {oneChange.reason} · {oneChange.method}
+            <section aria-labelledby="edition-change" data-testid="one-change" style={{ ...column(8), border: "2px solid var(--ink)", borderRadius: 12, padding: 16, background: "var(--surface)" }}>
+              <p className="t-s c2">One change for next week</p>
+              <h3 id="edition-change" className="t-read" style={{ fontWeight: 600 }}>{oneChange.text}</h3>
+              <p className="t-s">Why: {oneChange.reason}</p>
+              <p className="t-s c2">{oneChange.method}</p>
+            </section>
+            <p className="t-s c2">Next edition Sunday.</p>
           </div>
         </div>
-
-        {/* Footer */}
-        <div style={{ ...annot, textAlign: "center", marginTop: 22 }}>Next edition Sunday.</div>
+        <div className="foot"><button type="button" className="btn btn-p btn-lg btn-b" onClick={onClose}>Done</button></div>
       </div>
-    </div>
+    </Flow>
   );
 }
 

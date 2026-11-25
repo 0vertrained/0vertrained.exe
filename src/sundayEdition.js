@@ -119,8 +119,8 @@ export function buildSundayEdition({ data = {}, ouraData = {}, whoopData = {}, s
   const recoverySummary = !known.length
     ? "No wearable mornings recorded this week."
     : transitions.length === 0
-      ? `${dominant[0]} all week — ${dominant[1]} of 7 mornings recorded.`
-      : `Mostly ${dominant[0].toLowerCase()}; ${transitions.map((t) => `${t.from} → ${t.to} on ${t.day}`).join(", ")}.`;
+      ? `${dominant[0]} all week, from ${dominant[1]} of 7 mornings recorded.`
+      : `Mostly ${dominant[0].toLowerCase()}. ${transitions.map((t, i) => `${i === 0 ? t.from : t.from.toLowerCase()} turned to ${t.to.toLowerCase()} on ${t.day}`).join(", then ")}.`;
   const scorePoints = timeline.filter((t) => t.score !== null).map((t) => ({ date: t.date, value: t.score }));
 
   // Sleep debt as of Sunday.
@@ -166,8 +166,8 @@ export function buildSundayEdition({ data = {}, ouraData = {}, whoopData = {}, s
       .map((r) => ({
         key: r.key, label: r.label, sets: r.sets, status: r.status,
         line: r.status === "below_mev"
-          ? `${r.label}: ${r.sets} sets — under the ${r.landmarks.mev}-set growth minimum.`
-          : `${r.label}: ${r.sets} sets — past the ~${r.landmarks.mrv}-set recovery ceiling; extra sets are subtracting now.`,
+          ? `${r.label}: ${r.sets} sets, under the ${r.landmarks.mev} that grow it.`
+          : `${r.label}: ${r.sets} sets, past the ${r.landmarks.mrv} or so you recover from. Extra sets are subtracting now.`,
       }));
     const inRange = volume.rows.length - exceptions.length;
     volumeDigest = {
@@ -240,7 +240,7 @@ export function buildSundayEdition({ data = {}, ouraData = {}, whoopData = {}, s
     };
   } else if (sleepDebt && /Moderate|Significant/.test(sleepDebt.band)) {
     oneChange = {
-      text: `Add 45 minutes to your sleep window every night next week — you closed this one carrying ${sleepDebt.debtHours}h of debt against your ${sleepDebt.baselineHours}h need.`,
+      text: `Add 45 minutes to your sleep window every night next week. You closed this one carrying ${sleepDebt.debtHours} h of debt against your ${sleepDebt.baselineHours} h need.`,
       reason: `Sleep debt band: ${sleepDebt.band}.`,
       rung: "sleep_debt",
     };
@@ -248,31 +248,31 @@ export function buildSundayEdition({ data = {}, ouraData = {}, whoopData = {}, s
     const worst = volumeDigest.exceptions.find((e) => e.status === "above_mrv") || volumeDigest.exceptions[0];
     oneChange = {
       text: worst.status === "above_mrv"
-        ? `Pull ${worst.label} back to ~${Math.max(1, worst.sets - 4)} sets next week — you're past the recovery ceiling and the extra sets are working against you.`
-        : `Give ${worst.label} three more sets next week — ${worst.sets} is under the minimum that reliably grows.`,
+        ? `Pull ${worst.label} back to about ${Math.max(1, worst.sets - 4)} sets next week. You are past what you recover from, and the extra sets are working against you.`
+        : `Give ${worst.label} three more sets next week. ${worst.sets} is under the minimum that reliably grows it.`,
       reason: worst.line,
       rung: "volume_exception",
     };
   } else if (proteinAdherencePct !== null && proteinAdherencePct < 85) {
     oneChange = {
-      text: `Protein first: front-load ${proteinTarget ? Math.round(proteinTarget * 0.4) : 80}g before 1pm next week — you averaged ${proteinAdherencePct}% of target and the misses compound.`,
+      text: `Protein first: get ${proteinTarget ? Math.round(proteinTarget * 0.4) : 80} g in before 1 pm next week. You averaged ${proteinAdherencePct}% of target and the misses compound.`,
       reason: `Protein adherence ${proteinAdherencePct}% across ${fuelWeek.daysLogged} logged days.`,
       rung: "protein",
     };
   } else {
     oneChange = {
-      text: "Run it back. The week worked — same plan, same effort, and let consistency do the compounding.",
+      text: "Run it back. The week worked: same plan, same effort, and let consistency do the compounding.",
       reason: "No fatigue state, no meaningful sleep debt, volume in range, protein on target.",
       rung: "run_it_back",
     };
   }
-  oneChange.method = "one change only · resolved in strict order: recovery state, then sleep, then volume, then protein";
+  oneChange.method = "One change only, chosen in strict order: recovery state, then sleep, then sets, then protein.";
 
   // ── Completeness ──────────────────────────────────────────────────────────
   const daysWithEntries = days.filter((d) => data[d.key]).length;
   const wearableMornings = known.length;
   const caveat = daysWithEntries < 5 || wearableMornings < 5
-    ? `Thin week on the record — ${daysWithEntries} of 7 days logged, ${wearableMornings} wearable mornings. Read the calls above with that in mind.`
+    ? `A thin week on the record: ${daysWithEntries} of 7 days logged, ${wearableMornings} wearable mornings. Read this edition with that in mind.`
     : null;
 
   return {
