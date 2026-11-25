@@ -1,5 +1,6 @@
 import { useIsDesktop, useIsBroadsheet } from "./ui/useMediaQuery";
 import { Icon, SyncStatus, TopBar, Wordmark } from "./ui/ledger";
+import { useScreenFocus } from "./ui/shell";
 
 // Calculate streak
 export function calcStreak(data) {
@@ -51,6 +52,7 @@ export function Header({ title, sub, back, onBack, close, onClose, saving, demoM
   const isBroadsheet = useIsBroadsheet();
   const pendingCount = Object.keys(pendingSaves || {}).length;
   const status = syncState({ isOnline, saving, pendingCount, demoMode });
+  useScreenFocus({ title, back, close });
 
   if (!isDesktop) {
     return <TopBar title={title} sub={sub} back={back} onBack={onBack} close={close} onClose={onClose} status={status} onProfile={onOpenProfile} />;

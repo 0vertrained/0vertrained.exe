@@ -38,3 +38,28 @@ export function useTopBar(bar) {
     return () => setBar(null);
   }, [setBar, title, sub, back, close]);
 }
+
+// Focus follows the screen. Going one level down puts focus on Back or
+// Close, so the new screen is announced and its way out is the first thing
+// reached. Coming back up puts focus on the screen's title, but only when it
+// would otherwise be lost: after a tab press it stays on the tab.
+export function useScreenFocus({ title, back, close }) {
+  const way = back || close || "";
+  const key = `${way}|${title || ""}`;
+  const previous = useRef(null);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = { key, deep: Boolean(way) };
+    if (!before || before.key === key) return;
+    if (!before.deep && !way) return;
+    const bar = document.querySelector(".ovt-app-shell > .top, #main > .screen-title");
+    if (!bar) return;
+    if (way) {
+      bar.querySelector(".back")?.focus({ preventScroll: true });
+      return;
+    }
+    const active = document.activeElement;
+    const lost = !active || active === document.body || !active.isConnected;
+    if (lost) bar.querySelector("h1")?.focus({ preventScroll: true });
+  }, [key, way]);
+}

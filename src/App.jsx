@@ -1231,7 +1231,7 @@ function ScreenTitle({ bar }) {
     <div className="screen-title">
       {bar.back && <button type="button" className="back" style={{ marginLeft: 0 }} onClick={bar.onBack}><Icon name="back" size="s" />{bar.back}</button>}
       {bar.close && <button type="button" className="back" style={{ marginLeft: 0, gap: 4 }} onClick={bar.onClose}><Icon name="close" size="s" />{bar.close}</button>}
-      <h1 className="t-xl">{bar.title}</h1>
+      <h1 className="t-xl" tabIndex={-1}>{bar.title}</h1>
       {bar.sub && <p className="t-b c2">{bar.sub.replace(/^ · /, "")}</p>}
     </div>
   );
