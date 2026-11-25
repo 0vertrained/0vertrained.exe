@@ -13,7 +13,7 @@ evidence-based verdict each morning on how hard to train today. It runs as a pro
 - **Wearables as evidence, not decoration.** Oura and Whoop are read per metric through a fallback ladder,
   baselined within each device (devices carry systematic offsets, so no cross-device averaging), with
   leave-one-out baselines and physiological floors so a quiet athlete's ordinary night doesn't read as a crash.
-  Strava and Google Health/Fitbit supply training load.
+  Strava supplies training load.
 - **Training that follows the verdict.** Program presets for strength, running and two-a-day athletes; a
   set-by-set workout runner with drop sets and rest-pause; RIR-aware e1RM trends with stall detection; a
   per-muscle weekly volume audit; a race-plan generator with paces.

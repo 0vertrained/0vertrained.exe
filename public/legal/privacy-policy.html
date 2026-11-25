@@ -91,9 +91,9 @@
       <div class="ledger">
         <div class="row"><strong>No ads</strong><span>We do not serve third-party ads and do not use advertising SDKs or cross-context behavioral advertising.</span></div>
         <div class="row"><strong>No sale</strong><span>We do not sell your personal information or personal health data.</span></div>
-        <div class="row"><strong>Manual first</strong><span>The App works with manual logging. Oura, Whoop, Google Health/Fitbit, and Strava connections are optional.</span></div>
+        <div class="row"><strong>Manual first</strong><span>The App works with manual logging. Oura, Whoop, and Strava connections are optional.</span></div>
         <div class="row"><strong>Derived only</strong><span>Wearable snapshots are display-safe derived values.</span></div>
-        <div class="row"><strong>API limits</strong><span>Google Health/Fitbit and Strava data are used only for user-authorized app features and are subject to each provider's API rules.</span></div>
+        <div class="row"><strong>API limits</strong><span>Strava data is used only for user-authorized app features and is subject to Strava's API rules.</span></div>
       </div>
     </section>
 
@@ -125,7 +125,6 @@
       <ul>
         <li><strong>Oura:</strong> sleep, readiness, activity, heart-rate, HRV, resting heart rate, SpO2, body temperature deviation, respiratory rate, tags, sessions, workout summaries, and related metadata available through the authorized Oura API scopes.</li>
         <li><strong>Whoop:</strong> recovery, sleep, cycle, workout, and body-measurement records available through the authorized Whoop API scopes.</li>
-        <li><strong>Google Health / Fitbit by Google:</strong> sleep, HRV, resting heart rate, respiratory rate, oxygen saturation, steps, active minutes, active zone minutes, calories, exercise summaries, profile/settings metadata, and other data you authorize through Google Health scopes. Google Health/Fitbit data is used to provide user-facing recovery, readiness, activity, and optional AI Coach features you enable.</li>
         <li><strong>Strava:</strong> activity summaries such as runs, rides, walks, hikes, GPS workout metadata, distance, duration, elevation, pace, heart-rate fields when authorized, and related athlete/profile identifiers. Strava data is used for user-visible activity import/display, sync status, and deduplication. Strava data is excluded from AI Coach and is not used to train, fine-tune, evaluate, or improve AI models.</li>
         <li>OAuth access and refresh tokens needed to sync provider data. Tokens are encrypted server-side and are not exposed to the browser.</li>
         <li>Wearable sync event metadata, such as source, event type, status, counts, days covered, and timestamps. Sync events do not include raw payloads or tokens.</li>
@@ -134,7 +133,7 @@
       <h3>AI Coach</h3>
       <ul>
         <li>When you use AI Coach, the App sends a compact, sanitized training/recovery context and your coach message to the server-side AI provider. We do not include OAuth tokens, passwords, recovery phrases, service keys, or unnecessary account identifiers.</li>
-        <li>Google Health/Fitbit data is included in AI Coach context only when you connect Google Health/Fitbit and enable the relevant coaching features. Strava-sourced data is excluded from AI Coach by default.</li>
+        <li>Strava-sourced data is excluded from AI Coach by default.</li>
         <li>Coach usage counts may be stored to enforce daily or monthly beta limits.</li>
       </ul>
 
@@ -178,8 +177,7 @@
       <ul>
         <li><strong>Supabase:</strong> authentication, database, row-level security, and backend storage.</li>
         <li><strong>Netlify:</strong> hosting, serverless functions, wearable sync endpoints, notification endpoints, and API routing.</li>
-        <li><strong>Oura, Whoop, Google Health/Fitbit, and Strava:</strong> authorization and data syncing only when you connect those services. Their own terms, privacy policies, API rules, and account controls apply to their services.</li>
-        <li><strong>Google API data:</strong> Google Health/Fitbit data is used only to provide and improve user-facing 0VERTRAINED features you authorize. We do not sell Google user data, use it for advertising, or use it to train generalized AI or machine-learning models. 0VERTRAINED's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.</li>
+        <li><strong>Oura, Whoop, and Strava:</strong> authorization and data syncing only when you connect those services. Their own terms, privacy policies, API rules, and account controls apply to their services.</li>
         <li><strong>Strava API data:</strong> Strava data is displayed back to the connected user and used for activity import/sync features. We do not disclose Strava-sourced activity data to other users, and it is excluded from AI Coach by default.</li>
         <li><strong>Ollama Cloud:</strong> server-side AI Coach processing when you use the coach feature. The App's server sends a sanitized coaching context and your coach message to models hosted by Ollama Cloud.</li>
         <li><strong>Browser push services:</strong> push notifications are routed through browser/platform notification infrastructure if you enable notifications.</li>
@@ -209,7 +207,7 @@
       <h2>8. Data retention and deletion</h2>
       <ul>
         <li>Account, training, nutrition, recovery, program, and settings data are retained while your account is active unless you delete or request deletion.</li>
-        <li>Disconnecting Oura, Whoop, Google Health/Fitbit, or Strava deletes provider tokens and provider-derived data stored by the App for that source from active app tables, subject to backups, audit logs, legal obligations, and fraud/security retention.</li>
+        <li>Disconnecting Oura, Whoop, or Strava deletes provider tokens and provider-derived data stored by the App for that source from active app tables, subject to backups, audit logs, legal obligations, and fraud/security retention.</li>
         <li>Push subscriptions are retained while reminders are enabled and are removed when you unsubscribe or delete your account.</li>
         <li>Client error reports, product events, and coach usage counters are retained only as long as reasonably needed for reliability, abuse prevention, and beta operations.</li>
         <li>Deletion requests will be completed within 30 days unless a shorter period is legally required or retention is necessary for security, fraud prevention, legal compliance, or dispute resolution.</li>
@@ -219,7 +217,7 @@
 
     <section>
       <h2>8A. Connected-service controls</h2>
-      <p>You can disconnect supported providers in Settings → Integrations. You may also revoke access directly inside the connected provider account, such as your Google Account permissions page or Strava account settings. Revoking access at the provider may stop future sync before 0VERTRAINED receives a disconnect event.</p>
+      <p>You can disconnect supported providers in Settings → Integrations. You may also revoke access directly inside the connected provider account, such as your Oura, Whoop, or Strava account settings. Revoking access at the provider may stop future sync before 0VERTRAINED receives a disconnect event.</p>
       <p>Provider APIs can change, fail, revoke tokens, enforce rate limits, or return incomplete data. 0VERTRAINED stores the scopes granted, sync status, provider account identifiers, and normalized records needed to show connection state and imported metrics.</p>
     </section>
 

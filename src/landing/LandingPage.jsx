@@ -1,38 +1,19 @@
 // src/landing/LandingPage.jsx
 // The logged-out landing as the paper's front matter: masthead, title
 // block + Abstract, Fig. 1 live specimen, Fig. 2 method, Fig. 3 data sources,
-// Fig. 4 Google user-data disclosure, colophon. This page is the homepage URL
-// submitted on the Google OAuth consent screen, so it must keep satisfying
-// Google's API-verification homepage checklist:
-//   · publicly visible without login (rendered before the auth gate)
-//   · describes the app's functionality (the Abstract)
-//   · explains why Google user data is requested + how it's used (Fig. 4)
-//   · links the privacy policy + terms (masthead AND colophon)
-//   · carries the Limited Use disclosure (Fig. 4 footnote)
-// src/__tests__/landingCompliance.test.jsx locks these in — if you edit the
-// strings below, keep the privacy policy and that test in lockstep.
+// colophon. It is the app's public homepage, so it stays visible without
+// login, describes what the app does (the Abstract), and links the privacy
+// policy and terms in both the masthead and the colophon.
+// src/__tests__/landingCompliance.test.jsx locks these in.
 import { useTheme } from "../theme";
-import { ProvisionalTag } from "../ui/primitives";
 import { ReadinessSpecimen } from "./ReadinessSpecimen";
 
 // ── Compliance copy (exported so the test suite can lock the exact strings) ──
 export const ABSTRACT_TEXT =
   "0VERTRAINED is a private training ledger for hybrid athletes. You log strength, cardio, nutrition, body metrics, and daily recovery check-ins — or import them from a wearable — and the app reconciles training load against sleep, HRV, and fueling to answer one question each morning: how hard should today be? An optional AI Coach gives feedback on request; it is opt-in and off by default.";
 
-export const GOOGLE_DATA_ROWS = [
-  ["We access", "With your permission, 0VERTRAINED connects to your Google account to read Fitbit health and activity data: sleep, heart rate and HRV, resting heart rate, respiratory rate, SpO2, steps, active minutes and Active Zone Minutes, calories, and exercise sessions."],
-  ["Only to", "Power the features you see in the app — your recovery and readiness scores, training-load analysis, daily verdicts, trends, and (only if you separately opt in) AI Coach summaries. Nothing else."],
-  ["Never", "Google user data is never sold, never used for advertising, and never used to train generalized AI or machine-learning models."],
-  ["Your control", "Connecting is optional and the app is fully functional without it. Disconnect anytime in Settings → Integrations — this deletes your Google tokens and imported Fitbit data from the app. You can also revoke access from your Google Account permissions page."],
-];
-
-const POLICY_NAME = "Google API Services User Data Policy";
-const POLICY_URL = "https://developers.google.com/terms/api-services-user-data-policy";
-export const LIMITED_USE_DISCLOSURE =
-  `0VERTRAINED's use and transfer to any other app of information received from Google APIs will adhere to the ${POLICY_NAME}, including the Limited Use requirements.`;
-
 // Centralized so the public colophon, beta dead ends, About screen, and error
-// reports all use the exact support address configured for OAuth verification.
+// reports all use the same support address.
 import { SUPPORT_EMAIL } from "../appMeta";
 
 const METHOD_STEPS = [
@@ -42,10 +23,9 @@ const METHOD_STEPS = [
 ];
 
 const SOURCE_ROWS = [
-  ["Manual", "First-class logging with nothing connected. The app is fully functional on manual entry alone.", false],
-  ["Oura + Whoop", "Sleep, recovery, HRV, strain, and readiness context.", false],
-  ["Fitbit by Google", "Sleep, heart rate, activity, and health metrics, read from your Google account with your permission.", true],
-  ["Strava", "Runs, rides, GPS sessions, distance, pace, and elevation.", false],
+  ["Manual", "First-class logging with nothing connected. The app is fully functional on manual entry alone."],
+  ["Oura + Whoop", "Sleep, recovery, HRV, strain, and readiness context."],
+  ["Strava", "Runs, rides, GPS sessions, distance, pace, and elevation."],
 ];
 
 export function Wordmark({ size = 20, compact = false }) {
@@ -167,36 +147,14 @@ export default function LandingPage() {
           Optional inputs, not requirements. Connect a source when it helps; disconnecting deletes what it imported.
         </p>
         <div style={{ borderTop: rule }}>
-          {SOURCE_ROWS.map(([label, body, soon]) => (
+          {SOURCE_ROWS.map(([label, body]) => (
             <div key={label} style={{ display: "grid", gridTemplateColumns: "minmax(120px, 0.34fr) minmax(0, 1fr)", gap: 14, padding: "11px 0", borderBottom: rule, alignItems: "baseline" }}>
-              <span style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: C.text, display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 8 }}>
+              <span style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: C.text }}>
                 {label}
-                {/* Remove the tag in the same PR that flips the Google Health
-                    feature flag live — the homepage in the verification demo
-                    video should describe present-tense functionality. */}
-                {soon && <ProvisionalTag>Coming soon</ProvisionalTag>}
               </span>
               <span style={{ color: C.textDim, lineHeight: 1.45, fontSize: 13.5 }}>{body}</span>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* ── Fig. 4 · Google user data (verification disclosure) ── */}
-      <section id="google-data" aria-label="Google user data" style={{ border: rule, background: C.panel, padding: "15px 16px 13px" }}>
-        <FigHead title="Fig. 4 · Google user data" stat="disclosure" />
-        <div>
-          {GOOGLE_DATA_ROWS.map(([label, body]) => (
-            <div key={label} style={{ display: "grid", gridTemplateColumns: "minmax(105px, 0.26fr) minmax(0, 1fr)", gap: 14, padding: "10px 0", borderTop: rule, alignItems: "baseline" }}>
-              <span style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: C.text }}>{label}</span>
-              <span style={{ color: C.textDim, lineHeight: 1.5, fontSize: 13.5 }}>{body}</span>
-            </div>
-          ))}
-        </div>
-        <div style={{ fontFamily: mono, fontSize: 11, color: C.textFaint, lineHeight: 1.65, borderTop: rule, paddingTop: 10, marginTop: 2, letterSpacing: "0.02em" }}>
-          † {LIMITED_USE_DISCLOSURE.split(POLICY_NAME)[0]}
-          <a href={POLICY_URL} target="_blank" rel="noopener noreferrer" style={{ color: C.textDim, textDecoration: "underline", textUnderlineOffset: 2 }}>{POLICY_NAME}</a>
-          {LIMITED_USE_DISCLOSURE.split(POLICY_NAME)[1]}
         </div>
       </section>
 
