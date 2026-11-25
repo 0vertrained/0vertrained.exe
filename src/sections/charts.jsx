@@ -1,11 +1,31 @@
 // src/sections/charts.jsx
-// The charts Progress is drawn with: plain SVG in a 358-wide box that scales
-// with its column, carrying the chart classes in src/ledger.css. Each chart
-// says what it shows in its label, and DataTable puts the same numbers behind
-// "Show as table" so nothing is readable only as a picture.
-import { useState } from "react";
+// The charts Progress is drawn with: plain SVG carrying the chart classes in
+// src/ledger.css. A chart is drawn at the width it is given, one unit to the
+// pixel, so its text is 12 px on every screen instead of shrinking with a
+// narrow phone. Each chart says what it shows in its label, and DataTable
+// puts the same numbers behind "Show as table" so nothing is readable only
+// as a picture.
+import { useCallback, useRef, useState } from "react";
 
-const W = 358;
+const DEFAULT_WIDTH = 358;
+
+// The chart's own width in pixels, kept current as its column changes. The
+// ref is a callback so a chart that appears later is measured too.
+function useChartWidth() {
+  const [width, setWidth] = useState(DEFAULT_WIDTH);
+  const observer = useRef(null);
+  const ref = useCallback((node) => {
+    observer.current?.disconnect();
+    observer.current = null;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    observer.current = new ResizeObserver(([entry]) => {
+      const next = Math.round(entry.contentRect.width);
+      if (next > 0) setWidth((current) => (current === next ? current : next));
+    });
+    observer.current.observe(node);
+  }, []);
+  return [ref, width];
+}
 
 export const shortDate = (dateKey) => new Date(`${dateKey}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 export const dayDate = (dateKey) => new Date(`${dateKey}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -37,6 +57,7 @@ export function gridFor(values, { from = null, to = null } = {}) {
 // One line over time. points: [{ date, value, raw? }]. With rings, each
 // point's raw reading is drawn as a ring behind the line.
 export function LineChart({ label, points, rings = false, height = 110, unit = "", format = String, from = null, to = null }) {
+  const [ref, W] = useChartWidth();
   if (!points || points.length < 2) return null;
   const top = 16;
   const bottom = height - 26;
@@ -49,7 +70,7 @@ export function LineChart({ label, points, rings = false, height = 110, unit = "
   const last = points[points.length - 1];
   const lastY = y(last.value);
   return (
-    <svg className="ch" viewBox={`0 0 ${W} ${height}`} role="img" aria-label={label}>
+    <svg ref={ref} className="ch" viewBox={`0 0 ${W} ${height}`} role="img" aria-label={label} style={{ height }}>
       <path className="ax" d={ticks.map((tick) => `M0 ${Math.round(y(tick)) + 0.5}h${W}`).join("")} />
       {ticks.map((tick, index) => (
         <text key={tick} className="tx" x="0" y={Math.round(y(tick)) - 4}>{format(tick)}{index === ticks.length - 1 && unit ? ` ${unit}` : ""}</text>
@@ -68,6 +89,7 @@ export function LineChart({ label, points, rings = false, height = 110, unit = "
 // Columns from a zero line. columns: [{ key, value, x?, filled? }]. A column
 // with no value is drawn as a stub, so a rest day reads as a day, not a gap.
 export function ColumnChart({ label, columns, height = 110, format = String, goal = null }) {
+  const [ref, W] = useChartWidth();
   if (!columns || columns.length === 0) return null;
   const base = height - 24;
   const top = 22;
@@ -77,7 +99,7 @@ export function ColumnChart({ label, columns, height = 110, format = String, goa
   const tall = (value) => (value / high) * (base - top);
   const showValues = columns.length <= 8;
   return (
-    <svg className="ch" viewBox={`0 0 ${W} ${height}`} role="img" aria-label={label}>
+    <svg ref={ref} className="ch" viewBox={`0 0 ${W} ${height}`} role="img" aria-label={label} style={{ height }}>
       <path className="ax" d={`M0 ${base + 0.5}h${W}`} />
       {goal != null && <path className="ax" strokeDasharray="4 4" d={`M0 ${Math.round(base - tall(goal)) + 0.5}h${W}`} />}
       {columns.map((column, index) => {
