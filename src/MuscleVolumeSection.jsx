@@ -1,151 +1,133 @@
 // src/MuscleVolumeSection.jsx
-// Per-muscle weekly volume ledger for Progress → Overview. Each trained
-// muscle renders a landmark bar (MEV → MAV band → MRV) with the week's set
-// count positioned on it, a delta vs last week, and a status word. Balance
-// ratios sit behind a disclosure. Unmapped sets are surfaced, never hidden.
+// Sets this week, by muscle, on Progress › Strength. Each trained muscle gets
+// a mark on its own range: the band runs from the fewest weekly sets that
+// grow it to the most you recover from, and the mark is this week's count.
+// The same numbers sit behind "Show as table"; balance ratios sit behind a
+// row of their own. Sets that map to no muscle are counted out loud.
 
 import { useMemo, useState } from "react";
-import { useTheme } from "./theme";
 import { buildVolumeReport } from "./muscleVolume";
-import { MethodLine } from "./whitepaper";
+import { Icon, Method } from "./ui/ledger";
+import { DataTable } from "./sections/charts";
 
-function LandmarkBar({ row, C }) {
-  // Scale bar 0 → MRV×1.15 so above-MRV overflows visibly.
-  const max = row.landmarks.mrv * 1.15;
-  const pct = (v) => `${Math.min(100, (v / max) * 100)}%`;
-  const fill = Math.min(100, (row.sets / max) * 100);
-  const tone = row.tone === "warn" ? C.red : row.tone === "watch" ? C.textDim : C.text;
-  const l = row.landmarks;
-  // The bar is purely visual; give assistive tech a plain-language equivalent of
-  // where this week's sets land relative to the MEV / MAV band / MRV landmarks.
-  const barLabel = `${row.label}: ${row.sets} hard sets this week, ${classLabel(row) || "no landmark"}. Productive range ${l.mavLo}–${l.mavHi} sets (MEV ${l.mev}, MRV ${l.mrv}).`;
+const STATUS = {
+  below_mev: "below range",
+  productive: "in range",
+  optimal: "in range, productive band",
+  high: "in range, near the top",
+  above_mrv: "above range",
+};
+const signed = (value) => `${value > 0 ? "+" : "−"}${Math.abs(value)}`;
+
+function RangeMark({ row }) {
+  const { mev, mavLo, mavHi, mrv } = row.landmarks;
+  const max = Math.max(mrv * 1.15, row.sets * 1.05);
+  const x = (value) => Math.round((Math.max(0, value) / max) * 150);
   return (
-    <div
+    <svg
+      className="ch"
+      viewBox="0 0 150 20"
       role="img"
-      aria-label={barLabel}
-      style={{ position: "relative", height: 6, background: C.line, marginTop: 5 }}
+      aria-label={`${row.label}: ${row.sets} hard sets this week, ${STATUS[row.status] || "no range"}. Your range is ${mev} to ${mrv} sets, most productive from ${mavLo} to ${mavHi}.`}
+      style={{ width: 150, flex: "none" }}
     >
-      {/* MAV band */}
-      <div style={{ position: "absolute", left: pct(row.landmarks.mavLo), width: `calc(${pct(row.landmarks.mavHi)} - ${pct(row.landmarks.mavLo)})`, top: 0, bottom: 0, background: C.lineBright }} />
-      {/* fill */}
-      <div style={{ position: "absolute", left: 0, width: `${fill}%`, top: 0, bottom: 0, background: tone, opacity: 0.85 }} />
-      {/* MEV + MRV ticks */}
-      <div style={{ position: "absolute", left: pct(row.landmarks.mev), top: -2, bottom: -2, width: 1, background: C.textFaint }} />
-      <div style={{ position: "absolute", left: pct(row.landmarks.mrv), top: -2, bottom: -2, width: 1, background: C.textFaint }} />
-    </div>
+      <rect className="band" x={x(mev)} y="5" width={Math.max(2, x(mrv) - x(mev))} height="10" rx="2" />
+      <path d="M0 10.5h150" style={{ stroke: "var(--edge)", strokeWidth: 1 }} />
+      <rect x={Math.min(147, x(row.sets))} y="0" width="3" height="20" style={{ fill: "var(--ink)" }} />
+    </svg>
   );
 }
 
 export function MuscleVolumeSection({ data }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
   const report = useMemo(() => buildVolumeReport(data), [data]);
   const [ratiosOpen, setRatiosOpen] = useState(false);
   const [showUntrained, setShowUntrained] = useState(false);
-  const [guideOpen, setGuideOpen] = useState(false);
+
+  if (!report.ready) {
+    return (
+      <section aria-labelledby="volume-title" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <h2 id="volume-title" className="t-h">Sets this week</h2>
+        <p className="t-s c2">Log a week of lifting, six completed sets or more, and each muscle appears here against its range.</p>
+      </section>
+    );
+  }
+
+  const rows = showUntrained ? report.rows : report.rows.filter((row) => row.sets > 0);
+  const below = report.rows.filter((row) => row.sets > 0 && row.status === "below_mev").map((row) => row.label);
+  const above = report.rows.filter((row) => row.status === "above_mrv").map((row) => row.label);
+  const headline = [below.length ? `Below range: ${below.join(", ")}.` : "", above.length ? `Above range: ${above.join(", ")}.` : ""].filter(Boolean).join(" ")
+    || "Every muscle you trained is inside its range.";
 
   return (
-    <div style={S.block}>
-      <div style={S.blockHead}>
-        <span style={S.blockTitle}>{"> "}Muscle volume audit</span>
-        {report.ready && <span style={S.blockStat}>WK OF {report.weekStart.slice(5)}</span>}
-      </div>
+    <section aria-labelledby="volume-title" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div className="sec"><h2 id="volume-title" className="t-h">Sets this week</h2><span className="t-s c2">Week of {new Date(`${report.weekStart}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></div>
+      <p className="t-bs">{headline}</p>
+      <p className="t-s c2">Each muscle has a range: the fewest sets that grow it and the most you recover from. The mark is where you are.</p>
 
-      {!report.ready ? (
-        <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6 }}>{report.note}</div>
-      ) : (
-        <>
-          <div style={{ fontFamily: S.fontSerif, fontSize: 15, color: report.flagCount ? C.text : C.textDim, lineHeight: 1.35, marginBottom: 8 }}>
-            {report.headline}
-          </div>
+      <ul style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {rows.map((row) => {
+          const flagged = row.status === "below_mev" ? "Below range" : row.status === "above_mrv" ? "Above range" : "";
+          return (
+            <li key={row.key} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40 }}>
+              <span className="t-bs" style={{ width: 86, flex: "none" }}>{row.label}</span>
+              <RangeMark row={row} />
+              <span className="kv grow" style={{ alignItems: "flex-end", gap: 0, whiteSpace: "nowrap" }}>
+                <span className="n-s">{row.sets} sets</span>
+                {flagged
+                  ? <span className="t-c stop">{flagged}</span>
+                  : row.delta ? <span className="t-c c2">{signed(row.delta)} on last week</span> : null}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
 
-          {/* Plain-language primer so a normal athlete can read the ledger below
-              without knowing the jargon. Display-only — changes no report math. */}
-          <div style={{ marginBottom: 10 }}>
-            <button type="button" onClick={() => setGuideOpen(o => !o)} aria-expanded={guideOpen}
-              aria-label={guideOpen ? "Hide how to read the muscle volume audit" : "Show how to read the muscle volume audit"}
-              style={{ background: "none", border: "none", padding: "0 8px", minHeight: 44, display: "inline-flex", alignItems: "center", cursor: "pointer", fontFamily: mono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textDim }}>
-              {guideOpen ? "▲" : "▾"} How to read this
-            </button>
-            {guideOpen && (
-              <div style={{ marginTop: 6, borderTop: `1px solid ${C.line}`, paddingTop: 8, fontSize: 11.5, color: C.textDim, lineHeight: 1.6, fontFamily: mono }}>
-                <p style={{ margin: "0 0 6px" }}>
-                  <strong style={{ color: C.text }}>Hard set</strong> — one completed working set taken close to failure. Sets where a muscle is the <strong style={{ color: C.text }}>primary</strong> mover count as one; sets where it only assists (<strong style={{ color: C.text }}>secondary</strong>) count as half.
-                </p>
-                <p style={{ margin: "0 0 6px" }}>
-                  The number beside each muscle is <strong style={{ color: C.text }}>this week&apos;s</strong> sets; the small <span style={{ color: C.textFaint }}>±</span> figure is the change vs <strong style={{ color: C.text }}>last week</strong>. On each bar, the pale marked <strong style={{ color: C.text }}>band</strong> is the productive target range — landing inside it is the goal.
-                </p>
-                <p style={{ margin: 0 }}>
-                  <strong style={{ color: C.text }}>MEV</strong> — minimum sets to grow at all. <strong style={{ color: C.text }}>MAV</strong> — the sweet-spot range where most growth happens. <strong style={{ color: C.text }}>MRV</strong> — the most you can recover from; past it you accumulate fatigue faster than you adapt.
-                </p>
-              </div>
-            )}
-          </div>
+      <DataTable
+        caption="Sets this week by muscle"
+        head={["Muscle", "Sets", "Change", "Range"]}
+        rows={rows.map((row) => [`${row.label}: ${STATUS[row.status] || "no range"}`, row.sets, row.delta ? signed(row.delta) : "0", `${row.landmarks.mev} to ${row.landmarks.mrv}`])}
+      />
 
-          {(showUntrained ? report.rows : report.rows.filter(r => r.sets > 0)).map(row => (
-            <div key={row.key} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontSize: 11.5, color: C.text, fontFamily: mono, letterSpacing: "0.04em" }}>{row.label}</span>
-                <span style={{ fontSize: 11, fontFamily: mono, color: row.tone === "warn" ? C.red : C.textDim, fontVariantNumeric: "tabular-nums" }}>
-                  {row.sets} sets
-                  {row.delta !== null && row.delta !== 0 && <span style={{ color: C.textFaint }}> · {row.delta > 0 ? "+" : ""}{row.delta}</span>}
-                  {" · "}{classLabel(row)}
-                </span>
-              </div>
-              <LandmarkBar row={row} C={C} />
-            </div>
-          ))}
+      <button type="button" className="btn btn-g btn-sm" aria-expanded={showUntrained} onClick={() => setShowUntrained((value) => !value)} style={{ alignSelf: "flex-start", paddingLeft: 0 }}>
+        {showUntrained ? "Hide muscles with no sets this week" : "Show muscles with no sets this week"}
+      </button>
 
-          <button type="button" onClick={() => setShowUntrained(v => !v)} aria-expanded={showUntrained}
-            style={{ background: "none", border: "none", padding: "0 8px", minHeight: 44, display: "inline-flex", alignItems: "center", cursor: "pointer", fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textFaint }}>
-            {showUntrained ? "▲ hide untrained muscles" : "▾ show untrained muscles"}
-          </button>
-
-          {report.unmappedSets > 0 && (
-            <div style={{ fontSize: 11, color: C.textFaint, lineHeight: 1.5, marginTop: 8, fontFamily: mono }}>
-              {report.unmappedSets} sets unmapped ({report.unmappedNames.slice(0, 3).join(", ")}{report.unmappedNames.length > 3 ? "…" : ""}) — not counted toward any muscle.
-            </div>
-          )}
-
-          <div style={{ marginTop: 10 }}>
-            <button type="button" onClick={() => setRatiosOpen(o => !o)} aria-expanded={ratiosOpen}
-              style={{ background: "none", border: "none", padding: "0 8px", minHeight: 44, display: "inline-flex", alignItems: "center", cursor: "pointer", fontFamily: mono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textDim }}>
-              {ratiosOpen ? "▲" : "▾"} Balance ratios
-            </button>
-            {ratiosOpen && (
-              <div style={{ marginTop: 6 }}>
-                {report.ratios.map(r => (
-                  <div key={r.key} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "5px 0", borderBottom: `1px solid ${C.line}`, fontSize: 11.5, fontFamily: mono }}>
-                    <span style={{ color: C.textDim }}>{r.label} <span style={{ color: C.textFaint }}>· {r.band}</span></span>
-                    <span style={{ color: r.ok ? C.text : C.red, fontVariantNumeric: "tabular-nums" }}>{r.value ?? "—"}{r.ok ? "" : " ⚑"}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <MethodLine
-            testId="method-volume"
-            method="hard set = completed set · secondaries count 0.5 · ranges are published landmarks, not prescriptions"
-            detail={
-              <>
-                Each muscle's bar marks three research landmarks: <strong>MEV</strong>, the minimum weekly sets that reliably produce growth; the <strong>MAV band</strong>, where most productive training lives; and <strong>MRV</strong>, the most you can recover from — past it, more sets subtract. Your week's count sits on that scale. These are population ranges from the hypertrophy literature, so treat them as a map, not a rulebook: your recovery data above is the tiebreaker when the two disagree.
-              </>
-            }
-          />
-        </>
+      {report.unmappedSets > 0 && (
+        <p className="t-s c2">
+          {report.unmappedSets} sets were not counted toward any muscle: {report.unmappedNames.slice(0, 3).join(", ")}{report.unmappedNames.length > 3 ? " and others" : ""}.
+        </p>
       )}
-    </div>
-  );
-}
 
-function classLabel(row) {
-  switch (row.status) {
-    case "below_mev": return "below MEV";
-    case "productive": return "MEV–MAV";
-    case "optimal": return "within MAV";
-    case "high": return "MAV–MRV";
-    case "above_mrv": return "above MRV";
-    default: return "";
-  }
+      <button type="button" className="row" aria-expanded={ratiosOpen} onClick={() => setRatiosOpen((value) => !value)} style={{ borderTop: "1px solid var(--line)", borderBottom: ratiosOpen ? "none" : "1px solid var(--line)" }}>
+        <span className="kv grow"><span className="t-bs">Balance ratios</span><span className="t-s c2">Push against pull, front against back</span></span>
+        <Icon name={ratiosOpen ? "up" : "down"} size="s" className="c2" />
+      </button>
+      {ratiosOpen && (
+        <ul className="rows">
+          {report.ratios.map((ratio) => (
+            <li key={ratio.key} className="row" style={{ minHeight: 48 }}>
+              <span className="kv grow"><span className="t-bs">{ratio.label}</span><span className="t-s c2">Usual band {ratio.band}</span></span>
+              <span className="kv" style={{ alignItems: "flex-end", gap: 0 }}>
+                <span className="n">{ratio.value ?? "—"}</span>
+                {!ratio.ok && <span className="t-c stop">Outside the band</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Method
+        testId="method-volume"
+        label="How to read sets this week"
+        method="A hard set is a completed set. Supporting muscles count half. The ranges are published landmarks, not prescriptions."
+        detail={
+          <>
+            <p><strong>Hard set</strong>: one completed working set taken close to failure. A set counts as one for the muscle doing the main work and as half for a muscle that only assists.</p>
+            <p>The band on each line runs between two research landmarks. Its low end is <strong>MEV</strong>, the minimum weekly sets that reliably produce growth. Its high end is <strong>MRV</strong>, the most you can recover from: past it, more sets subtract. Between them sits the <strong>MAV</strong> band, where most productive training lives. The table shows this week’s count and its change on last week.</p>
+            <p>These are population ranges from the hypertrophy literature, so treat them as a map, not a rulebook: your recovery data is the tiebreaker when the two disagree.</p>
+          </>
+        }
+      />
+    </section>
+  );
 }

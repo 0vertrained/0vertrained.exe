@@ -34,14 +34,19 @@ describe("accessibility remediation", () => {
     expect(screen.getByRole("button", { name: /hide readiness scoring method/i }).getAttribute("aria-expanded")).toBe("true");
   });
 
-  it("explains the volume audit on demand and exposes bar data to assistive tech", () => {
+  it("explains sets this week on demand and exposes each mark to assistive tech", () => {
     wrap(<MuscleVolumeSection data={volumeData} />);
-    const guide = screen.getByRole("button", { name: /show how to read the muscle volume audit/i });
+    const guide = screen.getByRole("button", { name: "How to read sets this week" });
     expect(guide.getAttribute("aria-expanded")).toBe("false");
-    expect(guide.style.minHeight).toBe("44px");
+    // A full-height control: the button class carries the 44 px target.
+    expect(guide.classList.contains("btn")).toBe(true);
     fireEvent.click(guide);
+    expect(guide.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByText("Hard set", { selector: "strong" })).toBeTruthy();
-    expect(screen.getByRole("img", { name: /chest: 6 hard sets this week/i })).toBeTruthy();
+    expect(screen.getByRole("img", { name: /chest: 6 hard sets this week, below range\. Your range is \d+ to \d+ sets/i })).toBeTruthy();
+    // The same numbers are readable as a table.
+    fireEvent.click(screen.getByRole("button", { name: "Show as table" }));
+    expect(screen.getByRole("table", { name: "Sets this week by muscle" })).toBeTruthy();
   });
 
   it("reserves room for the tab bar only where the tab bar shows", () => {

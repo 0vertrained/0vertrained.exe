@@ -1,119 +1,124 @@
 // src/LiftIntelligenceSection.jsx
-// Two Progress → Overview sections:
-//   1. LiftIntelligenceSection — per-lift RIR-effective e1RM sparkline with
-//      a progressing / stalled / regressing verdict and a concrete stall
-//      suggestion (e1rmTrend.js).
-//   2. MuscleRecencyMap — days since each muscle was last trained, answering
-//      "what's actually fresh today?" (muscleVolume.buildMuscleRecency).
-// Both display-only.
+// Two parts of Progress › Strength, both display only:
+//   1. LiftIntelligenceSection: one lift at a time. Its estimated one-rep max
+//      by session (adjusted for reps in reserve), whether it is progressing,
+//      level or slipping, and what to do about a stall (e1rmTrend.js).
+//   2. MuscleRecencyMap: which muscles are fresh today, from the days since
+//      each was last trained (muscleVolume.buildMuscleRecency).
 
 import { useMemo, useState } from "react";
-import { useTheme } from "./theme";
 import { buildLiftIntelligence } from "./e1rmTrend";
 import { buildMuscleRecency } from "./muscleVolume";
 import { getTodayKey } from "./constants";
+import { Icon, Sheet, Method } from "./ui/ledger";
+import { LineChart, DataTable, Glance, dayDate } from "./sections/charts";
 
-function Spark({ series, C, width = 90, height = 22 }) {
-  if (!series || series.length < 2) return null;
-  const vals = series.map(p => p.e1rm);
-  const min = Math.min(...vals), max = Math.max(...vals);
-  const span = (max - min) || 1;
-  const pts = series.map((p, i) =>
-    `${(2 + (i / (series.length - 1)) * (width - 4)).toFixed(1)},${(height - 3 - ((p.e1rm - min) / span) * (height - 6)).toFixed(1)}`
-  ).join(" ");
-  return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true" style={{ display: "block" }}>
-      <polyline points={pts} fill="none" stroke={C.text} strokeWidth="1.3" />
-    </svg>
-  );
-}
+const NBSP = "\u00a0";
+const VERDICT = { progressing: "Progressing", stalled: "Level", regressing: "Slipping", building: "Building a baseline" };
+const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
 
-const VERDICT_LABEL = { progressing: "↑ progressing", stalled: "→ stalled", regressing: "↓ regressing", building: "· building" };
-
-export function LiftIntelligenceSection({ data }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
+export function LiftIntelligenceSection({ data, glance = false }) {
   const report = useMemo(() => buildLiftIntelligence(data), [data]);
-  const [openLift, setOpenLift] = useState(null);
+  const [picked, setPicked] = useState(null);
+  const [choosing, setChoosing] = useState(false);
+
+  if (glance) {
+    if (!report.ready) return <Glance text="Log the same lift in three sessions and its trend appears here." />;
+    const lead = report.lifts[0];
+    return (
+      <Glance text={`${lead.name} estimated one-rep max: ${lead.current}${NBSP}lb. ${lead.verdict.note}`}>
+        <LineChart
+          label={`Line chart of ${lead.name} estimated one-rep max over ${lead.series.length} sessions, from ${lead.series[0].e1rm} to ${lead.current} pounds.`}
+          points={lead.series.map((point) => ({ date: point.date, value: point.e1rm }))}
+          unit="lb"
+        />
+      </Glance>
+    );
+  }
+
+  if (!report.ready) {
+    return (
+      <section aria-labelledby="e1rm-title" style={column(6)}>
+        <h2 id="e1rm-title" className="t-h">Estimated one-rep max</h2>
+        <p className="t-s c2">Log the same lift in three sessions and its trend appears here, with a note if it stalls.</p>
+      </section>
+    );
+  }
+
+  const lift = report.lifts.find((item) => item.name === picked) || report.lifts[0];
+  const first = lift.series[0];
+  const change = lift.delta30 == null ? ""
+    : lift.delta30 === 0 ? ", the same as 30 days ago"
+    : `, ${Math.abs(lift.delta30)}${NBSP}lb ${lift.delta30 > 0 ? "higher" : "lower"} than 30 days ago`;
+  const flagged = lift.verdict.status === "stalled" || lift.verdict.status === "regressing";
 
   return (
-    <div style={S.block}>
-      <div style={S.blockHead}>
-        <span style={S.blockTitle}>{"> "}Lift intelligence</span>
-        {report.ready && <span style={S.blockStat}>e1RM · RIR-adjusted</span>}
-      </div>
-      {!report.ready ? (
-        <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6 }}>
-          Log a few sessions per lift to unlock e1RM trends and stall detection.
-        </div>
-      ) : (
-        <>
-          {report.lifts.map(l => {
-            const tone = l.verdict.status === "regressing" ? C.red : l.verdict.status === "stalled" ? C.textDim : C.text;
-            const isOpen = openLift === l.name;
-            return (
-              <div key={l.name} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}` }}>
-                <button type="button" onClick={() => setOpenLift(isOpen ? null : l.name)} aria-expanded={isOpen}
-                  style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
-                  <span style={{ minWidth: 0, flex: 1 }}>
-                    <span style={{ fontSize: 12, color: C.text, fontFamily: mono, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.name}</span>
-                    <span style={{ fontSize: 10.5, color: tone, fontFamily: mono, letterSpacing: "0.06em" }}>{VERDICT_LABEL[l.verdict.status]}</span>
-                  </span>
-                  <Spark series={l.series} C={C} />
-                  <span style={{ fontFamily: S.fontSerif, fontSize: 16, color: C.text, fontVariantNumeric: "tabular-nums", flexShrink: 0, minWidth: 44, textAlign: "right" }}>
-                    {l.current}
-                    {l.delta30 !== null && l.delta30 !== 0 && (
-                      <span style={{ fontSize: 10.5, color: l.delta30 > 0 ? C.textDim : C.red, fontFamily: mono, display: "block" }}>{l.delta30 > 0 ? "+" : ""}{l.delta30} · 30d</span>
-                    )}
-                  </span>
-                </button>
-                {isOpen && (
-                  <div style={{ fontSize: 11.5, color: C.textDim, lineHeight: 1.55, marginTop: 6, padding: "7px 10px", border: `1px solid ${l.verdict.status === "stalled" || l.verdict.status === "regressing" ? C.text : C.line}` }}>
-                    {l.verdict.note}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          <div style={{ ...S.annotation, marginTop: 8, color: C.textFaint, lineHeight: 1.5 }}>
-            e1RM = Epley on best straight set, RIR-adjusted when logged · technique sets excluded · estimates, not maxes
-          </div>
-        </>
-      )}
-    </div>
+    <>
+      <button type="button" className="btn btn-s btn-b" aria-haspopup="dialog" onClick={() => setChoosing(true)} style={{ justifyContent: "space-between", padding: "0 12px 0 16px" }}>
+        <span className="clip"><span className="c2" style={{ fontWeight: 400 }}>Lift</span>{NBSP}{NBSP}{lift.name}</span>
+        <Icon name="down" size="s" />
+      </button>
+
+      <section aria-labelledby="e1rm-title" style={column(8)}>
+        <div className="sec"><h2 id="e1rm-title" className="t-h">Estimated one-rep max</h2><span className={flagged ? "tag" : "tag tag-f"}>{VERDICT[lift.verdict.status]}</span></div>
+        <p className="t-s c2">{lift.current}{NBSP}lb at the last session{change}.</p>
+        <LineChart
+          label={`Line chart of ${lift.name} estimated one-rep max over ${lift.series.length} sessions, from ${first.e1rm} to ${lift.current} pounds.`}
+          points={lift.series.map((point) => ({ date: point.date, value: point.e1rm }))}
+          height={124}
+          unit="lb"
+        />
+        {lift.verdict.note && <p className={flagged ? "banner" : "t-s"}>{flagged && <Icon name="info" size="s" />}<span>{lift.verdict.note}</span></p>}
+        <DataTable
+          caption={`${lift.name}: estimated one-rep max by session`}
+          head={["Session", "Estimated max"]}
+          rows={[...lift.series].reverse().map((point) => [dayDate(point.date), `${point.e1rm}${NBSP}lb`])}
+        />
+        <Method
+          testId="method-e1rm"
+          method="An estimate from your best set of each session, not a tested max."
+          detail={<p>The Epley formula on the best straight set of the day, adjusted for reps in reserve when you log them, so 8 reps with 2 in reserve counts as a 10-rep set. Drop sets, rest-pause and other technique sets are left out.</p>}
+        />
+      </section>
+
+      <Sheet open={choosing} title="Choose a lift" onClose={() => setChoosing(false)}>
+        <p className="t-s c2">The lifts you have logged most.</p>
+        <ul className="rows">
+          {report.lifts.map((item) => (
+            <li key={item.name}>
+              <button type="button" className="row" aria-pressed={item.name === lift.name} onClick={() => { setPicked(item.name); setChoosing(false); }} style={{ minHeight: 56 }}>
+                <span className="kv grow"><span className="t-bs">{item.name}</span><span className="t-s c2">{VERDICT[item.verdict.status]}</span></span>
+                <span className="n">{item.current}{NBSP}lb</span>
+                {item.name === lift.name ? <Icon name="done" size="s" /> : <span style={{ width: 20, flex: "none" }} />}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Sheet>
+    </>
   );
 }
 
-// Muscle recency map
-const RECENCY_TONE = (status, C) => status === "worked" ? C.textFaint : status === "ready" ? C.text : status === "fresh" ? C.green : C.textFaint;
-
+// Fresh today
 export function MuscleRecencyMap({ data }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
   const recency = useMemo(() => buildMuscleRecency(data, getTodayKey()), [data]);
   if (!recency) return null;
-  const trained = recency.filter(r => r.status !== "untrained");
+  const trained = recency.filter((row) => row.status !== "untrained").sort((a, b) => (b.daysSinceAny ?? 99) - (a.daysSinceAny ?? 99));
   if (trained.length === 0) return null;
+  const names = (status) => trained.filter((row) => row.status === status);
+  const fresh = names("fresh");
+  const ready = names("ready");
+  const worked = names("worked");
+  const withDays = (rows) => rows.map((row) => `${row.label} (${row.daysSinceAny}d)`).join(", ");
+  const sentence = (rows) => { const text = rows.map((row) => row.label.toLowerCase()).join(", "); return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`; };
 
   return (
-    <div style={S.block}>
-      <div style={S.blockHead}>
-        <span style={S.blockTitle}>{"> "}Recovery map</span>
-        <span style={S.blockStat}>DAYS SINCE TRAINED</span>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 18px" }}>
-        {trained.sort((a, b) => (b.daysSinceAny ?? 99) - (a.daysSinceAny ?? 99)).map(r => (
-          <div key={r.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.line}` }}>
-            <span style={{ fontSize: 11, color: C.textDim, fontFamily: mono, letterSpacing: "0.04em" }}>{r.label}</span>
-            <span style={{ fontSize: 11.5, fontFamily: mono, color: RECENCY_TONE(r.status, C), fontVariantNumeric: "tabular-nums" }}>
-              {r.daysSinceAny}d {r.status === "worked" ? "· just hit" : r.status === "fresh" ? "· fresh" : ""}
-            </span>
-          </div>
-        ))}
-      </div>
-      <div style={{ ...S.annotation, marginTop: 8, color: C.textFaint, lineHeight: 1.5 }}>
-        last primary or secondary involvement in 21 days · 0-1d just hit · 2-3d ready · 4d+ fresh
-      </div>
-    </div>
+    <section aria-labelledby="fresh-title" style={column(4)}>
+      <h2 id="fresh-title" className="t-h">Fresh today</h2>
+      <p className="t-b">{fresh.length ? sentence(fresh) : "Nothing has had four days off yet."}</p>
+      {ready.length > 0 && <p className="t-s c2">Two or three days since: {withDays(ready)}.</p>}
+      {worked.length > 0 && <p className="t-s c2">Recently loaded: {withDays(worked)}.</p>}
+      <p className="t-s c2">Counted over the last 21 days, from any set where the muscle did the main or a supporting job. Fresh means four days or more.</p>
+    </section>
   );
 }
