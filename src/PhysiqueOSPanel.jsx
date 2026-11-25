@@ -10,7 +10,7 @@ import {
   recommendDayMode,
   resolveDayMode,
 } from "./physiqueOS";
-import { TrainingAdjustmentInline } from "./sections/IntelligenceSections";
+import { TrainingAdjustmentInline } from "./sections/TrainingAdjustmentInline";
 import { buildTomorrowOutlook } from "./uiStability";
 import { useTheme } from "./theme";
 

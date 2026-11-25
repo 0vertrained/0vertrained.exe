@@ -11,7 +11,6 @@ import { ThemeProvider } from "../theme";
 import { BottomNav, QuickActionSheet, QUICK_ACTIONS, TABS_ORDER } from "../AppBottomNav";
 import { ProgressSubnav, HistoryModeToggle } from "../ProgressTab";
 import { NotificationsCard } from "../NotificationsCard";
-import { TodayDecisionCard } from "../sections/IntelligenceSections";
 
 // This repo runs vitest without globals, so RTL's automatic cleanup never
 // registers — without this, each render leaks into the next test's queries.
@@ -92,31 +91,6 @@ describe("ProgressSubnav + HistoryModeToggle", () => {
     wrap(<HistoryModeToggle subView="timeline" setSubView={setSubView} />);
     fireEvent.click(screen.getByText("Entries"));
     expect(setSubView).toHaveBeenCalledWith("log");
-  });
-});
-
-describe("TodayDecisionCard compact polish", () => {
-  const decision = {
-    call: "push",
-    title: "Push hard today",
-    subtitle: "You're ready for a strong effort today.",
-    doList: ["Run the planned session"],
-    reasons: ["Recovery and load are aligned"],
-    sourceBadges: ["check-in", "load"],
-    confidence: "High",
-    risk: "Low",
-  };
-
-  it("keeps source/confidence/risk inside Coach detail on the compact Today surface", () => {
-    wrap(<TodayDecisionCard decision={decision} compact />);
-    expect(screen.getByText("Push hard today")).toBeTruthy();
-    expect(screen.queryByText(/Conf:/i)).toBeNull();
-    expect(screen.queryByText(/Risk:/i)).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: /coach detail/i }));
-    expect(screen.getByText(/Conf: High/i)).toBeTruthy();
-    expect(screen.getByText(/Risk: Low/i)).toBeTruthy();
-    expect(screen.getByText("check-in")).toBeTruthy();
   });
 });
 
