@@ -3,7 +3,7 @@
 // Each part renders plain markup carrying the classes in src/ledger.css, so a
 // screen reads as its structure and the stylesheet stays the one place that
 // knows what things look like.
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 // Icons sit on a 24 grid with a 1.75 stroke, round joins and no fills. They are
 // decoration: the control that holds one always carries the words.
@@ -265,5 +265,22 @@ export function LinkRow({ label, sub, value, onClick, icon, style }) {
       {value && <span className="n-s c2">{value}</span>}
       <Icon name="next" size="s" className="c2" />
     </button>
+  );
+}
+
+// A figure's method: one plain line under it, and the longer account behind a
+// button. Terms of art belong in the longer part only.
+export function Method({ testId, method, detail = null, label = "How this is measured" }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div data-testid={testId} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {method && <p className="t-s c2">{method}</p>}
+      {detail && (
+        <button type="button" className="btn btn-g btn-sm" aria-expanded={open} onClick={() => setOpen((value) => !value)} style={{ alignSelf: "flex-start", paddingLeft: 0 }}>
+          {open ? `Hide ${label.charAt(0).toLowerCase()}${label.slice(1)}` : label}
+        </button>
+      )}
+      {detail && open && <div className="t-s" style={{ display: "flex", flexDirection: "column", gap: 6 }}>{detail}</div>}
+    </div>
   );
 }

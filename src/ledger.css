@@ -201,6 +201,8 @@ a.row:active, button.row:active { background: var(--press); }
 .lst { display: flex; flex-direction: column; gap: 6px; }
 .lst li { font: 400 14px/20px var(--f-ui); padding-left: 14px; position: relative; }
 .lst li::before { content: ""; position: absolute; left: 0; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--edge); }
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl td.n-s { text-align: right; padding-right: 0; white-space: nowrap; }
 .tbl th { font: 600 13px/18px var(--f-ui); color: var(--ink-2); text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--edge); vertical-align: bottom; }
 .tbl td, .tbl th[scope="row"] { font: 400 14px/20px var(--f-ui); color: inherit; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 
@@ -267,7 +269,7 @@ a.row:active, button.row:active { background: var(--press); }
 .toast-dock > * { pointer-events: auto; }
 
 /* ── Charts: hand-built SVG. Series differ by dash and marker shape, not hue alone ── */
-.ch { display: block; width: 100%; height: auto; overflow: visible; }
+.ch { display: block; width: 100%; max-width: 480px; height: auto; overflow: visible; }
 .ch .ax { stroke: var(--line); stroke-width: 1; fill: none; }
 .ch .ln { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .ch .ln2 { fill: none; stroke: var(--s2); stroke-width: 2; stroke-dasharray: 6 4; }
