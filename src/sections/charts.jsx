@@ -54,16 +54,17 @@ export function gridFor(values, { from = null, to = null } = {}) {
   return grid;
 }
 
-// One line over time. points: [{ date, value, raw? }]. With rings, each
-// point's raw reading is drawn as a ring behind the line.
-export function LineChart({ label, points, rings = false, height = 110, unit = "", format = String, from = null, to = null }) {
+// One line over time. points: [{ date, value, raw?, also? }]. With rings,
+// each point's raw reading is drawn as a ring behind the line. With second,
+// each point's `also` is drawn as a dashed line behind it (a running average).
+export function LineChart({ label, points, rings = false, second = false, height = 110, unit = "", format = String, from = null, to = null }) {
   const [ref, W] = useChartWidth();
   if (!points || points.length < 2) return null;
   const top = 16;
   const bottom = height - 26;
   const left = 40;
   const right = W - 12;
-  const values = points.flatMap((point) => (rings && point.raw != null ? [point.value, point.raw] : [point.value]));
+  const values = points.flatMap((point) => [point.value, ...(rings && point.raw != null ? [point.raw] : []), ...(second && point.also != null ? [point.also] : [])]);
   const { lo, hi, ticks } = gridFor(values, { from, to });
   const x = (index) => left + (index / (points.length - 1)) * (right - left);
   const y = (value) => bottom - ((value - lo) / (hi - lo)) * (bottom - top);
@@ -76,6 +77,7 @@ export function LineChart({ label, points, rings = false, height = 110, unit = "
         <text key={tick} className="tx" x="0" y={Math.round(y(tick)) - 4}>{format(tick)}{index === ticks.length - 1 && unit ? ` ${unit}` : ""}</text>
       ))}
       {rings && points.map((point, index) => point.raw != null && <circle key={point.date} className="raw" cx={x(index).toFixed(1)} cy={y(point.raw).toFixed(1)} r="3" />)}
+      {second && <polyline className="ln2" points={points.map((point, index) => (point.also == null ? null : `${x(index).toFixed(1)},${y(point.also).toFixed(1)}`)).filter(Boolean).join(" ")} />}
       <polyline className="ln" points={points.map((point, index) => `${x(index).toFixed(1)},${y(point.value).toFixed(1)}`).join(" ")} />
       {points.length <= 12 && points.slice(0, -1).map((point, index) => <circle key={point.date} className="pt" cx={x(index).toFixed(1)} cy={y(point.value).toFixed(1)} r="3.5" />)}
       <circle className="on" cx={x(points.length - 1).toFixed(1)} cy={lastY.toFixed(1)} r="5" />
