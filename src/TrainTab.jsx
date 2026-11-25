@@ -98,7 +98,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
             ? <p className="t-s c2">No training planned. A planned rest day counts as a day kept.</p>
             : today.done
               ? <p className="t-s c2" style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="done" size="s" className="good" />Done for today.</p>
-              : <button type="button" className="btn btn-p btn-b" onClick={onStartToday}>{today.started ? "Continue session" : "Start session"}</button>}
+              : <button type="button" className="btn btn-p btn-b" onClick={onStartToday}>{today.started ? "Resume session" : "Start session"}</button>}
         </section>
 
         <section aria-labelledby="train-week" style={{ display: "flex", flexDirection: "column", gap: 4 }}>

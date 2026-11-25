@@ -153,25 +153,39 @@ describe("V17.5 mounted surfaces", () => {
     expect(container.textContent).toBe("");
   });
 
-  it("the score: backdrop dismisses, the card does not, the finisher fires without dismissing through", () => {
+  it("the score: names the record and its basis, Close dismisses, the finisher fires without dismissing", () => {
     const onDismiss = vi.fn();
     const onLog = vi.fn();
-    const { getByTestId, getByText } = wrap(
+    const { getByTestId, getByText, getByRole, getAllByRole } = wrap(
       <SessionComplete
-        boxScore={{ headline: "PR: Bench.", tonnage: 4440, tonnageCompare: { priorDate: "2026-07-13", priorTonnage: 2960, deltaPct: 50 }, prs: [{ name: "Bench", e1rm: 231, priorBest: 208 }], arrows: [], banked: [], skips: [{ name: "Cable Fly", reason: "equipment" }], method: "vs your last Push session" }}
+        boxScore={{
+          headline: "A record on Bench.", tonnage: 4440,
+          tonnageCompare: { priorDate: "2026-07-13", priorTonnage: 2960, deltaPct: 50 },
+          prs: [{ name: "Bench", e1rm: 231, priorBest: 208, set: { weight: 185, reps: 8 } }],
+          arrows: [], banked: [], skips: [{ name: "Cable Fly", reason: "equipment" }],
+          lifts: [{ name: "Bench", sets: 3, trend: "pr", reason: null }, { name: "Cable Fly", sets: 0, trend: "skipped", reason: "equipment" }],
+          liftsDone: 1, method: "Compared with your last Push session.",
+        }}
         finisher={{ label: "Incline Walk · 1.2 mi", onLog }}
         onDismiss={onDismiss}
+        dateKey="2026-07-20"
+        sessionName="Push"
       />
     );
-    expect(getByText("PR: Bench.")).toBeTruthy();
-    expect(getByText(/\+50% vs last/)).toBeTruthy();
-    fireEvent.click(getByTestId("box-score")); // the card — no dismissal
-    expect(onDismiss).not.toHaveBeenCalled();
+    expect(getByRole("dialog", { name: "The Box Score" })).toBeTruthy();
+    expect(getByText("A record on Bench.")).toBeTruthy();
+    expect(getByText("Up 50% on your last Push.")).toBeTruthy();
+    // The record is an estimate and says so; the skipped lift is listed as skipped.
+    expect(getByText(/Up 23 lb from 208 lb\. An estimate from your best set, not a tested max\./)).toBeTruthy();
+    expect(getByText("Skipped: equipment")).toBeTruthy();
+    expect(getByText(/1 of 2 exercises done\./)).toBeTruthy();
     fireEvent.click(getByTestId("finisher-log"));
     expect(onLog).toHaveBeenCalledTimes(1);
-    expect(onDismiss).not.toHaveBeenCalled(); // stopPropagation held
-    fireEvent.click(getByTestId("box-score-backdrop"));
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onDismiss).not.toHaveBeenCalled();
+    for (const close of getAllByRole("button", { name: "Close" })) fireEvent.click(close);
+    expect(onDismiss).toHaveBeenCalledTimes(2);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onDismiss).toHaveBeenCalledTimes(3);
   });
 
   it("wiring guards: chips at first-empty on both surfaces, glance in the rest bar, skips count as handled, finisher routes by session", () => {

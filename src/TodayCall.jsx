@@ -115,7 +115,7 @@ export function useDayOps({
 // The call: a five-bar effort meter, one word, the recovery score, one
 // sentence. Until the check-in is answered it sits in pencil; answering inks
 // it in. Below the rule, what today holds and its one primary action.
-export function CallCard({ ops, decision, recommendation, sessionTitle, exerciseCount = 0, primary = null, isRest = false, onOpenRecovery }) {
+export function CallCard({ ops, decision, recommendation, sessionTitle, exerciseCount = 0, primary = null, isRest = false, finished = null, onOpenRecovery }) {
   const call = describeTodayCall(decision?.call);
   const score = finite(recommendation?.readinessIndex);
   const inked = ops.checkin.complete;
@@ -143,7 +143,12 @@ export function CallCard({ ops, decision, recommendation, sessionTitle, exercise
       {isRest ? (
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
           <Icon name="done" className="good" />
-          <div className="kv grow"><h3 className="t-h">Rest day</h3><p className="t-s c2">Planned in your program. There is no training to log today.</p></div>
+          <div className="kv grow"><h3 className="t-h">Rest day, protected</h3><p className="t-s c2">Planned in your program. Training counts as done today.</p></div>
+        </div>
+      ) : finished ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="kv grow"><h3 className="t-bs clip">{sessionTitle}</h3><span className="t-s c2">{finished.line}</span></span>
+          <button type="button" className="btn btn-s btn-sm" onClick={finished.onOpen}>Box Score</button>
         </div>
       ) : (
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -191,12 +196,17 @@ const OPEN_NAMES = { checkin: "check-in", training: "training", protein: "protei
 const ITEM_NAMES = { checkin: "Check-in", training: "Training", protein: "Protein", calories: "Calories", steps: "Steps" };
 
 // Day progress: one number, then the four things behind it.
-export function DayProgress({ ops }) {
+// primary: the day's session is finished (or it is a rest day), so closing
+// out the day is the next thing to do and takes the filled button.
+export function DayProgress({ ops, primary = false }) {
   const { closeout, storedCloseout, score, progress } = ops;
   const open = closeout.openItems.map((item) => OPEN_NAMES[item.key] || item.key);
+  const listed = (names) => names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
+  const sentence = (text) => text.replace(/^./, (first) => first.toUpperCase());
+  const closed = closeout.items.filter((item) => item.done).map((item) => OPEN_NAMES[item.key] || item.key);
   const line = storedCloseout ? "Day closed."
     : open.length === 0 ? "Everything for today is done."
-    : `Still open: ${open.length > 1 ? `${open.slice(0, -1).join(", ")} and ${open[open.length - 1]}` : open[0]}.`;
+    : `${closed.length ? `${sentence(listed(closed))} done. ` : ""}${sentence(listed(open))} still open.`;
   return (
     <section aria-labelledby="day-progress" data-section="day-progress" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div className="sec"><h2 id="day-progress" className="t-ss">Day progress</h2><span className="n-s">{score}%</span></div>
@@ -211,7 +221,7 @@ export function DayProgress({ ops }) {
         ))}
       </div>
       <p className="t-s c2">{line}</p>
-      <button type="button" className="btn btn-s btn-b" aria-haspopup="dialog" onClick={() => ops.setSheet("closeout")}>{storedCloseout ? "Review the closed day" : "Close out the day"}</button>
+      <button type="button" className={`btn ${primary && !storedCloseout ? "btn-p" : "btn-s"} btn-b`} aria-haspopup="dialog" onClick={() => ops.setSheet("closeout")}>{storedCloseout ? "Review the closed day" : "Close out the day"}</button>
     </section>
   );
 }

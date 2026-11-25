@@ -359,37 +359,24 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   // PR flash — detect if any set today is a new personal best
   const [prFlash, setPrFlash] = useState(null);
   const [sessionDone, setSessionDone] = useState(false);
-  const prevDoneRef = useRef(0);
 
   const checkPR = (exName, newWeight) => {
     if (!allData || !newWeight) return;
     const w = parseFloat(newWeight);
     if (!w) return;
-    let prevBest = 0;
-    for (const [dk, d] of Object.entries(allData)) {
-      if (dk === todayKey) continue;
-      const sets = d.workout?.exercises?.[exName]?.sets || [];
-      for (const s of sets) {
-        const sw = parseFloat(s.weight) || 0;
-        if (sw > prevBest) prevBest = sw;
-      }
-    }
+    const prevBest = priorBestWeight(allData, exName, todayKey);
     if (w > prevBest && prevBest > 0) {
       setPrFlash({ name: exName, weight: w });
       setTimeout(() => setPrFlash(null), 3500);
     }
   };
 
-  // Session completion detector — fires when all exercises go from incomplete to complete
+  // The Box Score opens when the runner's Finish session is tapped, and from
+  // the call card once every exercise is done or skipped. It never opens by
+  // itself over whatever is on screen.
   const totalExercises = plannedLifting.length;
-  useEffect(() => {
-    if (totalExercises === 0) return;
-    if (doneExercises === totalExercises && prevDoneRef.current < totalExercises) {
-      // Small delay so the last checkmark animation settles first
-      setTimeout(() => setSessionDone(true), 400);
-    }
-    prevDoneRef.current = doneExercises;
-  }, [doneExercises, totalExercises]);
+  const skippedExercises = plannedLifting.filter((exercise) => wo.exercises[exercise.name]?.skipped).length;
+  const liftingDone = totalExercises > 0 && doneExercises === totalExercises;
 
   // Compute total volume for the completion overlay
   // ── Command-center summaries — pure reshaping of already-computed values ──
@@ -494,12 +481,19 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   // The one primary action on the call card, from the same ladder as before:
   // start, continue, cardio, then closing out the day.
   const primary = isLoggingPast ? null
-    : ops.storedCloseout ? { label: "Review the closed day", onGo: () => ops.setSheet("closeout"), quiet: true }
     : !nextAction ? null
     : nextAction.status === "start" ? { label: "Start session", onGo: runNextAction }
-    : nextAction.status === "continue" ? { label: `Continue session · ${doneExercises} of ${totalExercises} done`, onGo: runNextAction }
+    : nextAction.status === "continue" ? { label: "Resume session", onGo: runNextAction }
     : nextAction.status === "cardio" ? { label: isRunCardio(activeCardioSession?.cardio) ? "Start run" : "Start cardio", onGo: runNextAction }
-    : { label: "Close out the day", onGo: () => ops.setSheet("closeout") };
+    : null;
+  // Once the lifting is done the card names it and offers the Box Score, and
+  // closing out the day becomes the next thing to do.
+  const boxScore = liftingDone && !isLoggingPast ? buildBoxScore({ data: allData, todayKey, todayName: sessionTitle }) : null;
+  const finished = boxScore ? {
+    line: `Done · ${doneExercises - skippedExercises} of ${totalExercises}\u00a0exercises${skippedExercises ? `, ${skippedExercises} skipped` : ""}`,
+    onOpen: () => setSessionDone(true),
+  } : null;
+  const closeIsNext = !isLoggingPast && !primary && Boolean(nextAction) && (nextAction.status === "done" || nextAction.status === "rest");
 
   // One planned cardio block: what is planned, the runner, and the three fields.
   const cardioBlock = ({ cardio, logged, path, onStart, startLabel }) => (
@@ -521,7 +515,9 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           slot (or the plain slot on single-session days). */}
       {sessionDone && !isLoggingPast && (
         <SessionComplete
-          boxScore={buildBoxScore({ data: allData, todayKey, todayName })}
+          boxScore={boxScore || buildBoxScore({ data: allData, todayKey, todayName: sessionTitle })}
+          dateKey={todayKey}
+          sessionName={sessionTitle}
           finisher={hasPlannedCardio && !cardioLogged && activeCardioSession?.cardio ? {
             label: `${activeCardioSession.cardio.type} · ${activeCardioSession.cardio.miles} mi`,
             onLog: () => {
@@ -561,11 +557,17 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       )}
 
       {/* A record: the tag is stamped, then one pass of light crosses it. */}
-      {prFlash && (
+      {prFlash ? (
         <div className="banner" role="status" style={{ alignItems: "center", borderColor: "var(--earned)", ...(isBroadsheet ? { gridColumn: "1 / -1" } : null) }}>
           <span className="tag tag-e mo-stamp mo-foil" style={{ "--d": "200ms" }}>PR</span>
           <span className="grow"><span className="t-ss">{prFlash.name}</span><br /><span className="t-s c2">{prFlash.weight}{"\u00a0"}lb is your heaviest set on record.</span></span>
         </div>
+      ) : boxScore?.prs?.length > 0 && (
+        <button type="button" className="banner" onClick={() => setSessionDone(true)} aria-label={`Personal record: ${boxScore.prs.map((pr) => pr.name).join(", ")}. New best estimated one-rep max today. Open the Box Score.`} style={{ alignItems: "center", textAlign: "left", width: "100%", borderColor: "var(--earned)", ...(isBroadsheet ? { gridColumn: "1 / -1" } : null) }}>
+          <span className="tag tag-e">PR</span>
+          <span className="grow"><span className="t-ss">{boxScore.prs.map((pr) => pr.name).join(", ")}</span><br /><span className="t-s c2">New best estimated one-rep max today.</span></span>
+          <Icon name="next" size="s" className="c2" />
+        </button>
       )}
 
       <section data-section="decision-rail" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
@@ -581,7 +583,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
 
       {!isLoggingPast && (
         <>
-          <CallCard ops={ops} decision={todayDecision} recommendation={dailyRecommendation} sessionTitle={sessionTitle} exerciseCount={totalExercises} primary={primary} isRest={todayPlan.isRest} onOpenRecovery={() => setTab?.("Recovery")} />
+          <CallCard ops={ops} decision={todayDecision} recommendation={dailyRecommendation} sessionTitle={sessionTitle} exerciseCount={totalExercises} primary={primary} isRest={todayPlan.isRest} finished={finished} onOpenRecovery={() => setTab?.("Recovery")} />
           <FuelSnapshot ops={ops} onOpenFuel={() => setTab?.("Fuel")} />
         </>
       )}
@@ -606,7 +608,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
                   <Icon name="train" />
                   <span className="kv grow"><span className="t-bs clip">{session.label} · {session.title}</span><span className="t-s c2">Lifting · {sessionDoneCount} of {lifts.length}{"\u00a0"}exercises done</span></span>
                   {!isLoggingPast && liftingSessionCount > 1 && sessionDoneCount < lifts.length && (
-                    <button type="button" className="btn btn-s btn-sm" onClick={() => { setActiveLiftingSessionId(session.id); setSessionModeOpen(true); }}>{sessionStarted ? "Continue" : "Start"}</button>
+                    <button type="button" className="btn btn-s btn-sm" onClick={() => { setActiveLiftingSessionId(session.id); setSessionModeOpen(true); }}>{sessionStarted ? "Resume" : "Start"}</button>
                   )}
                   <button type="button" className="btn btn-s btn-sm" aria-expanded={open} onClick={() => setQuickEditOpen((current) => ({ ...current, [session.id]: !open }))}>{open ? "Hide" : "Quick edit"}</button>
                 </div>
@@ -628,7 +630,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           <div>
             <div className="row">
               <Icon name="train" />
-              <span className="kv grow"><span className="t-bs clip">{p.type || "Lifting"}</span><span className="t-s c2">Lifting · {doneExercises} of {plannedLifting.length}{"\u00a0"}exercises done</span></span>
+              <span className="kv grow"><span className="t-bs clip">{p.type || "Lifting"}</span><span className="t-s c2">Lifting · {doneExercises - skippedExercises} of {plannedLifting.length}{"\u00a0"}exercises done{skippedExercises ? `, ${skippedExercises} skipped` : ""}</span></span>
               <button type="button" className="btn btn-s btn-sm" aria-expanded={Boolean(quickEditOpen.main)} onClick={() => setQuickEditOpen((current) => ({ ...current, main: !current.main }))}>{quickEditOpen.main ? "Hide" : "Quick edit"}</button>
             </div>
             {quickEditOpen.main && <QuickEdit lifting={plannedLifting} workout={wo} allData={allData} todayKey={todayKey} updateToday={updateToday} onPR={checkPR} />}
@@ -693,7 +695,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       <section data-section="telemetry" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
         {!isLoggingPast && (
           <div style={isBroadsheet ? undefined : { borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-            <DayProgress ops={ops} />
+            <DayProgress ops={ops} primary={closeIsNext} />
           </div>
         )}
 
@@ -812,7 +814,8 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
             todayName={todayName}
             settings={settings}
             sessionId={activeLiftingSession.id || "main"}
-            sessionLabel={`${activeLiftingSession.label || ""}${activeLiftingSession.title ? ` · ${activeLiftingSession.title}` : ""}`.trim() || "Lifting session"}
+            onFinish={() => setSessionDone(true)}
+            sessionLabel={[activeLiftingSession.label && activeLiftingSession.label !== "Session" ? activeLiftingSession.label : null, activeLiftingSession.title || null].filter(Boolean).join(" · ") || sessionTitle || "Lifting session"}
             saving={saving}
             savePending={savePending}
             appOnline={isOnline}
@@ -907,7 +910,7 @@ function DailyLog({ bod, wo, supplements, userSupps, updateToday, defaultOpen = 
 // Epley1RM moved to sessionIntelligence.js (canonical home for lift
 // math); imported for local use in ExerciseLogger and re-exported so
 // existing importers (ProgressTab) keep working.
-import { epley1RM, effectiveE1RM } from "./sessionIntelligence";
+import { epley1RM, effectiveE1RM, priorBestWeight } from "./sessionIntelligence";
 export { epley1RM };
 
 // Planned minutes (race-plan runs carry them), effort, and the pace target

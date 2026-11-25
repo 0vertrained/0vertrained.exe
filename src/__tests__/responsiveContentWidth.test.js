@@ -57,10 +57,12 @@ describe("responsive content-width contract", () => {
       "src/MoreTab.jsx",
       "src/Coach.jsx",
       "src/Tutorial.jsx",
-      "src/SessionComplete.jsx",
     ]) {
       expect(read(file)).toContain(CONTRACT);
     }
+    // The Box Score is a full-screen flow whose column is the shell's.
+    expect(read("src/SessionComplete.jsx")).toContain('<div className="shell">');
+    expect(read("src/ledger.css")).toMatch(/\.shell \{[^}]*max-width: var\(--ovt-content-width\)/);
   });
 
   test("does not narrow intentionally full-viewport active-session dialogs", () => {
