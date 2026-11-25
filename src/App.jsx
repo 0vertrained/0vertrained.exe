@@ -25,7 +25,7 @@ import { buildProgramPlan, buildProgramBuilderSettingsPatch } from "./programBui
 import { loadOuraData, calcRecoveryScore as calcOuraRecovery, clearAlertHistory } from "./oura";
 import { loadWhoopData } from "./whoop";
 import { readWearableSnapshot } from "./wearableSnapshotCache";
-import { editionWindow } from "./sundayEdition";
+import { editionWindow } from "./editionWindow";
 import { perfStart, perfMark } from "./perf";
 import { isCoachEnabled } from "./coachEnabled";
 import { DEMO_USER, DEMO_SETTINGS, buildDemoEntries, buildDemoOuraData, getDemoWhoopData, isDemoMode } from "./demoData";
