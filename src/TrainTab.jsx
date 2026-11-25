@@ -16,7 +16,7 @@ import { Icon, LinkRow } from "./ui/ledger";
 import { useTopBar } from "./ui/shell";
 import { ProgramTab } from "./MoreTab";
 
-const NBSP = " ";
+const NBSP = "\u00a0";
 
 function keyOf(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -51,6 +51,7 @@ export function buildTrainWeek({ program, entries, todayKey }) {
     if (done) parts.push("done");
     return {
       dayName, dateKey, when, isRest, done,
+      started: doneLifts > 0 || cardioLogged,
       label: `${dayName.slice(0, 3)}${NBSP}${date.getDate()}`,
       title: isRest ? "Rest day" : (summary.label || dayName),
       detail: isRest ? "No training planned" : parts.join(" · "),
@@ -97,7 +98,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
             ? <p className="t-s c2">No training planned. A planned rest day counts as a day kept.</p>
             : today.done
               ? <p className="t-s c2" style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="done" size="s" className="good" />Done for today.</p>
-              : <button type="button" className="btn btn-p btn-b" onClick={onStartToday}>Open today’s session</button>}
+              : <button type="button" className="btn btn-p btn-b" onClick={onStartToday}>{today.started ? "Continue session" : "Start session"}</button>}
         </section>
 
         <section aria-labelledby="train-week" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
