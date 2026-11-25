@@ -76,6 +76,28 @@ const COPY = {
   },
 };
 
+// The call as a screen shows it: one word, an effort level out of five and one
+// sentence. The stamp is returned in sentence case (the stylesheet sets it in
+// capitals) so a screen reader says a word, not letters.
+export function describeCall(call) {
+  const key = CALL_ORDER.includes(call) ? call : "train";
+  const copy = COPY[key];
+  return {
+    call: key,
+    level: CALL_ORDER.length - CALL_ORDER.indexOf(key),
+    stamp: copy.stamp.charAt(0) + copy.stamp.slice(1).toLowerCase(),
+    headline: copy.headline.replace("'", "’"),
+  };
+}
+
+// Today's decision engine speaks in four calls; the screen speaks in the
+// resolver's five. "modify" (cut volume, cap intensity) is the resolver's
+// "easy"; nothing in Today's engine maps to "capped".
+const TODAY_CALL = { push: "push", maintain: "train", modify: "easy", recover: "recover" };
+export function describeTodayCall(decisionCall) {
+  return describeCall(TODAY_CALL[decisionCall] || "train");
+}
+
 const RESOLVED_PRESCRIPTION = {
   capped: "Complete the planned session as written — do not add volume or chase a PR today.",
   easy: "Reduce top-end intensity or volume by roughly 10–20%. Favor technical work and zone 2.",
