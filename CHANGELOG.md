@@ -3,6 +3,10 @@
 One entry per release, newest first, from the first beta builds to the current version. The detailed notes each
 release shipped with are in the repository's history, before the notes were folded into this file.
 
+## 19.8.0 — Fewer moving parts
+
+Social boards, the coaching approval loop, four hidden presets and four unused Today components are gone. Progress → Coach is a read-only weekly review plus the clinician guardrails, an old plan version no longer changes sessions, and the check-in lives at the top of Today. Run `supabase/migration_v34_drop_social.sql` with this deploy.
+
 ## 19.7.0 — Form Check retired
 
 Form Check is gone from the quick-log sheet, Profile and Progress, along with its analyzers, its Netlify proxy and the site's camera permission. Progress keeps four tabs: Overview, Coach, Program and History.
