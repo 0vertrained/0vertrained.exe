@@ -11,8 +11,8 @@
 //   - Free API key from env — raises threshold, enables monitoring
 
 import { scoreFoods } from "./constants";
-import { useState, useRef } from "react";
-import { useTheme } from "./theme";
+import { useState, useRef, useId } from "react";
+import { Icon } from "./ui/ledger";
 
 const USDA_KEY = import.meta.env.VITE_USDA_API_KEY;
 const USDA_BASE = "https://api.nal.usda.gov/fdc/v1";
@@ -138,20 +138,13 @@ export async function fetchUsda(query, attempt = 0) {
   return results;
 }
 
-export function FoodSearch({ onAdd, showToast }) {
-  const { C, S } = useTheme();
+export function FoodSearch({ onAdd }) {
+  const id = useId();
   const [query, setQuery]           = useState("");
-  const [open, setOpen]             = useState(false);
   const [localResults, setLocal]    = useState([]);
   const [usdaResults, setUsda]      = useState([]);
   const [usdaStatus, setUsdaStatus] = useState("idle"); // idle | loading | done | error | unavailable
   const debounceRef = useRef(null);
-
-  // Reset on close
-  const handleToggle = () => {
-    setOpen(o => !o);
-    setQuery(""); setLocal([]); setUsda([]); setUsdaStatus("idle");
-  };
 
   const handleChange = (val) => {
     setQuery(val);
@@ -188,117 +181,56 @@ export function FoodSearch({ onAdd, showToast }) {
   const handleAdd = (food) => {
     onAdd(food);
     setQuery(""); setLocal([]); setUsda([]); setUsdaStatus("idle");
-    if (showToast) showToast(`+ ${food.name}`);
   };
 
   const allResults = [...localResults, ...usdaResults];
+  const searching = query.trim().length > 1;
+  // Plain words for where the results came from. A database error is never
+  // shown raw: each cause maps to a sentence that says what still works.
+  const status = !searching ? ""
+    : usdaStatus === "loading" ? "Searching the USDA database…"
+    : usdaStatus.startsWith("error") ? (
+      usdaStatus.includes("timed out") ? "The USDA database timed out. Built-in foods are shown."
+      : usdaStatus.includes("API key") ? "The USDA database is not available. Built-in foods are shown."
+      : "The USDA database can’t be reached. Built-in foods are shown."
+    )
+    : usdaStatus === "unavailable" ? "Showing built-in foods."
+    : usdaStatus === "done" && allResults.length === 0 ? "No foods match that search."
+    : "";
 
   return (
-    <div>
-      <button style={S.foodBtn} onClick={handleToggle}>
-        {open ? "[ − ] Close Food Search" : "[ + ] Search / Add Food"}
-      </button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <label className="field">
+        <span className="lbl">Search foods</span>
+        <input className="input" type="search" autoComplete="off" enterKeyHint="search" value={query} onChange={(event) => handleChange(event.target.value)} aria-describedby={`${id}-status`} />
+      </label>
+      <p id={`${id}-status`} className="t-s c2" role="status">{status}</p>
 
-      {open && (
-        <div style={{ marginTop: 8 }}>
-          <input
-            style={{ ...S.cell, padding: "10px 10px", textAlign: "left", fontSize: 16, fontWeight: 400 }}
-            placeholder="search millions of foods..."
-            value={query}
-            onChange={e => handleChange(e.target.value)}
-            autoFocus
-          />
-
-          {/* Status line */}
-          {query.length > 1 && (
-            <div style={{ fontSize: 10, color: C.textDim, letterSpacing: "0.08em", padding: "5px 2px", display: "flex", justifyContent: "space-between" }}>
-              <span>
-                {localResults.length > 0 && `${localResults.length} local`}
-                {localResults.length > 0 && usdaResults.length > 0 && " · "}
-                {usdaResults.length > 0 && `${usdaResults.length} from USDA`}
-                {usdaStatus === "loading" && "searching USDA..."}
-                {usdaStatus.startsWith("error") && (() => {
-                  // Only pre-mapped, jargon-free copy renders here — never the raw
-                  // Error message (which may reference internal detail).
-                  const msg = usdaStatus.slice(6);
-                  if (msg.includes("unavailable") || msg.includes("offline")) return "// USDA offline — local results only";
-                  if (msg.includes("timed out")) return "// USDA timed out — try again";
-                  if (msg.includes("API key")) return "// USDA key issue — check VITE_USDA_API_KEY";
-                  // Generic transient/upstream failure (429/5xx after backoff, other statuses).
-                  return "// food database unavailable — local results only";
-                })()}
-                {usdaStatus === "unavailable" && "// add USDA key for extended search"}
-                {usdaStatus === "done" && allResults.length === 0 && "// no matches found"}
-              </span>
-              {usdaResults.length > 0 && (
-                <span style={{ color: C.textFaint }}>USDA FoodData</span>
-              )}
-            </div>
-          )}
-
-          {/* Results list */}
-          {allResults.length > 0 && (
-            <div style={{ maxHeight: 280, overflowY: "auto", border: `1px solid ${C.lineBright}` }}>
-              {/* Local results section */}
-              {localResults.length > 0 && (
-                <>
-                  {localResults.length > 0 && usdaResults.length > 0 && (
-                    <div style={{ padding: "4px 10px", fontSize: 9.5, color: C.textFaint, letterSpacing: "0.12em", textTransform: "uppercase", background: C.block, borderBottom: `1px solid ${C.line}` }}>
-                      Local database
-                    </div>
-                  )}
-                  {localResults.map((f, i) => (
-                    <FoodRow key={`local-${i}`} food={f} onAdd={handleAdd} isLast={i === localResults.length - 1 && usdaResults.length === 0} />
-                  ))}
-                </>
-              )}
-
-              {/* USDA results section */}
-              {usdaResults.length > 0 && (
-                <>
-                  <div style={{ padding: "4px 10px", fontSize: 9.5, color: C.textFaint, letterSpacing: "0.12em", textTransform: "uppercase", background: C.block, borderBottom: `1px solid ${C.line}` }}>
-                    USDA FoodData Central
-                  </div>
-                  {usdaResults.map((f, i) => (
-                    <FoodRow key={`usda-${i}`} food={f} onAdd={handleAdd} isLast={i === usdaResults.length - 1} />
-                  ))}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Loading spinner row */}
-          {usdaStatus === "loading" && localResults.length === 0 && (
-            <div style={{ padding: "12px 10px", fontSize: 11.5, color: C.textDim, borderTop: `1px solid ${C.line}` }}>
-              // searching...
-            </div>
-          )}
-        </div>
+      {localResults.length > 0 && (
+        <section aria-labelledby={`${id}-local`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <h3 id={`${id}-local`} className="t-c c2">Built in</h3>
+          <ul className="rows">{localResults.map((food, index) => <FoodRow key={`local-${index}`} food={food} onAdd={handleAdd} />)}</ul>
+        </section>
+      )}
+      {usdaResults.length > 0 && (
+        <section aria-labelledby={`${id}-usda`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <h3 id={`${id}-usda`} className="t-c c2">USDA FoodData Central</h3>
+          <ul className="rows">{usdaResults.map((food, index) => <FoodRow key={`usda-${index}`} food={food} onAdd={handleAdd} />)}</ul>
+        </section>
       )}
     </div>
   );
 }
 
-function FoodRow({ food, onAdd, isLast }) {
-  const { C } = useTheme();
+function FoodRow({ food, onAdd }) {
+  const NBSP = " ";
   return (
-    <div
-      onClick={() => onAdd(food)}
-      style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "9px 10px",
-        borderBottom: isLast ? "none" : `1px solid ${C.line}`,
-        cursor: "pointer",
-        background: "transparent",
-      }}
-      onMouseEnter={e => e.currentTarget.style.background = C.line}
-      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-    >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{food.name}</div>
-        <div style={{ fontSize: 10, color: C.textDim, marginTop: 2 }}>{food.protein}g P · {food.carbs}g C · {food.fats}g F</div>
-      </div>
-      <span style={{ fontSize: 13.5, color: C.text, fontWeight: 600, marginLeft: 12, flexShrink: 0 }}>{food.calories}</span>
-    </div>
+    <li className="row" style={{ minHeight: 56 }}>
+      <span className="kv grow">
+        <span className="t-bs clip">{food.name}</span>
+        <span className="t-s c2">{[food.serving || null, `${Math.round(food.calories)}${NBSP}kcal`, `${Math.round(food.protein)}${NBSP}g protein`, `${Math.round(food.carbs)}${NBSP}g carbs`, `${Math.round(food.fats)}${NBSP}g fat`].filter(Boolean).join(" · ")}</span>
+      </span>
+      <button type="button" className="btn btn-s btn-sm" aria-label={`Add ${food.name}`} onClick={() => onAdd(food)}><Icon name="plus" size="s" />Add</button>
+    </li>
   );
 }
