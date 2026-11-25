@@ -14,6 +14,9 @@ const signed = (value) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs
 const STRENGTH = { stable: "Stable", watch: "Watch", action: "Needs action" };
 const AUTHORITY = { calibrated: "Calibrated", suggest: "Suggesting", observe: "Observing" };
 
+// The coach review counts a day as on target with some room either side.
+export const ON_TARGET_NOTE = "On target means protein at 90% of your goal or more, and calories within 10% of it.";
+
 export function weekInNumbers(review, week) {
   const { trend, adherence, metrics } = review;
   return [
@@ -21,8 +24,8 @@ export function weekInNumbers(review, week) {
     ["Weight", trend.weightDelta == null ? "Not enough weigh-ins yet" : `${signed(trend.weightDelta)}${NBSP}lb on last week · ${review.currentWindow.weightCount} weigh-ins`],
     ["Waist", trend.waistCurrent ? `${trend.waistCurrent}${NBSP}in${trend.waistDelta == null ? "" : ` · ${signed(trend.waistDelta)}${NBSP}in`}` : "No measurement yet"],
     ["Training", `${adherence.training}% · ${metrics.workoutDays} session${metrics.workoutDays === 1 ? "" : "s"}`],
-    ["Protein goal met", `${adherence.protein}% of days · ${metrics.avgProtein}${NBSP}g avg`],
-    ["Calorie goal met", `${adherence.calories}% of days · ${metrics.avgCalories}${NBSP}kcal avg`],
+    ["Protein on target", `${adherence.protein}% of days · ${metrics.avgProtein}${NBSP}g avg`],
+    ["Calories on target", `${adherence.calories}% of days · ${metrics.avgCalories}${NBSP}kcal avg`],
     ["Running", `${Math.round(metrics.totalMiles * 10) / 10}${NBSP}mi`],
     ["Strength", `${STRENGTH[review.strength?.status] || "Building a baseline"} · ${review.strength?.comparisons?.length || 0} lifts compared`],
     ["Recovery", sentence(review.recoveryTrend?.status || "stable")],
@@ -80,6 +83,7 @@ export function WeeklyCoachingReview({ review, week, limiter = null, updateEntry
             ))}
           </tbody>
         </table>
+        <p className="t-s c2" style={{ marginTop: 8 }}>{ON_TARGET_NOTE}</p>
       </section>
 
       {reasons.length > 0 && (

@@ -13,7 +13,7 @@ import { DEFAULT_PROGRAM, getTodayKey, getDayName } from "./constants";
 import { calcRecoveryScore, calcWeeklyReview } from "./recovery";
 import { buildWeeklyCoachReview } from "./weeklyCoachReview";
 import { buildCoachingCalibrationProfile } from "./coachingCalibration";
-import { WeeklyCoachingReview, weekInNumbers } from "./WeeklyCoachingReview";
+import { WeeklyCoachingReview, weekInNumbers, ON_TARGET_NOTE } from "./WeeklyCoachingReview";
 import { ClinicianGuardrailsCard } from "./ClinicianGuardrailsCard";
 import { isOuraConnected, loadOuraData } from "./oura";
 import { isWhoopConnected, loadWhoopData } from "./whoop";
@@ -765,6 +765,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
                   ))}
                 </tbody>
               </table>
+              <p className="t-s c2" style={{ marginTop: 8 }}>{ON_TARGET_NOTE}</p>
             </section>
           </div>
           <div data-section="ov-trends" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 32 }}>

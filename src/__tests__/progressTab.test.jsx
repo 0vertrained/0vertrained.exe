@@ -91,7 +91,9 @@ describe("Progress screens", () => {
     expect(within(ui.getByTestId("bar")).getByRole("heading").textContent).toBe("Weekly review");
     expect(ui.getByText("One recommendation")).toBeTruthy();
     expect(ui.getByRole("table", { name: "The week in numbers" })).toBeTruthy();
-    expect(ui.getByRole("rowheader", { name: "Protein goal met" })).toBeTruthy();
+    // Adherence has room either side, so it is called on target and says what that means.
+    expect(ui.getByRole("rowheader", { name: "Protein on target" })).toBeTruthy();
+    expect(ui.getByText("On target means protein at 90% of your goal or more, and calories within 10% of it.")).toBeTruthy();
     expect(ui.getByText(/^Likely limiter: protein and fueling\.$/)).toBeTruthy();
     expect(ui.getByText("This review never changes a target. You change them yourself in Settings.")).toBeTruthy();
     fireEvent.click(ui.getByRole("button", { name: "Back to Progress" }));
