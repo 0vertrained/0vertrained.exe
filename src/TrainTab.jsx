@@ -3,7 +3,7 @@
 // week, and the rows that lead to the program, the block, the race plan and
 // history. The program screens themselves still come from MoreTab's
 // ProgramTab; they are shown here one level down.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DAYS, getTodayKey } from "./constants";
 import { getProgramSessions, flattenProgramLifting } from "./programSessions";
 import { summarizeProgramDay } from "./programSummary";
@@ -63,6 +63,12 @@ export function buildTrainWeek({ program, entries, todayKey }) {
 export function TrainTab({ program, liveProgram, entries, settings, onSaveProgram, onApplyGeneratedProgram, onStartToday, onOpenDay, onOpenProgress }) {
   // "home", or the program screens opened at one of their actions.
   const [view, setView] = useState("home");
+  // A screen opened from Train starts at its top, not wherever Train was scrolled.
+  const firstView = useRef(true);
+  useEffect(() => {
+    if (firstView.current) { firstView.current = false; return; }
+    window.scrollTo?.(0, 0);
+  }, [view]);
   const todayKey = getTodayKey();
   const shown = liveProgram || program;
   const week = buildTrainWeek({ program: shown, entries, todayKey });

@@ -76,6 +76,13 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
   const [swapOffset, setSwapOffset] = useState(0);
   const [handOpen, setHandOpen]     = useState(false);
 
+  // A screen opened from Fuel starts at its top, not wherever Fuel was scrolled.
+  const firstView = useRef(true);
+  useEffect(() => {
+    if (firstView.current) { firstView.current = false; return; }
+    window.scrollTo?.(0, 0);
+  }, [fuelView]);
+
   const subView = fuelView !== "today" && !(isBroadsheet && fuelView === "log");
   useTopBar(subView ? {
     title: fuelView === "log" ? "Log food" : fuelView === "plan" ? "Meal plan" : "Targets",
