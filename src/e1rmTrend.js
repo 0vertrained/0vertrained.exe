@@ -39,24 +39,24 @@ export function buildE1RMSeries(data, exerciseName, { windowDays = 180 } = {}) {
 
 export function detectStall(series) {
   if (!series || series.length < MIN_SESSIONS) {
-    return { status: "building", note: `${series?.length || 0}/${MIN_SESSIONS} sessions — building trend history.` };
+    return { status: "building", note: `${series?.length || 0} of ${MIN_SESSIONS} sessions logged. The trend needs a few more.` };
   }
   const recent = series.slice(-RECENT_WINDOW);
   const prior = series.slice(-(RECENT_WINDOW * 2), -RECENT_WINDOW);
-  if (prior.length === 0) return { status: "building", note: "Building trend history." };
+  if (prior.length === 0) return { status: "building", note: "The trend needs a few more sessions." };
 
   const recentBest = Math.max(...recent.map(p => p.e1rm));
   const priorBest = Math.max(...prior.map(p => p.e1rm));
 
   if (recentBest >= priorBest * PROGRESS_PCT) {
-    return { status: "progressing", note: `e1RM up ${Math.round((recentBest / priorBest - 1) * 1000) / 10}% over the last ${RECENT_WINDOW} sessions.` };
+    return { status: "progressing", note: `Your best of the last ${RECENT_WINDOW} sessions is up ${Math.round((recentBest / priorBest - 1) * 1000) / 10}% on the ${RECENT_WINDOW} before.` };
   }
   if (recentBest <= priorBest * REGRESS_PCT) {
-    return { status: "regressing", note: `e1RM down ${Math.round((1 - recentBest / priorBest) * 1000) / 10}% — check recovery, sleep, and cut depth before blaming the program.` };
+    return { status: "regressing", note: `Your best of the last ${RECENT_WINDOW} sessions is down ${Math.round((1 - recentBest / priorBest) * 1000) / 10}% on the ${RECENT_WINDOW} before. Check recovery, sleep and how deep your calorie cut is before you change the program.` };
   }
   return {
     status: "stalled",
-    note: `e1RM flat across ${RECENT_WINDOW} sessions — deload ~10% and rebuild, or rotate to a close variation for a block.`,
+    note: `Your best of the last ${RECENT_WINDOW} sessions is level with the ${RECENT_WINDOW} before. Take about 10% off and rebuild, or switch to a close variation for a block.`,
   };
 }
 

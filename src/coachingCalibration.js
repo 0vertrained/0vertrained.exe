@@ -85,8 +85,8 @@ function sourceCoverage(wearableTrends) {
     providerNeutral: true,
     hasWearable: unique.some((source) => source === "oura" || source === "whoop"),
     note: unique.length
-      ? `Current trend inputs resolve independently from ${unique.join(", ")}; no provider is required and sources are never averaged.`
-      : "No wearable trend is required. Manual logs remain a valid lower-confidence source.",
+      ? `Trends are read from ${unique.map((source) => ({ oura: "Oura", whoop: "Whoop", manual: "manual logs", app_log: "the app log" }[source] || source)).join(" and ")}, each on its own. No device is required and sources are never averaged.`
+      : "No wearable is needed. Manual logs still count, with lower confidence.",
   };
 }
 
@@ -113,8 +113,8 @@ export function buildCoachingCalibrationProfile({ data = {}, wearableTrends = nu
     minRecoverySignals: rejectionRate >= 0.4 ? 4 : 3,
     requireSecondWeek: true,
     note: rejectionRate >= 0.4
-      ? "Recent weekly recommendations were often rejected, so the engine now requires an extra week or signal before escalating."
-      : "The engine requires repeated evidence; one bad day or weigh-in cannot escalate the plan.",
+      ? "You turned down recent weekly recommendations often, so it now takes an extra week or an extra signal before one is raised again."
+      : "It takes repeated evidence. One bad day or one weigh-in cannot change the plan.",
   };
 
   const confidenceAdjustment = authority === "calibrated" && weeklySuccessRate != null && weeklySuccessRate >= 60
@@ -143,8 +143,8 @@ export function buildCoachingCalibrationProfile({ data = {}, wearableTrends = nu
     summary: authority === "calibrated"
       ? `Calibrated from ${daily.sampleCount || 0} daily and ${followed.length} weekly follow-through samples.`
       : authority === "suggest"
-        ? "Personalization is active, but recommendations remain suggest-only while more outcomes accumulate."
-        : "Observation mode: the app explains patterns but does not treat them as personalized thresholds yet.",
+        ? "Personalization is on. Recommendations stay suggestions while more outcomes build up."
+        : "Observation mode. The app explains patterns but does not yet treat them as thresholds personal to you.",
   };
 }
 

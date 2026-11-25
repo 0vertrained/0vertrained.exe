@@ -55,7 +55,7 @@ export function buildCalibrationReport(data, { windowDays = 60 } = {}) {
       ready: false,
       sampleCount: samples.length,
       needed: MIN_SAMPLES,
-      note: `Building history — ${samples.length}/${MIN_SAMPLES} decision responses with a next-day check-in. Respond to the daily call and log the next morning to unlock this.`,
+      note: `Building history: ${samples.length} of ${MIN_SAMPLES} calls answered with a check-in the next day. Answer the daily call and log the next morning to fill this in.`,
     };
   }
 

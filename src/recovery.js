@@ -281,15 +281,15 @@ export function calcWeeklyReview(data, goals) {
     waterDays    >= 5,
   ];
 
+  const roundedMiles = parseFloat(totalMiles.toFixed(1));
   const targetLabels = [
-    `${workoutsDone}/${workoutTarget} workouts`,
-    `${totalMiles}/${milesTarget} miles`,
-    `${proteinDays}/5d protein ≥ ${proteinTarget}g`,
-    `${avgSleep}/7h avg sleep`,
-    `${waterDays}/5d water goal`,
+    `Workouts: ${workoutsDone} of ${workoutTarget}`,
+    `Miles: ${roundedMiles} of ${milesTarget}`,
+    `Protein, ${proteinTarget} g or more: ${proteinDays} of 5 days`,
+    `Sleep: ${avgSleep} h a night, goal 7`,
+    `Water goal: ${waterDays} of 5 days`,
   ];
 
-  const roundedMiles = parseFloat(totalMiles.toFixed(1));
   const highlights = [];
   const watchouts = [];
   const nextActions = [];

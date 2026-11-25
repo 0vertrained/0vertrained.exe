@@ -176,7 +176,7 @@ export function buildProgressLimiters({
         title: "Not enough data",
         status: "pending",
         tone: "neutral",
-        body: "Log a few days this week and the likely limiter will surface here.",
+        body: "Log a few days this week and the likely limiter shows here.",
         metric: "0 days logged",
         action: null,
       },
@@ -196,9 +196,9 @@ export function buildProgressLimiters({
       severity: severe ? 3 : 2,
       body: severe
         ? "Session count is the likely limiter this week."
-        : "Session count is worth watching — a couple more sessions would lift the week.",
-      metric: `${workoutsDone}/${goalWorkouts} sessions`,
-      action: "Review the week in Block guidance.",
+        : "Session count is worth watching. A couple more sessions would lift the week.",
+      metric: `${workoutsDone} of ${goalWorkouts} sessions`,
+      action: "Open the block to see what this week asks for.",
     });
   }
 
@@ -207,14 +207,14 @@ export function buildProgressLimiters({
     const severe = avgSleep < 6;
     cards.push({
       id: "recovery",
-      title: "Recovery / sleep",
-      status: severe ? "short" : "below 7h",
+      title: "Sleep and recovery",
+      status: severe ? "short" : "under 7 h",
       tone: severe ? "warning" : "caution",
       severity: severe ? 3 : 2,
       body: severe
-        ? "Short sleep is a likely limiter — it caps recovery before training load can rise."
-        : "Sleep is trending under 7h — worth watching before adding load.",
-      metric: `${avgSleep}h avg sleep`,
+        ? "Short sleep is a likely limiter. It caps recovery before training load can rise."
+        : "Sleep is trending under 7 hours. Worth watching before you add load.",
+      metric: `${avgSleep} h a night on average`,
       action: "Protect sleep before progressing.",
     });
   }
@@ -224,15 +224,15 @@ export function buildProgressLimiters({
     const severe = avgProtein < goalProtein * 0.75;
     cards.push({
       id: "fuel",
-      title: "Protein / fueling",
+      title: "Protein and fueling",
       status: severe ? "well under goal" : "under goal",
       tone: severe ? "warning" : "caution",
       severity: severe ? 2 : 1,
       body: severe
-        ? "Protein is a likely limiter — the trend suggests under-fueling for the training done."
-        : "Protein is running under goal — worth watching around training days.",
-      metric: `${avgProtein}g avg · goal ${goalProtein}g`,
-      action: "Prioritize protein earlier in the day.",
+        ? "Protein is a likely limiter. The trend suggests too little fuel for the training done."
+        : "Protein is running under your goal. Worth watching around training days.",
+      metric: `${avgProtein} g a day on average against a ${goalProtein} g goal`,
+      action: "Get protein in earlier in the day.",
     });
   }
 
@@ -240,12 +240,12 @@ export function buildProgressLimiters({
   if (totalMiles < goalMiles && workoutsDone >= goalWorkouts) {
     cards.push({
       id: "miles",
-      title: "Run volume",
+      title: "Running volume",
       status: "below target",
       tone: "caution",
       severity: 1,
-      body: "Mileage is under target while sessions are on track — worth watching if running is a goal.",
-      metric: `${totalMiles}/${goalMiles} mi`,
+      body: "Mileage is under target while sessions are on track. Worth watching if running is a goal.",
+      metric: `${totalMiles} of ${goalMiles} mi`,
       action: "Build mileage gradually only if readiness holds.",
     });
   }
@@ -258,9 +258,9 @@ export function buildProgressLimiters({
       status: "inconsistent",
       tone: "caution",
       severity: 1,
-      body: "Hydration was hit on few days — worth watching alongside energy.",
-      metric: `${waterDays}/7 days at goal`,
-      action: "Front-load water earlier in the day.",
+      body: "You reached your water goal on few days. Worth watching alongside energy.",
+      metric: `${waterDays} of 7 days at goal`,
+      action: "Drink more of it earlier in the day.",
     });
   }
 
@@ -271,8 +271,8 @@ export function buildProgressLimiters({
         title: "No single limiter",
         status: "on track",
         tone: "good",
-        body: "No single factor stands out as limiting this week — hold the pattern and progress one variable.",
-        metric: `${workoutsDone}/${goalWorkouts} sessions · ${avgSleep}h sleep · ${avgProtein}g protein`,
+        body: "Nothing stands out as limiting this week. Hold the pattern and progress one thing.",
+        metric: `${workoutsDone} of ${goalWorkouts} sessions · ${avgSleep} h sleep · ${avgProtein} g protein`,
         action: null,
       },
     ];
@@ -333,27 +333,27 @@ export function buildProgressEvidence({ data = {}, goals = {}, settings = {} } =
 
   const cards = [
     {
-      label: "Workouts · 30d",
+      label: "Workouts",
       value: `${workouts30d}`,
-      subtext: "sessions logged",
+      subtext: "Sessions logged",
       tone: "neutral",
     },
     {
-      label: "Miles · 30d",
+      label: "Miles",
       value: `${miles30d}`,
-      subtext: `~${goalMiles}/wk target`,
+      subtext: `Target about ${goalMiles} a week`,
       tone: "neutral",
     },
     {
-      label: "Protein avg",
-      value: proteinAvg === null ? "—" : `${proteinAvg}g`,
-      subtext: `goal ${goalProtein}g`,
+      label: "Protein, daily average",
+      value: proteinAvg === null ? "—" : `${proteinAvg} g`,
+      subtext: `Goal ${goalProtein} g`,
       tone: proteinAvg === null ? "neutral" : proteinAvg >= goalProtein ? "good" : "caution",
     },
     {
-      label: "Sleep avg",
-      value: sleepAvg === null ? "—" : `${sleepAvg}h`,
-      subtext: "7h+ supports recovery",
+      label: "Sleep, nightly average",
+      value: sleepAvg === null ? "—" : `${sleepAvg} h`,
+      subtext: "7 hours or more supports recovery",
       tone: sleepAvg === null ? "neutral" : sleepAvg >= 7 ? "good" : "caution",
     },
   ];
@@ -362,7 +362,7 @@ export function buildProgressEvidence({ data = {}, goals = {}, settings = {} } =
     cards.push({
       label: "Weight trend",
       value: weightTrend,
-      subtext: "last 30d",
+      subtext: "Over the last 30 days",
       tone: "neutral",
     });
   }

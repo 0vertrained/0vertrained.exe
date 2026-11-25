@@ -39,14 +39,14 @@ export function buildAthleteTimeline(entries = {}, { limit = 60 } = {}) {
       const parts = [];
       if (ex.names.length > 0) parts.push(`${ex.names.length} lifts`, `${ex.sets} sets`);
       if (miles > 0) parts.push(`${miles} mi run`);
-      events.push(event(date, "training", "Training logged", parts.join(" · "), { lifts: ex.names.length, sets: ex.sets, miles, volume: ex.volume }, "positive"));
+      events.push(event(date, "training", "Training", parts.join(" · "), { lifts: ex.names.length, sets: ex.sets, miles, volume: ex.volume }, "positive"));
     }
 
     if (n(nutrition.calories) > 0 || n(nutrition.protein) > 0) {
       const protein = n(nutrition.protein);
       const calories = n(nutrition.calories);
       const tone = protein >= 180 ? "positive" : protein > 0 ? "caution" : "neutral";
-      events.push(event(date, "nutrition", "Nutrition logged", `${calories || "—"} kcal · ${protein || "—"}g protein`, {
+      events.push(event(date, "nutrition", "Fuel", `${calories || "—"} kcal · ${protein || "—"} g protein`, {
         calories, protein, carbs: n(nutrition.carbs), fats: n(nutrition.fats), water: n(nutrition.water),
       }, tone));
     }
@@ -54,7 +54,13 @@ export function buildAthleteTimeline(entries = {}, { limit = 60 } = {}) {
     if (n(body.sleep) > 0 || n(body.energy) > 0 || n(body.soreness) > 0 || n(body.weight) > 0) {
       const sleep = n(body.sleep);
       const tone = sleep >= 7 ? "positive" : sleep > 0 && sleep < 6 ? "warning" : "neutral";
-      events.push(event(date, "recovery", "Body check-in", `${body.weight || "—"} lb · ${sleep || "—"}h sleep · E${body.energy || "—"}/S${body.soreness || "—"}`, {
+      const checkin = [
+        n(body.weight) > 0 ? `${body.weight} lb` : "",
+        sleep > 0 ? `${sleep} h sleep` : "",
+        n(body.energy) > 0 ? `energy ${body.energy}` : "",
+        n(body.soreness) > 0 ? `soreness ${body.soreness}` : "",
+      ].filter(Boolean).join(" · ");
+      events.push(event(date, "recovery", "Check-in", checkin, {
         weight: n(body.weight), sleep, energy: n(body.energy), soreness: n(body.soreness),
       }, tone));
     }
@@ -65,15 +71,15 @@ export function buildAthleteTimeline(entries = {}, { limit = 60 } = {}) {
 
     if (intelligence.acceptedTrainingSuggestion) {
       const s = intelligence.acceptedTrainingSuggestion;
-      events.push(event(date, "intelligence", "Adaptive training accepted", s.title || s.mode || "Suggestion accepted", { mode: s.mode || null }, "caution"));
+      events.push(event(date, "intelligence", "Adjustment accepted", s.title || s.mode || "Suggestion accepted", { mode: s.mode || null }, "caution"));
     }
     if (intelligence.keptOriginalTrainingPlan) {
       const s = intelligence.keptOriginalTrainingPlan;
-      events.push(event(date, "intelligence", "Original training kept", s.title || "Original plan kept", {}, "neutral"));
+      events.push(event(date, "intelligence", "Plan kept as written", s.title || "Original plan kept", {}, "neutral"));
     }
     if (intelligence.lastNutritionQuickAdd) {
       const s = intelligence.lastNutritionQuickAdd;
-      events.push(event(date, "nutrition", "Nutrition quick-add", s.label || "Quick-add used", {}, "positive"));
+      events.push(event(date, "nutrition", "Quick add", s.label || "Quick add used", {}, "positive"));
     }
   }
 
