@@ -27,9 +27,10 @@ function RangeMark({ row }) {
     <svg
       className="ch"
       viewBox="0 0 150 20"
+      preserveAspectRatio="none"
       role="img"
       aria-label={`${row.label}: ${row.sets} hard sets this week, ${STATUS[row.status] || "no range"}. Your range is ${mev} to ${mrv} sets, most productive from ${mavLo} to ${mavHi}.`}
-      style={{ width: 150, flex: "none" }}
+      style={{ flex: "1 1 60px", width: 60, maxWidth: 150, height: 20 }}
     >
       <rect className="band" x={x(mev)} y="5" width={Math.max(2, x(mrv) - x(mev))} height="10" rx="2" />
       <path d="M0 10.5h150" style={{ stroke: "var(--edge)", strokeWidth: 1 }} />
@@ -71,7 +72,7 @@ export function MuscleVolumeSection({ data }) {
             <li key={row.key} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40 }}>
               <span className="t-bs" style={{ width: 86, flex: "none" }}>{row.label}</span>
               <RangeMark row={row} />
-              <span className="kv grow" style={{ alignItems: "flex-end", gap: 0, whiteSpace: "nowrap" }}>
+              <span className="kv" style={{ alignItems: "flex-end", gap: 0, whiteSpace: "nowrap", flex: "none", width: 108, marginLeft: "auto" }}>
                 <span className="n-s">{row.sets} sets</span>
                 {flagged
                   ? <span className="t-c stop">{flagged}</span>
