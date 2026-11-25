@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import "./fonts";
 import "./index.css";
+import "./ledger.css";
 import { initErrorReporting } from "./errorReporting";
 import { registerAppServiceWorker } from "./pwa";
 

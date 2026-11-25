@@ -1,0 +1,345 @@
+/* 0VERTRAINED · Ledger
+   Design tokens and the component classes every rebuilt screen uses.
+   Light is the root; dark is [data-theme="dark"] on <html>. The app root carries .ot.
+   Voice is Newsreader, interface is IBM Plex Sans, data is IBM Plex Mono.
+   Hue is spent on status and on earned moments only. */
+
+:root, [data-theme="light"] {
+  --bg: #FAF9F6; --surface: #FFFFFF; --sunk: #F1EFE9; --press: #E6E3DB;
+  --ink: #1A1A1A; --ink-2: #55524C; --ink-3: #6B675F;
+  --line: #E2DED5; --edge: #837E75;
+  --accent: #1A1A1A; --on-accent: #FAF9F6;
+  --good: #1F6B45; --caution: #8A5A00; --stop: #B3261E; --stop-fill: #B3261E; --on-stop: #FFFFFF;
+  --s2: #1F5FA8; --s3: #B4530F;
+  --earned: #8E6201; --earned-fill: #E1B850; --on-earned: #1A1A1A;
+  --scrim: rgba(26, 26, 26, .55);
+  --sh-sheet: 0 -1px 0 rgba(26, 26, 26, .06), 0 -8px 32px rgba(26, 26, 26, .18);
+  --sh-toast: 0 1px 2px rgba(26, 26, 26, .24), 0 8px 24px rgba(26, 26, 26, .22);
+  --f-voice: "Newsreader", Georgia, "Times New Roman", serif;
+  --f-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* Motion: press, quick, move, sheet, print */
+  --t-press: 120ms; --t-quick: 160ms; --t-move: 240ms; --t-sheet: 300ms; --t-print: 640ms;
+  --e-out: cubic-bezier(.23, 1, .32, 1); --e-inout: cubic-bezier(.77, 0, .175, 1);
+  --e-sheet: cubic-bezier(.32, .72, 0, 1); --e-print: cubic-bezier(.4, 0, .2, 1);
+  /* Layers */
+  --z-sticky: 10; --z-timer: 20; --z-sheet: 30; --z-dialog: 40; --z-toast: 50;
+}
+[data-theme="dark"] {
+  --bg: #141412; --surface: #1D1C1A; --sunk: #272523; --press: #33312E;
+  --ink: #F1EEE7; --ink-2: #B9B4AA; --ink-3: #9A958B;
+  --line: #34322E; --edge: #8C877E;
+  --accent: #F1EEE7; --on-accent: #141412;
+  --good: #7FD1A3; --caution: #E5B95C; --stop: #FF8A80; --stop-fill: #CC4036; --on-stop: #FFFFFF;
+  --s2: #8AB8F0; --s3: #F0A26B;
+  --earned: #E3BD5F; --earned-fill: #E3BD5F; --on-earned: #141412;
+  --scrim: rgba(0, 0, 0, .62);
+  --sh-sheet: 0 -1px 0 rgba(255, 255, 255, .08), 0 -8px 32px rgba(0, 0, 0, .5);
+  --sh-toast: 0 1px 2px rgba(0, 0, 0, .6), 0 8px 24px rgba(0, 0, 0, .6);
+}
+html { color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+html, body { background: var(--bg); color: var(--ink); }
+
+/* ── Base scope ─────────────────────────────────────────────────────────────── */
+.ot { display: flex; flex-direction: column; position: relative; min-height: 100dvh; background: var(--bg); color: var(--ink); font: 400 16px/24px var(--f-ui); -webkit-font-smoothing: antialiased; text-align: left; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; caret-color: var(--ink); accent-color: var(--ink); }
+:where(.ot) h1, :where(.ot) h2, :where(.ot) h3, :where(.ot) h4, :where(.ot) p, :where(.ot) ul, :where(.ot) ol, :where(.ot) dl, :where(.ot) dd, :where(.ot) figure { margin: 0; padding: 0; }
+:where(.ot) ul, :where(.ot) ol { list-style: none; }
+:where(.ot) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; }
+:where(.ot) a { color: inherit; text-decoration: none; }
+:where(.ot) table { border-collapse: collapse; width: 100%; }
+.ot :focus-visible { outline: 2px solid var(--ink) !important; outline-offset: 2px; border-radius: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ot ::selection { background: var(--ink); color: var(--bg); }
+.ot :is(a, button, label, summary, input, select, textarea) { touch-action: manipulation; }
+.ot :is(button, .btn, .ibtn, .tab, .chip, .back) { -webkit-user-select: none; user-select: none; }
+:where(.ot) :is(h1, h2, h3, h4) { text-wrap: balance; }
+:where(.ot) :is(p, li, dd, figcaption) { text-wrap: pretty; }
+.skip { position: absolute; left: 8px; top: 8px; z-index: var(--z-toast); min-height: 44px; padding: 0 16px; display: flex; align-items: center; border-radius: 8px; background: var(--ink); color: var(--bg); font: 600 14px/20px var(--f-ui); transform: translateY(-200%); }
+.skip:focus-visible { transform: none; }
+
+/* ── Shell ──────────────────────────────────────────────────────────────────── */
+.ot { --tabbar-h: 0px; }
+.ot.has-tabs { --tabbar-h: 61px; }
+.shell { width: 100%; max-width: var(--ovt-content-width); margin: 0 auto; display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+.top { display: flex; align-items: center; gap: 8px; min-height: calc(48px + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) 4px 0 16px; flex: none; position: sticky; top: 0; z-index: var(--z-sticky); background: var(--bg); width: 100%; max-width: var(--ovt-content-width); margin: 0 auto; }
+.top h1, .top p { margin: 0; }
+.main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 6px 16px calc(16px + var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
+.mark { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.6; }
+.wm { display: flex; align-items: center; gap: 1px; font: 700 22px/28px var(--f-ui); letter-spacing: .05em; }
+.wm .mark { width: 26px; height: 26px; stroke-width: 3; }
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; margin: 0 auto; width: 100%; max-width: var(--ovt-content-width); z-index: var(--z-sticky); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--bg); }
+.tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 48px; border-radius: 8px; font: 500 12px/16px var(--f-ui); color: var(--ink-2); }
+.tab[aria-current="page"] { color: var(--ink); font-weight: 700; box-shadow: inset 0 3px 0 var(--ink); border-radius: 0 0 8px 8px; }
+.tab-log { border: 2px solid var(--ink); color: var(--ink); font-weight: 700; }
+.back { display: flex; align-items: center; gap: 0; min-height: 44px; padding-right: 6px; margin-left: -10px; font: 500 14px/20px var(--f-ui); color: var(--ink-2); flex: none; }
+.foot { flex: none; margin-top: auto; position: sticky; bottom: 0; z-index: var(--z-sticky); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
+/* A screen that has not been rebuilt yet still styles itself inline; this gives it the column and clears the tab bar. */
+.legacy-screen { width: 100%; max-width: var(--ovt-shell-width, var(--ovt-content-width)); margin: 0 auto; padding-bottom: calc(16px + var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
+/* A full-screen flow (session runner, Box Score, Sunday Edition) covers the shell and hides the tab bar. */
+.flow-screen { position: fixed; inset: 0; z-index: var(--z-timer); background: var(--bg); overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
+.flow-screen > .shell { min-height: 100%; }
+
+/* Desktop shell: the tabs move into the top bar */
+.dtop { display: flex; align-items: center; gap: 8px; min-height: 64px; padding: 0 32px; border-bottom: 1px solid var(--line); flex-wrap: wrap; flex: none; position: sticky; top: 0; z-index: var(--z-sticky); background: var(--bg); }
+.dnav { display: flex; gap: 8px; flex-wrap: wrap; }
+.dnav button { min-height: 44px; padding: 0 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; font: 500 16px/24px var(--f-ui); color: var(--ink-2); }
+.dnav button[aria-current="page"] { color: var(--ink); font-weight: 700; box-shadow: inset 0 -3px 0 var(--ink); }
+/* A tab keeps the width of its bold form, so the bar does not shift from page to page */
+.dnav button::after { content: attr(data-t); height: 0; overflow: hidden; visibility: hidden; font-weight: 700; }
+.screen-title { width: 100%; max-width: var(--ovt-shell-width, var(--ovt-content-width)); margin: 0 auto; padding: 24px 16px 8px; display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
+.kbd { display: inline-flex; align-items: center; min-height: 24px; padding: 0 6px; border: 1px solid var(--edge); border-radius: 4px; font: 500 13px/16px var(--f-data); }
+
+/* ── Type roles ─────────────────────────────────────────────────────────────── */
+.t-hl { font: 600 24px/30px var(--f-voice); letter-spacing: -.01em; text-wrap: balance; }
+.t-xl { font: 600 32px/38px var(--f-voice); letter-spacing: -.015em; text-wrap: balance; }
+.t-title { font: 600 20px/26px var(--f-voice); }
+.t-read { font: 400 18px/28px var(--f-voice); }
+.t-h { font: 600 18px/24px var(--f-ui); }
+.t-b { font: 400 16px/24px var(--f-ui); }
+.t-bs { font: 600 16px/24px var(--f-ui); }
+.t-s { font: 400 14px/20px var(--f-ui); }
+.t-ss { font: 600 14px/20px var(--f-ui); }
+.t-c { font: 500 12px/16px var(--f-ui); }
+.n-xl { font: 600 56px/60px var(--f-data); letter-spacing: -.02em; }
+.n-lg { font: 600 40px/44px var(--f-data); letter-spacing: -.015em; }
+.n-md { font: 600 28px/32px var(--f-data); letter-spacing: -.01em; }
+.n { font: 500 16px/24px var(--f-data); }
+.n-s { font: 500 14px/20px var(--f-data); }
+.n-xl, .n-lg, .n-md, .n, .n-s { font-variant-numeric: tabular-nums; }
+.stamp { font: 700 14px/20px var(--f-ui); letter-spacing: .04em; text-transform: uppercase; }
+.c2 { color: var(--ink-2); } .c3 { color: var(--ink-3); }
+.good { color: var(--good); } .caution { color: var(--caution); } .stop { color: var(--stop); } .earned { color: var(--earned); }
+.grow { flex: 1 1 0; min-width: 0; }
+.clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ot .u { text-decoration: underline; text-underline-offset: 3px; }
+/* A link inside a sentence keeps its line and still takes taps across 24px or more */
+.ot p a.u, .ot li a.u, .ot td a.u, .ot p button.u { padding: 5px 0; }
+
+/* Icons: 24 grid, 1.75 stroke, round joins, no fills */
+.i { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.i-s { width: 20px; height: 20px; }
+.i-xs { width: 16px; height: 16px; stroke-width: 2; }
+
+/* ── Buttons ────────────────────────────────────────────────────────────────── */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 8px; border: 1px solid transparent; font: 600 16px/24px var(--f-ui); white-space: nowrap; flex: none; }
+.btn-p { background: var(--accent); color: var(--on-accent); }
+.btn-s { border-color: var(--edge); background: var(--surface); color: var(--ink); }
+.btn-g { padding: 0 10px; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.btn-d { background: var(--stop-fill); color: var(--on-stop); }
+.btn-lg { min-height: 56px; font-size: 18px; }
+.btn-sm { min-height: 44px; padding: 0 14px; font-size: 14px; }
+.btn-b { display: flex; width: 100%; }
+.btn-wrap { white-space: normal; text-align: center; padding-top: 8px; padding-bottom: 8px; }
+.btn[aria-disabled="true"], .btn:disabled { background: var(--sunk); color: var(--ink-3); border-color: var(--line); text-decoration: none; cursor: default; }
+.btn[aria-busy="true"] { cursor: progress; }
+.ibtn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 8px; flex: none; }
+.ibtn-o { border: 1px solid var(--edge); background: var(--surface); }
+
+/* Hover is for pointers only, so a tap never leaves a hover state stuck on a phone */
+@media (hover: hover) and (pointer: fine) {
+  .btn-p:hover { background: color-mix(in srgb, var(--accent) 86%, var(--bg)); }
+  .btn-s:hover, .ibtn:hover, .opt:hover, a.row:hover, button.row:hover { background: var(--sunk); }
+  .seg button:not([aria-checked="true"], [aria-pressed="true"], [aria-selected="true"]):hover, .chip:not([aria-checked="true"], [aria-pressed="true"], [aria-selected="true"]):hover { background: var(--sunk); }
+}
+.btn-p:active { background: color-mix(in srgb, var(--accent) 72%, var(--bg)); }
+.btn-s:active, .ibtn:active, .step button:active, .opt:active, .tab:active, .dayc:active { background: var(--press); }
+.seg button:not([aria-checked="true"], [aria-pressed="true"], [aria-selected="true"]):active, .chip:not([aria-checked="true"], [aria-pressed="true"], [aria-selected="true"]):active { background: var(--press); }
+a.row:active, button.row:active { background: var(--press); }
+.seg [aria-disabled="true"], .chip[aria-disabled="true"], .sw[aria-disabled="true"] { color: var(--ink-3); border-color: var(--line); background: var(--sunk); }
+
+/* ── Choices ────────────────────────────────────────────────────────────────── */
+/* Separate 44px targets, 8px apart. Selected is filled, ticked and heavier, never colour alone. */
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.seg button { min-height: 44px; padding: 0 4px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); font: 500 14px/20px var(--f-ui); white-space: nowrap; }
+.seg [aria-checked="true"], .seg [aria-pressed="true"], .seg [aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.seg [aria-checked="true"]::before, .seg [aria-pressed="true"]::before, .seg [aria-selected="true"]::before { content: ""; width: 5px; height: 10px; margin-top: -3px; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); flex: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 44px; padding: 0 14px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); font: 500 14px/20px var(--f-ui); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+/* A selected chip gains a tick and loses the same width in padding, so its neighbours never move */
+.chip[aria-pressed="true"], .chip[aria-checked="true"], .chip[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); padding: 0 7.5px; }
+.chip[aria-pressed="true"]::before, .chip[aria-checked="true"]::before, .chip[aria-selected="true"]::before { content: ""; width: 5px; height: 10px; margin-top: -3px; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); flex: none; }
+.opt { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-height: 48px; padding: 12px; border: 1px solid var(--edge); border-radius: 12px; background: var(--surface); text-align: left; }
+.opt[aria-checked="true"], .opt[aria-pressed="true"] { border: 2px solid var(--ink); padding: 11px; }
+.rad { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--edge); flex: none; margin-top: 2px; display: flex; align-items: center; justify-content: center; }
+[aria-checked="true"] > .rad { border-color: var(--ink); }
+[aria-checked="true"] > .rad::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); }
+.wkp { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.wkp span { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border: 1px solid var(--line); border-radius: 6px; font: 500 12px/16px var(--f-ui); }
+.wkp b { font: 600 12px/16px var(--f-data); color: var(--ink-2); }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.dayc { height: 44px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid transparent; font: 500 14px/16px var(--f-data); }
+.dayc[aria-current="date"] { border: 2px solid var(--ink); font-weight: 600; }
+.dayc[aria-pressed="true"] { background: var(--sunk); border-color: var(--edge); }
+.dayc[aria-disabled="true"] { color: var(--ink-3); }
+.mk { display: flex; gap: 3px; height: 6px; }
+.mk-l { width: 6px; height: 6px; background: currentColor; }
+.mk-r { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid currentColor; }
+.ci { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 8px; }
+
+/* ── Surfaces, rows, tags ───────────────────────────────────────────────────── */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.hr { border: 0; border-top: 1px solid var(--line); margin: 0; width: 100%; flex: none; }
+.sec { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.rows { display: flex; flex-direction: column; gap: 9px; }
+.rows > * { position: relative; }
+.rows > * + *::before { content: ""; position: absolute; left: 0; right: 0; top: -5px; border-top: 1px solid var(--line); }
+.row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; width: 100%; }
+.kv { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tag { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 0 8px; border-radius: 4px; border: 1px solid var(--edge); font: 500 13px/16px var(--f-ui); white-space: nowrap; flex: none; }
+.tag-f { background: var(--sunk); border-color: transparent; }
+.tag-e { background: var(--earned-fill); color: var(--on-earned); border-color: var(--earned); font-weight: 700; }
+.tag-x { border-color: var(--stop); color: var(--stop); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.banner { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 8px; border: 1px solid var(--edge); background: var(--sunk); font: 400 14px/20px var(--f-ui); }
+.sk { background: var(--press); border-radius: 4px; display: block; }
+.lst { display: flex; flex-direction: column; gap: 6px; }
+.lst li { font: 400 14px/20px var(--f-ui); padding-left: 14px; position: relative; }
+.lst li::before { content: ""; position: absolute; left: 0; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--edge); }
+.tbl th { font: 600 13px/18px var(--f-ui); color: var(--ink-2); text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--edge); vertical-align: bottom; }
+.tbl td, .tbl th[scope="row"] { font: 400 14px/20px var(--f-ui); color: inherit; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+
+/* The call: a five-bar effort meter. Filled is solid, unused is hollow. */
+.meter { display: inline-flex; align-items: flex-end; gap: 3px; height: 22px; flex: none; }
+.meter i { width: 6px; border-radius: 1px; background: var(--ink); position: relative; }
+.meter i:nth-child(1) { height: 6px; } .meter i:nth-child(2) { height: 10px; } .meter i:nth-child(3) { height: 14px; } .meter i:nth-child(4) { height: 18px; } .meter i:nth-child(5) { height: 22px; }
+.meter i.off { background: transparent; box-shadow: inset 0 0 0 1.5px var(--edge); }
+
+/* Progress */
+.bar { display: block; height: 8px; border-radius: 4px; background: var(--press); box-shadow: inset 0 0 0 1px var(--edge); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--ink); border-radius: 4px 0 0 4px; transition: width var(--t-move) var(--e-out); }
+.bar-t i { transition: width 1s linear; }
+.bar-e i { background: var(--earned-fill); box-shadow: inset 0 0 0 1px var(--on-earned); }
+
+/* ── Forms ──────────────────────────────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lbl { font: 600 14px/20px var(--f-ui); }
+.hint { font: 400 14px/20px var(--f-ui); color: var(--ink-2); }
+.input { display: flex; align-items: center; height: 48px; width: 100%; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 0 12px; font: 400 16px/24px var(--f-ui); }
+.input.n { font-family: var(--f-data); font-weight: 500; }
+.input:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
+.input[disabled] { background: var(--sunk); color: var(--ink-3); border-color: var(--line); }
+.input[aria-invalid="true"] { border: 2px solid var(--stop); }
+.area { height: auto; min-height: 72px; align-items: flex-start; padding: 10px 12px; }
+.err { display: flex; gap: 6px; align-items: flex-start; font: 500 14px/20px var(--f-ui); color: var(--stop); }
+.step { display: grid; grid-template-columns: 56px minmax(0, 1fr) 56px; gap: 8px; align-items: center; }
+.step button { height: 56px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); display: flex; align-items: center; justify-content: center; }
+.step-xl button { height: 64px; }
+.stepv { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-width: 0; }
+/* The switch draws at 32px and takes taps across 44px */
+.sw { width: 52px; height: 32px; border-radius: 16px; border: 1px solid var(--edge); background: var(--surface); display: flex; align-items: center; padding: 3px; flex: none; position: relative; transition: background-color var(--t-quick) ease, border-color var(--t-quick) ease; }
+.sw::after { content: ""; position: absolute; left: 0; right: 0; top: -7px; bottom: -7px; }
+.sw i { width: 24px; height: 24px; border-radius: 50%; background: var(--edge); transition: transform var(--t-quick) var(--e-out), background-color var(--t-quick) ease; }
+.sw[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.sw[aria-checked="true"] i { background: var(--on-accent); transform: translateX(20px); }
+
+/* ── Overlays ───────────────────────────────────────────────────────────────── */
+.scrim { position: fixed; inset: 0; z-index: var(--z-sheet); background: var(--scrim); }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; margin: 0 auto; width: 100%; max-width: var(--ovt-content-width); z-index: var(--z-sheet); max-height: calc(100dvh - 48px); overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border-radius: 20px 20px 0 0; box-shadow: var(--sh-sheet); padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 12px; }
+.grab { width: 36px; height: 4px; border-radius: 2px; background: var(--edge); align-self: center; flex: none; }
+.dialog { background: var(--surface); border-radius: 12px; box-shadow: var(--sh-sheet); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.toast { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 6px 6px 6px 16px; border-radius: 8px; background: var(--ink); color: var(--bg); box-shadow: var(--sh-toast); font: 500 14px/20px var(--f-ui); }
+.toast-dock { position: fixed; left: 0; right: 0; bottom: calc(12px + var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); margin: 0 auto; width: 100%; max-width: var(--ovt-content-width); padding: 0 16px; z-index: var(--z-toast); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast-dock > * { pointer-events: auto; }
+
+/* ── Charts: hand-built SVG. Series differ by dash and marker shape, not hue alone ── */
+.ch { display: block; width: 100%; height: auto; overflow: visible; }
+.ch .ax { stroke: var(--line); stroke-width: 1; fill: none; }
+.ch .ln { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.ch .ln2 { fill: none; stroke: var(--s2); stroke-width: 2; stroke-dasharray: 6 4; }
+.ch .ln3 { fill: none; stroke: var(--s3); stroke-width: 2; stroke-dasharray: 2 4; stroke-linecap: round; }
+.ch .raw { fill: var(--bg); stroke: var(--edge); stroke-width: 1.5; }
+.ch .pt { fill: var(--bg); stroke: var(--ink); stroke-width: 2; }
+.ch .on { fill: var(--ink); }
+.ch .band { fill: var(--press); stroke: var(--edge); stroke-width: 1; }
+.ch .col { fill: var(--ink); }
+.ch .col2 { fill: var(--bg); stroke: var(--edge); stroke-width: 1.5; }
+.ch .tx { font: 500 12px var(--f-ui); fill: var(--ink-2); }
+.ch .txn { font: 500 12px var(--f-data); fill: var(--ink); }
+
+/* ── Motion · ink on paper ──────────────────────────────────────────────────────
+   Things are written, stamped and printed in place; nothing floats in, bounces or glows.
+     press   up to 120ms   a tap is answered
+     move    up to 300ms   every change between a tap and a usable screen
+     print   authored      the call, a record, the Box Score, the Sunday Edition
+   What is used a hundred times a day does not animate: tabs, steppers, timer digits.
+   data-motion on a screen root: full (the default), reduced (what prefers-reduced-motion
+   gives: whatever appears fades in, in place) or still (nothing animates on arrival; for
+   screenshots, print and tests). */
+
+/* A press is answered at once: a button's fill changes with no transition and only the 3% give is eased. */
+.btn, .ibtn, .chip, .seg button, .step button { transition: transform var(--t-press) var(--e-out); }
+/* Changing theme is not an interaction: nothing transitions while data-switching is set */
+[data-switching] * { transition: none !important; }
+
+/* A fold: a block that closes without unmounting, so what follows moves once */
+.fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--t-move) var(--e-out); }
+.fold > * { min-height: 0; overflow: hidden; transition: visibility 0s; }
+.fold.is-shut { grid-template-rows: 0fr; }
+.fold.is-shut > * { visibility: hidden; transition: visibility 0s var(--t-move); }
+
+@keyframes ot-fade { from { opacity: 0; } }
+@keyframes ot-stamp { 0% { opacity: 0; transform: scale(1.24) rotate(-3deg); } 55% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes ot-write { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes ot-print { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes ot-head { 0% { transform: translateY(0); opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(100%); opacity: 0; } }
+@keyframes ot-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes ot-rise { from { transform: translateY(100%); } }
+@keyframes ot-lift { from { opacity: 0; transform: translateY(8px); } }
+@keyframes ot-shift { from { opacity: 0; transform: translateX(16px); } }
+@keyframes ot-grow { from { transform: scaleX(0); } }
+@keyframes ot-foil { from { transform: translateX(-130%); } to { transform: translateX(130%); } }
+@keyframes ot-count { from { --ot-k: 0; --ot-n: 0; } }
+@keyframes ot-press { 0% { transform: none; } 35% { transform: scale(1.16) rotate(-2deg); } 100% { transform: none; } }
+@property --ot-k { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --ot-n { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@counter-style ot-pad3 { system: extends decimal; pad: 3 "0"; }
+
+/* Pencil, then ink. A value that is not final yet is set in the second ink; confirming it inks it in.
+   .pencil or .is-ink goes on the container; .inkable carries its own words in data-t. */
+.pencil .stamp, .pencil .inkable, .is-ink .inkable { color: var(--ink-2); }
+.pencil .meter i:not(.off), .is-ink .meter i:not(.off) { background: var(--ink-3); }
+.pencil .meter i:not(.off)::after, .is-ink .meter i:not(.off)::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--ink); transform: scaleY(0); transform-origin: 50% 100%; }
+.is-ink .meter i:not(.off)::after { transform: none; }
+.inkable { position: relative; }
+.inkable::after { content: attr(data-t); content: attr(data-t) / ""; position: absolute; inset: 0; color: var(--ink); clip-path: inset(0 100% 0 0); pointer-events: none; }
+.is-ink .inkable::after { clip-path: inset(0 0 0 0); }
+
+/* A total tallied like an adding machine. The real number sits beside it for screen readers. */
+.mo-count { counter-reset: otk var(--ot-k) otn var(--ot-n); }
+.mo-count::after { content: counter(otk) "," counter(otn, ot-pad3); }
+.mo-foil { position: relative; overflow: hidden; }
+
+/* Reduced motion: bars, folds and switches change at once */
+[data-motion="reduced"] :is(.bar i, .fold, .sw i) { transition: none; }
+@media (prefers-reduced-motion: reduce) { .bar i, .fold, .sw i { transition: none; } }
+
+/* Reduced motion and the base case: whatever appears fades in, in place, with no delay */
+.ot :is(.mo-stamp, .mo-write, .mo-print, .mo-lift, .mo-shift, .mo-fade, .mo-rise, .mo-scrim, .mo-toast):not([data-motion="still"] *) { animation: ot-fade var(--t-quick) ease both; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .ot :is(.btn, .ibtn, .chip, .seg button, .step button):active:not([data-motion="reduced"] *) { transform: scale(.97); }
+  .ot .mo-fade:not([data-motion="reduced"] *, [data-motion="still"] *) { animation: ot-fade var(--t-move) ease var(--d, 0ms) both; }
+  .ot .mo-stamp:not([data-motion="reduced"] *, [data-motion="still"] *) { animation: ot-stamp var(--t-quick) cubic-bezier(.2, .8, .2, 1) var(--d, 0ms) both; transform-origin: 50% 60%; }
+  .ot .mo-write:not([data-motion="reduced"] *, [data-motion="still"] *) { animation: ot-write var(--t-move) var(--e-out) var(--d, 0ms) both; }
+  .ot .mo-print:not([data-motion="reduced"] *, [data-motion="still"] *) { position: relative; animation: ot-print var(--t-print) var(--e-print) var(--d, 0ms) both; }
+  .ot .mo-print:not([data-motion="reduced"] *, [data-motion="still"] *)::after { content: ""; position: absolute; left: 0; right: 0; top: -100%; height: 100%; border-bottom: 2px solid var(--ink); pointer-events: none; animation: ot-head var(--t-print) var(--e-print) var(--d, 0ms) both; }
+  .ot .mo-lift:not([data-motion="reduced"] *, [data-motion="still"] *), .ot .mo-toast:not([data-motion="reduced"] *, [data-motion="still"] *) { animation: ot-lift var(--t-move) var(--e-out) var(--d, 0ms) both; }
+  .ot .mo-shift:not([data-motion="reduced"] *, [data-motion="still"] *) { animation: ot-shift var(--t-move) var(--e-out) both; }
+  .ot .mo-rise:not([data-motion="reduced"] *, [data-motion="still"] *) { animation: ot-rise var(--t-sheet) var(--e-sheet) both; }
+  .ot .mo-scrim:not([data-motion="reduced"] *, [data-motion="still"] *) { animation: ot-fade var(--t-move) ease both; }
+  .ot .mo-draw:not([data-motion="reduced"] *, [data-motion="still"] *) { stroke-dasharray: 1; animation: ot-draw var(--t-move) var(--e-out) var(--d, 0ms) both; }
+  .ot .mo-grow:not([data-motion="reduced"] *, [data-motion="still"] *) { transform-origin: 0 50%; animation: ot-grow var(--t-sheet) var(--e-out) var(--d, 0ms) both; }
+  .ot .mo-foil:not([data-motion="reduced"] *, [data-motion="still"] *)::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .72) 50%, transparent 65%); transform: translateX(-130%); pointer-events: none; animation: ot-foil 560ms var(--e-inout) calc(var(--d, 0ms) + 160ms) both; }
+  .ot .mo-count:not([data-motion="reduced"] *, [data-motion="still"] *) { animation: ot-count 600ms var(--e-out) var(--d, 0ms) both; }
+  .ot .is-ink .stamp:not([data-motion="reduced"] *, [data-motion="still"] *) { transition: color var(--t-press) ease calc(var(--d, 0ms) + 80ms); animation: ot-press 260ms cubic-bezier(.2, .8, .2, 1) var(--d, 0ms); }
+  .ot .meter i:not([data-motion="reduced"] *, [data-motion="still"] *)::after { transition: transform var(--t-press) ease; }
+  .ot .is-ink .meter i:not([data-motion="reduced"] *, [data-motion="still"] *)::after { transition: transform var(--t-quick) var(--e-out); }
+  .ot .is-ink .meter i:nth-child(1):not([data-motion="reduced"] *, [data-motion="still"] *)::after { transition-delay: calc(var(--d, 0ms) + 0ms); }
+  .ot .is-ink .meter i:nth-child(2):not([data-motion="reduced"] *, [data-motion="still"] *)::after { transition-delay: calc(var(--d, 0ms) + 50ms); }
+  .ot .is-ink .meter i:nth-child(3):not([data-motion="reduced"] *, [data-motion="still"] *)::after { transition-delay: calc(var(--d, 0ms) + 90ms); }
+  .ot .is-ink .meter i:nth-child(4):not([data-motion="reduced"] *, [data-motion="still"] *)::after { transition-delay: calc(var(--d, 0ms) + 120ms); }
+  .ot .is-ink .meter i:nth-child(5):not([data-motion="reduced"] *, [data-motion="still"] *)::after { transition-delay: calc(var(--d, 0ms) + 150ms); }
+  .ot .inkable:not([data-motion="reduced"] *, [data-motion="still"] *)::after { transition: clip-path var(--t-press) ease; }
+  .ot .is-ink .inkable:not([data-motion="reduced"] *, [data-motion="still"] *)::after { transition: clip-path var(--t-sheet) var(--e-out) var(--d, 0ms); }
+}
