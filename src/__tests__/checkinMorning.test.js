@@ -7,7 +7,7 @@
 import { describe, it, expect } from "vitest";
 import {
   CHECKIN_ROWS, readCheckin, checkinSeverity, checkinEvidenceLine,
-  divergenceNote, selectedOption,
+  divergenceNote, selectedOption, checkinSummaryLine,
 } from "../checkinMorning";
 import { buildRecoveryVerdict } from "../recovery/verdictResolver";
 import { parseManualRecovery } from "../manualRecovery";
@@ -111,5 +111,16 @@ describe("V16.8 check-in — divergence transparency", () => {
     expect(line).toMatch(/sleep poor/);
     expect(line).toMatch(/very sore/);
     expect(checkinEvidenceLine(readCheckin({ sleepQuality: 9 }))).toBe(null);
+  });
+});
+
+describe("checkinSummaryLine", () => {
+  it("reads answered rows in tap words and skips the rest", () => {
+    expect(checkinSummaryLine({ sleepQuality: "6", soreness: "2", stress: "", energy: 9 })).toBe("slept fine · sore no · energy high");
+    expect(checkinSummaryLine({})).toBe("");
+  });
+
+  it("snaps typed numbers to the nearest tap", () => {
+    expect(checkinSummaryLine({ sleepQuality: 4, soreness: 7, stress: 3, energy: 5 })).toBe("slept poorly · sore very · stress low · energy ok");
   });
 });

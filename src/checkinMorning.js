@@ -59,6 +59,18 @@ export function selectedOption(row, bodyValue) {
   return best;
 }
 
+// The answered rows in tap words, for the folded check-in and Recovery's
+// line: "slept fine · sore no · stress low · energy ok". Empty when nothing
+// is answered.
+export function checkinSummaryLine(body = {}) {
+  const parts = [];
+  for (const row of CHECKIN_ROWS) {
+    const opt = selectedOption(row, body?.[row.field]);
+    if (opt) parts.push(`${row.label.toLowerCase()} ${opt.text}`);
+  }
+  return parts.join(" · ");
+}
+
 /**
  * Read the morning check-in off an entry body.
  * @returns {{answered, total, complete, flags, goodSigns, values}}

@@ -22,6 +22,7 @@ import { buildDecisionContext, getDailyRecommendation } from "./decisionEngine";
 import { suggestWorkoutAdjustments } from "./adaptiveTraining";
 import { computeStillNeeded } from "./fuelNeeds";
 import { summarizeCheckin } from "./checkin";
+import { MorningCheckin } from "./MorningCheckin";
 import { summarizeManualRecovery } from "./manualRecovery";
 import { buildTodayDecision, buildDecisionResponseEntry } from "./todayDecision";
 import { getDecisionFeedbackBrief } from "./decisionFeedback";
@@ -595,6 +596,10 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
         />
       )}
 
+      {/* The check-in comes before the call: rate how you feel before the
+          number tells you. It folds to one line once answered. */}
+      <MorningCheckin body={bod} updateToday={updateToday} />
+
       {/* One calm decision surface. Today Coach, day mode,
           live targets, the next meal, and evening closeout now share this
           command card; supporting controls live in focused sheets. */}
@@ -951,10 +956,8 @@ function CheckinCard({ bod, wo, supplements, userSupps, updateToday }) {
   });
   const recoverySummary = summarizeManualRecovery(bod);
   const metricInputs = [
-    ["sleepQuality", "Quality", "1-10", "numeric"],
     ["restingHeartRate", "RHR", "bpm", "numeric"],
     ["hrv", "HRV", "ms", "decimal"],
-    ["stress", "Stress", "1-10", "numeric"],
     ["motivation", "Motivation", "1-10", "numeric"],
   ];
 
@@ -984,11 +987,9 @@ function CheckinCard({ bod, wo, supplements, userSupps, updateToday }) {
       )}
 
       {open && (<>
-        <div style={S.bodyLine}>
+        <div style={{ ...S.bodyLine, gridTemplateColumns: "1fr 1fr" }}>
           <div style={S.bodyCell}><input style={S.bodyInput} type="number" inputMode="decimal" placeholder="0" value={bod.weight}   onChange={e => updateToday("body.weight",   e.target.value)} /><div style={S.bodyL}>Weight lbs</div></div>
           <div style={S.bodyCell}><input style={S.bodyInput} type="number" inputMode="decimal" placeholder="0" value={bod.sleep}    onChange={e => updateToday("body.sleep",    e.target.value)} /><div style={S.bodyL}>Sleep hrs</div></div>
-          <div style={S.bodyCell}><input style={S.bodyInput} type="number" inputMode="numeric" placeholder="0" value={bod.energy}   onChange={e => updateToday("body.energy",   e.target.value)} /><div style={S.bodyL}>Energy 1-10</div></div>
-          <div style={S.bodyCell}><input style={S.bodyInput} type="number" inputMode="numeric" placeholder="0" value={bod.soreness} onChange={e => updateToday("body.soreness", e.target.value)} /><div style={S.bodyL}>Soreness 1-10</div></div>
         </div>
 
         <button
@@ -1003,7 +1004,7 @@ function CheckinCard({ bod, wo, supplements, userSupps, updateToday }) {
         {metricsOpen && (
           <div style={{ marginTop:8, padding:"10px", border:`1px solid ${C.lineBright}`, background:C.cell }}>
             <div style={{ fontSize:11, color:C.textDim, lineHeight:1.5, marginBottom:10 }}>
-              Manual recovery is first-class. Log sleep, quality, soreness, stress, motivation, and any illness/injury flag; HRV/RHR stay as context until a real baseline exists.
+              Manual recovery is first-class: the check-in above covers sleep quality, soreness, stress and energy. Add motivation and any illness/injury flag here; HRV/RHR stay as context until a real baseline exists.
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(2, minmax(0, 1fr))", gap:8 }}>
               {metricInputs.map(([key, label, placeholder, inputMode]) => (

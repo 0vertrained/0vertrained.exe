@@ -142,7 +142,14 @@ function AppInner({ onThemeChange }) {
     setOverlay(null);
     setSelectedDay(null);
     if (key === "meal") navigateTo("Fuel");
-    else navigateTo("Today"); // workout + check-in both live on Today
+    else if (key === "checkin") openCheckin();
+    else navigateTo("Today"); // workout lives on Today
+  };
+  // The check-in sits at the top of Today, so land there at the top.
+  const openCheckin = () => {
+    tabScrollPositions.current.Today = 0;
+    navigateTo("Today");
+    if (tab === "Today") window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
   };
   useEffect(() => {
     if (!isBroadsheet) return;
@@ -1105,7 +1112,7 @@ function AppInner({ onThemeChange }) {
             : <><BaselineBanner tab="Fuel" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><FuelTab settings={settings} todayData={todayData} updateToday={updateToday} showToast={showToast} todayKey={todayKey} loaded={loaded} data={data} /></>)}
           {tab === "Recovery" && (loaded && dayZero.recovery.isZero
             ? <Suspense fallback={null}><DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} /></Suspense>
-            : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} updateToday={updateToday} onOpenIntegrations={() => openSettings("integrations")} /></>)}
+            : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} onOpenIntegrations={() => openSettings("integrations")} /></>)}
           {tab === "Progress"&& (loaded && dayZero.progress.isZero
             ? <Suspense fallback={null}><DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} /></Suspense>
             : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} /></>)}

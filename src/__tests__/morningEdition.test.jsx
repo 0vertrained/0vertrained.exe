@@ -27,8 +27,8 @@ afterEach(cleanup);
 describe("V16.8 Morning Edition — dashboard anatomy (source guards)", () => {
   const src = read("src/RecoveryDashboard.jsx");
 
-  it("check-in renders ABOVE the state row, which renders above the headline", () => {
-    const checkinAt = src.indexOf("CHECKIN_ROWS.map((row)");
+  it("the check-in line renders ABOVE the state row, which renders above the headline", () => {
+    const checkinAt = src.indexOf('data-testid="checkin-line"');
     const stateAt = src.indexOf("{stateName}");
     const headlineAt = src.indexOf("{verdict.headline}");
     expect(checkinAt).toBeGreaterThan(-1);
@@ -36,8 +36,10 @@ describe("V16.8 Morning Edition — dashboard anatomy (source guards)", () => {
     expect(headlineAt).toBeGreaterThan(stateAt);
   });
 
-  it("taps write to the shared body fields through updateToday", () => {
-    expect(src).toContain("updateToday(`body.${row.field}`, String(opt.value))");
+  it("taps live on Today and write to the shared body fields through updateToday", () => {
+    expect(read("src/MorningCheckin.jsx")).toContain("updateToday(`body.${row.field}`, String(opt.value))");
+    expect(src).not.toContain("CHECKIN_ROWS.map");
+    expect(read("src/TodayTab.jsx")).toContain("<MorningCheckin body={bod} updateToday={updateToday} />");
   });
 
   it("the verdict is provisional (labelled, dimmed) until the check-in completes — and never blocked", () => {
@@ -69,9 +71,9 @@ describe("V16.8 Morning Edition — dashboard anatomy (source guards)", () => {
     expect(src).toContain("initialCache?.trend");
   });
 
-  it("App passes todayKey/todayName/updateToday to the Recovery tab", () => {
+  it("App passes todayKey/todayName and the way to Today's check-in to the Recovery tab", () => {
     const app = read("src/App.jsx");
-    expect(app).toMatch(/RecoveryDashboard[^>]*todayKey=\{todayKey\}[^>]*todayName=\{todayName\}[^>]*updateToday=\{updateToday\}/s);
+    expect(app).toMatch(/RecoveryDashboard[^>]*todayKey=\{todayKey\}[^>]*todayName=\{todayName\}[^>]*onOpenCheckin=\{openCheckin\}/s);
   });
 
   it("the 35-day window feeds the chronic baseline while scoring pools stay at 15", () => {

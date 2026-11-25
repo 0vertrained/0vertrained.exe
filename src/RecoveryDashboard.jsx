@@ -41,7 +41,7 @@ import { FigureSection, LeadMetric, RuledScale, MetricFigure, MethodNote, Method
 import { buildRecoveryChangeSummary, buildRecoveryCoachInterpretation, buildRecoveryHeroMeta } from "./recoverySummary";
 import { buildRecoveryVerdict } from "./recovery/verdictResolver";
 import { classifyRecoveryState } from "./wearables/recoveryTrend";
-import { CHECKIN_ROWS, readCheckin, checkinSeverity, checkinEvidenceLine, divergenceNote, selectedOption } from "./checkinMorning";
+import { readCheckin, checkinSeverity, checkinEvidenceLine, divergenceNote, checkinSummaryLine } from "./checkinMorning";
 import { buildMuscleRecency } from "./muscleVolume";
 import { logFunnelEvent } from "./funnel";
 import { editionWindow } from "./sundayEdition";
@@ -244,7 +244,7 @@ export function ReadinessMethodToggle({ open, onToggle }) {
   );
 }
 
-export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, updateToday = null, onOpenIntegrations = null }) {
+export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, onOpenCheckin = null, onOpenIntegrations = null }) {
   const { S, C } = useTheme();
   // Hydrate synchronously from the fastest available last-known snapshot:
   //   1) the in-memory session cache (survives tab switches this session), else
@@ -851,8 +851,8 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   // guidance, readiness-hero caption, readiness row) reads the RESOLVED
   // recommendation, so no surface can contradict the verdict. Raw values,
   // sources, and confidence labels are untouched below.
-  // Morning check-in reads live off today's entry body (the same
-  // fields TodayTab writes), so a tap here or a number there stay one truth.
+  // The check-in is entered on Today; Recovery reads it off today's entry
+  // body and shows it above the verdict.
   const todayBody = (todayKey && data?.[todayKey]?.body) || {};
   const checkin = readCheckin(todayBody);
   const checkinCaution = { severity: checkinSeverity(checkin), flags: checkin.flags };
@@ -916,7 +916,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
         const stateName = trend?.state?.name || null;
         const calibrating = trend?.state?.key === "calibrating";
         const deltaInfo = trend?.delta || null;
-        const provisional = updateToday && todayKey && !checkin.complete;
+        const provisional = Boolean(todayKey) && !checkin.complete;
         const evidenceLines = [
           ...(trend?.evidence || []).slice(0, 2),
           ...(checkinEvidenceLine(checkin) ? [checkinEvidenceLine(checkin)] : []),
@@ -930,13 +930,6 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
         ].filter(Boolean).join(" ");
         const stateWeight = stateTone === "act" ? 700 : stateTone === "watch" ? 600 : 500;
         const stateInk = provisional || calibrating ? C.textDim : C.text;
-        const tapBtn = (selected) => ({
-          fontFamily: C.monoFamily, fontSize: 10.5, letterSpacing: "0.06em",
-          padding: "4px 10px", cursor: "pointer", borderRadius: 0,
-          border: `1px solid ${selected ? C.text : C.line}`,
-          background: selected ? C.text : "transparent",
-          color: selected ? C.panel : C.textDim,
-        });
         return (
         <section style={{ ...S.block, paddingTop: 18, paddingBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
@@ -946,27 +939,18 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
             <Stamp>{verdict.stamp}</Stamp>
           </div>
 
-          {/* Check-in first: four tap rows on the existing 1–10 fields. Never
-              required, never blocking — the verdict below resolves either way. */}
-          {updateToday && todayKey && (
-            <div style={{ marginBottom: 14, borderTop: `1px solid ${C.line}`, borderBottom: `1px solid ${C.line}`, padding: "8px 0" }}>
-              {CHECKIN_ROWS.map((row) => {
-                const sel = selectedOption(row, todayBody?.[row.field]);
-                return (
-                  <div key={row.field} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "3px 0" }}>
-                    <span style={{ fontFamily: C.monoFamily, fontSize: 10.5, letterSpacing: "0.14em", color: C.textFaint, width: 62 }}>{row.label}</span>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {row.options.map((opt) => (
-                        <button key={opt.value} type="button" style={tapBtn(sel?.value === opt.value)}
-                          aria-pressed={sel?.value === opt.value}
-                          onClick={() => updateToday(`body.${row.field}`, String(opt.value))}>
-                          {opt.text}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+          {/* The check-in, read-only: what you answered on Today, or a way
+              there. Never blocking — the verdict below resolves either way. */}
+          {todayKey && (
+            <div data-testid="checkin-line" style={{ marginBottom: 14, borderTop: `1px solid ${C.line}`, borderBottom: `1px solid ${C.line}`, padding: "8px 0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <span style={{ fontFamily: C.monoFamily, fontSize: 10.5, letterSpacing: "0.06em", color: C.textDim, lineHeight: 1.45 }}>
+                {checkin.answered ? `Check-in · ${checkinSummaryLine(todayBody)}` : "No check-in yet today"}
+              </span>
+              {typeof onOpenCheckin === "function" && (
+                <button type="button" onClick={onOpenCheckin} style={{ ...S.smallBtn, flexShrink: 0 }}>
+                  {checkin.complete ? "Edit on Today" : "Check in on Today"}
+                </button>
+              )}
             </div>
           )}
 
