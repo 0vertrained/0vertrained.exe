@@ -97,9 +97,9 @@ describe("broadsheet shell (V15.0)", () => {
     // Both asides are tier-gated null on mobile; the wrapper is contents.
     expect((src.match(/\{isBroadsheet && \(\s*<aside/g) || []).length).toBe(2);
     expect(src).toContain('{ display: "contents" }');
-    // Mobile intelligence folds remain available in Set Flow.
-    expect(src).toContain("setRampOpen((value) => !value)");
-    expect(src).toContain("setSubsOpen((value) => !value)");
+    // On a phone the same detail is one tap away: exercise options and the queue are sheets.
+    expect(src).toContain('setSheet("options")');
+    expect(src).toContain('setSheet("queue")');
     expect(src).toContain("<CurrentSetComposer");
   });
 

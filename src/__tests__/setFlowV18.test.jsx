@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, within } from "@testing-library/react";
 import { ThemeProvider } from "../theme";
-import { CurrentSetComposer } from "../workout/CurrentSetComposer";
+import { CurrentSetComposer, LoggedSets } from "../workout/CurrentSetComposer";
 import {
   TRACKING_MODES,
+  defaultWeightIncrement,
   firstIncompleteExerciseIndex,
   firstIncompleteSetIndex,
   isExerciseHandled,
@@ -66,44 +67,41 @@ describe("V18 Set Flow · shared logging rules", () => {
 });
 
 describe("V18 Set Flow · current set composer", () => {
-  it("renders one-thumb controls, RIR chips, and a selectable ledger", () => {
+  it("shows the set filled from the set before it, on steppers, with logged sets open to edit", () => {
     const onReplaceSet = vi.fn();
-    const onBankSet = vi.fn();
-    const onSelectSet = vi.fn();
+    const onSelect = vi.fn();
     const exercise = { name: "Chest-Supported Row", sets: 2, reps: 8 };
     const sets = [
       { weight: "180", reps: "9", rir: "2", done: true },
-      { weight: "", reps: "8", rir: "", done: false },
+      { weight: "", reps: "", rir: "", done: false },
     ];
     const view = render(
       <ThemeProvider>
-        <CurrentSetComposer
-          exercise={exercise}
-          sets={sets}
-          setIndex={1}
-          onSelectSet={onSelectSet}
-          onReplaceSet={onReplaceSet}
-          onBankSet={onBankSet}
-          lastRaw={null}
-          error=""
-        />
+        <LoggedSets exercise={exercise} sets={sets} onSelect={onSelect} />
+        <CurrentSetComposer exercise={exercise} sets={sets} setIndex={1} onReplaceSet={onReplaceSet} lastRaw={null} error="" />
       </ThemeProvider>
     );
     expect(view.getByTestId("current-set-composer")).toBeTruthy();
     expect(view.getByText("Set 2 of 2")).toBeTruthy();
-    expect(view.getByText("Repeat set 1")).toBeTruthy();
-    expect(view.getByText("Bank set 2")).toBeTruthy();
-    fireEvent.click(view.getByText("Repeat set 1"));
-    expect(onReplaceSet).toHaveBeenCalled();
-    fireEvent.click(view.getByText("Bank set 2"));
-    expect(onBankSet).toHaveBeenCalledWith(1);
-    fireEvent.click(view.getByText("180 × 9 @2"));
-    expect(onSelectSet).toHaveBeenCalledWith(0);
+    // Nothing entered yet: the set shows what set 1 was and says so.
+    expect(view.getByText("Filled from set 1")).toBeTruthy();
+    expect(view.getByRole("radio", { name: /^Set 1 180/ }).getAttribute("aria-checked")).toBe("true");
+    expect(view.getByRole("spinbutton", { name: "Weight in pounds" }).value).toBe("180");
+    expect(view.getByRole("spinbutton", { name: "Reps" }).value).toBe("9");
+    // The first nudge keeps the other number.
+    fireEvent.click(view.getByRole("button", { name: "More weight" }));
+    expect(onReplaceSet).toHaveBeenLastCalledWith(1, expect.objectContaining({ weight: String(180 + defaultWeightIncrement(exercise)), reps: "9" }));
+    // Reps in reserve is the lifter's own report: it does not take the proposal with it.
+    fireEvent.click(within(view.getByRole("group", { name: "Reps in reserve (RIR)" })).getByRole("button", { name: "2" }));
+    expect(onReplaceSet).toHaveBeenLastCalledWith(1, expect.objectContaining({ rir: "2", weight: "" }));
+    // A logged set is one line and opens for edit.
+    fireEvent.click(view.getByRole("button", { name: /^Set 1, logged: 180\u00a0lb\u00a0×\u00a09 · RIR\u00a02\. Open to edit\.$/ }));
+    expect(onSelect).toHaveBeenCalledWith(0);
   });
 });
 
 describe("V18.2 Set Flow · adaptive target and feedback", () => {
-  it("applies a prescribed set target and captures technique feedback without requiring it", () => {
+  it("fills from the prescribed target and captures technique feedback without requiring it", () => {
     const onReplaceSet = vi.fn();
     const onAcceptPrescription = vi.fn();
     const view = render(
@@ -112,9 +110,7 @@ describe("V18.2 Set Flow · adaptive target and feedback", () => {
           exercise={{ name: "Incline Dumbbell Press", sets: 3, reps: "8–10" }}
           sets={[{ weight: "", reps: "", rir: "", done: false }, { weight: "", reps: "", rir: "", done: false }, { weight: "", reps: "", rir: "", done: false }]}
           setIndex={0}
-          onSelectSet={vi.fn()}
           onReplaceSet={onReplaceSet}
-          onBankSet={vi.fn()}
           lastRaw={null}
           prescription={{
             kind: "add_load",
@@ -130,13 +126,20 @@ describe("V18.2 Set Flow · adaptive target and feedback", () => {
         />
       </ThemeProvider>
     );
-    expect(view.getByTestId("progression-prescription")).toBeTruthy();
-    fireEvent.click(view.getByText("Use target"));
+    // This file's renders stay mounted, so look inside this one only.
+    const ui = within(view.container);
+    expect(ui.getByTestId("progression-prescription")).toBeTruthy();
+    expect(ui.getByText("Filled from target")).toBeTruthy();
+    expect(ui.getByRole("spinbutton", { name: "Weight in pounds" }).value).toBe("80");
+    fireEvent.click(ui.getByRole("radio", { name: /^Target 80/ }));
     expect(onReplaceSet).toHaveBeenCalledWith(0, expect.objectContaining({ weight: "80", reps: "8" }));
     expect(onAcceptPrescription).toHaveBeenCalled();
-    fireEvent.click(view.getAllByText("Clean").at(-1));
+    // The details are optional and sit behind More.
+    expect(ui.queryByText("Clean")).toBeNull();
+    fireEvent.click(ui.getByRole("button", { name: "More: set type, how it felt, pain flag" }));
+    fireEvent.click(ui.getByRole("button", { name: "Clean" }));
     expect(onReplaceSet).toHaveBeenCalledWith(0, expect.objectContaining({ quality: "clean" }));
-    fireEvent.click(view.getAllByText("Pain").at(-1));
+    fireEvent.click(ui.getByRole("switch", { name: "Pain on this set" }));
     expect(onReplaceSet).toHaveBeenCalledWith(0, expect.objectContaining({ pain: true }));
   });
 });

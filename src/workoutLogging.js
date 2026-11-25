@@ -72,27 +72,27 @@ export function validateSet(set = {}, exercise = {}) {
   if (mode === TRACKING_MODES.TIMED_HOLD) {
     return duration > 0
       ? { valid: true, message: "" }
-      : { valid: false, message: "Enter the hold duration before banking this set." };
+      : { valid: false, message: "Enter the hold time before you log this set." };
   }
   if (mode === TRACKING_MODES.CARRY) {
-    if (weight <= 0) return { valid: false, message: "Enter the carried load before banking this set." };
+    if (weight <= 0) return { valid: false, message: "Enter the weight carried before you log this set." };
     return distance > 0 || duration > 0
       ? { valid: true, message: "" }
-      : { valid: false, message: "Enter the carry distance or duration." };
+      : { valid: false, message: "Enter the distance or the time carried." };
   }
   if (mode === TRACKING_MODES.ASSISTED_REPS) {
-    if (reps <= 0) return { valid: false, message: "Enter completed reps before banking this set." };
+    if (reps <= 0) return { valid: false, message: "Enter the reps before you log this set." };
     return assistance >= 0
       ? { valid: true, message: "" }
-      : { valid: false, message: "Assistance cannot be negative." };
+      : { valid: false, message: "Assistance can’t be below zero." };
   }
   if (mode === TRACKING_MODES.BODYWEIGHT_REPS) {
     return reps > 0
       ? { valid: true, message: "" }
-      : { valid: false, message: "Enter completed reps before banking this set." };
+      : { valid: false, message: "Enter the reps before you log this set." };
   }
-  if (weight <= 0) return { valid: false, message: "Enter the working weight before banking this set." };
-  if (reps <= 0) return { valid: false, message: "Enter completed reps before banking this set." };
+  if (weight <= 0) return { valid: false, message: "Enter the weight before you log this set." };
+  if (reps <= 0) return { valid: false, message: "Enter the reps before you log this set." };
   return { valid: true, message: "" };
 }
 
@@ -137,23 +137,26 @@ export function nextIncompleteExerciseIndex(lifting = [], workoutData = {}, curr
   return -1;
 }
 
+// One set written out the way every screen shows it: "185 lb × 8 · RIR 2".
+// A number never wraps away from its unit.
 export function displaySet(set = {}, exercise = {}) {
   const mode = resolveTrackingMode(exercise);
-  const rir = String(set.rir ?? "").trim() !== "" ? ` @${set.rir}` : "";
+  const sp = "\u00a0";
+  const rir = String(set.rir ?? "").trim() !== "" ? ` · RIR${sp}${set.rir}` : "";
   if (mode === TRACKING_MODES.TIMED_HOLD) {
-    return `${num(set.duration) || "—"} sec${num(set.weight) ? ` · ${num(set.weight)} lb` : ""}${rir}`;
+    return `${num(set.duration) || "—"}${sp}s${num(set.weight) ? ` · +${num(set.weight)}${sp}lb` : ""}${rir}`;
   }
   if (mode === TRACKING_MODES.CARRY) {
-    const measure = num(set.distance) ? `${num(set.distance)} yd` : `${num(set.duration) || "—"} sec`;
-    return `${num(set.weight) || "—"} lb · ${measure}${rir}`;
+    const measure = num(set.distance) ? `${num(set.distance)}${sp}yd` : `${num(set.duration) || "—"}${sp}s`;
+    return `${num(set.weight) || "—"}${sp}lb · ${measure}${rir}`;
   }
   if (mode === TRACKING_MODES.ASSISTED_REPS) {
-    return `${num(set.assistance ?? set.weight) || 0} lb assist · ${num(set.reps) || "—"} reps${rir}`;
+    return `${num(set.assistance ?? set.weight) || 0}${sp}lb assist${sp}×${sp}${num(set.reps) || "—"}${rir}`;
   }
   if (mode === TRACKING_MODES.BODYWEIGHT_REPS) {
-    return `${num(set.reps) || "—"} reps${num(set.weight) ? ` · +${num(set.weight)} lb` : ""}${rir}`;
+    return `${num(set.reps) || "—"}${sp}reps${num(set.weight) ? ` · +${num(set.weight)}${sp}lb` : ""}${rir}`;
   }
-  return `${num(set.weight) || "—"} × ${num(set.reps) || "—"}${rir}`;
+  return `${num(set.weight) || "—"}${sp}lb${sp}×${sp}${num(set.reps) || "—"}${rir}`;
 }
 
 export function defaultWeightIncrement(exercise = {}) {

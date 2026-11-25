@@ -13,8 +13,8 @@
 // Pure module; the UI lives in CascadeSet.jsx.
 
 export const CASCADE_KINDS = {
-  drop: { key: "drop", label: "DROP", stepPct: 0.75, hint: "past failure: strip ~25% and go straight back in, no rest" },
-  rp: { key: "rp", label: "RP", stepPct: 1.0, hint: "same load: rest fifteen breaths, squeeze out more, repeat" },
+  drop: { key: "drop", label: "DROP", stepPct: 0.75, hint: "Past failure: strip about 25% and go straight back in, no rest." },
+  rp: { key: "rp", label: "RP", stepPct: 1.0, hint: "Same load: rest fifteen breaths, squeeze out more, repeat." },
 };
 
 const round2p5 = (w) => Math.round(w / 2.5) * 2.5;

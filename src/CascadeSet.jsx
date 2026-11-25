@@ -23,13 +23,26 @@ const KIND_NAMES = { drop: "Drop set", rp: "Rest-pause" };
 // The offer explains itself in words (a hint beside each action), and it
 // appears only on the last set of the exercise, matching the programming
 // doctrine (final-set techniques) and keeping ordinary sets free of clutter.
-export function CascadeSet({ set, onChange, showOffer = false, isLast = true }) {
+// compact: the runner's rest view, where the timer is the subject. The offer
+// is one row there and the hint shows once the technique is started.
+export function CascadeSet({ set, onChange, showOffer = false, isLast = true, compact = false, offerLabel = "Add to this set" }) {
   if (!set) return null;
   const eligible = set.done && parseFloat(set.weight) > 0;
   const active = !!CASCADE_KINDS[set.type];
 
   if (!active) {
     if (!showOffer || !eligible || !isLast) return null;
+    // Compact: one row beside the rest timer, the hints left for the figure.
+    if (compact) {
+      return (
+        <div className="row" data-testid="cascade-offer" style={{ minHeight: 44, gap: 8 }}>
+          <span className="t-s c2 grow">{offerLabel}</span>
+          {Object.values(CASCADE_KINDS).map((k) => (
+            <button key={k.key} type="button" className="btn btn-s btn-sm" aria-label={OFFER_NAMES[k.key] || k.label} onClick={() => onChange(startCascade(set, k.key))}>{KIND_NAMES[k.key] || k.label}</button>
+          ))}
+        </div>
+      );
+    }
     return (
       <div className="casc" data-testid="cascade-offer">
         {Object.values(CASCADE_KINDS).map((k) => (

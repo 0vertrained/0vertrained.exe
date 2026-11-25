@@ -72,6 +72,20 @@ export function getLastPerformance(data, exerciseName, todayKey, lookbackDays = 
 // that's the decision engine's job, not a per-exercise heuristic.
 const LOWER_BODY_HINTS = ["squat", "deadlift", "leg", "lunge", "rdl", "hip thrust", "calf"];
 
+// The heaviest set on record for a lift before today, or 0 when there is none.
+// A set heavier than this is a personal record by load.
+export function priorBestWeight(data, exerciseName, todayKey) {
+  let best = 0;
+  for (const [dateKey, day] of Object.entries(data || {})) {
+    if (dateKey === todayKey) continue;
+    for (const set of day?.workout?.exercises?.[exerciseName]?.sets || []) {
+      const weight = parseFloat(set.weight) || 0;
+      if (weight > best) best = weight;
+    }
+  }
+  return best;
+}
+
 export function buildProgressionHint({ last, exercise }) {
   if (!last || !exercise) return null;
   const targetReps = parseInt(exercise.reps, 10) || 0;

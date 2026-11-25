@@ -70,15 +70,15 @@ describe("V17.5 ghosts — priority and placement", () => {
     expect(firstEmptyIndex([S(185, 8), S(185, 8)])).toBe(-1); // all filled → no chip anywhere
   });
 
-  it("the rest glance answers what's next — slot ghost, then next exercise, then banked", () => {
+  it("the rest glance answers what's next — slot ghost, then next exercise, then logged", () => {
     const last = lastSessionSets(HIST, "Bench", "2026-07-15");
     const sets = [S(190, 8), { done: false, weight: "", reps: "" }, { done: false, weight: "", reps: "" }];
     const g = buildNextGlance({ sets, completedIndex: 0, exerciseName: "Bench", last, nextExerciseName: "Dip" });
-    expect(g.line).toBe("Next · set 2 of 3");
-    expect(g.ghost).toBe("last time 185×8");
+    expect(g.line).toBe("Next: set 2 of 3");
+    expect(g.ghost).toBe("last time 185\u00a0×\u00a08");
     const doneSets = [S(190, 8), S(190, 8), S(190, 6)];
-    expect(buildNextGlance({ sets: doneSets, completedIndex: 2, exerciseName: "Bench", last, nextExerciseName: "Dip" }).line).toBe("Next · Dip");
-    expect(buildNextGlance({ sets: doneSets, completedIndex: 2, exerciseName: "Bench", last }).line).toBe("Last set banked");
+    expect(buildNextGlance({ sets: doneSets, completedIndex: 2, exerciseName: "Bench", last, nextExerciseName: "Dip" }).line).toBe("Next: Dip");
+    expect(buildNextGlance({ sets: doneSets, completedIndex: 2, exerciseName: "Bench", last }).line).toBe("Last set logged");
   });
 });
 
@@ -179,9 +179,12 @@ describe("V17.5 mounted surfaces", () => {
     expect(today).toContain("index === firstEmptyIndex(sets)");
     expect(today).toContain("isExerciseHandled(exercise");
     expect(today).toContain("workout.cardioSessions.${activeCardioSession.id}.miles");
+    // The runner's set arrives filled from the target, the set before it or
+    // last time, and logs what it shows.
     const composer = read("src/workout/CurrentSetComposer.jsx");
-    expect(composer).toContain("ghostForSet(sets, setIndex, lastRaw)");
+    expect(composer).toContain("proposeSet({ set: stored, setIndex, sets, exercise, prescription, lastRaw, choice })");
     const session = read("src/SessionMode.jsx");
+    expect(session).toContain("proposeSet({ set: sets[setIndex], setIndex, sets, exercise, prescription, lastRaw, choice })");
     expect(session).toContain('data-testid="rest-glance"');
     expect(session).toContain('data-testid="skip-row"');
     expect(session).toContain("firstIncompleteExerciseIndex");

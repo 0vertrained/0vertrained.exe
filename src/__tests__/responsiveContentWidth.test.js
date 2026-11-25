@@ -64,10 +64,13 @@ describe("responsive content-width contract", () => {
   });
 
   test("does not narrow intentionally full-viewport active-session dialogs", () => {
-    for (const file of ["src/CardioSession.jsx", "src/SessionMode.jsx"]) {
+    // The session runner is a full-screen flow; the interval runner still
+    // carries its own fixed overlay.
+    for (const [file, cover] of [["src/CardioSession.jsx", "inset: 0"], ["src/SessionMode.jsx", "<Flow "]]) {
       const source = read(file);
-      expect(source).toContain("inset: 0");
+      expect(source).toContain(cover);
       expect(source).not.toContain(CONTRACT);
     }
+    expect(read("src/ledger.css")).toMatch(/\.flow-screen \{ position: fixed; inset: 0;/);
   });
 });

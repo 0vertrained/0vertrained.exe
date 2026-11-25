@@ -186,7 +186,7 @@ describe("V17.4 The Cascade — mounted figure", () => {
     const today = readFileSync(resolve(root, "src/TodayTab.jsx"), "utf8");
     expect(today).toContain("<CascadeSet set={set} showOffer");
     const composer = readFileSync(resolve(root, "src/workout/CurrentSetComposer.jsx"), "utf8");
-    expect(composer).toContain('<CascadeSet set={set} compact');
+    expect(composer).toContain('<CascadeSet set={set} onChange');
     expect(composer).toContain('nextType !== "drop" && nextType !== "rp"');
   });
 });

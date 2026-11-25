@@ -82,13 +82,13 @@ export function buildNextGlance({ sets, completedIndex, exerciseName, last, next
   if (nextIdx !== -1) {
     const slot = last?.sets?.[nextIdx] || (last?.sets?.length ? last.sets[last.sets.length - 1] : null);
     return {
-      line: `Next · set ${nextIdx + 1} of ${total}`,
-      ghost: slot ? `last time ${numOr(slot.weight) || "·"}×${numOr(slot.reps) || "·"}` : null,
+      line: `Next: set ${nextIdx + 1} of ${total}`,
+      ghost: slot ? `last time ${numOr(slot.weight) || "·"}\u00a0×\u00a0${numOr(slot.reps) || "·"}` : null,
       exercise: exerciseName,
     };
   }
-  if (nextExerciseName) return { line: `Next · ${nextExerciseName}`, ghost: null, exercise: nextExerciseName };
-  return { line: "Last set banked", ghost: null, exercise: exerciseName };
+  if (nextExerciseName) return { line: `Next: ${nextExerciseName}`, ghost: null, exercise: nextExerciseName };
+  return { line: "Last set logged", ghost: null, exercise: exerciseName };
 }
 
 export default { lastSessionSets, firstEmptyIndex, ghostForSet, buildNextGlance };

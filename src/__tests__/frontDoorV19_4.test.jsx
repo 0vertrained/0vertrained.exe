@@ -149,7 +149,7 @@ const startButton = () => screen.findByRole("button", { name: /^(Start|Continue)
 const liveToday = async () => { await startButton(); return document.querySelector('[data-ui="today-command-center"]'); };
 
 describe("V19.4 front door — a new account reaches a logger", () => {
-  it("signs in → setup → Today is live → a logger in one tap → the first set banked on the second", async () => {
+  it("signs in → setup → Today is live → a logger in one tap → the first set logged on the second", async () => {
     render(<App />);
     await finishSetup();
 
@@ -167,10 +167,10 @@ describe("V19.4 front door — a new account reaches a logger", () => {
     // Tap 1 starts the session from the call card: that's the logger.
     fireEvent.click(await startButton());
     const runner = await screen.findByRole("dialog", { name: /workout session/ }, WAIT);
-    // The numbers, then tap 2 banks the set.
-    fireEvent.change(within(runner).getByLabelText("Load"), { target: { value: "135" } });
-    fireEvent.change(within(runner).getByLabelText("Reps"), { target: { value: "5" } });
-    fireEvent.click(within(runner).getByRole("button", { name: "Bank set 1" }));
+    // The numbers, then tap 2 logs the set.
+    fireEvent.change(within(runner).getByRole("spinbutton", { name: "Weight in pounds" }), { target: { value: "135" } });
+    fireEvent.change(within(runner).getByRole("spinbutton", { name: "Reps" }), { target: { value: "5" } });
+    fireEvent.click(within(runner).getByRole("button", { name: "Log set" }));
 
     // The first set reaches the save path (700 ms debounce).
     await waitFor(() => expect(dataLayer.saveEntry).toHaveBeenCalled(), WAIT);
@@ -355,9 +355,9 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     render(<App />);
     fireEvent.click(await startButton());
     const runner = await screen.findByRole("dialog", { name: /workout session/ }, WAIT);
-    fireEvent.change(within(runner).getByLabelText("Load"), { target: { value: "135" } });
-    fireEvent.change(within(runner).getByLabelText("Reps"), { target: { value: "5" } });
-    fireEvent.click(within(runner).getByRole("button", { name: "Bank set 1" }));
+    fireEvent.change(within(runner).getByRole("spinbutton", { name: "Weight in pounds" }), { target: { value: "135" } });
+    fireEvent.change(within(runner).getByRole("spinbutton", { name: "Reps" }), { target: { value: "5" } });
+    fireEvent.click(within(runner).getByRole("button", { name: "Log set" }));
     await screen.findByText("Save pending — will retry", {}, WAIT); // queued for the first account
     fireEvent.click(within(runner).getByRole("button", { name: /Exit/ }));
 
