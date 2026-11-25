@@ -284,3 +284,31 @@ export function Method({ testId, method, detail = null, label = "How this is mea
     </div>
   );
 }
+
+// One number, asked for where it is needed: a button that opens a field.
+export function QuickNumber({ action, label, hint, onSave }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [error, setError] = useState("");
+  const save = (event) => {
+    event.preventDefault();
+    const value = Number.parseFloat(text);
+    if (!Number.isFinite(value) || value <= 0) { setError(hint); return; }
+    onSave(value);
+    setText(""); setError(""); setOpen(false);
+  };
+  if (!open) return <button type="button" className="btn btn-s btn-sm" onClick={() => setOpen(true)}>{action}</button>;
+  return (
+    <form onSubmit={save} noValidate style={{ display: "flex", flexDirection: "column", gap: 6, flex: "1 1 100%" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+        <label className="field grow">
+          <span className="lbl">{label}</span>
+          <input className="input n" inputMode="decimal" autoComplete="off" autoFocus value={text} aria-invalid={error ? "true" : undefined} onChange={(event) => { setText(event.target.value); setError(""); }} />
+        </label>
+        <button type="submit" className="btn btn-p">Save</button>
+        <button type="button" className="btn btn-g" onClick={() => { setOpen(false); setText(""); setError(""); }}>Cancel</button>
+      </div>
+      {error && <p className="err" role="alert">{error}</p>}
+    </form>
+  );
+}
