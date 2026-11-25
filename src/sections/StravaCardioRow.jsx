@@ -2,10 +2,10 @@
 // Strava → cardio ledger suggestion.
 //
 // When the displayed day has Strava activity but no manually logged cardio,
-// this renders one quiet ruled row: what was recorded, a single "Use for
-// today" action, a dismiss, and the Strava deep link the API Agreement
+// this renders one note in Today's plan: what was recorded, a single "Use
+// for today" action, a dismiss, and the Strava deep link the API Agreement
 // requires. UX contract:
-//   · Provisional until confirmed — dotted ProvisionalTag, dim ink. The run
+//   · Provisional until confirmed, and labelled "not counted yet". The run
 //     already counts toward training load (the work happened); confirming is
 //     what marks it as plan-followed, keeping "did I follow the plan" the
 //     athlete's statement rather than an import's.
@@ -14,11 +14,9 @@
 //   · Editing after confirm is just editing manual fields — provenance flips.
 //   · Dismiss is per-day, remembered locally, and never nags again.
 //   · Disappears on its own the moment manual cardio exists.
-// Ghost-weight actions only: Today's single filled CTA stays the hero's.
+// Quiet actions only: Today's one filled button stays the call's.
 
 import { useState } from "react";
-import { useTheme } from "../theme";
-import { ProvisionalTag } from "../ui/primitives";
 import { stravaActivityUrl } from "../strava/dataLoading";
 
 const DISMISS_PREFIX = "ovt-strava-suggest-dismissed:";
@@ -66,68 +64,29 @@ export function hasManualCardio(cardio, cardioSessions) {
 }
 
 export function StravaCardioRow({ activities, cardio, cardioSessions, dateKey, dayLabel, isToday = true, onApply }) {
-  const { C, S } = useTheme();
-  const mono = C.monoFamily;
-  const serif = C.serifFamily;
   const [dismissed, setDismissed] = useState(() => isStravaSuggestionDismissed(dateKey));
 
   const fill = buildCardioFillFromActivities(activities);
   if (!fill || dismissed || hasManualCardio(cardio, cardioSessions)) return null;
 
   const primary = (activities || []).find((a) => a.kind === "run") || activities[0];
-  const summaryBits = [
-    fill.miles ? `${fill.miles} mi` : null,
-    fill.time || null,
-    primary?.paceSecPerMile ? `${Math.floor(primary.paceSecPerMile / 60)}:${String(primary.paceSecPerMile % 60).padStart(2, "0")} /mi` : null,
-  ].filter(Boolean).join(" · ");
   const titleLine = fill.count === 1 ? (fill.titles[0] || primary?.sport || "Activity") : `${fill.count} activities`;
-
-  const ghostBtn = {
-    background: "none",
-    border: `1px solid ${C.lineBright}`,
-    color: C.text,
-    fontFamily: mono,
-    fontSize: 10.5,
-    letterSpacing: "0.1em",
-    textTransform: "uppercase",
-    padding: "9px 12px",
-    minHeight: 36,
-    cursor: "pointer",
-  };
+  const summary = [
+    titleLine,
+    fill.miles ? `${fill.miles}\u00a0mi` : null,
+    fill.time || null,
+    primary?.paceSecPerMile ? `${Math.floor(primary.paceSecPerMile / 60)}:${String(primary.paceSecPerMile % 60).padStart(2, "0")}\u00a0min/mi` : null,
+  ].filter(Boolean).join(" · ");
 
   return (
-    <section aria-label="Strava activity available to log" style={{ ...S.block, background: C.panel }}>
-      <div style={{ ...S.blockHead, marginBottom: 8 }}>
-        <span style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
-          <span style={S.sourceTag}>STRAVA</span>
-          <ProvisionalTag>Not counted yet</ProvisionalTag>
-        </span>
-        <a
-          href={stravaActivityUrl(primary)}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ ...S.blockStat, color: C.textDim, textDecoration: "none" }}
-        >
-          View on Strava →
-        </a>
-      </div>
-      <div style={{ fontFamily: serif, fontSize: 19, fontWeight: 500, letterSpacing: "-0.02em", color: C.text, lineHeight: 1.15 }}>
-        {dayLabel ? `${dayLabel} · ${summaryBits || titleLine}` : (summaryBits || titleLine)}
-      </div>
-      <div style={{ fontFamily: mono, fontSize: 11, color: C.textDim, letterSpacing: "0.03em", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {titleLine} · recorded on Strava — {isToday ? "log it as today's cardio?" : `log it for ${dayLabel?.toLowerCase() || "this day"}?`}
-      </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
-        <button type="button" style={ghostBtn} onClick={() => onApply && onApply(fill)}>
+    <section className="banner" aria-label="Strava activity available to log" style={{ flexDirection: "column", gap: 8 }}>
+      <p><span className="t-ss">From Strava · not counted yet</span><br /><span className="n-s">{dayLabel ? `${dayLabel} · ${summary}` : summary}</span></p>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <button type="button" className="btn btn-s btn-sm" onClick={() => onApply && onApply(fill)}>
           {isToday ? "Use for today" : dayLabel === "Yesterday" ? "Use for yesterday" : "Use for this day"}
         </button>
-        <button
-          type="button"
-          style={{ ...ghostBtn, border: "1px solid transparent", color: C.textFaint }}
-          onClick={() => { rememberDismiss(dateKey); setDismissed(true); }}
-        >
-          Dismiss
-        </button>
+        <button type="button" className="btn btn-g btn-sm" onClick={() => { rememberDismiss(dateKey); setDismissed(true); }}>Dismiss</button>
+        <a className="t-s u" href={stravaActivityUrl(primary)} target="_blank" rel="noopener noreferrer" style={{ marginLeft: "auto", minHeight: 44, display: "flex", alignItems: "center" }}>View on Strava<span className="sr"> (opens in a new tab)</span></a>
       </div>
     </section>
   );

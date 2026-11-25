@@ -226,6 +226,13 @@ a.row:active, button.row:active { background: var(--press); }
 .step button { height: 56px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); display: flex; align-items: center; justify-content: center; }
 .step-xl button { height: 64px; }
 .stepv { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-width: 0; }
+/* The suggestion under the first empty row: one tap fills the set */
+.ghost { display: flex; align-items: center; gap: 8px; min-height: 44px; width: 100%; padding: 0 0 0 28px; text-align: left; border-bottom: 1px dashed var(--edge); }
+/* A drop set or rest-pause hanging off its set */
+.casc { display: flex; flex-direction: column; gap: 6px; margin-left: 9px; padding: 2px 0 2px 18px; border-left: 1px solid var(--edge); }
+.casc-r { display: grid; grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
+.casc-r .input { height: 44px; padding: 0 6px; text-align: center; }
+
 /* The switch draws at 32px and takes taps across 44px */
 .sw { width: 52px; height: 32px; border-radius: 16px; border: 1px solid var(--edge); background: var(--surface); display: flex; align-items: center; padding: 3px; flex: none; position: relative; transition: background-color var(--t-quick) ease, border-color var(--t-quick) ease; }
 .sw::after { content: ""; position: absolute; left: 0; right: 0; top: -7px; bottom: -7px; }

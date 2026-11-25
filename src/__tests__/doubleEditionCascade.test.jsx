@@ -150,11 +150,11 @@ describe("V17.4 The Cascade — mounted figure", () => {
     const offer = getByTestId("cascade-offer");
     // Self-explanatory: full words + a plain hint per row — no
     // abbreviations, no hover-only tooltips (phones have no hover).
-    expect(offer.textContent).toContain("+ drop set");
-    expect(offer.textContent).toContain("+ rest-pause");
+    expect(offer.textContent).toContain("Add a drop set");
+    expect(offer.textContent).toContain("Add a rest-pause");
     expect(offer.textContent).toMatch(/past failure/i);
     expect(offer.textContent).toMatch(/fifteen breaths/i);
-    fireEvent.click(offer.querySelectorAll("button")[0]); // + drop set
+    fireEvent.click(offer.querySelectorAll("button")[0]); // Add a drop set
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ type: "drop", segments: [{ weight: "67.5", reps: "" }] }));
   });
 
@@ -170,7 +170,7 @@ describe("V17.4 The Cascade — mounted figure", () => {
     expect(container.textContent).toBe(""); // no offer without showOffer
     rerender(<ThemeProvider><CascadeSet set={{ weight: "90", reps: "10", done: true, type: "drop", segments: [{ weight: "67.5", reps: "" }] }} compact onChange={() => {}} /></ThemeProvider>);
     const fig = getByTestId("cascade-figure");
-    expect(fig.textContent).toContain("DROP");
+    expect(fig.textContent).toContain("Drop set");
     expect(fig.querySelectorAll("input")).toHaveLength(2); // one segment row
   });
 

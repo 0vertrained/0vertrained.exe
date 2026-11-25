@@ -1,12 +1,12 @@
 // src/RaceWeekLine.jsx
-// One ruled line on Today: where you are in the race plan.
-//   RACE PLAN · WEEK 3 OF 12            68 DAYS
+// One row in Today's plan: where you are in the race plan.
+//   Race plan · week 3 of 12            68 days
 //   Base · 140 min of running this week
 // Display only — reads the resolved program's `__raceBuild` marker through
 // describeBuildWeek.
 // Renders nothing when no plan is active.
 
-import { useTheme } from "./theme";
+import { Icon } from "./ui/ledger";
 import { describeBuildWeek } from "./raceBuild";
 
 export function formatPlanDate(dateKey) {
@@ -38,19 +38,13 @@ export function raceWeekCopy(desc) {
 }
 
 export function RaceWeekLine({ program, dateKey }) {
-  const { C, S } = useTheme();
   const copy = raceWeekCopy(describeBuildWeek(program, dateKey));
   if (!copy) return null;
   return (
-    <div
-      data-plate="race-week"
-      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "13px 16px", borderBottom: `1px solid ${C.line}`, background: C.bg }}
-    >
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: "block", fontFamily: S.fontAnnot, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textDim }}>{copy.eyebrow}</span>
-        <span style={{ display: "block", fontFamily: S.fontMain, fontSize: 14, fontWeight: 500, color: C.text, marginTop: 3 }}>{copy.main}</span>
-      </span>
-      <span style={{ fontFamily: S.fontAnnot, fontSize: 11, color: C.textFaint, letterSpacing: "0.08em", textTransform: "uppercase", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{copy.countdown}</span>
+    <div className="row" data-plate="race-week">
+      <Icon name="run" className="c2" />
+      <span className="kv grow"><span className="t-bs">{copy.eyebrow}</span><span className="t-s c2">{copy.main}</span></span>
+      <span className="n-s c2">{copy.countdown}</span>
     </div>
   );
 }
