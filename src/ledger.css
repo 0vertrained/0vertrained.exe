@@ -281,7 +281,8 @@ a.row:active, button.row:active { background: var(--press); }
 .ch .col { fill: var(--ink); }
 .ch .col2 { fill: var(--bg); stroke: var(--edge); stroke-width: 1.5; }
 .ch .tx { font: 500 12px var(--f-ui); fill: var(--ink-2); }
-.ch .txn { font: 500 12px var(--f-data); fill: var(--ink); }
+/* A value label keeps a rim of the page colour, so a line passing behind it never crosses the figures */
+.ch .txn { font: 500 12px var(--f-data); fill: var(--ink); paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
 
 /* ── Motion · ink on paper ──────────────────────────────────────────────────────
    Things are written, stamped and printed in place; nothing floats in, bounces or glows.
