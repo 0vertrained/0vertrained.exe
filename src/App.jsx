@@ -517,7 +517,14 @@ function AppInner({ onThemeChange }) {
   }, [user, authReady, demoMode, onThemeChange, bootAttempt]);
 
 
-  const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(null), 2200); }, []);
+  // A toast says what just happened. Pass { action, onAction } and it carries
+  // a button (Undo) and stays up longer; the newest toast replaces the last.
+  const toastTimer = useRef(null);
+  const showToast = useCallback((msg, options) => {
+    clearTimeout(toastTimer.current);
+    setToast(options?.action ? { text: msg, action: options.action, onAction: options.onAction } : msg);
+    toastTimer.current = setTimeout(() => setToast(null), options?.action ? 6000 : 2200);
+  }, []);
 
   useEffect(() => {
     const onUpdate = () => setAppUpdateReady(true);
@@ -1174,7 +1181,9 @@ function AppInner({ onThemeChange }) {
 
       <div className="toast-dock">
         {appUpdateReady && <Toast action="Reload" onAction={() => window.location.reload()}>Updated. Reload for the newest version.</Toast>}
-        {toast && !appUpdateReady && <Toast>{toast}</Toast>}
+        {toast && !appUpdateReady && (typeof toast === "string"
+          ? <Toast>{toast}</Toast>
+          : <Toast action={toast.action} onAction={() => { toast.onAction?.(); setToast(null); }}>{toast.text}</Toast>)}
       </div>
       <input ref={fileRef} type="file" accept=".json" aria-label="Import data from JSON file" style={{ display:"none" }} onChange={importFile} />
       {exportModal && <ExportModal modal={exportModal} onClose={() => setExportModal(null)} showToast={showToast} />}
