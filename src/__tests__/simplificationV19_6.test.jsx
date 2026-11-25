@@ -58,29 +58,36 @@ afterEach(() => { cleanup(); localStorage.clear(); });
 const wrap = (ui) => render(<ThemeProvider>{ui}</ThemeProvider>);
 
 describe("Recovery · one verdict", () => {
-  const src = read("src/RecoveryDashboard.jsx");
-  const mobile = src.slice(src.indexOf(") : (<>"), src.indexOf("</>)}\n    </div>\n  );\n}"));
+  const src = read("src/RecoveryView.jsx");
+  const connected = src.slice(src.indexOf("export function RecoveryConnected("));
 
-  it("mobile: reconnect → check-in + verdict → what changed → data trust → the fold", () => {
-    const order = ["{blkReconnect}", "{blkSliceC}", "{blkWhatchangedtoday}", "{blkDatatrust}", "{blkTechnicaldetailsdisclosure}", "{techOpen && (<>"];
-    const positions = order.map((token) => mobile.indexOf(token));
+  it("reads in one order: reconnect → the call → alerts → why → the check-in → the figures → the audit", () => {
+    const order = ["{view.reconnect && (", "{verdict && <Call ", "<Alerts ", "{verdict && <Why ", "<CheckinBanner ", "<Trend ", "<Drivers ", "<Load ", '<FoldRow title="Wearables"'];
+    const positions = order.map((token) => connected.indexOf(token));
     expect(positions.every((p) => p >= 0), positions.join(",")).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
   });
 
-  it("the other readings of the same morning wait under Technical details", () => {
-    const fold = mobile.slice(mobile.indexOf("{techOpen && (<>"));
-    const above = mobile.slice(0, mobile.indexOf("{techOpen && (<>"));
-    for (const token of ["{blkSignals}", "{blkMixedsignalday}", "{blkWearablereadinesscheck}", "{blkReadiness}", "{blkCoachinterpretation}", "{blkComponentledger}", "{blkTrainingLoad}"]) {
-      expect(fold, token).toContain(token);
-      expect(above, token).not.toContain(token);
+  it("the other readings of the same morning wait behind their own rows", () => {
+    for (const [title, body] of [["The coach’s read", "<CoachRead coach={coachInterp} />"], ["Wearables", "<Wearables view={view} />"], ["Data trust", "<Trust view={view} />"]]) {
+      const at = connected.indexOf(`<FoldRow title="${title}"`);
+      expect(at, title).toBeGreaterThan(-1);
+      const row = connected.slice(at, connected.indexOf("</FoldRow>", at));
+      expect(row, title).toContain(body);
     }
-    expect(src).toContain('"▾ signals · score · interpretation · ledger · load"');
+    // Each is drawn once, and only there.
+    expect(connected.match(/<Trust view=/g)).toHaveLength(1);
+    expect(connected.match(/<Wearables view=/g)).toHaveLength(1);
+    // A fold row is a real disclosure.
+    expect(src).toContain('<button type="button" className="row" aria-expanded={open}');
   });
 
-  it("the reconnect banner is its own block, above the verdict, and the verdict still carries the limiter", () => {
-    expect(src).toMatch(/const blkReconnect = \(<>\s*\{tokenStatus\?\.isExpired &&/);
-    expect(src).toContain("{verdict.limiter && <LimiterRule");
+  it("the reconnect banner stands above the call, and the reasons still carry the limiter", () => {
+    expect(connected.indexOf("{view.reconnect && (")).toBeLessThan(connected.indexOf("{verdict && <Call "));
+    expect(connected).toContain("Oura needs reconnecting.");
+    expect(src).toContain("const limiter = verdict.limiter;");
+    expect(src).toContain("{limiter.detail}");
+    expect(read("src/RecoveryDashboard.jsx")).toContain("reconnect: Boolean(tokenStatus?.isExpired)");
   });
 });
 

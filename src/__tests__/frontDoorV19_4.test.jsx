@@ -191,7 +191,8 @@ describe("V19.4 front door — a new account reaches a logger", () => {
     tab("Today");
     await liveToday();
     openRecovery();
-    expect(await screen.findByText("Manual check-in is primary.", {}, WAIT)).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "What you logged" }, WAIT)).toBeTruthy();
+    expect(screen.getByText("Manual", { selector: ".stamp" })).toBeTruthy();
     expect(screen.queryByTestId("specimen-stamp")).toBeNull();
   }, 20000);
 

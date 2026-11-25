@@ -59,11 +59,12 @@ describe("V17.1 the sweep (source guards)", () => {
     expect(src).toMatch(/Mifflin/);
   });
 
-  it("Training Load: ACWR stops being unexplained jargon", () => {
-    const src = read("src/RecoveryDashboard.jsx");
+  it("Training load: the ratio is explained, and the term of art stays behind the button", () => {
+    const src = read("src/RecoveryView.jsx");
     expect(src).toContain('testId="method-load"');
     expect(src).toContain("28-day norm");
     expect(src).toMatch(/acute:chronic/);
+    expect(src).not.toContain("ACWR");
   });
 
   it("muscle volume: landmark gloss lives behind the expandable, in plain words", () => {
@@ -74,16 +75,19 @@ describe("V17.1 the sweep (source guards)", () => {
     expect(src).toContain("a map, not a rulebook");
   });
 
-  it("three disclosure registers, no rivals: MethodNote and the ⓘ toggle survive alongside MethodLine", () => {
-    const wp = read("src/whitepaper.jsx");
-    expect(wp).toContain("export function MethodNote");
-    expect(wp).toContain("export function MethodLine");
-    expect(read("src/RecoveryDashboard.jsx")).toContain("ReadinessMethodToggle");
+  it("one disclosure register on the rebuilt screens: the kit's Method", () => {
+    expect(read("src/ui/ledger.jsx")).toContain("export function Method(");
+    for (const file of ["src/RecoveryView.jsx", "src/MuscleVolumeSection.jsx", "src/WeightTrendFigure.jsx"]) {
+      expect(read(file)).toContain("<Method");
+      expect(read(file)).not.toContain("MethodLine");
+    }
+    // How the score is made sits under Data trust, as a note beside its numbers.
+    expect(read("src/RecoveryView.jsx")).toContain("HRV adds up to 35 points, resting heart rate up to 25, sleep up to 25 and body temperature up to 15.");
   });
 
   it("recovery ledger provenance was already covered (V16.5) — not duplicated", () => {
-    const src = read("src/RecoveryDashboard.jsx");
-    expect(src).toMatch(/raw wearable value, scoring source, sample depth/);
+    const src = read("src/RecoveryView.jsx");
+    expect(src).toMatch(/the raw wearable value, the scoring source, the sample depth/);
   });
 });
 

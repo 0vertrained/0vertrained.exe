@@ -1,7 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { ThemeProvider } from "../theme";
-import { ReadinessMethodToggle } from "../RecoveryDashboard";
 import { MuscleVolumeSection } from "../MuscleVolumeSection";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -23,17 +22,6 @@ const volumeData = {
 };
 
 describe("accessibility remediation", () => {
-  it("makes the Recovery scoring-method control a named disclosure", () => {
-    const onToggle = () => {};
-    const { rerender } = wrap(<ReadinessMethodToggle open={false} onToggle={onToggle} />);
-    const collapsed = screen.getByRole("button", { name: /show how readiness is scored/i });
-    expect(collapsed.getAttribute("aria-expanded")).toBe("false");
-    expect(collapsed.style.minHeight).toBe("44px");
-
-    rerender(<ThemeProvider><ReadinessMethodToggle open onToggle={onToggle} /></ThemeProvider>);
-    expect(screen.getByRole("button", { name: /hide readiness scoring method/i }).getAttribute("aria-expanded")).toBe("true");
-  });
-
   it("explains sets this week on demand and exposes each mark to assistive tech", () => {
     wrap(<MuscleVolumeSection data={volumeData} />);
     const guide = screen.getByRole("button", { name: "How to read sets this week" });

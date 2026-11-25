@@ -26,14 +26,18 @@ afterEach(cleanup);
 
 describe("V16.8 Morning Edition — dashboard anatomy (source guards)", () => {
   const src = read("src/RecoveryDashboard.jsx");
+  const view = read("src/RecoveryView.jsx");
 
-  it("the check-in line renders ABOVE the state row, which renders above the headline", () => {
-    const checkinAt = src.indexOf('data-testid="checkin-line"');
-    const stateAt = src.indexOf("{stateName}");
-    const headlineAt = src.indexOf("{verdict.headline}");
-    expect(checkinAt).toBeGreaterThan(-1);
-    expect(stateAt).toBeGreaterThan(checkinAt);
-    expect(headlineAt).toBeGreaterThan(stateAt);
+  it("the call leads with its sentence and the state of the last days; the check-in follows the reasons", () => {
+    const headlineAt = view.indexOf("{verdict.headline}");
+    const stateAt = view.indexOf("{state && <p");
+    expect(headlineAt).toBeGreaterThan(-1);
+    expect(stateAt).toBeGreaterThan(headlineAt);
+    // On the screen: the call, any alert, why, then the check-in with its way to Today.
+    const order = ["{verdict && <Call ", "<Alerts ", "{verdict && <Why ", "<CheckinBanner "].map((token) => view.indexOf(token));
+    expect(order.every((at) => at > -1), order.join(",")).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(view).toContain('data-testid="checkin-line"');
   });
 
   it("taps live on Today and write to the shared body fields through updateToday", () => {
@@ -43,21 +47,21 @@ describe("V16.8 Morning Edition — dashboard anatomy (source guards)", () => {
   });
 
   it("the verdict is provisional (labelled, dimmed) until the check-in completes — and never blocked", () => {
-    expect(src).toContain("!checkin.complete");
-    expect(src).toContain("· before check-in");
-    // Dimmed ink for provisional/calibrating, not hidden content:
-    expect(src).toMatch(/provisional \|\| calibrating \? C\.textDim : C\.text/);
+    expect(view).toContain("!checkin.complete");
+    expect(view).toContain('provisional ? "before check-in" : null');
+    // Quieter ink for provisional/calibrating, not hidden content:
+    expect(view).toContain('provisional || calibrating ? "t-ss c2" : "t-ss"');
   });
 
   it("evidence deck replaces score-restating copy, with the resolver deck as fallback", () => {
-    expect(src).toContain("evidenceLines.length ? evidenceLines : [verdict.deck]");
+    expect(view).toContain("evidenceLines.length ? evidenceLines : [verdict.deck]");
   });
 
   it("divergence, schedule/recency context, and the plain-language explainer are present", () => {
-    expect(src).toContain("divergenceNote(checkin, recovery?.score)");
-    expect(src).toContain("Recently loaded:");
-    expect(src).toContain("What does this mean?");
-    expect(src).toContain("trend.meaning.why");
+    expect(view).toContain("divergenceNote(checkin, recovery?.score)");
+    expect(view).toContain("Recently loaded:");
+    expect(view).toContain("What does this mean?");
+    expect(view).toContain("trend.meaning.why");
   });
 
   it("the check-in caution feeds the resolver; the score object is passed through untouched", () => {

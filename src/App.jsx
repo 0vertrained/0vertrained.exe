@@ -1107,12 +1107,12 @@ function AppInner({ onThemeChange }) {
 
         {/* Recovery: the detail behind the call, one level down from the tab it was opened on. */}
         {overlay === "recovery" && (
-          <div className="legacy-screen">
+          <div className={!accountUnavailable && loaded && !dayZero.recovery.isZero ? "tab-screen" : "legacy-screen"}>
             <ErrorBoundary label="Recovery">
             <Suspense fallback={null}>
             {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /> : loaded && dayZero.recovery.isZero
               ? <DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} />
-              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} onOpenIntegrations={() => openSettings("integrations")} /></>}
+              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} todayPlan={liveProgram?.[todayName]?.type || null} onOpenIntegrations={() => openSettings("integrations")} /></>}
             </Suspense>
             </ErrorBoundary>
           </div>

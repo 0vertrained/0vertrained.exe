@@ -37,32 +37,24 @@ import { isDemoMode } from "./demoData";
 import { loadStravaActivities, groupStravaByDate } from "./strava/dataLoading"; // display context · sentinel rung
 import { buildDailyLoads, computeRollingLoads, getLoadZoneInfo, findUnloggedLoadDays } from "./loadModel";
 import { buildSignalProvenance } from "./wearables/signalProvenance";
-import { FigureSection, LeadMetric, RuledScale, MetricFigure, MethodNote, MethodLine, RuledRow, StatusStamp, AlertCard, AlertHistory, Sparkline, SkeletonBlock, SkeletonMetricFigure } from "./whitepaper";
 import { buildRecoveryChangeSummary, buildRecoveryCoachInterpretation, buildRecoveryHeroMeta } from "./recoverySummary";
 import { buildRecoveryVerdict } from "./recovery/verdictResolver";
 import { classifyRecoveryState } from "./wearables/recoveryTrend";
-import { readCheckin, checkinSeverity, checkinEvidenceLine, divergenceNote, checkinSummaryLine } from "./checkinMorning";
-import { buildMuscleRecency } from "./muscleVolume";
+import { readCheckin, checkinSeverity } from "./checkinMorning";
 import { logFunnelEvent } from "./funnel";
 import { editionWindow } from "./sundayEdition";
 import { SundayEdition } from "./SundayEdition";
-import { Stamp, LimiterRule, AdvisoryNote } from "./ui/primitives";
 import { resolveRecoveryContext } from "./recovery/wearableSourceResolver";
 import { buildConservativeBlendContext, applyWearableConfidenceAdjustment, buildBlendExplanation } from "./recovery/conservativeBlending";
 import { buildAggregatedRecoveryContext, buildConfidenceExplanation } from "./recovery/aggregationModel";
-import { buildEmptyStateExplanation } from "./recovery/wearableSyncEvents";
 import { buildWearableReadinessQA } from "./recovery/wearableReadinessQA";
 import {
   getWhoopTokenStatus,
   loadWhoopData,
   getWhoopSyncEvents,
   buildWhoopSummary,
-  WhoopRecoveryCard,
-  WhoopSleepCard,
-  WhoopStrainCard,
-  WhoopSourceSummary,
 } from "./whoop";
-import { useTheme } from "./theme";
+import { RecoveryLoading, RecoveryManual, RecoveryConnected } from "./RecoveryView";
 import { readRecoveryDashboardCache, writeRecoveryDashboardCache } from "./recoveryDashboardSessionCache";
 import { readWearableSnapshot, writeWearableSnapshot, describeSnapshotAge } from "./wearableSnapshotCache";
 import { perfStart, perfMark } from "./perf";
@@ -140,112 +132,7 @@ const getRawRecoveryMetrics = (ouraData, sleepDebt) => {
   };
 };
 
-// Settings → Integrations, in the app. These were href="/settings"
-// links: a full page load that came back up on Today. The link stays as the
-// fallback when no shell action is passed (the app also reads /settings on
-// boot now).
-function SettingsLink({ label, onOpen }) {
-  const { S } = useTheme();
-  if (onOpen) {
-    return <button type="button" onClick={onOpen} style={{ ...S.foodBtn, display: "block", textAlign: "center" }}>{label}</button>;
-  }
-  return <a href="/settings" style={{ ...S.foodBtn, display: "block", textAlign: "center", textDecoration: "none" }}>{label}</a>;
-}
-
-// Compact, display-only wearable readiness status. Explains what the
-// athlete's wearables (or manual-only setup) are showing and why — it never
-// changes the recovery score or re-derives any data. Manual-only is a valid,
-// confident state here, so it reads as complete rather than broken.
-// When everything is healthy this collapses to a single status line —
-// the full explanation renders automatically only when the tone signals a
-// problem (warning/caution) or the wearables disagree, and is otherwise one
-// tap away. No content removed; only the default prominence changed.
-function WearableReadinessQASection({ qa }) {
-  const { S, C } = useTheme();
-  const [expanded, setExpanded] = useState(false);
-  if (!qa) return null;
-  const toneColor = (t) =>
-    t === "warning" ? C.red : t === "good" ? C.green : t === "caution" ? C.textDim : C.textFaint;
-  const rightLabel = qa.manual ? "manual" : qa.mode === "dual" ? "oura + whoop" : qa.mode;
-  const needsAttention = qa.tone === "warning" || qa.tone === "caution" || qa.mixedSignal;
-
-  if (!needsAttention && !expanded) {
-    return (
-      <button
-        type="button"
-        onClick={() => setExpanded(true)}
-        aria-expanded={false}
-        style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "11px 16px", background: C.block, border: "none", borderBottom: `1px solid ${C.line}`, cursor: "pointer", fontFamily: C.fontFamily, textAlign: "left" }}
-      >
-        <span style={{ fontSize: 11, color: C.textDim, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-          Sources · {rightLabel}
-        </span>
-        <span style={{ fontSize: 11, color: toneColor(qa.tone), letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: 8 }}>
-          {qa.title}
-          <span style={{ color: C.textFaint }} aria-hidden="true">▾</span>
-        </span>
-      </button>
-    );
-  }
-
-  return (
-    <FigureSection title="Wearable readiness check" right={<StatusStamp>{rightLabel}</StatusStamp>}>
-      <div style={{ fontSize: 12, color: C.text, fontWeight: 600, marginBottom: 4 }}>{qa.title}</div>
-      <div style={{ fontSize: 11.5, color: toneColor(qa.tone), lineHeight: 1.6, marginBottom: qa.sources?.length ? 8 : 0 }}>
-        {qa.body}
-      </div>
-      {qa.sources && qa.sources.length > 0 && qa.sources.map((s) => (
-        <RuledRow key={s.source} label={s.sourceLabel} value={s.title} emphasis={s.tone === "warning" || s.tone === "caution"} />
-      ))}
-      {qa.mixedSignal && (
-        <div style={{ fontSize: 11, color: C.textFaint, lineHeight: 1.55, marginTop: 8 }}>
-          Oura and Whoop are never averaged — the day's read stays conservative.
-        </div>
-      )}
-      {!needsAttention && (
-        <button type="button" onClick={() => setExpanded(false)} style={{ ...S.smallBtn, marginTop: 10, fontSize: 10, padding: "4px 10px" }}>
-          ▲ collapse
-        </button>
-      )}
-      <MethodNote>Display only — this explains what your wearables are showing and never changes the recovery score.</MethodNote>
-    </FigureSection>
-  );
-}
-
-// Readiness "method" disclosure toggle. Restrained, whitepaper-consistent ghost
-// control, but a proper accessible disclosure: real button, descriptive
-// aria-label, aria-expanded reflecting the panel state, and a 44px usable
-// target. Display-only — toggling it never touches the recovery score.
-export function ReadinessMethodToggle({ open, onToggle }) {
-  const { S, C } = useTheme();
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={open}
-      aria-label={open ? "Hide readiness scoring method" : "Show how readiness is scored"}
-      style={{
-        ...S.smallBtn,
-        float: "right",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 6,
-        minWidth: 44,
-        minHeight: 44,
-        padding: "0 12px",
-        fontSize: 10,
-        marginTop: -6,
-      }}
-    >
-      <span aria-hidden="true" style={{ fontFamily: C.fontFamily, fontSize: 11.5, opacity: 0.65 }}>ⓘ</span>
-      {open ? "Hide method" : "Method"}
-    </button>
-  );
-}
-
-export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, onOpenCheckin = null, onOpenIntegrations = null }) {
-  const { S, C } = useTheme();
+export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, todayPlan = null, onOpenCheckin = null, onOpenIntegrations = null }) {
   // Hydrate synchronously from the fastest available last-known snapshot:
   //   1) the in-memory session cache (survives tab switches this session), else
   //   2) the persisted, user-scoped, secret-free wearable snapshot (survives a
@@ -278,11 +165,6 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   const [recommendation, setRecommendation] = useState(initialCache?.recommendation ?? null);
   const [insights, setInsights] = useState(initialCache?.insights ?? []);
   const [sources, setSources] = useState(initialCache?.sources ?? {});
-  const [explanationOpen, setExplanationOpen] = useState(false);
-  // Dense transparency sections (component ledger, data quality, training
-  // load, alert history, context) collapse behind one disclosure so the default
-  // Recovery view leads with daily coaching. Nothing is removed.
-  const [techOpen, setTechOpen] = useState(false);
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // broadsheet spread
   const [, setAlertData] = useState(initialCache?.alertData ?? null);
   const [alertHistory, setAlertHistory] = useState(initialCache?.alertHistory ?? {});
@@ -659,173 +541,29 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     return () => { alive = false; };
   }, [userId]);
 
-  // During loading, show stable skeleton placeholders rather than blank tab
-  if (loading) {
-    // If app data itself is still loading, show a simpler indicator
-    if (!appLoaded) {
-      // Stable multi-row shell so Recovery never appears as a single thin row that
-      // snaps into the full readiness hierarchy. Mirrors the loaded section order.
-      const shellRows = [
-        "Loading readiness…",
-        "Loading what changed…",
-        "Loading coach interpretation…",
-        "Loading component ledger…",
-      ];
-      return (
-        <div>
-          {shellRows.map((rowLabel, i) => (
-            <div key={rowLabel} style={{ padding: "14px 16px", borderBottom: `1px solid ${C.line}`, background: C.block, display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 0, background: C.text, animation: "pulse 1.2s infinite", animationDelay: `${i * 0.15}s` }} />
-              <span style={{ fontSize: 11, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase" }}>{rowLabel}</span>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    
-    // App data is loaded but Recovery is still fetching Oura/calculating - show premium placeholders
-    return (
-      <div>
-        <SkeletonBlock />
-        <SkeletonBlock />
-        <SkeletonBlock />
-        {[1, 2, 3, 4].map(i => (
-          <FigureSection key={`skeleton-metrics-${i}`} n={i} title="▪ ▪ ▪ ▪">
-            <SkeletonMetricFigure />
-            <SkeletonMetricFigure />
-          </FigureSection>
-        ))}
-      </div>
-    );
-  }
+  if (loading) return <RecoveryLoading />;
+
+  const whoop = { connected: whoopConnected, summary: whoopSummary, syncEvents: whoopSyncEvents };
+  const shared = {
+    refreshingLabel: refreshing ? refreshingLabel : null,
+    demo: isDemoMode(),
+    isBroadsheet, onOpenCheckin, onOpenIntegrations,
+    subjectiveRecovery, manualSummary, manualCompleteness, whoop,
+  };
 
   if (!connected) {
-    // Manual-only view. Same "Readiness + Explanation" concept as the connected
-    // view, but manual check-in is the primary/first-class signal — never framed
-    // as degraded. Oura adds biometrics only when connected.
-    const manualInterp = buildRecoveryCoachInterpretation({
-      connected: false,
-      subjectiveRecovery,
-      manualCompleteness,
-    });
-    const loggedInputRows = manualSummary ? manualSummary.split(" · ") : [];
     return (
-      <div style={isBroadsheet ? { maxWidth: "var(--ovt-content-width)", margin: "0 auto", width: "100%" } : undefined}>
-        {refreshing && (
-          <div style={{ padding: "6px 16px", borderBottom: `1px solid ${C.line}`, background: C.block, fontSize: 10, color: C.textFaint, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-            {refreshingLabel}
-          </div>
-        )}
-        {isDemoMode() && (
-          <FigureSection title="Demo mode" right="synthetic data">
-            <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.6 }}>This view is using synthetic local data. No Supabase or Oura writes are performed.</div>
-          </FigureSection>
-        )}
-
-        {/* Wearable readiness check — manual-only reads as a complete,
-            confident setup here, never as broken. Display only. */}
-        <WearableReadinessQASection
-          qa={buildWearableReadinessQA({
-            ouraConnected: connected,
-            whoopConnected,
-            events: whoopSyncEvents,
-            conflicts: [],
-            now: new Date(),
-          })}
-        />
-
-        {/* 1 · Manual Readiness Hero */}
-        <FigureSection title="Manual readiness" right={<StatusStamp>manual · first-class</StatusStamp>}>
-          <div style={{ fontFamily: S.fontSerif, fontSize: 22, color: C.text, lineHeight: 1.1, marginBottom: 8 }}>Manual check-in is primary.</div>
-          {subjectiveRecovery ? (
-            <>
-              <LeadMetric
-                value={subjectiveRecovery.score}
-                unit="/100"
-                caption={subjectiveRecovery.read}
-                note="manual check-in · Oura adds biometrics when connected"
-              />
-              <RuledScale value={subjectiveRecovery.score} max={100} />
-            </>
-          ) : (
-            <p style={{ fontSize: 13, color: C.textDim, lineHeight: 1.65 }}>
-              Log today's check-in to see a readiness score. Manual recovery is first-class: sleep, sleep quality, soreness, stress, motivation, and illness/injury flags create the baseline.
-            </p>
-          )}
-          <RuledRow label="Source" value="Manual check-in" />
-        </FigureSection>
-
-        {/* 2 · What changed / logged inputs */}
-        <FigureSection title="Logged inputs" right={loggedInputRows.length ? `${manualCompleteness.filled} logged` : "none yet"}>
-          {loggedInputRows.length ? (
-            loggedInputRows.map((part, i) => {
-              const emphasize = /illness|injury/i.test(part);
-              return <RuledRow key={i} label={`input ${i + 1}`} value={part} emphasis={emphasize} />;
-            })
-          ) : (
-            <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.6 }}>No manual inputs logged yet today. Open your check-in to record sleep, stress, soreness, and motivation.</div>
-          )}
-        </FigureSection>
-
-        {/* 3 · Coach interpretation / confidence */}
-        <FigureSection title="Coach interpretation" right="manual read">
-          <div style={{ fontFamily: S.fontSerif, fontSize: 18, color: C.text, lineHeight: 1.25, marginBottom: 8 }}>{manualInterp.cluster}</div>
-          <p style={{ fontSize: 13, color: C.textDim, lineHeight: 1.65, marginBottom: manualInterp.guidance ? 8 : 0 }}>{manualInterp.body}</p>
-          {manualInterp.guidance && <p style={{ fontSize: 13, color: C.text, lineHeight: 1.6, fontStyle: "italic", margin: 0 }}>{manualInterp.guidance}</p>}
-          {manualInterp.confidenceNote && (
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.line}`, fontSize: 11.5, color: C.textFaint, lineHeight: 1.55 }}>{manualInterp.confidenceNote}</div>
-          )}
-        </FigureSection>
-
-        {/* 4 · Manual input depth + settings */}
-        <FigureSection title="Input depth + settings" right={`${manualCompleteness.filled}/${manualCompleteness.total}`}>
-          <RuledRow label="Input depth" value={`${manualCompleteness.filled}/${manualCompleteness.total} recovery fields`} />
-          {subjectiveRecovery && <RuledRow label="Manual score" value={`${subjectiveRecovery.score}/100 · ${subjectiveRecovery.read}`} />}
-          <div style={{ fontSize: 11.5, color: C.textFaint, lineHeight: 1.55, marginTop: 8 }}>
-            HRV/RHR are treated as context until a personal baseline exists. Convenient numbers are not a baseline. Annoying, but correct.
-          </div>
-          <SettingsLink label="Open Settings" onOpen={onOpenIntegrations} />
-        </FigureSection>
-
-        {/* Whoop context also surfaces when Oura is not connected but Whoop is.
-            Display only — manual check-in stays the first-class recovery signal. */}
-        {whoopConnected && (
-          <>
-            <WhoopSourceSummary
-              ouraConnected={connected}
-              whoopConnected={whoopConnected}
-              manual={!!(manualSummary || subjectiveRecovery)}
-            />
-            <FigureSection title="Wearable context · Whoop" right="display only">
-              <div style={{ fontSize: 11.5, color: C.textFaint, lineHeight: 1.55, marginBottom: 4 }}>
-                Reference context from Whoop. Shown for awareness only — it does not
-                change the recovery score or training recommendation. Source: Whoop.
-              </div>
-              {whoopSummary ? (
-                <>
-                  <WhoopRecoveryCard recovery={whoopSummary.recovery} date={whoopSummary.date} />
-                  <WhoopSleepCard sleep={whoopSummary.sleep} date={whoopSummary.date} />
-                  <WhoopStrainCard cycle={whoopSummary.cycle} workouts={whoopSummary.workouts} date={whoopSummary.date} />
-                </>
-              ) : (() => {
-                const exp = buildEmptyStateExplanation({ events: whoopSyncEvents, source: "whoop", connected: whoopConnected });
-                const toneColor = exp.tone === "warning" ? C.red : exp.tone === "caution" ? C.textDim : exp.tone === "good" ? C.green : C.textFaint;
-                return (
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 12, color: C.text, fontWeight: 600, marginBottom: 4 }}>{exp.title}</div>
-                    <div style={{ fontSize: 11.5, color: toneColor, lineHeight: 1.6 }}>{exp.body}</div>
-                  </div>
-                );
-              })()}
-            </FigureSection>
-          </>
-        )}
-      </div>
+      <RecoveryManual
+        view={{
+          ...shared,
+          interpretation: buildRecoveryCoachInterpretation({ connected: false, subjectiveRecovery, manualCompleteness }),
+          // Manual-only reads as a complete, confident setup here, never as broken.
+          qa: buildWearableReadinessQA({ ouraConnected: connected, whoopConnected, events: whoopSyncEvents, conflicts: [], now: new Date() }),
+        }}
+      />
     );
   }
 
-  // Display-only summaries. These reshape metrics already computed above
-  // into a coaching-first hierarchy; they never re-score or re-derive payloads.
   const heroMeta = buildRecoveryHeroMeta({ connected, confidence, quality, tokenStatus });
   const changeSummary = buildRecoveryChangeSummary({ hrv, rhr, sleep, temp, sleepDebt, trainingLoad, alerts, quality });
 
@@ -874,562 +612,38 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
       })
     : null;
   const confidenceExplanation = aggregatedContext ? buildConfidenceExplanation(aggregatedContext) : null;
-  const mixedSignal = wearableConflicts.length > 0;
 
   // Broadsheet spread. Each figure block below is the
   // The dashboard's blocks as consts, so the two shells can compose the same
   // blocks differently: mobile keeps the single reading order; the broadsheet
   // arranges verdict + interpretation (left) · biometric plates + load + alert
   // history (center) · signals + QA + data trust (right).
-  const blkSliceC = (<>
-      {/* Slice C — the ONE verdict. Stamp carries the resolved call, the
-          headline states the action, and the most severe limiter renders as a
-          double-rule clause INSIDE the verdict instead of a competing block
-          further down. Everything below is evidence, not a second opinion. */}
-      {/* The Sunday Edition masthead line — Sunday 5pm through Monday
-          night, above the verdict. One line, no new nav; tap opens the weekly
-          broadsheet overlay. */}
-      {editionWindow(new Date()).available && editionRaw && (
-        <button
-          type="button"
-          data-testid="sunday-edition-line"
-          onClick={() => setShowEdition(true)}
-          style={{ width: "100%", textAlign: "left", cursor: "pointer", background: C.panel, border: "none", borderTop: `1px solid ${C.text}`, borderBottom: `1px solid ${C.line}`, padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}
-        >
-          <span style={{ fontFamily: S.fontAnnot, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: C.text, fontWeight: 600 }}>
-            The Sunday Edition is out
-          </span>
-          <span style={{ fontFamily: C.monoFamily, fontSize: 11, color: C.textDim }}>read it →</span>
-        </button>
-      )}
+
+  return (
+    <>
       {showEdition && editionRaw && (
         <SundayEdition data={data} ouraData={editionRaw.oura} whoopData={editionRaw.whoop} settings={settings} onClose={() => setShowEdition(false)} />
       )}
-
-      {verdict && (() => {
-        // ── Morning Edition ─────────────────────────────────────────
-        // One block, newspaper anatomy: check-in (above the verdict, so you
-        // rate how you feel before the number can tell you) → state headline →
-        // action → evidence deck → context → explainer. All additions live
-        // INSIDE the existing verdict plate; nothing on the page moves.
-        const stateTone = trend?.state?.tone || "steady";
-        const stateName = trend?.state?.name || null;
-        const calibrating = trend?.state?.key === "calibrating";
-        const deltaInfo = trend?.delta || null;
-        const provisional = Boolean(todayKey) && !checkin.complete;
-        const evidenceLines = [
-          ...(trend?.evidence || []).slice(0, 2),
-          ...(checkinEvidenceLine(checkin) ? [checkinEvidenceLine(checkin)] : []),
-        ];
-        const diverge = divergenceNote(checkin, recovery?.score);
-        const recency = todayKey ? buildMuscleRecency(data, todayKey) : null;
-        const loaded = (recency || []).filter((m) => m.daysSinceAny !== null && m.daysSinceAny <= 1).slice(0, 3);
-        const contextLine = [
-          todayName ? `Scheduled: ${todayName}.` : null,
-          loaded.length ? `Recently loaded: ${loaded.map((m) => `${m.label} (${m.daysSinceAny === 0 ? "today" : "1d"})`).join(", ")}.` : null,
-        ].filter(Boolean).join(" ");
-        const stateWeight = stateTone === "act" ? 700 : stateTone === "watch" ? 600 : 500;
-        const stateInk = provisional || calibrating ? C.textDim : C.text;
-        return (
-        <section style={{ ...S.block, paddingTop: 18, paddingBottom: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <span style={{ fontFamily: S.fontAnnot, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textFaint }}>
-              Recovery · {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "2-digit" })}
-            </span>
-            <Stamp>{verdict.stamp}</Stamp>
-          </div>
-
-          {/* The check-in, read-only: what you answered on Today, or a way
-              there. Never blocking — the verdict below resolves either way. */}
-          {todayKey && (
-            <div data-testid="checkin-line" style={{ marginBottom: 14, borderTop: `1px solid ${C.line}`, borderBottom: `1px solid ${C.line}`, padding: "8px 0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              <span style={{ fontFamily: C.monoFamily, fontSize: 10.5, letterSpacing: "0.06em", color: C.textDim, lineHeight: 1.45 }}>
-                {checkin.answered ? `Check-in · ${checkinSummaryLine(todayBody)}` : "No check-in yet today"}
-              </span>
-              {typeof onOpenCheckin === "function" && (
-                <button type="button" onClick={onOpenCheckin} style={{ ...S.smallBtn, flexShrink: 0 }}>
-                  {checkin.complete ? "Edit on Today" : "Check in on Today"}
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* State × trajectory. The score never hides; the arrow only appears
-              when the move clears your own noise band — otherwise "steady". */}
-          {stateName && (
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
-              <span style={{ fontFamily: C.monoFamily, fontSize: 13, fontWeight: stateWeight, letterSpacing: "0.16em", textTransform: "uppercase", color: stateInk }}>
-                {stateName}
-              </span>
-              {!calibrating && Number.isFinite(Number(recovery?.score)) && (
-                <span style={{ fontFamily: C.monoFamily, fontSize: 12, color: C.textDim }}>
-                  {Math.round(recovery.score)} {deltaInfo?.arrow || "→"} <span style={{ color: C.textFaint }}>{deltaInfo?.label || "steady"}</span>
-                </span>
-              )}
-              {provisional && (
-                <span style={{ fontFamily: S.fontAnnot, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textFaint }}>
-                  · before check-in
-                </span>
-              )}
-              {trend?.early && !calibrating && (
-                <span style={{ fontFamily: S.fontAnnot, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textFaint }}>
-                  · baseline forming
-                </span>
-              )}
-            </div>
-          )}
-
-          <div style={{ fontFamily: S.fontSerif, fontSize: 26, fontWeight: 500, lineHeight: 1.12, letterSpacing: "-0.02em", color: C.text, marginBottom: 8 }}>
-            {verdict.headline}
-          </div>
-
-          {/* Evidence deck: the trend's plain-language reasons (plus what you
-              reported), replacing score-restating copy. Falls back to the
-              resolver's deck when the trend layer has nothing to say. */}
-          {(evidenceLines.length ? evidenceLines : (verdict.deck ? [verdict.deck] : [])).length > 0 && (
-            <div style={{ fontFamily: S.fontSerif, fontStyle: "italic", fontSize: 14, color: C.textDim, lineHeight: 1.45, marginBottom: 8 }}>
-              {(evidenceLines.length ? evidenceLines : [verdict.deck]).join(" ")}
-            </div>
-          )}
-
-          {contextLine && (
-            <div style={{ fontFamily: S.fontAnnot, fontSize: 11.5, letterSpacing: "0.02em", color: C.textFaint, marginBottom: verdict.limiter || diverge ? 10 : 0 }}>
-              {contextLine}
-            </div>
-          )}
-
-          {diverge && (
-            <div style={{ fontFamily: S.fontSerif, fontStyle: "italic", fontSize: 13, color: C.textDim, lineHeight: 1.5, borderLeft: `2px solid ${C.line}`, paddingLeft: 10, marginBottom: verdict.limiter ? 12 : 0 }}>
-              {diverge}
-            </div>
-          )}
-
-          {verdict.limiter && <LimiterRule label={verdict.limiter.label}>{verdict.limiter.detail}</LimiterRule>}
-
-          {/* One tap to full comprehension. Plain answers to what/why/what-now;
-              the only place technical vocabulary is allowed to appear. */}
-          {trend?.meaning && (
-            <details style={{ marginTop: 12 }}>
-              <summary style={{ cursor: "pointer", fontFamily: S.fontAnnot, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textFaint, listStyle: "none" }}>
-                What does this mean? +
-              </summary>
-              <div style={{ marginTop: 8, fontSize: 12.5, color: C.textDim, lineHeight: 1.65 }}>
-                <div style={{ marginBottom: 6 }}><span style={{ fontFamily: C.monoFamily, fontSize: 10, letterSpacing: "0.12em", color: C.textFaint }}>WHAT · </span>{trend.meaning.what}</div>
-                <div style={{ marginBottom: 6 }}><span style={{ fontFamily: C.monoFamily, fontSize: 10, letterSpacing: "0.12em", color: C.textFaint }}>WHY · </span>{trend.meaning.why}</div>
-                <div style={{ marginBottom: 6 }}><span style={{ fontFamily: C.monoFamily, fontSize: 10, letterSpacing: "0.12em", color: C.textFaint }}>NOW · </span>{trend.meaning.action}</div>
-                <div style={{ color: C.textFaint }}>"Your normal range" is the week's HRV average measured against your own ~4-week baseline (±half its usual variation) — you versus you, never a population chart. The check-in can lower a call, never raise it; the score itself is always pure physiology.</div>
-              </div>
-            </details>
-          )}
-        </section>
-        );
-      })()}
-
-      {provenance && <AdvisoryNote>{provenance}</AdvisoryNote>}
-  </>);
-  // The reconnect banner is an action, so it stays up top. The alert
-  // list is evidence the verdict already weighed (its most severe limiter is
-  // the LimiterRule inside the verdict), so it reads under Technical details.
-  const blkReconnect = (<>
-      {tokenStatus?.isExpired && (
-        <FigureSection title="Connection" right="reconnect">
-          <AlertCard
-            severity="error"
-            title="reconnect-needed"
-            markers={["reconnect_needed"]}
-            message="Oura needs reconnecting to resume syncing. Data shown may be stale."
-            recommendation="Reconnect Oura in Settings to resume syncing."
-          />
-          <div style={{ marginTop: 10 }}>
-            <SettingsLink label="Reconnect Oura" onOpen={onOpenIntegrations} />
-          </div>
-        </FigureSection>
-      )}
-  </>);
-  const blkSignals = (<>
-      {alerts.length > 0 && (
-        <FigureSection title="Signals" right={`${alerts.length} alert${alerts.length === 1 ? "" : "s"}`}>
-          {alerts.map((alert, i) => (
-            <AlertCard
-              key={i}
-              severity={alert.severity}
-              title={alert.type?.replace(/_/g, " ") || alert.severity}
-              markers={alert.markers}
-              message={alert.message}
-              recommendation={alert.recommendation}
-            />
-          ))}
-        </FigureSection>
-      )}
-
-  </>);
-  const blkMixedsignalday = (<>
-      {/* Mixed-signal warning — shown only when Oura and Whoop disagree on
-          the same metric beyond threshold. Display-only; the score is unchanged. */}
-      {mixedSignal && (
-        <FigureSection title="Mixed signal day" right={`${wearableConflicts.length} metric${wearableConflicts.length === 1 ? "" : "s"}`}>
-          <AlertCard
-            severity={wearableConflicts.some(c => c.severity === "major") ? "warning" : "caution"}
-            title="wearables disagree"
-            markers={wearableConflicts.map(c => c.metric)}
-            message="Oura and Whoop disagree on one or more metrics today. Treat this as a conservative day rather than trusting either source outright."
-            recommendation="Lean on manual feel and the more conservative reading until the wearables converge. See Wearable intelligence below for per-metric detail."
-          />
-        </FigureSection>
-      )}
-
-  </>);
-  const blkWearablereadinesscheck = (<>
-      {/* Wearable readiness check — compact, display-only status of the
-          connected wearables (and manual). Never averages sources or re-scores. */}
-      <WearableReadinessQASection
-        qa={buildWearableReadinessQA({
-          ouraConnected: connected,
-          whoopConnected,
-          events: whoopSyncEvents,
-          conflicts: wearableConflicts,
-          now: new Date(),
-        })}
+      <RecoveryConnected
+        view={{
+          ...shared,
+          data, todayKey, todayName, todayPlan, todayBody, checkin,
+          verdict, recovery, trend, provenance, changeSummary, coachInterp,
+          alerts, conflicts: wearableConflicts,
+          recoveryHistory, hrv, rhr, sleep, temp, rawMetrics, sources, baselines, sleepDebt,
+          trainingLoad, externalCardio, unloggedFlags,
+          // The weekly edition appears on Sunday night, above the call.
+          edition: { available: Boolean(editionWindow(new Date()).available && editionRaw), onOpen: () => setShowEdition(true) },
+          reconnect: Boolean(tokenStatus?.isExpired),
+          firstSync: settings?.ouraConnected === true,
+          connected, manualOn: Boolean(manualSummary || subjectiveRecovery),
+          qa: buildWearableReadinessQA({ ouraConnected: connected, whoopConnected, events: whoopSyncEvents, conflicts: wearableConflicts, now: new Date() }),
+          blendExplanation, confidenceExplanation, aggregatedContext,
+          heroMeta, syncFreshness: formatSyncFreshness(tokenStatus), tokenStatus, quality, confidence,
+          blendedRecommendation, resolvedRecommendation, alertHistory,
+        }}
       />
-
-  </>);
-  const blkDatatrust = (<>
-      {/* Recovery trust strip — source/freshness/debug context kept above the
-          collapsed technical ledger so beta users can audit the daily read fast. */}
-      {recovery && (
-        <FigureSection title="Data trust" right="source audit">
-          <RuledRow label="Primary score" value={`Oura biometrics · ${recovery.score ?? "—"}/100 · ${recovery.scoredDay || heroMeta.latestDay || "latest usable day"}`} />
-          <RuledRow label="Sync freshness" value={formatSyncFreshness(tokenStatus)} emphasis={tokenStatus?.syncStatus === "failed" || tokenStatus?.syncStatus === "stale"} />
-          <RuledRow label="HRV raw" value={`${rawMetrics.hrv || "not available"} · ${sources.hrv || hrv?.source || "source unknown"}`} emphasis={!rawMetrics.hrv || hrv?.score === 0} />
-          {hrv && <RuledRow label="HRV score" value={`${hrv.score}/35 · ${hrv.source || "source unknown"}${hrv.sampleCount != null ? ` · n=${hrv.sampleCount}` : ""}`} emphasis={hrv.score === 0 || hrv.confidence === "insufficient"} />}
-          {rhr && <RuledRow label="RHR raw" value={`${rawMetrics.rhr || "not available"} · ${sources.rhr || rhr.source || "source unknown"}`} />}
-          <div style={{ fontSize: 11.5, color: C.textFaint, lineHeight: 1.55, marginTop: 8 }}>
-            If a component looks off, this is the first place to check: raw wearable value, scoring source, sample depth, and sync freshness. The full ledger remains under Technical details.
-          </div>
-        </FigureSection>
-      )}
-
-  </>);
-  const blkCoachinterpretation = (<>
-      {/* 1 · Coach interpretation — coaching-first: the plain-language read leads
-             the Recovery view, ahead of the numeric readiness hero, so the default
-             experience is guidance rather than a ledger. Same rows/data as before;
-             only the vertical order changed. */}
-      {(recommendation || coachInterp.cluster) && (
-        <FigureSection title="Coach interpretation" right={coachInterp.tone === "warning" ? "caution" : coachInterp.tone === "good" ? "clear" : "watch"}>
-          <div style={{ fontFamily: S.fontSerif, fontSize: 18, color: C.text, lineHeight: 1.25, marginBottom: 8 }}>{coachInterp.cluster}</div>
-          <p style={{ fontSize: 13, color: C.text, lineHeight: 1.65, margin: 0 }}>{coachInterp.guidance}</p>
-          {coachInterp.body && <p style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6, marginTop: 8, marginBottom: 0 }}>{coachInterp.body}</p>}
-          {coachInterp.confidenceNote && (
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.line}`, fontSize: 11.5, color: C.textFaint, lineHeight: 1.55 }}>{coachInterp.confidenceNote}</div>
-          )}
-        </FigureSection>
-      )}
-
-  </>);
-  const blkReadiness = (<>
-      {/* 2 · Readiness Hero — score, source, confidence, latest day, trend, method */}
-      {recovery && (
-        <FigureSection title="Readiness" right={<StatusStamp>{heroMeta.confidenceLabel}{heroMeta.stale ? " · stale" : ""}</StatusStamp>}>
-          <ReadinessMethodToggle open={explanationOpen} onToggle={() => setExplanationOpen(o => !o)} />
-          <div style={{ clear: "both" }}>
-            {/* Connected-but-empty is a first-sync moment, not a broken
-                one. Say what's happening and how long it takes. */}
-            {recovery.band === "insufficient_data" && settings?.ouraConnected === true && (
-              <div style={{ fontFamily: S.fontSerif, fontStyle: "italic", fontSize: 13, color: C.textDim, lineHeight: 1.5, marginBottom: 10 }}>
-                First sync running — your history usually lands in under a minute. Your first verdict follows it; the weekly trend unlocks after seven mornings.
-              </div>
-            )}
-            <LeadMetric
-              value={recovery.score ?? "—"}
-              unit="/100"
-              caption={recovery.band === "insufficient_data" ? "Insufficient data — no wearable signals reported" : (resolvedRecommendation?.label || recovery.band.replace(/_/g, " "))}
-              note={`${heroMeta.source} · ${quality?.summary || "quality unknown"}`}
-            />
-            <RuledScale value={recovery.score ?? "—"} max={100} />
-            {recoveryHistory.length >= 2 && (
-              <div style={{ marginTop: 14 }}>
-                <Sparkline points={recoveryHistory} width={260} height={44} color={C.text} label="7-day trend"
-                  overlayPoints={recoveryHistory.length >= 4 ? recoveryHistory.map((p, i, arr) => {
-                    const win = arr.slice(Math.max(0, i - 2), i + 1);
-                    return { date: p.date, value: win.reduce((a, x) => a + (Number(x.value) || 0), 0) / win.length };
-                  }) : null} />
-              </div>
-            )}
-          </div>
-          <div style={{ marginTop: 12 }}>
-            {resolvedRecommendation?.label && <RuledRow label="Readiness" value={`${resolvedRecommendation.label}${resolvedRecommendation.readiness && resolvedRecommendation.readiness !== "n/a" ? ` · ${resolvedRecommendation.readiness}` : ""}`} />}
-            <RuledRow label="Source" value={heroMeta.source} />
-            <RuledRow
-              label="Confidence"
-              value={`${blendedRecommendation?.confidence || confidence?.level || "unknown"} · ${blendedRecommendation?.wearableAdjustment?.reason || confidence?.reason || "pending"}`}
-              emphasis={(blendedRecommendation?.confidence || confidence?.level) === "low"}
-            />
-            <RuledRow label="Latest recovery day" value={heroMeta.latestDay || "n/a"} emphasis={heroMeta.stale} />
-          </div>
-          {explanationOpen && (
-            <MethodNote>
-              Recovery is the canonical scoring ledger: HRV contributes up to 35 points, resting heart rate up to 25, sleep up to 25, and body temperature up to 15. The large component figures in the ledger below are contribution points, not raw Oura values. Raw source values, baselines, and source labels live in the component ledger. If detailed sleep data is missing, 0vertrained falls back to Oura readiness contributors and lowers confidence.
-            </MethodNote>
-          )}
-        </FigureSection>
-      )}
-
-  </>);
-  const blkWhatchangedtoday = (<>
-      {/* 3 · What changed today? — Tier 1 only when flags actually surfaced;
-             on a stable day the same rows are preserved inside the Technical
-             details disclosure below rather than taking hero-level space. */}
-      {recovery && changeSummary.hasFlags && (
-        <FigureSection title="What changed today" right="flags surfaced">
-          {changeSummary.rows.map((row) => (
-            <RuledRow key={row.key} label={row.label} value={row.value} emphasis={row.tone === "warning" || row.tone === "caution"} />
-          ))}
-        </FigureSection>
-      )}
-
-  </>);
-  const blkTechnicaldetailsdisclosure = (<>
-      {/* Technical-details disclosure — the coaching-first sections (hero, what
-          changed, interpretation) stay above; the full transparency ledger
-          collapses here by default but every row is preserved when expanded. */}
-      <button
-        type="button"
-        onClick={() => setTechOpen(o => !o)}
-        aria-expanded={techOpen}
-        style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: C.panel, border: "none", borderTop: `1px solid ${C.line}`, borderBottom: `1px solid ${C.line}`, cursor: "pointer", fontFamily: C.monoFamily }}
-      >
-        <span style={{ fontSize: 10.5, color: C.textDim, letterSpacing: "0.14em", textTransform: "uppercase" }}>Technical details</span>
-        <span style={{ fontSize: 10, color: C.text, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-          {techOpen ? "▲ hide" : "▾ signals · score · interpretation · ledger · load"}
-        </span>
-      </button>
-
-  </>);
-  const blkWearableintelligence = (<>
-      {/* Wearable intelligence — supplemental blend/source detail, kept under
-          Technical details. */}
-      {blendExplanation?.available && (
-        <FigureSection title="Wearable intelligence" right={blendExplanation.headline || "supplemental"}>
-          <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6, marginBottom: 8 }}>
-            {blendExplanation.disclaimer}
-          </div>
-          {blendExplanation.sourceLine && <RuledRow label="Source map" value={blendExplanation.sourceLine} />}
-          {confidenceExplanation && confidenceExplanation.label && (
-            <RuledRow
-              label="Aggregated confidence"
-              value={confidenceExplanation.label}
-              emphasis={confidenceExplanation.tone === "warning"}
-            />
-          )}
-          {confidenceExplanation && confidenceExplanation.reasons.length > 0 && (
-            <RuledRow label="Why" value={confidenceExplanation.reasons.join("; ")} />
-          )}
-          {aggregatedContext?.whoopRecoveryContext && (
-            <RuledRow label="Whoop recovery" value={aggregatedContext.whoopRecoveryContext.note} />
-          )}
-          {aggregatedContext?.whoopStrainContext && aggregatedContext.whoopStrainContext.level !== "normal" && (
-            <RuledRow label="Whoop strain" value={aggregatedContext.whoopStrainContext.note} emphasis={aggregatedContext.whoopStrainContext.level === "high"} />
-          )}
-          {blendExplanation.conservativeCopy && <RuledRow label="Blend note" value={blendExplanation.conservativeCopy} emphasis />}
-          {blendExplanation.points.slice(0, 3).map((point, i) => (
-            <RuledRow key={`${point}-${i}`} label="Also" value={point} />
-          ))}
-        </FigureSection>
-      )}
-
-  </>);
-  const blkWhatchangedtoday2 = (<>
-      {/* What changed today — on a stable day the rows live here instead of
-          taking Tier-1 space (they render up top only when flags surfaced). */}
-      {recovery && !changeSummary.hasFlags && (
-        <FigureSection title="What changed today" right="stable">
-          {changeSummary.rows.map((row) => (
-            <RuledRow key={row.key} label={row.label} value={row.value} emphasis={row.tone === "warning" || row.tone === "caution"} />
-          ))}
-        </FigureSection>
-      )}
-
-  </>);
-  const blkWearablesourcesummary = (<>
-      {/* Wearable source summary — presence only, no scores; renders only when
-          Whoop is connected. */}
-      {whoopConnected && (
-        <WhoopSourceSummary
-          ouraConnected={connected}
-          whoopConnected={whoopConnected}
-          manual={!!(manualSummary || subjectiveRecovery)}
-        />
-      )}
-  </>);
-  const blkComponentledger = (<>
-      {/* 4 · Component ledger — raw values, baselines, denominators, sources kept visible */}
-      <FigureSection title="Component ledger" right="raw + baseline + score">
-        <div style={{ fontSize: 11.5, color: C.textFaint, lineHeight: 1.55, marginBottom: 4 }}>
-          Transparent scoring detail: each figure is the contribution out of its cap, alongside the raw value, personal baseline, and data source.
-        </div>
-        {hrv && <MetricFigure label="HRV balance" score={hrv.score} max={35} raw={rawMetrics.hrv} baseline={baselines?.hrv?.label} source={sources.hrv} note={`z=${hrv.zScore} · CV ${hrv.cv}%`} />}
-        {rhr && <MetricFigure label="Resting heart rate" score={rhr.score} max={25} raw={rawMetrics.rhr} baseline={baselines?.rhr?.label} source={sources.rhr} note={`${rhr.delta > 0 ? "+" : ""}${rhr.delta} bpm vs baseline`} />}
-        {sleep && <MetricFigure label="Sleep" score={sleep.nightly} max={25} raw={rawMetrics.sleep} baseline={baselines?.sleep?.label} source={sources.sleep} note="nightly contribution" />}
-        {temp && <MetricFigure label="Temperature" score={temp.score} max={15} raw={rawMetrics.temp} baseline={baselines?.temp?.label} source={sources.temp} note={temp.consecutiveNights > 0 ? `${temp.consecutiveNights}+ elevated nights` : "baseline"} />}
-      </FigureSection>
-
-  </>);
-  const blkOuradataquality = (<>
-      {/* 5 · Data quality + missing fields / context */}
-      {quality && (
-        <FigureSection title="Oura data quality" right={`${quality.score}/100`}>
-          <RuledRow label="Window" value={`${quality.daysLoaded}/${quality.daysRequested} days · latest sync ${quality.latestDate || "n/a"}`} />
-          {quality.latestRecoveryDate && quality.latestRecoveryDate !== quality.latestDate && (
-            <RuledRow label="Recovery day" value={`${quality.latestRecoveryDate} · latest usable sleep/readiness`} />
-          )}
-          {quality.latestRecoveryDate && quality.latestRecoveryDate === quality.latestDate && (
-            <RuledRow label="Recovery day" value={`${quality.latestRecoveryDate} · current`} />
-          )}
-          <RuledRow label="Sleep records" value={`${quality.sleepRecords}/${quality.daysLoaded || quality.daysRequested}`} />
-          <RuledRow label="Readiness records" value={`${quality.readinessRecords}/${quality.daysLoaded || quality.daysRequested}`} />
-          {/* "HR samples" removed: raw heartrate payloads are no longer
-              fetched client-side (their only use was this count). Quality scoring
-              never used the figure — see calcOuraDataQuality. */}
-          <RuledRow label="SpO₂ days" value={quality.spo2Records} />
-          <RuledRow label="Temperature days" value={quality.tempRecords} />
-          <RuledRow label="Fallback mode" value={quality.fallbackMode ? "active" : "not active"} emphasis={quality.fallbackMode} />
-          {tokenStatus && (
-            <RuledRow
-              label="Last sync"
-              value={tokenStatus.lastSynced
-                ? `${new Date(tokenStatus.lastSynced).toLocaleDateString()} ${new Date(tokenStatus.lastSynced).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${tokenStatus.syncStatus}`
-                : "never synced"}
-              emphasis={tokenStatus.syncStatus === "failed" || tokenStatus.syncStatus === "stale"}
-            />
-          )}
-          {tokenStatus?.isExpired && (
-            <RuledRow label="Token status" value="reconnect required" emphasis={true} />
-          )}
-          <div style={{ fontSize: 11.5, color: C.textFaint, lineHeight: 1.55, marginTop: 8 }}>
-            Record counts are window completeness — a low count means fewer synced nights or missing fields, not a scoring failure.{quality.fallbackMode ? " Fallback mode is active: missing detailed sleep/readiness fields are filled from Oura readiness contributors, which lowers confidence." : ""}
-          </div>
-        </FigureSection>
-      )}
-
-  </>);
-  const blkTrainingLoad = (<>
-      {/* 6 · Training load details */}
-      {trainingLoad && trainingLoad.rolling.zone !== "insufficient_data" && (
-        <FigureSection title="Training Load" right={trainingLoad.zoneInfo.label}>
-          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 14, alignItems: "end", marginBottom: 12 }}>
-            <div><span style={S.leadFigure}>{trainingLoad.rolling.ratio}</span><span style={S.leadUnit}> ACWR</span></div>
-            <div style={{ paddingBottom: 8 }}>
-              <div style={{ ...S.figureRule, background: C.textDim, marginBottom: 8 }} />
-              <div style={{ fontFamily: S.fontSerif, fontStyle: "italic", color: C.textDim, fontSize: 14, lineHeight: 1.35 }}>{trainingLoad.zoneInfo.description}</div>
-            </div>
-          </div>
-          <RuledRow label="Acute load · 7d" value={`${trainingLoad.rolling.acute} au`} />
-          <RuledRow label="Chronic load · 28d" value={`${trainingLoad.rolling.chronic} au`} />
-          <RuledRow label="Trend" value={trainingLoad.rolling.trend} />
-          <RuledRow label="Recommendation" value={trainingLoad.zoneInfo.recommendation} />
-          <MethodLine
-            testId="method-load"
-            method="ACWR = this week's load against your own 28-day norm · load counted in effort-minutes across lifting and cardio"
-            detail={
-              <>
-                Every session earns load from how hard and how long it was — a zone-2 hour counts like an easy hour, a heavy leg day like a heavy leg day (lifting via sRPE, cardio via heart-rate zones, one shared currency). The acute:chronic ratio compares your last 7 days to your last 28: around 1.0 means you're training at your norm; well above ~1.3 means load is spiking faster than your base can absorb — the zone label and recommendation above come straight from that ratio, computed only from your own history.
-              </>
-            }
-          />
-          {externalCardio && (
-            <RuledRow
-              label="External cardio · 7d"
-              value={`${externalCardio.runMiles > 0 ? `${externalCardio.runMiles} mi · ` : ""}${externalCardio.minutes} min · STRAVA`}
-            />
-          )}
-              {unloggedFlags.length > 0 && (
-        <AdvisoryNote>
-          {unloggedFlags.length} unlogged-load day{unloggedFlags.length > 1 ? "s" : ""} in 14d ({unloggedFlags.map(f => `${f.date.slice(5)} · ${f.source === "strava" ? `${f.miles}mi run (Strava)` : `strain ${f.strain}`}`).join(", ")}) — the A:C ratio understates true load. Flag only; nothing is injected.
-        </AdvisoryNote>
-      )}
-      </FigureSection>
-      )}
-
-  </>);
-  const blkAlerthistory = (<>
-      {/* 7 · Alert history — secondary technical detail, kept reachable */}
-      {alertHistory && Object.keys(alertHistory).length > 0 && (
-        <FigureSection title="Alert history" right={`${Object.keys(alertHistory).length}d`}>
-          <AlertHistory history={alertHistory} />
-        </FigureSection>
-      )}
-
-  </>);
-  const blkContext = (<>
-      {/* 8 · Manual context + trend */}
-      {(sleepDebt || subjectiveRecovery || manualSummary) && (
-        <FigureSection title="Context" right="manual + trend">
-          {recovery?.scoringBasis && <RuledRow label="Scoring basis" value={recovery.scoringBasis} />}
-          {sleepDebt && <RuledRow label="Sleep debt · 7d" value={`${sleepDebt.debtHours}h · ${sleepDebt.band}${Number.isFinite(sleepDebt.baselineHours) ? ` · vs ${sleepDebt.baselineHours}h ${sleepDebt.baselineSource === "wearable-need" ? "baseline need (Whoop)" : sleepDebt.baselineSource === "personal-norm" ? "your norm" : "target"}/night · naps credited` : ""}`} />}
-          <RuledRow label="Primary source" value={connected ? "Oura biometrics" : "Manual check-in"} />
-          {subjectiveRecovery && <RuledRow label="Manual score" value={`${subjectiveRecovery.score}/100 · ${subjectiveRecovery.read}`} />}
-          {manualSummary && <RuledRow label="Manual inputs" value={manualSummary} />}
-          <RuledRow label="Input depth" value={`${manualCompleteness.filled}/${manualCompleteness.total} recovery fields`} />
-        </FigureSection>
-      )}
-
-  </>);
-  const blkWearablecontextWhoop = (<>
-      {/* 9 · Wearable context · Whoop — display-only cards. Never feeds the
-          recovery score; the score above stays Oura biometrics + manual. */}
-      {whoopConnected && (
-        <FigureSection title="Wearable context · Whoop" right="display only">
-          <div style={{ fontSize: 11.5, color: C.textFaint, lineHeight: 1.55, marginBottom: 4 }}>
-            Reference context from Whoop. Shown for awareness only — it does not
-            change the recovery score or training recommendation. Source: Whoop.
-          </div>
-          {whoopSummary ? (
-            <>
-              <WhoopRecoveryCard recovery={whoopSummary.recovery} date={whoopSummary.date} />
-              <WhoopSleepCard sleep={whoopSummary.sleep} date={whoopSummary.date} />
-              <WhoopStrainCard cycle={whoopSummary.cycle} workouts={whoopSummary.workouts} date={whoopSummary.date} />
-            </>
-          ) : (() => {
-            const exp = buildEmptyStateExplanation({ events: whoopSyncEvents, source: "whoop", connected: whoopConnected });
-            const toneColor = exp.tone === "warning" ? C.red : exp.tone === "caution" ? C.textDim : exp.tone === "good" ? C.green : C.textFaint;
-            return (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 12, color: C.text, fontWeight: 600, marginBottom: 4 }}>{exp.title}</div>
-                <div style={{ fontSize: 11.5, color: toneColor, lineHeight: 1.6 }}>{exp.body}</div>
-              </div>
-            );
-          })()}
-        </FigureSection>
-      )}
-  </>);
-
-  return (
-    <div>
-      {refreshing && (
-        <div style={{ padding: "6px 16px", borderBottom: `1px solid ${C.line}`, background: C.block, fontSize: 10, color: C.textFaint, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-          {refreshingLabel}
-        </div>
-      )}
-      {isDemoMode() && (
-        <FigureSection title="Demo mode" right="synthetic data">
-          <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.6 }}>This view is using synthetic local data. No Supabase or Oura writes are performed.</div>
-        </FigureSection>
-      )}
-
-      {isBroadsheet ? (
-        <div style={{ display: "grid", gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)", gap: 20, alignItems: "start" }}>
-          <section data-section="rec-verdict" style={{ minWidth: 0 }}>{blkReconnect}{blkSliceC}{blkCoachinterpretation}{blkWhatchangedtoday}{blkWhatchangedtoday2}{blkContext}</section>
-          <section data-section="rec-plates" style={{ minWidth: 0 }}>{blkReadiness}{blkWearableintelligence}{blkComponentledger}{blkTrainingLoad}{blkAlerthistory}</section>
-          <section data-section="rec-audit" style={{ minWidth: 0 }}>{blkSignals}{blkMixedsignalday}{blkWearablereadinesscheck}{blkDatatrust}{blkWearablesourcesummary}{blkOuradataquality}{blkWearablecontextWhoop}</section>
-        </div>
-      ) : (<>
-        {/* One verdict: the check-in and verdict stand alone, with what changed
-            and the data-trust strip under them, and every other reading of the
-            same numbers waits under Technical details. */}
-        {blkReconnect}{blkSliceC}{blkWhatchangedtoday}{blkDatatrust}{blkTechnicaldetailsdisclosure}{techOpen && (<>{blkSignals}{blkMixedsignalday}{blkWearablereadinesscheck}{blkReadiness}{blkCoachinterpretation}{blkWearableintelligence}{blkWhatchangedtoday2}{blkWearablesourcesummary}{blkComponentledger}{blkOuradataquality}{blkTrainingLoad}{blkAlerthistory}{blkContext}{blkWearablecontextWhoop}</>)}
-      </>)}
-    </div>
+    </>
   );
 }
 

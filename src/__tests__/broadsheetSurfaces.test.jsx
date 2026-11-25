@@ -66,6 +66,6 @@ describe("V16.2 static pins", () => {
     expect(history).toContain('<button type="button" className="row" onClick={() => onOpen(group.date)}');
     expect(history).not.toContain('role={isBroadsheet');
     expect(read("src/Coach.jsx")).toContain('e.key === "Escape"');
-    expect(read("src/RecoveryDashboard.jsx")).toContain('"Insufficient data — no wearable signals reported"');
+    expect(read("src/RecoveryView.jsx")).toContain("Not enough data yet: no wearable signals have been reported.");
   });
 });

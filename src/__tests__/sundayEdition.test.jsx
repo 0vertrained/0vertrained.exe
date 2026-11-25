@@ -214,8 +214,11 @@ describe("V17.2 surface (source guards)", () => {
   it("the dashboard masthead line gates on the window and stashed data, opens the overlay, adds no nav", () => {
     const src = read("src/RecoveryDashboard.jsx");
     expect(src).toContain("editionWindow(new Date()).available && editionRaw");
-    expect(src).toContain('data-testid="sunday-edition-line"');
     expect(src).toContain("setShowEdition(true)");
+    // The line itself is drawn by the view, above the call:
+    const view = read("src/RecoveryView.jsx");
+    expect(view).toContain('data-testid="sunday-edition-line"');
+    expect(view.indexOf('data-testid="sunday-edition-line"')).toBeLessThan(view.indexOf("{verdict && <Call "));
     // The raw stash is deliberately outside the session cache:
     expect(src).not.toMatch(/editionRaw:\s/);
   });

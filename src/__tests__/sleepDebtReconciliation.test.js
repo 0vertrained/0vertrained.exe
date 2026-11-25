@@ -90,7 +90,7 @@ describe("V16.9 sleep debt — the repro and the fix", () => {
   });
 
   it("the debt row explains its own math on the surface", () => {
-    const src = read("src/RecoveryDashboard.jsx");
+    const src = read("src/RecoveryView.jsx");
     expect(src).toContain("baseline need (Whoop)");
     expect(src).toContain("naps credited");
   });

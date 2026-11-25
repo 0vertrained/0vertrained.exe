@@ -44,17 +44,14 @@ describe("broadsheet shell (V15.0)", () => {
     expect(src).not.toMatch(/Streak \{/);
   });
 
-  it("V15.1 · Recovery composes the spread while mobile keeps the technical-details fold", () => {
-    const src = read("src/RecoveryDashboard.jsx");
+  it("V15.1 · Recovery composes the spread: the call, the figures, the audit", () => {
+    const src = read("src/RecoveryView.jsx");
     for (const id of ["rec-verdict", "rec-plates", "rec-audit"]) {
       expect(src).toContain(`data-section="${id}"`);
     }
-    expect(src).toContain('gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)"');
-    // The mobile branch preserves the V13 fold exactly…
-    expect(src).toMatch(/\{blkTechnicaldetailsdisclosure\}\{techOpen && \(<>/);
-    // …and the broadsheet never renders the fold button (blocks are always visible).
-    const broadsheetBranch = src.slice(src.indexOf('data-section="rec-verdict"'), src.indexOf(") : (<>"));
-    expect(broadsheetBranch).not.toContain("blkTechnicaldetailsdisclosure");
+    expect(src).toContain('gridTemplateColumns: "var(--ovt-rail-m) minmax(0, 1fr) var(--ovt-rail-s)"');
+    // A phone reads the same three parts in one column, in the same order.
+    expect(src).toMatch(/\{head\}\s*\{figures\}\s*\{audit\}/);
   });
 
   it("V15.1 · Fuel docks Log food on the right at the tier; on a phone it is its own screen", () => {
@@ -82,7 +79,7 @@ describe("broadsheet shell (V15.0)", () => {
     const css = read("src/index.css");
     expect(css).toContain("--ovt-rail-s: 440px");
     expect(css).toContain("--ovt-rail-m: 480px");
-    for (const f of ["src/TodayTab.jsx", "src/RecoveryDashboard.jsx", "src/FuelTab.jsx", "src/ProgressTab.jsx"]) {
+    for (const f of ["src/TodayTab.jsx", "src/RecoveryView.jsx", "src/FuelTab.jsx", "src/ProgressTab.jsx"]) {
       const src = read(f);
       expect(src).not.toMatch(/gridTemplateColumns: "4[468]0px 1fr/);
       expect(src).not.toMatch(/1fr 460px/);
