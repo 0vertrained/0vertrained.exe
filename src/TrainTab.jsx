@@ -67,7 +67,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
   const firstView = useRef(true);
   useEffect(() => {
     if (firstView.current) { firstView.current = false; return; }
-    window.scrollTo?.(0, 0);
+    (document.scrollingElement || document.documentElement).scrollTop = 0;
   }, [view]);
   const todayKey = getTodayKey();
   const shown = liveProgram || program;

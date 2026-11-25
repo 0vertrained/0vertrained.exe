@@ -80,7 +80,7 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
   const firstView = useRef(true);
   useEffect(() => {
     if (firstView.current) { firstView.current = false; return; }
-    window.scrollTo?.(0, 0);
+    (document.scrollingElement || document.documentElement).scrollTop = 0;
   }, [fuelView]);
 
   const subView = fuelView !== "today" && !(isBroadsheet && fuelView === "log");
