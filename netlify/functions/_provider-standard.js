@@ -11,7 +11,6 @@ import crypto from "node:crypto";
 export const PROVIDERS = Object.freeze({
   OURA: "oura",
   WHOOP: "whoop",
-  GOOGLE_HEALTH: "google_health",
   STRAVA: "strava",
   MANUAL: "manual",
   MIXED: "mixed",
@@ -27,7 +26,6 @@ export const AI_EXCLUSION_REASONS = Object.freeze({
 export const providerPolicies = Object.freeze({
   [PROVIDERS.OURA]: Object.freeze({ aiEligibleDefault: true, aiExclusionReason: null, role: "recovery" }),
   [PROVIDERS.WHOOP]: Object.freeze({ aiEligibleDefault: true, aiExclusionReason: null, role: "recovery_and_load" }),
-  [PROVIDERS.GOOGLE_HEALTH]: Object.freeze({ aiEligibleDefault: true, aiExclusionReason: null, role: "recovery_and_activity" }),
   [PROVIDERS.STRAVA]: Object.freeze({ aiEligibleDefault: false, aiExclusionReason: AI_EXCLUSION_REASONS.STRAVA_API_TERMS, role: "activity" }),
   [PROVIDERS.MANUAL]: Object.freeze({ aiEligibleDefault: true, aiExclusionReason: null, role: "user_entered_truth" }),
 });
