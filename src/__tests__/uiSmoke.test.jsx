@@ -48,11 +48,12 @@ describe("QuickActionSheet", () => {
   it("renders the base actions and reports the tapped key", () => {
     const onAction = vi.fn();
     wrap(<QuickActionSheet open onAction={onAction} onClose={() => {}} />);
+    expect(QUICK_ACTIONS.map(a => a.key)).toEqual(["workout", "meal", "checkin"]);
     for (const a of QUICK_ACTIONS) {
       expect(screen.getByText(a.label)).toBeTruthy();
     }
-    fireEvent.click(screen.getByText("Form check"));
-    expect(onAction).toHaveBeenCalledWith("formcheck");
+    fireEvent.click(screen.getByText("Log meal"));
+    expect(onAction).toHaveBeenCalledWith("meal");
   });
 
   it("accepts an extended action list (coach-enabled case)", () => {
@@ -77,9 +78,7 @@ describe("ProgressSubnav + HistoryModeToggle", () => {
   it("shows 4 labels and maps History to both timeline and log", () => {
     const setSubView = vi.fn();
     const { rerender } = wrap(<ProgressSubnav subView="charts" setSubView={setSubView} />);
-    for (const label of ["Overview", "Form", "Program", "History"]) {
-      expect(screen.getByText(label)).toBeTruthy();
-    }
+    expect(screen.getAllByRole("tab").map(t => t.textContent)).toEqual(["Overview", "Coach", "Program", "History"]);
     fireEvent.click(screen.getByText("History"));
     expect(setSubView).toHaveBeenCalledWith("timeline");
     // History reads active for BOTH internal views

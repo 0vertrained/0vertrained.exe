@@ -3,18 +3,17 @@
 //
 // Pure, side-effect-free display summarizers for the redesigned Progress tab.
 // They reshape objects that other modules have ALREADY computed (weekly coach
-// review, weekly metrics, decision feedback, periodization action, saved Form
-// Check summaries/trends) into a single reflection-first hierarchy:
+// review, weekly metrics, decision feedback, periodization action) into a
+// single reflection-first hierarchy:
 //
 //   1. "Is the plan working?" hero verdict
 //   2. Limiting-factor cards
 //   3. Trend evidence
 //   4. Block guidance preview (suggest-only)
-//   5. Form Check trend preview (derived summaries only)
 //
 // Hard rules for this module:
 //   - No writes, no localStorage, no network, no Date.now-derived scoring.
-//   - No recomputation of recovery/nutrition/program/Form Check/periodization
+//   - No recomputation of recovery/nutrition/program/periodization
 //     algorithms — only formatting of their outputs.
 //   - Conservative coaching language only ("likely limiter", "worth watching",
 //     "trend suggests"). No medical or diagnostic claims. No causal "X caused Y".
@@ -56,7 +55,6 @@ export function buildProgressHero({
   coachReview = null,
   decisionFeedback = null,
   timelineSummary = null,
-  formCheckSummary = null,
   periodizationAction = null,
 } = {}) {
   const cr = coachReview || {};
@@ -157,7 +155,6 @@ export function buildProgressLimiters({
   goals = {},
   review = null,
   decisionFeedback = null,
-  formCheckSummary = null,
 } = {}) {
   const rv = review || {};
   const goalProtein = num(goals.protein) || 200;
@@ -382,87 +379,6 @@ export function buildProgressEvidence({ data = {}, goals = {}, settings = {} } =
 }
 
 /**
- * Form Check trend preview for the Progress default view. Reads only the derived
- * history summary + movement trends — never raw video/frames/landmarks. Does not
- * fabricate a trend from a single check.
- *
- * Returns: { available, title, latestLabel, scoreLabel, trendLabel, nextAction,
- *            privacyNote }
- */
-export function buildFormCheckProgressPreview({
-  formCheckHistory = null,
-  formCheckSummary = null,
-  movementTrends = null,
-} = {}) {
-  const privacyNote =
-    "Derived summaries only — no raw video, frames, or landmarks are stored.";
-  const summary = formCheckSummary || {};
-  const total = num(summary.total) ?? (Array.isArray(formCheckHistory) ? formCheckHistory.length : 0);
-
-  if (!total) {
-    return {
-      available: false,
-      title: "Form Check trends",
-      latestLabel: null,
-      scoreLabel: null,
-      trendLabel: null,
-      nextAction:
-        "Save two checks for the same movement to unlock trend comparison.",
-      privacyNote,
-    };
-  }
-
-  const latest = summary.latest || null;
-  const latestLabel =
-    (summary.movements && summary.movements[0] && summary.movements[0].label) ||
-    (latest && (latest.movementLabel || latest.movement)) ||
-    "Latest movement";
-
-  // Score/confidence label (tolerate object or numeric formScore shapes).
-  const rawScore =
-    latest && latest.formScore && typeof latest.formScore === "object"
-      ? latest.formScore.score
-      : typeof latest?.formScore === "number"
-        ? latest.formScore
-        : num(summary.movements?.[0]?.latestScore);
-  const score = num(rawScore);
-  const confLevel = latest?.confidence?.level || null;
-  const scoreLabel =
-    score !== null
-      ? `Score ${score}${confLevel ? ` · ${confLevel} confidence` : ""}`
-      : confLevel
-        ? `${confLevel} confidence`
-        : null;
-
-  // Trend label — only from a movement that has ≥2 scored checks. Never fabricate.
-  const trends = Array.isArray(movementTrends) ? movementTrends : [];
-  const topTrend = trends[0] || null;
-  let trendLabel = null;
-  if (topTrend) {
-    const map = {
-      improving: "Trend suggests improving",
-      declining: "Trend suggests declining",
-      stable: "Holding steady",
-    };
-    trendLabel = map[topTrend.scoreTrend] || "Not enough history to trend yet";
-  }
-
-  const nextAction =
-    (topTrend && topTrend.nextCheckRecommendation) ||
-    "Save another check for the same movement to extend the trend.";
-
-  return {
-    available: true,
-    title: "Form Check trends",
-    latestLabel,
-    scoreLabel,
-    trendLabel,
-    nextAction,
-    privacyNote,
-  };
-}
-
-/**
  * Block / periodization guidance preview for the Progress default view.
  * Formats the already-computed plan + suggested action. Suggest-only: this
  * NEVER writes a program or workout.
@@ -511,6 +427,5 @@ export default {
   buildProgressHero,
   buildProgressLimiters,
   buildProgressEvidence,
-  buildFormCheckProgressPreview,
   buildBlockProgressPreview,
 };

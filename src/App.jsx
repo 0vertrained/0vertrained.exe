@@ -1,9 +1,9 @@
 // src/App.jsx
 // App shell only: auth/session, data load + cache, save paths,
 // theme, header, nav, overlays, and modals. The four tabs live in their own
-// files (TodayTab/ProgressTab/FuelTab/MoreTab). DemoPage and FormCheck are
-// lazy: neither is needed for first paint, so they load on demand and stay
-// out of the initial bundle.
+// files (TodayTab/ProgressTab/FuelTab/MoreTab). DemoPage is lazy: it isn't
+// needed for first paint, so it loads on demand and stays out of the initial
+// bundle.
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { ThemeProvider, useTheme } from "./theme";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName, presetProgram } from "./constants";
@@ -36,8 +36,7 @@ import { isFirstWeekUser, buildNewUserEmptyState, countLoggedDays } from "./firs
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TodayTab } from "./TodayTab";
 
-// Lazy chunks — DemoPage only loads on the #demo route; FormCheck only
-// when its overlay opens.
+// Lazy chunks — DemoPage only loads on the #demo route.
 // Everything not needed for first paint is now lazy. TodayTab stays
 // eager (it IS first paint); the other three tabs, the Profile overlay,
 // Settings, Tutorial, and Coach each load on demand. This cut the entry chunk
@@ -46,7 +45,6 @@ import { TodayTab } from "./TodayTab";
 // loaded app state, so the flash-of-nothing is a single frame on a warm cache
 // and a short beat on first visit.
 const DemoPage = lazy(() => import("./DemoPage"));
-const FormCheck = lazy(() => import("./FormCheck").then(m => ({ default: m.FormCheck })));
 const ProgressTab = lazy(() => import("./ProgressTab").then(m => ({ default: m.ProgressTab })));
 const FuelTab = lazy(() => import("./FuelTab").then(m => ({ default: m.FuelTab })));
 const MoreTab = lazy(() => import("./MoreTab").then(m => ({ default: m.MoreTab })));
@@ -57,9 +55,8 @@ const DayZeroSpecimen = lazy(() => import("./DayZeroSpecimen").then(m => ({ defa
 const Coach = lazy(() => import("./Coach").then(m => ({ default: m.Coach })));
 
 // The app shell reserves room for the persistent bottom dock during normal tab
-// navigation. Profile and Form Check are full-screen overlays that hide that
-// dock, so carrying its reserve space into them creates a blank tail on long
-// pages. Keep the regular safe-area contract unchanged outside overlays.
+// navigation. Profile is a full-screen overlay that hides that dock, so
+// carrying its reserve space into it creates a blank tail on long pages. Keep the regular safe-area contract unchanged outside overlays.
 export function appShellStyle(appStyle, overlayOpen) {
   return overlayOpen ? { ...appStyle, paddingBottom: 0 } : appStyle;
 }
@@ -73,9 +70,9 @@ function AppInner({ onThemeChange }) {
   const [appUpdateReady, setAppUpdateReady] = useState(false);
   const tabScrollPositions = useRef({ Today: 0 });
   // Overlay is a full-screen panel stacked above the
-  // tab content: "profile" (was the More tab) or "formcheck" (was nested
-  // three taps deep inside More). null means no overlay is showing.
-  const [overlay, setOverlay]     = useState(null); // null | "profile" | "formcheck"
+  // tab content: "profile" (was the More tab). null means no overlay is
+  // showing.
+  const [overlay, setOverlay]     = useState(null); // null | "profile"
   const [sheetOpen, setSheetOpen] = useState(false); // FAB quick-action sheet
   const [coachOpen, setCoachOpen] = useState(false); // Coach chat sheet — was a floating self-positioned
                                                       // button that overlapped the header; now a normal
@@ -142,7 +139,6 @@ function AppInner({ onThemeChange }) {
     setSheetOpen(false);
     setPaletteOpen(false);
     if (key === "coach") { setCoachOpen(true); return; }
-    if (key === "formcheck") { setOverlay("formcheck"); return; }
     setOverlay(null);
     setSelectedDay(null);
     if (key === "meal") navigateTo("Fuel");
@@ -1055,14 +1051,13 @@ function AppInner({ onThemeChange }) {
       {/* Masthead — logout moved into Profile → Account + Data; at desktop
           the header also carries the tab nav + "+ Log" (see AppHeader). Tab
           changes from the masthead close any overlay first so desktop nav
-          always lands on the tab, never behind Profile/Form Check. */}
+          always lands on the tab, never behind Profile. */}
       <Header saving={saving} demoMode={demoMode} onOpenProfile={() => setOverlay("profile")} allData={data} isOnline={isOnline} pendingSaves={pendingSaves} currentTab={tab} onTabChange={(t) => { setOverlay(null); navigateTo(t); setSelectedDay(null); }} onQuickAction={() => (isBroadsheet ? setPaletteOpen(true) : setSheetOpen(true))} tabsOrder={TABS_ORDER} program={liveProgram} todayName={todayName} logDate={logDate} />
       {appLoadState.showRefreshing && <RefreshingBar label="Refreshing latest data in background…" />}
 
-      {/* ── Full-screen overlays: Profile (was More) and Form Check (was three
-             taps deep inside More). Replaces tab content rather than layering
-             over it, and hides the tab bar — a clear "pushed screen" rather
-             than a fifth destination. ── */}
+      {/* ── Full-screen overlay: Profile (was More). Replaces tab content
+             rather than layering over it, and hides the tab bar — a clear
+             "pushed screen" rather than a fifth destination. ── */}
       {overlay === "profile" && (
         <div style={isBroadsheet ? { maxWidth: "var(--ovt-content-width)", margin: "0 auto", width: "100%" } : undefined}>
           <div style={S.overlayBackRow}>
@@ -1091,16 +1086,6 @@ function AppInner({ onThemeChange }) {
           </>)}
         </div>
       )}
-      {overlay === "formcheck" && (
-        <div style={isBroadsheet ? { maxWidth: "min(1360px, 100%)", margin: "0 auto", width: "100%" } : undefined}>
-          <div style={S.overlayBackRow}>
-            <button type="button" style={S.overlayBackBtn} onClick={() => setOverlay(null)}>← Back</button>
-            <span style={S.overlayBackTitle}>Form Check</span>
-          </div>
-          <ErrorBoundary label="Form Check"><Suspense fallback={null}><FormCheck /></Suspense></ErrorBoundary>
-        </div>
-      )}
-
       {!overlay && (
         <>
           <div ref={tabPanelRef} id="tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`} tabIndex={0} style={{ outline: "none" }}>

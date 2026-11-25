@@ -1,4 +1,4 @@
-import { buildDemoEntries as buildRichDemoEntries, buildDemoOura, buildDemoWhoop, buildDemoStrava, buildDemoFormHistory } from "./demo/demoDataset";
+import { buildDemoEntries as buildRichDemoEntries, buildDemoOura, buildDemoWhoop, buildDemoStrava } from "./demo/demoDataset";
 
 export const DEMO_USER = { id: "demo-user", email: "demo@0vertrained.local", user_metadata: { username: "demo" } };
 
@@ -25,7 +25,6 @@ export function getDemoStravaActivities() {
   if (!_strava) _strava = buildDemoStrava(buildDemoEntries(), 30);
   return _strava;
 }
-export const DEMO_FORM_HISTORY = buildDemoFormHistory();
 
 export const DEMO_SETTINGS = {
   goals: { calories: 3400, protein: 200, carbs: 380, fats: 95, water: 128 },

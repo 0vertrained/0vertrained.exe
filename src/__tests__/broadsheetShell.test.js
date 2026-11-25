@@ -124,19 +124,17 @@ describe("broadsheet shell (V15.0)", () => {
 
   it("V15.2 · every Progress sub-view composes its spread with a contents fallback", () => {
     const src = read("src/ProgressTab.jsx");
-    for (const id of ["ov-verdict", "ov-plates", "ov-trends", "prog-rail", "prog-table", "form-ledger", "form-trends", "hist-master", "hist-detail"]) {
+    for (const id of ["ov-verdict", "ov-plates", "ov-trends", "prog-rail", "prog-table", "hist-master", "hist-detail"]) {
       expect(src).toContain(`data-section="${id}"`);
     }
     // Both History lenses share one day-detail panel; mobile Entries keeps its
-    // full-screen takeover; the FORM badge is a view-timestamp, tier-only.
+    // full-screen takeover.
     expect(src).toContain("if (selectedDay && !isBroadsheet) return dayDetailPanel;");
     expect((src.match(/\{dayDetailPanel \|\| dayDetailHint\}/g) || []).length).toBe(2);
     // The planning fold is mobile chrome; the tier renders unfolded.
     expect(src).toContain("const ovFiguresGroup = (<>");
     const tierBranch = src.slice(src.indexOf("{isBroadsheet ? (\n        <Suspense"), src.indexOf(") : (<>", src.indexOf("{isBroadsheet ? (\n        <Suspense")));
     expect(tierBranch).not.toContain("DisclosureBlock");
-    expect(src).toContain('t.key === "form" && isBroadsheet && formBadge > 0');
-    expect(src).toContain('localStorage.setItem("ovt-form-viewed-at"');
   });
 
   it("tabs without a broadsheet spread stay a centered reading column at the tier", () => {

@@ -7,7 +7,6 @@ import { cleanup, fireEvent, render } from "@testing-library/react";
 import { ThemeProvider } from "../theme";
 import { CommandPalette } from "../ui/CommandPalette";
 import { SettingsScreen } from "../SettingsScreen";
-import { FormCheck } from "../FormCheck";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,13 +37,6 @@ describe("V16.2 surfaces (mounted)", () => {
     expect(onAction).toHaveBeenCalledWith("workout");
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
-  });
-
-  it("V16.4 · form workspace mounts split at the tier with the findings hint", () => {
-    forceMatchMedia(true);
-    const { container } = render(<ThemeProvider><FormCheck /></ThemeProvider>);
-    expect(container.querySelector('[data-section="form-stage"]')).toBeTruthy();
-    expect(container.querySelector('[data-section="form-results-hint"]')).toBeTruthy();
   });
 
   it("settings mounts as a two-pane at the tier", () => {

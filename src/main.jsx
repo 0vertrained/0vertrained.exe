@@ -17,6 +17,12 @@ document.addEventListener("wheel", (event) => {
 // failures on first paint are reported.
 initErrorReporting();
 
+// Form Check is gone; clear the summaries it kept on this device.
+try {
+  localStorage.removeItem("ovt-form-check-history-v1");
+  localStorage.removeItem("ovt-form-viewed-at");
+} catch { /* storage unavailable */ }
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />

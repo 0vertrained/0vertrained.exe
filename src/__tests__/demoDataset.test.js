@@ -4,7 +4,7 @@
 // that, plus determinism (a walkthrough must be reproducible) and coherence
 // (Strava derives from the entries' own cardio days).
 import { describe, expect, it } from "vitest";
-import { buildDemoEntries, buildDemoOura, buildDemoWhoop, buildDemoStrava, buildDemoFormHistory } from "../demo/demoDataset";
+import { buildDemoEntries, buildDemoOura, buildDemoWhoop, buildDemoStrava } from "../demo/demoDataset";
 import { DEFAULT_PROGRAM } from "../constants";
 import { buildDailyLoads, computeRollingLoads } from "../loadModel";
 import { buildWhoopSummary } from "../whoop";
@@ -73,12 +73,5 @@ describe("demo dataset", () => {
       const miles = parseFloat(entries[key]?.workout?.cardio?.miles || "0");
       expect(Math.abs(a.distance_m - miles * 1609.34)).toBeLessThan(2);
     }
-  });
-
-  it("form history: four checks, newest recent enough to badge", () => {
-    const h = buildDemoFormHistory();
-    expect(h).toHaveLength(4);
-    expect(h[0].date.slice(0, 10) >= iso(-3)).toBe(true);
-    for (const e of h) expect(e.formScore.score).toBeGreaterThan(0);
   });
 });

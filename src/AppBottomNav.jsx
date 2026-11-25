@@ -2,11 +2,9 @@ import { useEffect, useRef } from "react";
 import { useTheme } from "./theme";
 import { useIsDesktop } from "./ui/useMediaQuery";
 
-// Form Check and quick-logging were three taps deep
-// (More → Form Check → Analyze) despite being core differentiators. The FAB
-// puts them one tap away from anywhere, and dropping "More" to a header
-// entry (see Header's Profile button in AppHeader.jsx) frees the tab row to
-// stay four clear destinations instead of a fifth catch-all.
+// The FAB keeps quick-logging one tap away from anywhere, and dropping "More"
+// to a header entry (see Header's Profile button in AppHeader.jsx) frees the
+// tab row to stay four clear destinations instead of a fifth catch-all.
 export const TABS_ORDER = ["Today", "Recovery", "Fuel", "Progress"];
 
 // Screen-reader descriptions for each tab (the visible label is terse by design).
@@ -60,7 +58,7 @@ export function BottomNav({ currentTab, onTabChange, tabsOrder = TABS_ORDER, onQ
         <div style={S.navFabSlot}>
           <button
             type="button"
-            aria-label="Quick log — workout, form check, meal, or check-in"
+            aria-label="Quick log — workout, meal, or check-in"
             style={S.navFab}
             onClick={onQuickAction}
           >
@@ -79,7 +77,6 @@ export function BottomNav({ currentTab, onTabChange, tabsOrder = TABS_ORDER, onQ
 // existing tab or overlay; no new write paths, no logging logic here.
 export const QUICK_ACTIONS = [
   { key: "workout", label: "Log workout", sub: "Sets, cardio, notes" },
-  { key: "formcheck", label: "Form check", sub: "Record or upload a lift" },
   { key: "meal", label: "Log meal", sub: "Search food or quick add" },
   { key: "checkin", label: "Check in", sub: "How you're feeling today" },
 ];

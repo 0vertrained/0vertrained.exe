@@ -3,7 +3,6 @@ import {
   buildProgressHero,
   buildProgressLimiters,
   buildProgressEvidence,
-  buildFormCheckProgressPreview,
   buildBlockProgressPreview,
 } from "../progressSummary";
 
@@ -131,40 +130,6 @@ describe("buildProgressEvidence", () => {
     for (const card of ev.cards) {
       expect(String(card.value)).not.toMatch(/NaN/);
     }
-  });
-});
-
-describe("buildFormCheckProgressPreview", () => {
-  it("returns a helpful unavailable preview when there are no saved checks", () => {
-    const preview = buildFormCheckProgressPreview({ formCheckHistory: [], formCheckSummary: { total: 0 } });
-    expect(preview.available).toBe(false);
-    expect(preview.nextAction).toMatch(/two checks/i);
-    expect(preview.privacyNote).toMatch(/no raw video/i);
-  });
-
-  it("returns latest movement + trend when checks and movement trends exist", () => {
-    const formCheckSummary = {
-      total: 3,
-      latest: { movement: "squat", movementLabel: "Back Squat", formScore: { score: 82 }, confidence: { level: "high" } },
-      movements: [{ label: "Back Squat", latestScore: 82 }],
-    };
-    const movementTrends = [
-      { label: "Back Squat", scoreTrend: "improving", nextCheckRecommendation: "Re-check squat next week." },
-    ];
-    const preview = buildFormCheckProgressPreview({ formCheckHistory: [{}, {}, {}], formCheckSummary, movementTrends });
-    expect(preview.available).toBe(true);
-    expect(preview.latestLabel).toBe("Back Squat");
-    expect(preview.scoreLabel).toMatch(/Score 82/);
-    expect(preview.trendLabel).toMatch(/improving/i);
-    expect(preview.nextAction).toMatch(/Re-check squat/);
-  });
-
-  it("does not fabricate a trend from a single check", () => {
-    const formCheckSummary = { total: 1, latest: { movementLabel: "Deadlift", formScore: 70 }, movements: [{ label: "Deadlift", latestScore: 70 }] };
-    const movementTrends = [{ label: "Deadlift", scoreTrend: "insufficient-data", nextCheckRecommendation: null }];
-    const preview = buildFormCheckProgressPreview({ formCheckHistory: [{}], formCheckSummary, movementTrends });
-    expect(preview.available).toBe(true);
-    expect(preview.trendLabel).toMatch(/not enough history/i);
   });
 });
 

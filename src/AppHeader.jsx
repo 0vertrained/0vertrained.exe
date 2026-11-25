@@ -121,7 +121,7 @@ export function Header({ saving, demoMode, onOpenProfile, allData, isOnline, pen
             <button
               type="button"
               onClick={onQuickAction}
-              aria-label="Quick log — workout, form check, meal, or check-in"
+              aria-label="Quick log — workout, meal, or check-in"
               style={{ background: C.text, color: C.bg, border: `1px solid ${C.text}`, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", fontFamily: mono, padding: "7px 13px", fontWeight: 500 }}
             >
               + Log
@@ -134,7 +134,7 @@ export function Header({ saving, demoMode, onOpenProfile, allData, isOnline, pen
           <button
             type="button"
             onClick={onOpenProfile}
-            aria-label="Profile — training plan, form check history, account and data"
+            aria-label="Profile — training plan, account and data"
             style={{ ...S.profileBtn, padding: "6px 11px" }}
           >Profile</button>
         </span>

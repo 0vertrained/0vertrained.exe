@@ -240,21 +240,3 @@ export function buildDemoStrava(entries, days = 30) {
   }
   return acts;
 }
-
-// ── Form-check history: stored-summary shape, improving squat arc ──
-export function buildDemoFormHistory() {
-  const mk = (offset, movement, score, label, reasons) => ({
-    date: `${isoDay(-offset)}T18:${String(10 + offset).padStart(2, "0")}:00.000Z`,
-    movement,
-    formScore: { score, label, reasons },
-    captureQuality: { score: 82, label: "Good" },
-    repCount: 5,
-    timeline: [],
-  });
-  return [
-    mk(2, "Squat", 84, "Solid", ["Depth consistent", "Slight forward drift on rep 4"]),
-    mk(9, "Bench Press", 78, "Solid", ["Bar path stable", "Elbow flare on final rep"]),
-    mk(16, "Squat", 71, "Needs work", ["Depth shallow reps 3–5", "Knees cave on ascent"]),
-    mk(24, "Romanian Deadlift", 81, "Solid", ["Neutral spine held", "Bar drifts from legs at lockout"]),
-  ];
-}

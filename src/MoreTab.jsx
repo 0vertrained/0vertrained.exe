@@ -2,13 +2,9 @@
 // Extracted verbatim from App.jsx (no behavior change): the
 // Profile hub (MoreTab) with ProgramTab, ProgramEditor, SocialTab,
 // CirclesSection, PR boards, CoachPreferencesCard, and hub primitives.
-import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTheme } from "./theme";
 import { copyToClipboard } from "./clipboard";
-// FormCheck was referenced below without ANY import — a latent
-// ReferenceError on the legacy subView === "form" path, caught by ESLint's
-// first run. Lazy so the 80 KB analyzer chunk stays out of this chunk too.
-const FormCheck = lazy(() => import("./FormCheck").then(m => ({ default: m.FormCheck })));
 import { DEFAULT_PROGRAM, DAYS, PROGRAM_PRESETS, PRESET_LINEUP, presetProgram, getTodayKey } from "./constants";
 import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
 import { seedSupersetPrefsFromProgram } from "./liftLogPrefs";
@@ -1183,7 +1179,7 @@ function CoachPreferencesCard({ settings, allData, onSave, showToast }) {
 export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, exportJSON, exportCSV, fileRef, onPasteImport, onSettings, onLogout, myUsername, settings, allData, showToast, onSaveCoachPreferences }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
-  const [subView, setSubView] = useState("hub"); // "hub" | "program" | "form" | "social"
+  const [subView, setSubView] = useState("hub"); // "hub" | "program" | "social"
   const [programAction, setProgramAction] = useState(null); // "generate" | "switch" | "edit" | null
   const backToHub = () => { setSubView("hub"); setProgramAction(null); };
   const openProgram = (action) => { setProgramAction(action); setSubView("program"); };
@@ -1202,14 +1198,6 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
       </div>
     );
   }
-  if (subView === "form") {
-    return (
-      <div>
-        <MoreSubHeader title="Form Check" onBack={backToHub} />
-        <Suspense fallback={null}><FormCheck /></Suspense>
-      </div>
-    );
-  }
   if (subView === "social") {
     return (
       <div>
@@ -1224,7 +1212,7 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
     <div>
       <div style={{ padding:"14px 16px 4px", background:C.bg }}>
         <div style={{ fontSize:13.5, letterSpacing:"0.16em", textTransform:"uppercase", color:C.text, fontFamily:mono }}>Manage</div>
-        <div style={{ fontSize:11, color:C.textDim, marginTop:3, letterSpacing:"0.04em" }}>Plan, form check, data, and app settings.</div>
+        <div style={{ fontSize:11, color:C.textDim, marginTop:3, letterSpacing:"0.04em" }}>Plan, data, and app settings.</div>
       </div>
 
       {/* 1 — Training Plan (first: never bury the builder) */}
@@ -1241,15 +1229,7 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
         <div style={note}>Block and periodization guidance lives in Progress → Block.</div>
       </div>
 
-      {/* 2 — Form Check */}
-      <div style={S.block}>
-        <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Form Check</span></div>
-        <div style={groupDesc}>Capture or upload a lift and save derived form summaries.</div>
-        <HubAction label="Analyze movement" sublabel="Squat · bench · deadlift and more" onClick={() => setSubView("form")} variant="primary" />
-        <div style={note}>Raw videos are not stored; derived summaries only.<br />Movement-quality trends live in Progress → Form.</div>
-      </div>
-
-      {/* 3 — Account + Data */}
+      {/* 2 — Account + Data */}
       <div style={S.block}>
         <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Account + Data</span></div>
         <div style={groupDesc}>Settings, integrations, and local backups.</div>
@@ -1274,7 +1254,7 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
 
       </div>
 
-      {/* 4 — App */}
+      {/* 3 — App */}
       <div style={S.block}>
         <div style={S.blockHead}>
           <span style={S.blockTitle}>{"> "}App</span>

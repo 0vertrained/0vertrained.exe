@@ -2,7 +2,6 @@
 // The Progress tab with its shared subnav, the History Events/Entries toggle,
 // and the pace/chart helpers that only Progress uses.
 import { useState, useEffect, lazy, Suspense } from "react";
-import { isDemoMode, DEMO_FORM_HISTORY } from "./demoData";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { useTheme } from "./theme";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName } from "./constants";
@@ -33,12 +32,10 @@ import {
   readStoredPeriodizationHistory,
   writeStoredPeriodizationHistory,
 } from "./periodizationSettings";
-import { loadHistory as loadFormCheckHistory, buildFormCheckHistorySummary, compareFormCheckEntries, getPreviousForMovement, buildAllMovementTrends } from "./formCheck/formCheckHistory";
-import { buildPersonalizedCoachContext } from "./formCheck/personalizedCoach";
 import { calcStreak } from "./AppHeader";
 import { DisclosureBlock, LoadingShell } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
-import { buildProgressLimiters, buildProgressEvidence, buildFormCheckProgressPreview, buildBlockProgressPreview } from "./progressSummary";
+import { buildProgressLimiters, buildProgressEvidence, buildBlockProgressPreview } from "./progressSummary";
 import { buildWearableTrendNotes } from "./recovery/wearableProgressContext";
 import { epley1RM } from "./TodayTab";
 
@@ -56,19 +53,17 @@ const LineFigure = lazyNamed(() => import("./sections/Figure"), "LineFigure");
 
 // Progress Tab
 // One shared subnav for every Progress subview, so there is one navigation
-// metaphor on the screen: every view renders this same 4-tab bar: Overview · Form · Program ·
+// metaphor on the screen: every view renders this same 4-tab bar: Overview · Coach · Program ·
 // History (Timeline + Log merged — both are "what happened," toggled inside
 // History rather than owning separate tabs).
-export function ProgressSubnav({ subView, setSubView, formBadge = 0 }) {
+export function ProgressSubnav({ subView, setSubView }) {
   const { C } = useTheme();
   const mono = C.fontFamily;
-  // At the broadsheet tier this graduates into a sub-masthead: taller,
-  // and FORM carries an unreviewed-checks badge.
+  // At the broadsheet tier this graduates into a taller sub-masthead.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
   const tabs = [
     { key: "charts", label: "Overview", match: ["charts"] },
     { key: "coach", label: "Coach", match: ["coach"] },
-    { key: "form", label: "Form", match: ["form"] },
     { key: "periodization", label: "Program", match: ["periodization"] },
     { key: "timeline", label: "History", match: ["timeline", "log"] },
   ];
@@ -109,9 +104,6 @@ export function ProgressSubnav({ subView, setSubView, formBadge = 0 }) {
             }}
           >
             {t.label}
-            {t.key === "form" && isBroadsheet && formBadge > 0 && (
-              <span style={{ marginLeft: 6, background: C.text, color: C.bg, fontSize: 9, padding: "1px 5px", letterSpacing: "0.08em", fontFamily: mono }}>{formBadge}</span>
-            )}
           </button>
         );
       })}
@@ -146,15 +138,11 @@ export function HistoryModeToggle({ subView, setSubView }) {
 export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, onSaveCoachingSettings }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
-  const [subView, setSubView] = useState("charts"); // "charts" (Summary) | "log" | "timeline" | "periodization" | "form"
+  const [subView, setSubView] = useState("charts"); // "charts" (Summary) | "coach" | "periodization" | "timeline" | "log"
   // The default Summary view is the reflection loop; dense metrics/charts
   // collapse behind one disclosure so the score narrative isn't repeated up top.
   const [selectedDay, setSelectedDay] = useState(null);
-  // Broadsheet tier flag + FORM badge. "Unreviewed" = form checks
-  // saved after the last time the Form sub-tab was opened (stamped below).
-  // A view-timestamp, not fabricated review state.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
-  const [formViewedAt, setFormViewedAt] = useState(() => { try { return localStorage.getItem("ovt-form-viewed-at") || ""; } catch { return ""; } });
   const [logFilter, setLogFilter] = useState("all");
   const [logSearch, setLogSearch] = useState("");
   const [timelineFilter, setTimelineFilter] = useState("all");
@@ -164,14 +152,6 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   const [periodizationSaved, setPeriodizationSaved] = useState(() => normalizePeriodizationSettings(readStoredPeriodization() || {}));
   const [periodizationDraft, setPeriodizationDraft] = useState(periodizationSaved);
   const [periodizationHistory, setPeriodizationHistory] = useState(() => readStoredPeriodizationHistory());
-  const [formCheckHistory, setFormCheckHistory] = useState(() => (isDemoMode() ? DEMO_FORM_HISTORY : loadFormCheckHistory())); // seeded demo checks
-  useEffect(() => {
-    if (subView !== "form") return;
-    const now = new Date().toISOString();
-    setFormViewedAt(now);
-    try { localStorage.setItem("ovt-form-viewed-at", now); } catch { /* fine */ }
-  }, [subView]);
-  const formBadge = formCheckHistory.filter(e => (e?.date || "") > formViewedAt).length;
   const [wearableTrends, setWearableTrends] = useState(() => buildWearableTrendNotes({}));
 
   useEffect(() => {
@@ -229,7 +209,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   if (subView === "coach") {
     return (
       <div>
-        <ProgressSubnav subView={subView} setSubView={setSubView} formBadge={formBadge} />
+        <ProgressSubnav subView={subView} setSubView={setSubView} />
         <CoachingOutcomeCenter
           review={coachReview}
           data={data}
@@ -307,7 +287,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
 
     return (
       <div>
-        <ProgressSubnav subView={subView} setSubView={setSubView} formBadge={formBadge} />
+        <ProgressSubnav subView={subView} setSubView={setSubView} />
 
         {/* Broadsheet Program spread: summary, race block,
             and this-week guidance rail left; the week table + block history —
@@ -499,175 +479,6 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
     );
   }
 
-  // ── Form Check sub-view ──
-  if (subView === "form") {
-    // Derived progress memory — aggregate summary + same-movement comparison.
-    const fcSummary = buildFormCheckHistorySummary(formCheckHistory);
-    const latest = fcSummary.latest;
-    const latestCmp = fcSummary.latestComparison;
-    const latestScore = latest ? (latest.formScore && typeof latest.formScore === "object" ? latest.formScore.score : typeof latest.formScore === "number" ? latest.formScore : null) : null;
-    const latestFocus = latestCmp?.primaryFocus || latest?.progressSignals?.primaryFocus || null;
-    const latestTrend = latest?.progressSignals?.trendKey;
-    const chipTone = (tone) => tone === "positive" ? C.green : tone === "negative" ? C.red : C.textDim;
-    // Multi-check trend coach per movement (derived history only).
-    const trends = buildAllMovementTrends(formCheckHistory);
-    const trendTone = (t) => t === "improving" ? C.green : t === "declining" ? C.red : t === "stable" ? C.text : C.textDim;
-    const trendLabel = (t) => t === "improving" ? "Improving" : t === "declining" ? "Declining" : t === "stable" ? "Holding steady" : "Not enough data";
-    // Personalized coach context from recovery + block emphasis + recurring focus.
-    let recoveryColor;
-    try {
-      const yKey = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
-      const rec = calcRecoveryScore(data[yKey], data, yKey);
-      recoveryColor = rec?.color || null;
-    } catch { recoveryColor = null; }
-    const topTrend = trends[0] || null;
-    const personalized = buildPersonalizedCoachContext({
-      recovery: recoveryColor,
-      strengthEmphasis: periodizationSaved?.strengthEmphasis,
-      goal: periodizationSaved?.goal,
-      recurringFocus: topTrend?.recurringFocus || null,
-      bestRecentScore: topTrend?.bestRecentScore ?? null,
-      movementLabel: topTrend?.label || null,
-    });
-    return (
-      <div>
-        <ProgressSubnav subView={subView} setSubView={setSubView} formBadge={formBadge} />
-        <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-s) 1fr", gap: 20, alignItems: "start" } : { display: "contents" }}>
-        <section data-section="form-ledger" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0, gridColumn: 2, gridRow: 1 } : { display: "contents" }}>
-        <div style={S.block}>
-          <div style={S.blockHead}>
-            <span style={S.blockTitle}>{"> "}Form Check History</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={S.blockStat}>{fcSummary.total} SAVED · {fcSummary.movementCount} MOVE</span>
-              <button onClick={() => setFormCheckHistory(loadFormCheckHistory())} style={{ ...S.smallBtn, padding: "3px 8px", fontSize: 9.5 }}>Refresh</button>
-            </span>
-          </div>
-          <div style={{ fontSize:11.5, color:C.textDim, lineHeight:1.55 }}>
-            Derived summaries only — no raw video, frames, images, or landmarks are stored.
-          </div>
-          {latest && (
-            <>
-              <div style={{ marginTop:10, display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:1, background:C.lineBright, border:`1px solid ${C.lineBright}` }}>
-                <div style={{ background:C.block, padding:"8px 4px", textAlign:"center" }}><div style={{ fontSize:15, color:C.text, fontWeight:600 }}>{latestScore ?? "—"}</div><div style={S.bodyL}>Score</div></div>
-                <div style={{ background:C.block, padding:"8px 4px", textAlign:"center" }}><div style={{ fontSize:15, color:C.text, fontWeight:600 }}>{latest.repCount ?? "—"}</div><div style={S.bodyL}>Reps</div></div>
-                <div style={{ background:C.block, padding:"8px 4px", textAlign:"center" }}><div style={{ fontSize:15, color:C.text, fontWeight:600 }}>{latest.depthAssessment || "—"}</div><div style={S.bodyL}>Depth</div></div>
-                <div style={{ background:C.block, padding:"8px 4px", textAlign:"center" }}><div style={{ fontSize:15, color:C.text, fontWeight:600 }}>{latest.confidence?.level || "—"}</div><div style={S.bodyL}>Conf</div></div>
-              </div>
-              {latestCmp && (
-                <div style={{ marginTop:8 }}>
-                  <div style={{ fontSize:11.5, color:C.text, lineHeight:1.5 }}>{latestCmp.summary}</div>
-                  {latestCmp.chips.length > 0 && (
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:6 }}>
-                      {latestCmp.chips.map((chip, i) => (
-                        <span key={`${chip.label}-${i}`} style={{ fontSize:10, color:chipTone(chip.tone), border:`1px solid ${C.lineBright}`, padding:"3px 5px", letterSpacing:"0.04em" }}>
-                          {chip.label} {chip.value}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {(latestFocus || Number.isFinite(latestTrend)) && (
-                <div style={{ fontSize:11, color:C.textDim, marginTop:7, lineHeight:1.5 }}>
-                  {latestFocus ? <>focus · {latestFocus}</> : null}
-                  {latestFocus && Number.isFinite(latestTrend) ? " · " : null}
-                  {Number.isFinite(latestTrend) ? <>trend key {latestTrend}</> : null}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-        </section>
-        <section data-section="form-trends" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0, gridColumn: 1, gridRow: 1 } : { display: "contents" }}>
-        {/* Personalized coach note (derived from recovery + block + history) */}
-        {personalized.available && (
-          <div style={S.block}>
-            <div style={S.blockHead}><span style={S.blockTitle}>{"> "}{personalized.headline || "Personalized Note"}</span></div>
-            {personalized.notes.map((n, i) => (
-              <div key={i} style={{ fontSize:11.5, color:C.text, lineHeight:1.5, marginTop: i === 0 ? 4 : 6 }}>{n}</div>
-            ))}
-            {personalized.cameraTip && <div style={{ fontSize:11, color:C.textDim, lineHeight:1.5, marginTop:7 }}>{personalized.cameraTip}</div>}
-            <div style={{ fontSize:10, color:C.textFaint, marginTop:8, lineHeight:1.4 }}>Context-only framing from your recovery, block, and saved checks — not medical or diagnostic advice.</div>
-          </div>
-        )}
-
-        {/* Movement trend coach cards */}
-        {trends.length > 0 && (
-          <div style={S.block}>
-            <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Movement Trends</span><span style={S.blockStat}>{trends.length} MOVE</span></div>
-            <div style={{ display:"flex", flexDirection:"column", gap:1, marginTop:6 }}>
-              {trends.map((tr) => (
-                <div key={tr.movement || tr.label} style={{ border:`1px solid ${C.lineBright}`, padding:"10px 12px", background:C.block }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10 }}>
-                    <span style={{ fontSize:13, color:C.text, letterSpacing:"0.04em", textTransform:"uppercase" }}>{tr.label}</span>
-                    <span style={{ fontSize:10.5, color:trendTone(tr.scoreTrend), letterSpacing:"0.08em", textTransform:"uppercase" }}>
-                      {trendLabel(tr.scoreTrend)}{Number.isFinite(tr.scoreDeltaFromOldest) && tr.scoreDeltaFromOldest !== 0 ? ` ${tr.scoreDeltaFromOldest > 0 ? "+" : ""}${tr.scoreDeltaFromOldest}` : ""}
-                    </span>
-                  </div>
-                  <div style={{ fontSize:11, color:C.textDim, marginTop:5, lineHeight:1.45 }}>
-                    {tr.count} check{tr.count === 1 ? "" : "s"}
-                    {Number.isFinite(tr.bestRecentScore) ? ` · best ${tr.bestRecentScore}` : ""}
-                    {tr.recurringFocus?.label ? ` · focus: ${tr.recurringFocus.label}` : ""}
-                  </div>
-                  {tr.nextCheckRecommendation && <div style={{ fontSize:11, color:C.textDim, marginTop:6, lineHeight:1.5 }}>→ {tr.nextCheckRecommendation}</div>}
-                  <div style={{ fontSize:10, color:C.textFaint, marginTop:6, lineHeight:1.4, fontStyle:"italic" }}>{tr.confidenceNote}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div style={{ ...S.block, padding:0 }}>
-          {formCheckHistory.length === 0 && <div style={{ padding:16, fontSize:11.5, color:C.textDim }}>No saved form checks yet. Use Profile → Form Check, analyze a clip, then save the derived summary. Saved checks compare against earlier ones for the same movement.</div>}
-          {formCheckHistory.map((entry, idx) => {
-            const prev = getPreviousForMovement(formCheckHistory, entry);
-            const cmp = compareFormCheckEntries(entry, prev);
-            const entryScore = entry.formScore && typeof entry.formScore === "object" ? entry.formScore.score : typeof entry.formScore === "number" ? entry.formScore : null;
-            const nextCue = entry.coaching?.nextSetCue || entry.coaching?.watchItems?.[0] || null;
-            return (
-              <div key={`${entry.date}-${idx}`} style={{ padding:"11px 16px", borderBottom:`1px solid ${C.line}` }}>
-                <div style={{ display:"flex", justifyContent:"space-between", gap:10, marginBottom:5 }}>
-                  <span style={{ fontSize:13, color:C.text, letterSpacing:"0.04em", textTransform:"uppercase" }}>{cmp.movementLabel}</span>
-                  <span style={{ fontSize:10, color:C.textFaint }}>{entry.date ? entry.date.slice(0,10) : "—"}</span>
-                </div>
-                <div style={{ fontSize:11.5, color:C.textDim, lineHeight:1.45 }}>
-                  {entryScore != null ? `score ${entryScore} · ` : ""}{entry.repCount ?? "—"} reps · {entry.depthAssessment || "depth unknown"} · confidence {entry.confidence?.level || "—"}
-                </div>
-                {cmp.hasPrevious && cmp.chips.length > 0 && (
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:7 }}>
-                    {cmp.chips.map((chip, i) => (
-                      <span key={`${chip.label}-${i}`} style={{ fontSize:10, color:chipTone(chip.tone), border:`1px solid ${C.lineBright}`, padding:"3px 5px", letterSpacing:"0.04em" }}>
-                        {chip.label} {chip.value}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {cmp.primaryFocus && (
-                  <div style={{ fontSize:11, color:C.textDim, marginTop:6 }}>
-                    focus · {cmp.primaryFocus}{cmp.focusChanged ? " (changed)" : ""}
-                  </div>
-                )}
-                {entry.timeline?.length > 0 && (
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:8 }}>
-                    {entry.timeline.slice(0, 8).map(rep => (
-                      <span key={rep.index} style={{ fontSize:10, color:C.textDim, border:`1px solid ${C.lineBright}`, padding:"3px 5px" }}>
-                        R{rep.index}: {rep.depthAssessment || "—"}{rep.tempoSec ? ` · ${rep.tempoSec}s` : ""}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {nextCue && <div style={{ fontSize:11, color:C.textDim, marginTop:7, lineHeight:1.5 }}>next set · {nextCue}</div>}
-                {entry.cues?.[0]?.text && <div style={{ fontSize:11, color:C.textDim, fontStyle:"italic", marginTop:7 }}>“{entry.cues[0].text}”</div>}
-              </div>
-            );
-          })}
-        </div>
-        </section>
-        </div>
-      </div>
-    );
-  }
-
   // Day detail, shared by both History lenses. On mobile
   // the Entries lens keeps its full-screen takeover exactly as before; at the
   // broadsheet tier both lenses dock this alongside the master list instead.
@@ -750,7 +561,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
 
     return (
       <div>
-        <ProgressSubnav subView={subView} setSubView={setSubView} formBadge={formBadge} />
+        <ProgressSubnav subView={subView} setSubView={setSubView} />
         <HistoryModeToggle subView={subView} setSubView={setSubView} />
         <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-s) 1fr", gap: 20, alignItems: "start" } : { display: "contents" }}>
         <section data-section="hist-master" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
@@ -827,7 +638,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
     if (selectedDay && !isBroadsheet) return dayDetailPanel;
     return (
       <div>
-        <ProgressSubnav subView={subView} setSubView={setSubView} formBadge={formBadge} />
+        <ProgressSubnav subView={subView} setSubView={setSubView} />
         <HistoryModeToggle subView={subView} setSubView={setSubView} />
         <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-s) 1fr", gap: 20, alignItems: "start" } : { display: "contents" }}>
         <section data-section="hist-master" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
@@ -889,9 +700,6 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   // Reshape already-computed objects into the "is the plan working?" hierarchy.
   // Block preview reuses the saved (not draft) block settings; all previews are
   // read-only and suggest-only. No program/workout is written from Progress.
-  const fcSummaryPreview = buildFormCheckHistorySummary(formCheckHistory);
-  const movementTrendsPreview = buildAllMovementTrends(formCheckHistory);
-
   let blockPlanPreview;
   let blockActionPreview;
   try {
@@ -927,9 +735,8 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
     blockActionPreview = null;
   }
 
-  const progressLimiters = buildProgressLimiters({ data, goals, review, decisionFeedback, formCheckSummary: fcSummaryPreview });
+  const progressLimiters = buildProgressLimiters({ data, goals, review, decisionFeedback });
   const progressEvidence = buildProgressEvidence({ data, goals, settings });
-  const formPreview = buildFormCheckProgressPreview({ formCheckHistory, formCheckSummary: fcSummaryPreview, movementTrends: movementTrendsPreview });
   const blockPreview = buildBlockProgressPreview({ plan: blockPlanPreview, action: blockActionPreview });
 
   const toneColor = (tone) => tone === "good" ? C.green : tone === "warning" ? C.red : tone === "caution" ? C.text : C.textDim;
@@ -986,30 +793,6 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
         )}
         <button onClick={() => setSubView("periodization")} style={{ ...S.smallBtn, width:"100%", textAlign:"left", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", marginTop:10 }}>
           <span>Open Block View</span>
-          <span style={{ fontSize:13, color:C.textFaint }}>→</span>
-        </button>
-      </div>
-
-      {/* ── 5 · Form Check Trends preview (derived summaries only) ── */}
-      <div style={S.block}>
-        <div style={S.blockHead}>
-          <span style={S.blockTitle}>{"> "}Form Check Trends</span>
-          {formPreview.available && formPreview.trendLabel && <span style={S.blockStat}>{formPreview.trendLabel.toUpperCase()}</span>}
-        </div>
-        {formPreview.available ? (
-          <>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10, marginBottom:5 }}>
-              <span style={{ fontSize:13.5, color:C.text, letterSpacing:"0.04em", textTransform:"uppercase" }}>{formPreview.latestLabel}</span>
-              {formPreview.scoreLabel && <span style={{ fontSize:11, color:C.textDim }}>{formPreview.scoreLabel}</span>}
-            </div>
-            <div style={{ fontSize:11.5, color:C.textDim, lineHeight:1.5 }}>→ {formPreview.nextAction}</div>
-          </>
-        ) : (
-          <div style={{ fontSize:11.5, color:C.textDim, lineHeight:1.5 }}>{formPreview.nextAction}</div>
-        )}
-        <div style={{ fontSize:10, color:C.textFaint, marginTop:8, lineHeight:1.4 }}>{formPreview.privacyNote}</div>
-        <button onClick={() => setSubView("form")} style={{ ...S.smallBtn, width:"100%", textAlign:"left", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", marginTop:10 }}>
-          <span>Open Form Check Trends</span>
           <span style={{ fontSize:13, color:C.textFaint }}>→</span>
         </button>
       </div>
@@ -1120,7 +903,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
 
   return (
     <div>
-      <ProgressSubnav subView={subView} setSubView={setSubView} formBadge={formBadge} />
+      <ProgressSubnav subView={subView} setSubView={setSubView} />
 
       {/* Broadsheet Overview spread, in two columns: verdict rail left, plates
           and tools right, with the planning disclosure open by default at the
@@ -1190,7 +973,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
         </Suspense>
       ) : (<>
         {ovTrendsChunk}
-        <DisclosureBlock label="Planning tools" sub="Block guidance, form trends, weekly ledger, and charts">
+        <DisclosureBlock label="Planning tools" sub="Block guidance, weekly ledger, and charts">
       <Suspense fallback={<div style={S.block}><div style={S.annotation}>Loading planning tools…</div></div>}>
           {ovPlanningGroup}
           {ovFiguresGroup}
