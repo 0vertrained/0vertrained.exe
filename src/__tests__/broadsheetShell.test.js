@@ -57,12 +57,12 @@ describe("broadsheet shell (V15.0)", () => {
     expect(broadsheetBranch).not.toContain("blkTechnicaldetailsdisclosure");
   });
 
-  it("V15.1 · Fuel docks the ledger + search on the right, open by default at the tier", () => {
+  it("V15.1 · Fuel docks Log food on the right at the tier; on a phone it is its own screen", () => {
     const src = read("src/FuelTab.jsx");
     expect(src).toContain('data-section="fuel-main"');
     expect(src).toContain('data-section="fuel-dock"');
-    expect(src).toContain("{(showLedger || isBroadsheet) && (<>");
-    expect(src).toContain("{!isBroadsheet && (<div"); // the fold toggle hides when docked
+    expect(src).toContain("{isBroadsheet && (\n          <section data-section=\"fuel-dock\"");
+    expect(src).toContain('{!isBroadsheet && <button type="button" className="btn btn-p btn-b" onClick={() => setFuelView("log")}>Log food</button>}');
     expect(src).toContain('gridTemplateColumns: "1fr var(--ovt-rail-s)"');
   });
 

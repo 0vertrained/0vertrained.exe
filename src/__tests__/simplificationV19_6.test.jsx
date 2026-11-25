@@ -84,11 +84,12 @@ describe("Recovery · one verdict", () => {
   });
 });
 
-describe("Fuel · Log and Recipes", () => {
-  it("has two sub-tabs and no Factor view", () => {
+describe("Fuel · Log food and the meal plan", () => {
+  it("opens on what is needed, with doors to Log food and the meal plan, and no Factor view", () => {
     wrap(<FuelTab settings={{ ...DEFAULT_SETTINGS }} todayData={{ nutrition: {} }} updateToday={vi.fn()} showToast={vi.fn()} todayKey="2026-10-27" loaded data={{}} />);
-    expect(screen.getByRole("button", { name: "Log" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Recipes" })).toBeTruthy();
+    expect(screen.getByText("Still needed today")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Log food" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Meal plan/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Factor" })).toBeNull();
     const src = read("src/FuelTab.jsx");
     expect(src).not.toMatch(/factorCutPlan|FactorCutView|fuelView === "factor"/);

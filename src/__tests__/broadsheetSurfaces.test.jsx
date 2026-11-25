@@ -54,7 +54,7 @@ describe("V16.2 surfaces (mounted)", () => {
 describe("V16.2 static pins", () => {
   it("U2–U5: tier fallbacks, sticky masthead, one desktop idiom, keyboard access", () => {
     const fuel = read("src/FuelTab.jsx");
-    expect(fuel).toContain(': isBroadsheet ? { maxWidth: "var(--ovt-content-width)"');
+    expect(fuel).toContain('maxWidth: "var(--ovt-content-width)" }');
     expect(read("src/ui/primitives.jsx")).toContain('...(isBroadsheet ? { maxWidth: "var(--ovt-content-width)"');
     // The desktop bar stays put while the page scrolls under it.
     expect(read("src/ledger.css")).toMatch(/\.dtop \{[^}]*position: sticky; top: 0;/);

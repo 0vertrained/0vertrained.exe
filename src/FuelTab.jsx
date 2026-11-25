@@ -1,307 +1,136 @@
 // src/FuelTab.jsx
-// Extracted verbatim from App.jsx (no behavior change): the
-// Fuel tab (Log/Plan sub-tabs) plus its private FuelHero, QuickAddSection,
-// and FuelRecoveryInsight pieces.
-import { useState } from "react";
+// Fuel answers one question first: what is still needed today. Under it sit
+// the one best next thing to eat or drink, water, and the doors to the rest:
+// Log food (search, quick adds, totals by hand), the meal plan with its
+// recipes, and targets.
+//
+// Every write goes through the paths Fuel has always used: the day's
+// nutrition totals, nutrition.plannedMeals.<slot> for a planned meal, and
+// nutrition.water. A log is confirmed at once and can be undone from the
+// confirmation.
+import { useEffect, useRef, useState } from "react";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
-import { useTheme } from "./theme";
+import { Icon, Seg } from "./ui/ledger";
+import { useTopBar } from "./ui/shell";
 import { generateMealPlans, SLOTS, planMacros, SLOT_LABELS, swapCandidates, replaceMealInPlan } from "./mealPlan";
 import { buildNutritionRecommendation } from "./nutritionCoach";
-import { computeStillNeeded, formatStillNeeded } from "./fuelNeeds";
+import { computeStillNeeded } from "./fuelNeeds";
 import { buildFuelHero, buildFuelRecoveryInsight, buildMealPlanProgress, buildNextMealPreview } from "./fuelSummary";
 import { FoodSearch } from "./FoodSearch";
-import { LoadingShell, SectionHeader } from "./ui/primitives";
+import { LoadingShell } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
 import { EnergyIntelligence } from "./EnergyIntelligence";
 
-// Shared meal check circle (○ / ✓). Same 26px ledger checkbox used by the Next
-// Meal preview and each full-plan row — one definition so the two never drift.
-const mealCheckBtn = (C, isChecked) => ({
-  width: 26, height: 26, borderRadius: 0,
-  border: `1px solid ${isChecked ? C.text : C.lineBright}`,
-  background: isChecked ? C.text : "none",
-  color: isChecked ? C.bg : C.textDim,
-  fontSize: 13, cursor: "pointer", display: "flex",
-  alignItems: "center", justifyContent: "center", flexShrink: 0,
-});
+const NBSP = " ";
+const num = (value) => Number.parseFloat(value) || 0;
+const fmt = (value) => Math.round(num(value)).toLocaleString("en-US");
+const pct = (value, goal) => Math.min(100, goal > 0 ? Math.round((num(value) / goal) * 100) : 0);
+const MACROS = ["calories", "protein", "carbs", "fats", "water"];
+const SWAP_WINDOW = 6;
 
+// What an add is made of, in the order people read it.
+function addMeta(add) {
+  return [
+    add.calories ? `${fmt(add.calories)}${NBSP}kcal` : null,
+    add.protein ? `${fmt(add.protein)}${NBSP}g protein` : null,
+    add.water ? `${fmt(add.water)}${NBSP}oz water` : null,
+  ].filter(Boolean).join(" · ");
+}
 
-// Fuel: Still Needed Hero
-// Execution-first lead for Fuel: "what should I eat/drink next?" before the raw
-// ledger. Presentation only — buildFuelHero reshapes the already-computed
-// stillNeeded/recommendation and the suggestion button reuses the existing
-// addNutrition write path. No backend writes, no algorithm changes here.
-function FuelHero({ hero, needs, onAddSuggestion }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-  const parts = formatStillNeeded(needs);
-
+// One target as a line: the name, where it stands, a bar, and what is left.
+function Target({ label, now, goal, unit, compact = false }) {
+  const left = Math.max(0, Math.round(goal - num(now)));
+  const figure = <span><span className="n">{fmt(now)}/{fmt(goal)}</span> <span className="t-s c2">{unit}</span></span>;
+  const bar = <span className="bar" role="img" aria-label={`${label}: ${fmt(now)} of ${fmt(goal)} ${unit}`}><i style={{ width: `${pct(now, goal)}%` }} /></span>;
+  if (compact) return <span className="kv"><span className="t-c c2">{label}</span>{figure}{bar}</span>;
   return (
-    <div style={{ padding: "16px", borderBottom: `1px solid ${C.line}`, background: C.block }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
-        <span style={{ fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: C.textDim }}>Still needed today</span>
-        {hero.onTarget && <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: C.green }}>on target</span>}
-      </div>
-      <div style={{ fontFamily: S.fontSerif, fontSize: 22, fontWeight: 600, color: hero.onTarget ? C.green : C.text, lineHeight: 1.15, marginTop: 6 }}>
-        {hero.title}
-      </div>
-
-      {/* Primary remaining metrics: protein / calories / water */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 12, marginBottom: 10 }}>
-        {hero.metrics.map(m => (
-          <div key={m.key} style={{ border: `1px solid ${C.line}`, padding: "8px 6px", textAlign: "center", background: C.bg }}>
-            <div style={{ fontSize: 18, fontWeight: 600, fontFamily: mono, color: m.remaining > 0 ? C.text : C.green }}>
-              {m.remaining > 0 ? m.remaining : "✓"}
-            </div>
-            <div style={{ fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textFaint, marginTop: 3 }}>
-              {m.remaining > 0 ? `${m.label} left · ${m.unit}` : m.label}
-            </div>
-            <div style={{ fontSize: 9.5, color: C.textDim, fontFamily: mono, marginTop: 4 }}>
-              {m.current}/{m.target}{m.unit === "kcal" ? "" : m.unit}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {parts.length > 0 && (
-        <div style={{ fontSize: 11.5, color: C.textDim, fontFamily: mono, letterSpacing: "0.02em", marginBottom: 8 }}>
-          {parts.join("  ·  ")}
-        </div>
-      )}
-      <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.5 }}>{hero.subtext}</div>
-      {hero.emptyDay && !hero.onTarget && (
-        <div style={{ marginTop: 8, padding: "8px 10px", border: `1px solid ${C.line}`, background: C.bg, fontSize: 11.5, color: C.textDim, lineHeight: 1.5 }}>
-          Empty log so far — the app is not missing data. Start with the next fuel action or open the manual ledger if you need exact totals.
-        </div>
-      )}
-
-      {/* Next action — reuses the existing quick-add write path */}
-      {!hero.onTarget && hero.suggestion && hero.suggestionAdd && (
-        <button
-          type="button"
-          style={{ width: "100%", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 14px", marginTop: 10, background: C.text, color: C.bg, border: `1px solid ${C.text}`, fontFamily: mono, cursor: "pointer" }}
-          onClick={() => onAddSuggestion(hero.suggestionAdd)}
-        >
-          <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <span style={{ fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" }}>Next fuel action</span>
-            <span style={{ fontSize: 13.5, fontWeight: 600 }}>{hero.primaryActionLabel}: {hero.suggestion.replace(/^Try\s+/i, "").replace(/\.$/, "")}</span>
-          </span>
-          <span style={{ fontSize: 10, color: C.bg, opacity: 0.72, whiteSpace: "nowrap" }}>{hero.suggestionAdd.calories || 0}kcal · {hero.suggestionAdd.protein || 0}P{hero.suggestionAdd.water ? ` · ${hero.suggestionAdd.water}oz` : ""} →</span>
-        </button>
-      )}
-      {hero.onTarget && hero.suggestion && (
-        <div style={{ fontSize: 11.5, color: C.green, marginTop: 8, fontFamily: mono }}>{hero.suggestion}</div>
-      )}
+    <div className="kv" style={{ gap: 4 }}>
+      <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}><span className="t-bs">{label}</span>{figure}</span>
+      {bar}
+      <span className="t-s c2">{left > 0 ? `${fmt(left)}${NBSP}${unit} to go` : "Target met"}</span>
     </div>
   );
 }
-
-// Fuel: Quick Add / common foods
-// Low-friction adds broken out below the hero. Every button reuses an existing
-// write path (addNutrition / addWater) — no new persistence.
-function QuickAddSection({ quickAdds, onAdd, waterBehind, onWater, title = "> Quick add" }) {
-  const { C, S } = useTheme();
-  if (!(quickAdds?.length > 0) && !waterBehind) return null;
-
-  return (
-    <div style={S.block}>
-      <SectionHeader title={title} />
-      {quickAdds?.length > 0 && (
-        <div style={{ display: "grid", gap: 8 }}>
-          {quickAdds.map(add => (
-            <button
-              key={add.id}
-              type="button"
-              style={{ ...S.smallBtn, textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px" }}
-              onClick={() => onAdd(add)}
-            >
-              <span>+ {add.label}</span>
-              <span style={{ fontSize: 10, color: C.textFaint }}>{add.calories || 0}kcal · {add.protein || 0}P · {add.carbs || 0}C · {add.fats || 0}F{add.water ? ` · ${add.water}oz` : ""}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {waterBehind && (
-        <div style={{ marginTop: quickAdds?.length > 0 ? 12 : 0 }}>
-          <div style={{ fontSize: 9.5, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>Water still behind</div>
-          <div style={{ display: "flex", gap: 6 }}>
-            {[8, 16, 32].map(oz => <button key={oz} style={S.waterB} onClick={() => onWater(oz)}>+{oz}oz</button>)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Fuel ↔ Recovery insight
-// Display-only coaching copy derived from current fuel gaps (no recovery
-// plumbing). Never a medical/nutrition diagnosis.
-function FuelRecoveryInsight({ insight }) {
-  const { C, S } = useTheme();
-  if (!insight) return null;
-  const tone = insight.tone === "caution" ? C.amber : insight.tone === "good" ? C.green : C.textDim;
-  return (
-    <div style={S.block}>
-      <SectionHeader title="> Fuel ↔ Recovery" />
-      <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.55, display: "flex", gap: 8 }}>
-        <span aria-hidden="true" style={{ color: tone, flexShrink: 0 }}>—</span>
-        <span>{insight.body}</span>
-      </div>
-    </div>
-  );
-}
-
-// Fuel: Next Meal preview (Phase 2)
-// Compact single-meal lead for the Log view so "what should I eat next" sits
-// beside Still Needed + Quick Add. Reuses the existing buildNextMealPreview model
-// plus the checkMeal/uncheckMeal write paths — no new state, no plan mutation.
-// The "Plan ▸" button just switches sub-tabs (display-only) for full recipes.
-function NextMealPreview({ plan, nextMeal, checkedMeals, progressLabel, slotLabels, onCheck, onUncheck, onOpenPlan }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-  if (!plan) return null;
-
-  const openBtn = (
-    <button
-      type="button"
-      onClick={onOpenPlan}
-      style={{ background: "none", border: `1px solid ${C.lineBright}`, color: C.textDim, fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: mono, padding: "4px 8px", flexShrink: 0 }}
-    >
-      Plan ▸
-    </button>
-  );
-
-  if (nextMeal.allLogged) {
-    return (
-      <div style={S.block}>
-        <SectionHeader title="> Next meal" stat={progressLabel} tone="good" />
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 13, color: C.green, letterSpacing: "0.02em" }}>
-          <span>✓ Every planned meal is logged.</span>
-          {openBtn}
-        </div>
-      </div>
-    );
-  }
-
-  const slot = nextMeal.slot;
-  if (!slot || !plan.meals?.[slot]) return null;
-  const recipe = plan.meals[slot];
-  const isChecked = !!checkedMeals[slot];
-
-  return (
-    <div style={S.block}>
-      <SectionHeader title="> Next meal" stat={progressLabel} />
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button
-          onClick={() => (isChecked ? onUncheck(recipe, slot) : onCheck(recipe, slot))}
-          style={mealCheckBtn(C, isChecked)}
-        >
-          {isChecked ? "✓" : "○"}
-        </button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 9.5, color: isChecked ? C.greenMid : C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 2 }}>{slotLabels[slot]}</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: isChecked ? C.green : C.text, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recipe.name}</div>
-          <div style={{ fontSize: 9.5, color: C.textFaint, marginTop: 2, fontFamily: mono }}>
-            {recipe.macros.calories} kcal · {recipe.macros.protein}g pro · {recipe.prepMins + recipe.cookMins} min
-          </div>
-        </div>
-        {openBtn}
-      </div>
-    </div>
-  );
-}
-
-
 
 export function FuelTab({ settings, todayData, updateToday, showToast, todayKey, loaded, data }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-  // Fuel splits into Log / Plan sub-tabs (same underline pattern as
-  // Progress). "Log what I just ate" and "what should I eat this week" are
-  // different tasks on different time horizons; interleaving them forced the
-  // three logging surfaces (quick add, ledger, search) apart. Display-only.
-  // The Factor tab (a personal 12-day prepared-meal block) is gone;
-  // Fuel is Log and Recipes.
-  const [fuelView, setFuelView] = useState("log"); // "log" | "plan"
-  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // docked-ledger spread
+  // today: what is needed · log: search and add · plan: meals and recipes ·
+  // targets: what you burn and the calorie target that follows from it.
+  const [fuelView, setFuelView] = useState("today");
+  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
   const goals        = settings?.goals || { calories: 3600, protein: 200, carbs: 400, fats: 100, water: 128 };
   const restrictions = settings?.dietaryRestrictions || [];
   const nut = todayData?.nutrition || {};
-  const pct = (v, g) => Math.min(100, g > 0 ? Math.round((v / g) * 100) : 0);
-  const proteinHit = (parseFloat(nut.protein)||0) >= goals.protein;
-  const carbsHit   = (parseFloat(nut.carbs)||0)   >= goals.carbs;
-  const fatsHit    = (parseFloat(nut.fats)||0)    >= goals.fats;
-  const calHit     = (parseFloat(nut.calories)||0) >= goals.calories;
-  const waterHit   = (parseFloat(nut.water)||0)   >= goals.water;
-  const nutritionRecommendation = buildNutritionRecommendation({
-    nutrition: nut,
-    goals,
-    todayProgram: null,
-    recommendation: null,
-  });
+  // The totals as they stand now, for actions that run later (Undo).
+  const nutRef = useRef(nut);
+  useEffect(() => { nutRef.current = nut; });
+
+  const nutritionRecommendation = buildNutritionRecommendation({ nutrition: nut, goals, todayProgram: null, recommendation: null });
   const stillNeeded = computeStillNeeded(nut, goals);
 
-  // Shared quick-add path: batches a macro/water bump through the existing
-  // updateToday("nutrition", ...) write, preserving existing macro logging.
-  const addNutrition = (add) => {
-    updateToday("nutrition", {
-      ...nut,
-      calories: String(Math.round((parseFloat(nut.calories)||0) + (add.calories || 0))),
-      protein:  String(Math.round((parseFloat(nut.protein)||0)  + (add.protein || 0))),
-      carbs:    String(Math.round((parseFloat(nut.carbs)||0)    + (add.carbs || 0))),
-      fats:     String(Math.round((parseFloat(nut.fats)||0)     + (add.fats || 0))),
-      water:    String(Math.round((parseFloat(nut.water)||0)    + (add.water || 0))),
-    });
-    updateToday("intelligence.lastNutritionQuickAdd", { id: add.id, label: add.label, addedAt: new Date().toISOString() });
-  };
-  const addWater = (oz) => updateToday("nutrition.water", String((parseFloat(nut.water)||0)+oz));
-
-  const [seed, setSeed]               = useState(0);
-  const [plans, setPlans]             = useState(() => generateMealPlans(goals, restrictions, 3, 0));
-  const [planIdx, setPlanIdx]         = useState(0);
+  const [seed, setSeed]         = useState(0);
+  const [plans, setPlans]       = useState(() => generateMealPlans(goals, restrictions, 3, 0));
+  const [planIdx, setPlanIdx]   = useState(0);
   const [expandedMeal, setExpandedMeal] = useState(null);
-  // Per-meal Swap: which slot's inline recipe chooser is open (null =
-  // none) and how far the "More options" control has paged into the ranked
-  // alternates. Lives only in the full-day plan rows; display-only until a pick.
+  // Which slot's swap chooser is open, and how far "More options" has paged.
   const [swapSlot, setSwapSlot]     = useState(null);
   const [swapOffset, setSwapOffset] = useState(0);
-  // The meal plan is a preview by default; the full recipe/alternates
-  // detail expands in place. Execution context (hero + quick add) stays above.
-  const [showFullPlan, setShowFullPlan] = useState(false);
-  // Phase 2 · The Log view leads with Still Needed + Quick Add + Next Meal; the
-  // dense manual macro/hydration/search ledger is collapsed behind a disclosure
-  // (display-only — the inputs and write paths inside are unchanged).
-  const [showLedger, setShowLedger] = useState(false);
+  const [handOpen, setHandOpen]     = useState(false);
 
-  // Show loading state if app data hasn't loaded yet. Keep hooks above this guard
-  // so switching from loading → loaded never changes hook order. The shell mirrors
-  // the loaded section rhythm (target → quick add → meal plan) so Fuel never
-  // appears blank or snaps in.
+  const subView = fuelView !== "today" && !(isBroadsheet && fuelView === "log");
+  useTopBar(subView ? {
+    title: fuelView === "log" ? "Log food" : fuelView === "plan" ? "Meal plan" : "Targets",
+    back: "Fuel",
+    onBack: () => setFuelView("today"),
+  } : null);
+
+  // Keep hooks above this guard so loading → loaded never changes hook order.
   if (!loaded) return <LoadingShell plan={getSkeletonPlan("Fuel")} />;
 
-  const plan        = plans[planIdx];
+  // Add to (or take from) the day's totals. Amounts never go below zero.
+  const applyNutrition = (delta, sign = 1) => {
+    const current = nutRef.current || {};
+    const next = { ...current };
+    for (const key of MACROS) {
+      if (!delta[key]) continue;
+      next[key] = String(Math.max(0, Math.round(num(current[key]) + sign * delta[key])));
+    }
+    updateToday("nutrition", next);
+  };
+  const logged = (name, undo) => showToast?.(`${name} added to today`, { action: "Undo", onAction: undo });
+
+  const addQuick = (add) => {
+    applyNutrition(add);
+    updateToday("intelligence.lastNutritionQuickAdd", { id: add.id, label: add.label, addedAt: new Date().toISOString() });
+    logged(add.label, () => applyNutrition(add, -1));
+  };
+  const logFood = (food) => {
+    applyNutrition(food);
+    logged(food.name, () => applyNutrition(food, -1));
+  };
+  const addWater = (oz) => updateToday("nutrition.water", String(num(nut.water) + oz));
+
+  const plan         = plans[planIdx];
   const checkedMeals = todayData?.nutrition?.plannedMeals || {};
 
-  // Check a meal as eaten — adds macros to today's nutrition totals
+  // Log a planned meal as eaten: its macros go on today's totals.
+  const uncheckMeal = (recipe, slot, quiet = false) => {
+    const current = nutRef.current || {};
+    updateToday("nutrition.calories", String(Math.max(0, Math.round(num(current.calories) - recipe.macros.calories))));
+    updateToday("nutrition.protein",  String(Math.max(0, Math.round(num(current.protein)  - recipe.macros.protein))));
+    updateToday("nutrition.carbs",    String(Math.max(0, Math.round(num(current.carbs)    - recipe.macros.carbs))));
+    updateToday("nutrition.fats",     String(Math.max(0, Math.round(num(current.fats)     - recipe.macros.fats))));
+    updateToday(`nutrition.plannedMeals.${slot}`, null);
+    if (!quiet) showToast?.(`${recipe.name} removed from today`);
+  };
   const checkMeal = (recipe, slot) => {
     if (checkedMeals[slot]) return;
-    const nut = todayData?.nutrition || {};
-    updateToday("nutrition.calories", String(Math.round((parseFloat(nut.calories)||0) + recipe.macros.calories)));
-    updateToday("nutrition.protein",  String(Math.round((parseFloat(nut.protein)||0)  + recipe.macros.protein)));
-    updateToday("nutrition.carbs",    String(Math.round((parseFloat(nut.carbs)||0)    + recipe.macros.carbs)));
-    updateToday("nutrition.fats",     String(Math.round((parseFloat(nut.fats)||0)     + recipe.macros.fats)));
+    const current = nutRef.current || {};
+    updateToday("nutrition.calories", String(Math.round(num(current.calories) + recipe.macros.calories)));
+    updateToday("nutrition.protein",  String(Math.round(num(current.protein)  + recipe.macros.protein)));
+    updateToday("nutrition.carbs",    String(Math.round(num(current.carbs)    + recipe.macros.carbs)));
+    updateToday("nutrition.fats",     String(Math.round(num(current.fats)     + recipe.macros.fats)));
     updateToday(`nutrition.plannedMeals.${slot}`, recipe.id);
-    showToast(`${recipe.name} logged ✓`);
-  };
-
-  const uncheckMeal = (recipe, slot) => {
-    const nut = todayData?.nutrition || {};
-    updateToday("nutrition.calories", String(Math.max(0, Math.round((parseFloat(nut.calories)||0) - recipe.macros.calories))));
-    updateToday("nutrition.protein",  String(Math.max(0, Math.round((parseFloat(nut.protein)||0)  - recipe.macros.protein))));
-    updateToday("nutrition.carbs",    String(Math.max(0, Math.round((parseFloat(nut.carbs)||0)    - recipe.macros.carbs))));
-    updateToday("nutrition.fats",     String(Math.max(0, Math.round((parseFloat(nut.fats)||0)     - recipe.macros.fats))));
-    updateToday(`nutrition.plannedMeals.${slot}`, null);
-    showToast(`${recipe.name} removed`);
+    logged(recipe.name, () => uncheckMeal(recipe, slot, true));
   };
 
   const regenerate = () => {
@@ -311,395 +140,275 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
     setPlanIdx(0);
     setExpandedMeal(null);
     setSwapSlot(null);
-    showToast("New plans generated");
+    showToast?.("New plans generated");
   };
 
-  // Replace a single meal in the currently selected plan with a chosen
-  // alternate. Immutable (replaceMealInPlan) so other slots are preserved. If
-  // the swapped meal was already logged, reverse its macros through the existing
-  // uncheckMeal write path first so the ledger stays consistent — the new meal
-  // then starts unlogged, leaving today's totals otherwise untouched.
+  // Replace one meal in the selected plan. If the meal being replaced was
+  // already logged its macros come off first, and the new meal starts unlogged.
   const swapMeal = (slot, newRecipe) => {
     const current = plan?.meals?.[slot];
     if (!current || !newRecipe || current.id === newRecipe.id) { setSwapSlot(null); return; }
-    if (checkedMeals[slot]) uncheckMeal(current, slot);
-    setPlans(prev => prev.map((p, i) => (i === planIdx ? replaceMealInPlan(p, slot, newRecipe, goals) : p)));
+    if (checkedMeals[slot]) uncheckMeal(current, slot, true);
+    setPlans((prev) => prev.map((p, i) => (i === planIdx ? replaceMealInPlan(p, slot, newRecipe, goals) : p)));
     setSwapSlot(null);
     if (expandedMeal === slot) setExpandedMeal(null);
-    showToast(`Swapped to ${newRecipe.name}`);
+    showToast?.(`Swapped to ${newRecipe.name}`);
   };
 
-  const dayMacros = plan ? planMacros(plan) : { calories:0, protein:0, carbs:0, fats:0 };
-  const macroColor = (v, g) => pct(v, g) >= 85 && pct(v, g) <= 115 ? C.green : pct(v, g) < 85 ? C.textDim : C.textDim;
+  const dayMacros = plan ? planMacros(plan) : { calories: 0, protein: 0, carbs: 0, fats: 0 };
 
-  // Display models (pure helpers — no writes, no algorithm changes).
+  // Display models (pure helpers: no writes, no algorithm changes).
   const fuelHero = buildFuelHero({ nutrition: nut, goals, recommendation: nutritionRecommendation, stillNeeded });
   const fuelInsight = buildFuelRecoveryInsight({ nutrition: nut, goals, stillNeeded });
   const mealProgress = buildMealPlanProgress({ checkedMeals, slots: SLOTS });
-  // Compact "next meal" preview so Fuel leads with one meal, not all five.
   const nextMeal = buildNextMealPreview({ meals: plan?.meals, checkedMeals, slots: SLOTS, slotLabels: SLOT_LABELS });
-  // Which slots to render as full rows: everything when expanded, otherwise just
-  // the next unlogged meal (a compact preview). Check/uncheck still works on it.
-  const visibleSlots = showFullPlan
-    ? SLOTS
-    : (nextMeal.slot ? [nextMeal.slot] : []);
-  const waterBehind = !waterHit && stillNeeded.water > 0;
+  const nextRecipe = nextMeal.slot ? plan?.meals?.[nextMeal.slot] : null;
   const alternativeQuickAdds = fuelHero.suggestionAdd
     ? nutritionRecommendation.quickAdds.filter((add) => add.id !== fuelHero.suggestionAdd.id)
     : nutritionRecommendation.quickAdds;
 
-  return (
-    <div>
-      {/* Macro summary bar */}
-      <div style={{ padding:"10px 16px", borderBottom:`1px solid ${C.line}`, background:C.panel, display:"flex", justifyContent:"space-between", gap:8 }}>
-        <span style={{ fontSize:10, color:C.textDim, letterSpacing:"0.1em", textTransform:"uppercase" }}>Today's intake</span>
-        <span style={{ fontSize:10, color:C.text, fontFamily:mono }}>{nut.calories||0}/{goals.calories} kcal · {nut.protein||0}/{goals.protein}g pro</span>
-      </div>
-      
-      {/* Log / Plan sub-tabs — underline pattern shared with Progress */}
-      <div style={{ display: "flex", borderBottom: `1px solid ${C.line}`, background: C.panel }}>
-        <button onClick={() => setFuelView("log")} style={{ flex: 1, padding: "10px 6px", background: "none", border: "none", borderBottom: fuelView === "log" ? `1px solid ${C.text}` : "1px solid transparent", marginBottom: -1, color: fuelView === "log" ? C.text : C.textFaint, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer" }}>Log</button>
-        <button onClick={() => setFuelView("plan")} style={{ flex: 1, padding: "10px 6px", background: "none", border: "none", borderBottom: fuelView === "plan" ? `1px solid ${C.text}` : "1px solid transparent", marginBottom: -1, color: fuelView === "plan" ? C.text : C.textFaint, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer" }}>Recipes</button>
-      </div>
-
-      {/* Broadsheet Fuel: the execution column
-          stays left; the manual macro/hydration ledger — with FoodSearch
-          inside it — DOCKS permanently on the right instead of hiding behind
-          the disclosure. Below the tier (and in Plan view) this container is
-          display:contents, so the single-column layout is unchanged. A per-item
-          meal ledger would need a logged-items data model that doesn't exist yet. */}
-      <div style={isBroadsheet && fuelView === "log" ? { display: "grid", gridTemplateColumns: "1fr var(--ovt-rail-s)", gap: 20, alignItems: "start" } : isBroadsheet ? { maxWidth: "var(--ovt-content-width)", margin: "0 auto", width: "100%" } : { display: "contents" }}>
-      {fuelView === "log" && (<section data-section="fuel-main" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
-      {/* 1 · Still Needed Hero — execution-first lead */}
-      <FuelHero hero={fuelHero} needs={stillNeeded} onAddSuggestion={addNutrition} />
-
-      {/* 2 · Quick add / common foods */}
-      <QuickAddSection quickAdds={alternativeQuickAdds} onAdd={addNutrition} waterBehind={waterBehind} onWater={addWater} title={fuelHero.suggestionAdd ? "> Alternatives" : "> Quick add"} />
-
-      {/* 3 · Next meal — compact preview; reuses checkMeal/uncheckMeal + nextMeal */}
-      <NextMealPreview
-        plan={plan}
-        nextMeal={nextMeal}
-        checkedMeals={checkedMeals}
-        progressLabel={mealProgress.label}
-        slotLabels={SLOT_LABELS}
-        onCheck={checkMeal}
-        onUncheck={uncheckMeal}
-        onOpenPlan={() => setFuelView("plan")}
-      />
-      </section>)}
-
-      {fuelView === "plan" && (<>
-      {/* ── Adaptive TDEE — measured expenditure + goal targets ── */}
-      <EnergyIntelligence data={data} settings={settings} />
-
-      {/* 3 · Meal plan — preview always visible; full recipes/alternates on demand */}
-      {!plan ? (
-        <div style={S.block}>
-          <SectionHeader title="> Meal plan" />
-          <div style={{ fontSize: 11.5, color: C.textDim, lineHeight: 1.7 }}>
-            No recipes match your current dietary restrictions.{"\n"}
-            Adjust under Settings → Dietary.
-          </div>
-        </div>
-      ) : (
-      <div style={{ borderBottom: `1px solid ${C.line}` }}>
-        {/* Header + logged progress */}
-        <div style={{ padding: "13px 16px", borderBottom: `1px solid ${C.line}`, background: C.panel, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 10, letterSpacing: "0.18em", color: C.text, textTransform: "uppercase" }}>Meal Plan</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: C.text, marginTop: 2 }}>
-              {showFullPlan ? `Today · ${SLOTS.length} meals` : nextMeal.allLogged ? "All meals logged" : "Next meal"}
-            </div>
-          </div>
-          <div style={{ fontSize: 11, color: mealProgress.allLogged ? C.green : C.textDim, fontFamily: mono, letterSpacing: "0.04em" }}>{mealProgress.label}</div>
-        </div>
-
-        {/* Compact all-logged state (collapsed view) — nothing left to preview */}
-        {!showFullPlan && nextMeal.allLogged && (
-          <div style={{ padding: "13px 16px", borderBottom: `1px solid ${C.line}`, background: C.bg, fontSize: 13, color: C.green, letterSpacing: "0.02em" }}>
-            ✓ Every planned meal is logged. Open the full plan to review recipes or adjust.
-          </div>
-        )}
-
-        {/* Alternate plan selector (full view) */}
-        {showFullPlan && plans.length > 1 && (
-          <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.line}`, background: C.block, display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 9.5, color: C.textDim, letterSpacing: "0.14em", textTransform: "uppercase" }}>Plan</span>
-            <div style={{ display: "flex", gap: 6 }}>
-              {plans.map((_, i) => (
-                <button key={i} onClick={() => setPlanIdx(i)}
-                  style={{ width: 26, height: 26, borderRadius: 0, border: `1px solid ${i === planIdx ? C.text : C.lineBright}`, background: "none", color: i === planIdx ? C.text : C.textDim, fontSize: 11, cursor: "pointer", fontFamily: mono }}>
-                  {i + 1}
-                </button>
+  // Search, quick adds and totals by hand. A screen on a phone; docked on the
+  // right at the desktop tier.
+  const logPanel = (
+    <>
+      <FoodSearch onAdd={logFood} />
+      {nutritionRecommendation.quickAdds.length > 0 && (
+        <section aria-labelledby="fuel-quick" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <h2 id="fuel-quick" className="t-c c2">Quick add</h2>
+          <ul className="rows">
+            {nutritionRecommendation.quickAdds.map((add) => (
+              <li key={add.id} className="row" style={{ minHeight: 56 }}>
+                <span className="kv grow"><span className="t-bs clip">{add.label}</span><span className="n-s c2">{addMeta(add)}</span></span>
+                <button type="button" className="btn btn-s btn-sm" aria-label={`Add ${add.label}`} onClick={() => addQuick(add)}><Icon name="plus" size="s" />Add</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <button type="button" className="row" aria-expanded={handOpen} aria-controls="fuel-hand" onClick={() => setHandOpen((open) => !open)}>
+          <span className="kv grow"><span className="t-bs">Add by hand</span><span className="t-s c2">Enter calories, macros or water directly</span></span>
+          <Icon name={handOpen ? "up" : "down"} size="s" className="c2" />
+        </button>
+        {handOpen && (
+          <div id="fuel-hand" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <p className="t-s c2">These are today’s totals. Change a number to correct it.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px 16px" }}>
+              {[["calories", "Calories (kcal)"], ["protein", "Protein (g)"], ["carbs", "Carbs (g)"], ["fats", "Fat (g)"], ["water", "Water (oz)"]].map(([key, label]) => (
+                <label key={key} className="field">
+                  <span className="lbl">{label}</span>
+                  <input className="input n" type="number" inputMode="numeric" min="0" autoComplete="off" value={nut[key] || ""} onChange={(event) => updateToday(`nutrition.${key}`, event.target.value)} />
+                </label>
               ))}
             </div>
           </div>
         )}
+      </section>
+    </>
+  );
 
-        {/* Day macro summary (full view) */}
-        {showFullPlan && (
-        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.line}`, background: C.block }}>
-          <div style={{ fontSize: 9.5, color: C.textDim, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>Plan totals vs goals</div>
-          {[
-            { label: "PROTEIN",  val: dayMacros.protein,  goal: goals.protein,  unit: "g" },
-            { label: "CARBS",    val: dayMacros.carbs,    goal: goals.carbs,    unit: "g" },
-            { label: "FATS",     val: dayMacros.fats,     goal: goals.fats,     unit: "g" },
-            { label: "CALORIES", val: dayMacros.calories, goal: goals.calories, unit: "" },
-          ].map(({ label, val, goal, unit }) => (
-            <div key={label} style={{ marginBottom: 7 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                <span style={{ fontSize: 9.5, color: C.textDim, letterSpacing: "0.12em" }}>{label}</span>
-                <span style={{ fontSize: 10, color: macroColor(val, goal), fontFamily: mono }}>{val}{unit} / {goal}{unit}</span>
-              </div>
-              <div style={S.bar}><div style={{ height: "100%", background: macroColor(val, goal), width: `${pct(val, goal)}%`, transition: "width 0.3s" }} /></div>
-            </div>
-          ))}
+  if (fuelView === "targets") {
+    return <div className="shell" data-screen="fuel-targets"><div className="main"><EnergyIntelligence data={data} settings={settings} /></div></div>;
+  }
+
+  if (fuelView === "plan") {
+    return (
+      <div className="shell" data-screen="fuel-plan">
+        <div className="main">
+          {!plan ? (
+            <p className="banner"><Icon name="info" size="s" /><span>No recipes match your dietary restrictions. Change them in Settings, under Dietary.</span></p>
+          ) : (
+            <>
+              <div className="sec"><h2 className="t-h">Today’s meals</h2><span className="t-s c2">{mealProgress.logged} of {mealProgress.total} logged</span></div>
+              {plans.length > 1 && (
+                <Seg label="Plan" options={plans.map((_, index) => ({ value: index, label: `Plan ${index + 1}` }))} value={planIdx} onChange={(index) => { setPlanIdx(index); setExpandedMeal(null); setSwapSlot(null); }} />
+              )}
+              <section aria-labelledby="plan-totals" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <h3 id="plan-totals" className="t-ss">This plan against your targets</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px 16px" }}>
+                  <Target compact label="Protein" now={dayMacros.protein} goal={goals.protein} unit="g" />
+                  <Target compact label="Calories" now={dayMacros.calories} goal={goals.calories} unit="kcal" />
+                  <Target compact label="Carbs" now={dayMacros.carbs} goal={goals.carbs} unit="g" />
+                  <Target compact label="Fat" now={dayMacros.fats} goal={goals.fats} unit="g" />
+                </div>
+              </section>
+
+              <ul style={{ display: "flex", flexDirection: "column", borderTop: "1px solid var(--line)" }}>
+                {SLOTS.map((slot) => {
+                  const recipe     = plan.meals[slot];
+                  const isChecked  = !!checkedMeals[slot];
+                  const isExpanded = expandedMeal === slot;
+                  const isSwapping = swapSlot === slot;
+                  // Ranked alternates for this slot, six at a time; "More
+                  // options" pages through the rest and wraps.
+                  const swapAll  = isSwapping ? swapCandidates(goals, restrictions, slot, plan) : [];
+                  const swapShown = isSwapping
+                    ? Array.from({ length: Math.min(SWAP_WINDOW, swapAll.length) }, (_, k) => swapAll[(swapOffset + k) % swapAll.length])
+                    : [];
+                  return (
+                    <li key={slot} style={{ display: "flex", flexDirection: "column", gap: 8, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <button type="button" className="ibtn ibtn-o" aria-pressed={isChecked} aria-label={`${recipe.name}, ${SLOT_LABELS[slot]}, logged`} onClick={() => (isChecked ? uncheckMeal(recipe, slot) : checkMeal(recipe, slot))}><Icon name="check" size="s" /></button>
+                        <span className="kv grow">
+                          <span className="t-c c2">{SLOT_LABELS[slot]}{isChecked ? " · logged" : ""}</span>
+                          <span className="t-bs">{recipe.name}</span>
+                          <span className="n-s c2">{fmt(recipe.macros.calories)}{NBSP}kcal · {recipe.macros.protein}{NBSP}g protein · {recipe.prepMins + recipe.cookMins}{NBSP}min</span>
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, paddingLeft: 54 }}>
+                        <button type="button" className="btn btn-s btn-sm" aria-expanded={isSwapping} aria-label={`Swap ${recipe.name}`} onClick={() => { const opening = swapSlot !== slot; setSwapSlot(opening ? slot : null); setSwapOffset(0); if (opening) setExpandedMeal(null); }}>Swap</button>
+                        <button type="button" className="btn btn-s btn-sm" aria-expanded={isExpanded} aria-label={`Recipe for ${recipe.name}`} onClick={() => { setExpandedMeal(isExpanded ? null : slot); setSwapSlot(null); }}>Recipe</button>
+                      </div>
+
+                      {isSwapping && (
+                        <section aria-label={`Swap ${SLOT_LABELS[slot]}`} style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0 4px 54px" }}>
+                          <p className="t-s c2">{swapShown.length ? "Best fit for your targets first." : "No other recipes fit this meal within your dietary restrictions."}</p>
+                          <ul className="rows">
+                            {swapShown.map((alt) => (
+                              <li key={alt.id}>
+                                <button type="button" className="row" onClick={() => swapMeal(slot, alt)}>
+                                  <span className="kv grow"><span className="t-bs">{alt.name}</span><span className="n-s c2">{fmt(alt.macros.calories)}{NBSP}kcal · {alt.macros.protein}{NBSP}g protein · {alt.prepMins + alt.cookMins}{NBSP}min</span></span>
+                                  <Icon name="next" size="s" className="c2" />
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                          {swapAll.length > SWAP_WINDOW && <button type="button" className="btn btn-s btn-sm" onClick={() => setSwapOffset((offset) => (offset + SWAP_WINDOW) % swapAll.length)} style={{ alignSelf: "flex-start" }}>More options</button>}
+                        </section>
+                      )}
+
+                      {isExpanded && (
+                        <section aria-label={`Recipe: ${recipe.name}`} style={{ display: "flex", flexDirection: "column", gap: 12, padding: "4px 0 8px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
+                            {[["Calories", fmt(recipe.macros.calories), "kcal"], ["Protein", recipe.macros.protein, "g"], ["Carbs", recipe.macros.carbs, "g"], ["Fat", recipe.macros.fats, "g"]].map(([label, value, unit]) => (
+                              <span key={label} className="kv"><span className="t-c c2">{label}</span><span><span className="n">{value}</span> <span className="t-s c2">{unit}</span></span></span>
+                            ))}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            <h4 className="t-ss">Ingredients</h4>
+                            <ul className="rows">
+                              {recipe.ingredients.map((ingredient, index) => (
+                                <li key={index} className="row" style={{ minHeight: 52 }}>
+                                  <span className="kv grow"><span className="t-bs">{ingredient.name}</span><span className="t-s c2">{ingredient.calories}{NBSP}kcal · {ingredient.protein}{NBSP}g protein · {ingredient.carbs}{NBSP}g carbs · {ingredient.fats}{NBSP}g fat</span></span>
+                                  <span className="n-s">{ingredient.qty}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <h4 className="t-ss">Method</h4>
+                            <ol style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 22, listStyle: "decimal" }}>
+                              {recipe.steps.map((step, index) => <li key={index} className="t-b">{step}</li>)}
+                            </ol>
+                          </div>
+                        </section>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className="row"><span className="t-bs grow">Total prep and cook</span><span className="n">{SLOTS.reduce((total, slot) => total + plan.meals[slot].prepMins + plan.meals[slot].cookMins, 0)}{NBSP}min</span></div>
+              <button type="button" className="btn btn-s btn-b" onClick={regenerate}>Generate new plans</button>
+            </>
+          )}
         </div>
+      </div>
+    );
+  }
+
+  if (fuelView === "log" && !isBroadsheet) {
+    return <div className="shell" data-screen="fuel-log"><div className="main">{logPanel}</div></div>;
+  }
+
+  return (
+    <div className="shell" data-screen="fuel" style={isBroadsheet ? { maxWidth: "none" } : undefined}>
+      <div className="main" style={isBroadsheet ? { display: "grid", gridTemplateColumns: "1fr var(--ovt-rail-s)", gap: 24, alignItems: "start" } : undefined}>
+        <section data-section="fuel-main" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 16, minWidth: 0, maxWidth: "var(--ovt-content-width)" } : { display: "contents" }}>
+          <section aria-labelledby="fuel-need" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="kv" style={{ gap: 4 }}>
+              <p className="t-s c2">Still needed today</p>
+              <h2 id="fuel-need" className="t-hl">{fuelHero.title}</h2>
+              <p className="t-s c2">{fuelHero.subtext}</p>
+            </div>
+            <Target label="Protein" now={nut.protein} goal={goals.protein} unit="g" />
+            <Target label="Calories" now={nut.calories} goal={goals.calories} unit="kcal" />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16 }}>
+              <Target compact label="Carbs" now={nut.carbs} goal={goals.carbs} unit="g" />
+              <Target compact label="Fat" now={nut.fats} goal={goals.fats} unit="g" />
+            </div>
+          </section>
+
+          {!isBroadsheet && <button type="button" className="btn btn-p btn-b" onClick={() => setFuelView("log")}>Log food</button>}
+
+          <section className="card" aria-labelledby="fuel-next" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <p className="t-c c2">Next fuel action · closes the gap best</p>
+            {fuelHero.onTarget || !fuelHero.suggestionAdd ? (
+              <h3 id="fuel-next" className="t-h">{fuelHero.onTarget ? "Targets met. Nothing more to add." : "Log what you eat next."}</h3>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="kv grow"><h3 id="fuel-next" className="t-h">{fuelHero.suggestionAdd.label}</h3><span className="n-s c2">{addMeta(fuelHero.suggestionAdd)}</span></span>
+                <button type="button" className="btn btn-s btn-sm" aria-label={`Log ${fuelHero.suggestionAdd.label}`} onClick={() => addQuick(fuelHero.suggestionAdd)}>Log it</button>
+              </div>
+            )}
+            {!fuelHero.onTarget && alternativeQuickAdds.length > 0 && (
+              <ul className="rows" style={{ borderTop: "1px solid var(--line)", paddingTop: 4 }}>
+                {alternativeQuickAdds.slice(0, 3).map((add) => (
+                  <li key={add.id} className="row" style={{ minHeight: 56 }}>
+                    <span className="kv grow"><span className="t-bs clip">{add.label}</span><span className="n-s c2">{addMeta(add)}</span></span>
+                    <button type="button" className="btn btn-s btn-sm" aria-label={`Add ${add.label}`} onClick={() => addQuick(add)}>Add</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {plan && (
+            <div className="row" style={{ minHeight: 56 }}>
+              {nextRecipe ? (
+                <>
+                  <span className="kv grow"><span className="t-c c2">Next planned meal · {SLOT_LABELS[nextMeal.slot]}</span><span className="t-bs clip">{nextRecipe.name}</span><span className="n-s c2">{fmt(nextRecipe.macros.calories)}{NBSP}kcal · {nextRecipe.macros.protein}{NBSP}g protein · {nextRecipe.prepMins + nextRecipe.cookMins}{NBSP}min</span></span>
+                  <button type="button" className="btn btn-s btn-sm" aria-label={`Log ${nextRecipe.name}`} onClick={() => checkMeal(nextRecipe, nextMeal.slot)}>Log it</button>
+                </>
+              ) : (
+                <><Icon name="done" className="good" /><span className="t-bs grow">Every planned meal is logged.</span></>
+              )}
+            </div>
+          )}
+
+          <section aria-labelledby="fuel-water" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="sec"><h2 id="fuel-water" className="t-ss">Water</h2><span><span className="n">{fmt(nut.water)}/{fmt(goals.water)}</span> <span className="t-s c2">oz</span></span></div>
+            <span className="bar" role="img" aria-label={`Water: ${fmt(nut.water)} of ${fmt(goals.water)} ounces`}><i style={{ width: `${pct(nut.water, goals.water)}%` }} /></span>
+            <div className="seg" role="group" aria-label="Add water">
+              {[8, 16, 32].map((oz) => <button key={oz} type="button" className="n" aria-label={`Add ${oz} ounces of water`} onClick={() => addWater(oz)}>+{oz}{NBSP}oz</button>)}
+            </div>
+          </section>
+
+          {fuelInsight?.body && <p className="banner"><Icon name="info" size="s" /><span>{fuelInsight.body}</span></p>}
+
+          <ul className="rows">
+            <li>
+              <button type="button" className="row" onClick={() => setFuelView("plan")}>
+                <span className="kv grow"><span className="t-bs">Meal plan</span><span className="t-s c2">{plan ? `${mealProgress.logged} of ${mealProgress.total} planned meals logged` : "No recipes match your dietary restrictions"}</span></span>
+                <Icon name="next" size="s" className="c2" />
+              </button>
+            </li>
+            <li>
+              <button type="button" className="row" onClick={() => setFuelView("targets")}>
+                <span className="kv grow"><span className="t-bs">Targets</span><span className="t-s c2">What you burn, measured from your own log</span></span>
+                <Icon name="next" size="s" className="c2" />
+              </button>
+            </li>
+          </ul>
+        </section>
+
+        {isBroadsheet && (
+          <section data-section="fuel-dock" aria-labelledby="fuel-dock-title" style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+            <h2 id="fuel-dock-title" className="t-title">Log food</h2>
+            {logPanel}
+          </section>
         )}
-
-        {/* Meal rows — compact next-meal preview by default; full 5-meal plan and
-            recipe detail on demand. Check/uncheck is always available. */}
-        {visibleSlots.map(slot => {
-          const recipe   = plan.meals[slot];
-          const isChecked  = !!checkedMeals[slot];
-          const isExpanded = expandedMeal === slot;
-          const isSwapping = showFullPlan && swapSlot === slot;
-
-          // Ranked alternates for this slot (pure helper). Window 6 at a time;
-          // "More options" pages through the rest, wrapping so it never dead-ends.
-          const SWAP_WINDOW = 6;
-          const swapAll  = isSwapping ? swapCandidates(goals, restrictions, slot, plan) : [];
-          const swapMore = swapAll.length > SWAP_WINDOW;
-          const swapShown = isSwapping
-            ? Array.from({ length: Math.min(SWAP_WINDOW, swapAll.length) },
-                (_, k) => swapAll[(swapOffset + k) % swapAll.length])
-            : [];
-
-          return (
-            <div key={slot} style={{ borderBottom: `1px solid ${C.line}` }}>
-              <div style={{ padding: "12px 16px", background: C.bg, display: "flex", alignItems: "center", gap: 10 }}>
-                <button onClick={() => isChecked ? uncheckMeal(recipe, slot) : checkMeal(recipe, slot)}
-                  style={mealCheckBtn(C, isChecked)}>
-                  {isChecked ? "✓" : "○"}
-                </button>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 9.5, color: isChecked ? C.greenMid : C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 2 }}>{SLOT_LABELS[slot]}</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: isChecked ? C.green : C.text, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recipe.name}</div>
-                  <div style={{ fontSize: 9.5, color: C.textFaint, marginTop: 2, fontFamily: mono }}>
-                    {recipe.macros.calories} kcal · {recipe.macros.protein}g pro · {recipe.prepMins + recipe.cookMins} min
-                  </div>
-                </div>
-                {showFullPlan && (
-                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    aria-expanded={isSwapping}
-                    onClick={() => {
-                      const opening = swapSlot !== slot;
-                      setSwapSlot(opening ? slot : null);
-                      setSwapOffset(0);
-                      if (opening) setExpandedMeal(null);
-                    }}
-                    style={{ background: isSwapping ? C.text : "none", border: `1px solid ${isSwapping ? C.text : C.lineBright}`, color: isSwapping ? C.bg : C.textDim, fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: mono, padding: "4px 8px" }}>
-                    Swap
-                  </button>
-                  <button type="button" aria-expanded={isExpanded} aria-label={isExpanded ? "Hide recipe" : "Show recipe"}
-                    onClick={() => { setExpandedMeal(isExpanded ? null : slot); setSwapSlot(null); }}
-                    style={{ background: "none", border: `1px solid ${C.lineBright}`, color: C.textDim, fontSize: 10, letterSpacing: "0.1em", cursor: "pointer", fontFamily: mono, padding: "4px 8px" }}>
-                    {isExpanded ? "▲" : "Recipe"}
-                  </button>
-                </div>
-                )}
-              </div>
-
-              {isSwapping && (
-                <div style={{ background: C.cell, borderTop: `1px solid ${C.lineBright}`, padding: "10px 16px 12px" }}>
-                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize: 9.5, color: C.text, letterSpacing: "0.16em", textTransform: "uppercase" }}>Swap {SLOT_LABELS[slot]}</span>
-                    <span style={{ fontSize: 9.5, color: C.textFaint, letterSpacing: "0.06em" }}>best fit for your targets</span>
-                  </div>
-                  {swapShown.length === 0 ? (
-                    <div style={{ fontSize: 11.5, color: C.textDim, lineHeight: 1.6 }}>No other recipes fit this slot within your dietary restrictions.</div>
-                  ) : (
-                    <div style={{ display: "grid", gap: 6 }}>
-                      {swapShown.map(alt => (
-                        <button
-                          key={alt.id}
-                          type="button"
-                          onClick={() => swapMeal(slot, alt)}
-                          style={{ textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "9px 11px", background: C.bg, border: `1px solid ${C.lineBright}`, cursor: "pointer", fontFamily: mono }}>
-                          <span style={{ flex: 1, minWidth: 0 }}>
-                            <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.text, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{alt.name}</span>
-                            <span style={{ display: "block", fontSize: 9.5, color: C.textFaint, marginTop: 2 }}>{alt.prepMins + alt.cookMins} min · {alt.tags.length} tag{alt.tags.length === 1 ? "" : "s"}</span>
-                          </span>
-                          <span style={{ fontSize: 10, color: C.textDim, whiteSpace: "nowrap" }}>{alt.macros.calories}kcal · {alt.macros.protein}P →</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {swapMore && (
-                    <button
-                      type="button"
-                      onClick={() => setSwapOffset(o => (o + SWAP_WINDOW) % swapAll.length)}
-                      style={{ ...S.smallBtn, width: "100%", padding: "8px", marginTop: 8, fontSize: 10, letterSpacing: "0.12em" }}>
-                      ↻ More options
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {showFullPlan && isExpanded && (
-                <div style={{ background: C.cell, borderTop: `1px solid ${C.lineBright}` }}>
-                  {/* Macro grid */}
-                  <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.lineBright}`, display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 4 }}>
-                    {[["Cal", recipe.macros.calories, ""], ["Pro", recipe.macros.protein, "g"], ["Carbs", recipe.macros.carbs, "g"], ["Fats", recipe.macros.fats, "g"]].map(([l,v,u]) => (
-                      <div key={l} style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{v}{u}</div>
-                        <div style={{ fontSize: 9.5, color: C.textFaint, letterSpacing: "0.1em", textTransform: "uppercase" }}>{l}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Ingredients */}
-                  <div style={{ padding: "10px 16px 0" }}>
-                    <div style={{ fontSize: 9.5, color: C.text, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 8 }}>Ingredients</div>
-                    {recipe.ingredients.map((ing, idx) => (
-                      <div key={idx} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${C.lineBright}`, fontSize: 11.5 }}>
-                        <span style={{ color: C.text }}>{ing.name}</span>
-                        <span style={{ color: C.textDim, fontFamily: mono, fontSize: 11 }}>{ing.qty}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Per-ingredient macro breakdown */}
-                  <div style={{ padding: "10px 16px 0" }}>
-                    <div style={{ fontSize: 9.5, color: C.text, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 6 }}>Macro breakdown</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 44px 44px 44px 44px", gap: 2, marginBottom: 4 }}>
-                      {["", "Cal", "Pro", "Carb", "Fat"].map(h => <div key={h} style={{ fontSize: 9.5, color: C.textFaint, letterSpacing: "0.1em", textTransform: "uppercase", textAlign: h ? "center" : "left" }}>{h}</div>)}
-                    </div>
-                    {recipe.ingredients.map((ing, idx) => (
-                      <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 44px 44px 44px 44px", gap: 2, padding: "3px 0", borderBottom: `1px solid ${C.lineBright}` }}>
-                        <div style={{ fontSize: 11, color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ing.name}</div>
-                        {[ing.calories, `${ing.protein}g`, `${ing.carbs}g`, `${ing.fats}g`].map((v, j) => (
-                          <div key={j} style={{ fontSize: 11, color: C.text, textAlign: "center", fontFamily: mono }}>{v}</div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Steps */}
-                  <div style={{ padding: "10px 16px 14px" }}>
-                    <div style={{ fontSize: 9.5, color: C.text, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 8 }}>Method</div>
-                    {recipe.steps.map((step, idx) => (
-                      <div key={idx} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
-                        <div style={{ width: 18, height: 18, borderRadius: 0, background: C.bg, border: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontFamily: mono, fontSize: 10, color: C.text }}>{idx + 1}</div>
-                        <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.5, paddingTop: 1 }}>{step}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Show / hide full plan (recipes, alternates, regenerate) */}
-        <div style={{ padding: "12px 16px", borderBottom: showFullPlan ? `1px solid ${C.line}` : "none" }}>
-          <button type="button" onClick={(e) => { e.stopPropagation(); const next = !showFullPlan; setShowFullPlan(next); if (!next) { setExpandedMeal(null); setSwapSlot(null); } }}
-            style={{ ...S.smallBtn, width: "100%", padding: "10px", fontSize: 11, letterSpacing: "0.1em" }}>
-            {showFullPlan ? "▲ Hide full day plan" : `▾ Show full day plan · ${SLOTS.length} meals, recipes & regenerate`}
-          </button>
-        </div>
-
-        {/* Total prep time + regenerate (full view) */}
-        {showFullPlan && (<>
-        <div style={{ padding: "10px 16px", background: C.block, borderBottom: `1px solid ${C.line}`, display: "flex", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 11, color: C.textDim, letterSpacing: "0.06em" }}>Total prep + cook</span>
-          <span style={{ fontSize: 11, color: C.text, fontFamily: mono }}>
-            {SLOTS.reduce((t, s) => t + plan.meals[s].prepMins + plan.meals[s].cookMins, 0)} min
-          </span>
-        </div>
-        <div style={{ padding: "12px 16px" }}>
-          <button onClick={regenerate} style={{ ...S.smallBtn, width: "100%", padding: "11px", fontSize: 11.5, letterSpacing: "0.1em" }}>
-            ↻ Generate new plans
-          </button>
-        </div>
-        </>)}
       </div>
-      )}
-      </>)}
-
-      {fuelView === "log" && (<section data-section="fuel-dock" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
-      {/* 4 · Manual ledger disclosure — dense macro/hydration/search area is
-          collapsed by default so the Log view leads with execution. Toggle is
-          display-only; every input and write path inside is unchanged. */}
-      {!isBroadsheet && (<div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.line}` }}>
-        <button
-          type="button"
-          onClick={() => setShowLedger(v => !v)}
-          aria-expanded={showLedger}
-          style={{ ...S.smallBtn, width: "100%", padding: "10px", fontSize: 11, letterSpacing: "0.1em" }}
-        >
-          {showLedger ? "▲ Hide manual macro & hydration ledger" : "▾ Manual macro & hydration ledger · search, edit totals"}
-        </button>
-      </div>)}
-
-      {(showLedger || isBroadsheet) && (<>
-      {/* 4a · Macro ledger / manual edit */}
-      <div style={S.block}>
-        <SectionHeader title="> Macro ledger · manual edit" stat={`${nut.calories||0}/${goals.calories} KCAL`} />
-        <div style={S.macroLine}>
-          <div style={S.macroCell}><input style={{ ...S.macroInput, color:C.text }} type="number" inputMode="numeric" placeholder="0" value={nut.calories} onChange={e => updateToday("nutrition.calories", e.target.value)} /><div style={S.macroL}>Cal</div></div>
-          <div style={S.macroCell}><input style={S.macroInput} type="number" inputMode="numeric" placeholder="0" value={nut.protein} onChange={e => updateToday("nutrition.protein", e.target.value)} /><div style={S.macroL}>Pro</div></div>
-          <div style={S.macroCell}><input style={S.macroInput} type="number" inputMode="numeric" placeholder="0" value={nut.carbs} onChange={e => updateToday("nutrition.carbs", e.target.value)} /><div style={S.macroL}>Carb</div></div>
-          <div style={S.macroCell}><input style={S.macroInput} type="number" inputMode="numeric" placeholder="0" value={nut.fats} onChange={e => updateToday("nutrition.fats", e.target.value)} /><div style={S.macroL}>Fat</div></div>
-        </div>
-        <div style={S.progRow}><span>PROTEIN {proteinHit ? "✓" : ""}</span><span style={{ color: proteinHit ? C.green : C.textDim }}>{nut.protein||0}/{goals.protein}g</span></div>
-        <div style={S.bar}><div style={{ height:"100%", background: proteinHit ? C.green : C.line, width:`${pct(nut.protein, goals.protein)}%`, transition:"width 0.3s" }} /></div>
-        <div style={S.progRow}><span>CARBS {carbsHit ? "✓" : ""}</span><span style={{ color: carbsHit ? C.green : C.textDim }}>{nut.carbs||0}/{goals.carbs}g</span></div>
-        <div style={S.bar}><div style={{ height:"100%", background: carbsHit ? C.green : C.line, width:`${pct(nut.carbs, goals.carbs)}%`, transition:"width 0.3s" }} /></div>
-        <div style={S.progRow}><span>FATS {fatsHit ? "✓" : ""}</span><span style={{ color: fatsHit ? C.green : C.textDim }}>{nut.fats||0}/{goals.fats}g</span></div>
-        <div style={S.bar}><div style={{ height:"100%", background: fatsHit ? C.green : C.line, width:`${pct(nut.fats, goals.fats)}%`, transition:"width 0.3s" }} /></div>
-        <div style={S.progRow}><span>CALORIES {calHit ? "✓" : ""}</span><span style={{ color: calHit ? C.green : C.textDim }}>{nut.calories||0}/{goals.calories}</span></div>
-        <div style={S.bar}><div style={{ height:"100%", background: calHit ? C.green : C.line, width:`${pct(nut.calories, goals.calories)}%`, transition:"width 0.3s" }} /></div>
-        <FoodSearch
-          onAdd={food => {
-            updateToday("nutrition.calories", String(Math.round((parseFloat(nut.calories)||0) + food.calories)));
-            updateToday("nutrition.protein",  String(Math.round((parseFloat(nut.protein)||0)  + food.protein)));
-            updateToday("nutrition.carbs",    String(Math.round((parseFloat(nut.carbs)||0)    + food.carbs)));
-            updateToday("nutrition.fats",     String(Math.round((parseFloat(nut.fats)||0)     + food.fats)));
-          }}
-          showToast={showToast}
-        />
-      </div>
-
-      {/* 4b · Hydration ledger */}
-      <div style={S.block}>
-        <SectionHeader title="> Hydration" stat={`${Math.round(pct(nut.water, goals.water))}%`} />
-        <div style={S.waterRow}>
-          <input
-            style={{ ...S.waterV, background:"none", border:"none", outline:"none", width:90, fontFamily:C.fontFamily, padding:0 }}
-            type="number" inputMode="numeric"
-            value={nut.water || ""}
-            placeholder="0"
-            onChange={e => updateToday("nutrition.water", e.target.value)}
-          />
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
-            <div style={S.waterBtns}>{[8,16,32].map(oz => <button key={oz} style={S.waterB} onClick={() => updateToday("nutrition.water", String((parseFloat(nut.water)||0)+oz))}>+{oz}</button>)}</div>
-            <span style={{ fontSize:9.5, color:C.textFaint, letterSpacing:"0.06em" }}>/{goals.water}oz goal</span>
-          </div>
-        </div>
-        <div style={{ ...S.bar, marginTop:10 }}><div style={{ height:"100%", background: waterHit ? C.green : C.text, width:`${pct(nut.water, goals.water)}%`, transition:"width 0.3s" }} /></div>
-      </div>
-      </>)}
-
-      {/* 5 · Fuel ↔ Recovery insight (display-only) — kept outside the disclosure
-          so the Fuel↔Recovery coaching stays reachable in the default view. */}
-      <FuelRecoveryInsight insight={fuelInsight} />
-      </section>)}
-      </div>
-  </div>
+    </div>
   );
 }
-
