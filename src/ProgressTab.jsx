@@ -1,21 +1,25 @@
 // src/ProgressTab.jsx
-// The Progress tab with its shared subnav, the History Events/Entries toggle,
-// and the pace/chart helpers that only Progress uses.
-import { useState, useEffect, lazy, Suspense } from "react";
+// Progress opens on one thing, this week's likely limiter, with the weekly
+// review behind it. Under that are the trends, each its own screen: Strength,
+// Running, Body, Recovery, and History. Block (the periodization view) opens
+// from Train. Every screen reads the same logged data it always has; nothing
+// here writes to a program or a workout.
+import { Fragment, useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { useTheme } from "./theme";
-import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName } from "./constants";
+import { Icon, QuickNumber } from "./ui/ledger";
+import { useTopBar } from "./ui/shell";
+import { DEFAULT_PROGRAM, getTodayKey, getDayName } from "./constants";
 import { calcRecoveryScore, calcWeeklyReview } from "./recovery";
 import { buildWeeklyCoachReview } from "./weeklyCoachReview";
 import { buildCoachingCalibrationProfile } from "./coachingCalibration";
-import { WeeklyCoachingReview } from "./WeeklyCoachingReview";
+import { WeeklyCoachingReview, weekInNumbers } from "./WeeklyCoachingReview";
 import { ClinicianGuardrailsCard } from "./ClinicianGuardrailsCard";
 import { isOuraConnected, loadOuraData } from "./oura";
 import { isWhoopConnected, loadWhoopData } from "./whoop";
 import { buildDailyLoads, computeRollingLoads } from "./loadModel";
 import { buildDecisionContext, getDailyRecommendation } from "./decisionEngine";
 import { buildDecisionFeedbackWeekly } from "./decisionFeedback";
-import { buildAthleteTimeline, filterTimelineEvents, groupTimelineByDate, summarizeTimeline } from "./athleteTimeline";
 import { buildPeriodizationPlan, suggestPeriodizationAction } from "./periodizationPlanner";
 import {
   PERIODIZATION_GOAL_PRESETS,
@@ -34,11 +38,14 @@ import {
   writeStoredPeriodizationHistory,
 } from "./periodizationSettings";
 import { calcStreak } from "./AppHeader";
-import { DisclosureBlock, LoadingShell } from "./ui/primitives";
+import { LoadingShell } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
 import { buildProgressLimiters, buildProgressEvidence, buildBlockProgressPreview } from "./progressSummary";
 import { buildWearableTrendNotes } from "./recovery/wearableProgressContext";
 import { epley1RM } from "./TodayTab";
+import { ProgressHistory } from "./ProgressHistory";
+import { RaceWeekLine } from "./RaceWeekLine";
+import { ColumnChart, dayDate } from "./sections/charts";
 
 const lazyNamed = (loader, name) => lazy(() => loader().then((module) => ({ default: module[name] })));
 const CalibrationReport = lazyNamed(() => import("./ProgressInsights"), "CalibrationReport");
@@ -50,104 +57,37 @@ const LiftIntelligenceSection = lazyNamed(() => import("./LiftIntelligenceSectio
 const MuscleRecencyMap = lazyNamed(() => import("./LiftIntelligenceSection"), "MuscleRecencyMap");
 const RaceBlockSection = lazyNamed(() => import("./RaceBlockSection"), "RaceBlockSection");
 const RecoveryLoadFigure = lazyNamed(() => import("./sections/TrendCharts"), "RecoveryLoadFigure");
-const LineFigure = lazyNamed(() => import("./sections/Figure"), "LineFigure");
 
-// Progress Tab
-// One shared subnav for every Progress subview, so there is one navigation
-// metaphor on the screen: every view renders this same 4-tab bar: Overview · Coach · Program ·
-// History (Timeline + Log merged — both are "what happened," toggled inside
-// History rather than owning separate tabs).
-export function ProgressSubnav({ subView, setSubView }) {
-  const { C } = useTheme();
-  const mono = C.fontFamily;
-  // At the broadsheet tier this graduates into a taller sub-masthead.
-  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
-  const tabs = [
-    { key: "charts", label: "Overview", match: ["charts"] },
-    { key: "coach", label: "Coach", match: ["coach"] },
-    { key: "periodization", label: "Program", match: ["periodization"] },
-    { key: "timeline", label: "History", match: ["timeline", "log"] },
-  ];
-  // Segmented control — reads as navigation, not a filter row. The active
-  // segment carries a subtle fill + a 2px ink underline indicator (echoing the
-  // app's bottom-nav active language), inactive segments stay faint and are
-  // separated by hairline dividers. Sticky so the sub-nav holds while scrolling.
-  return (
-    <div
-      role="tablist"
-      aria-label="Progress sections"
-      style={{ display: "flex", borderBottom: `1px solid ${C.line}`, background: C.panel, position: "sticky", top: 0, zIndex: 40 }}
-    >
-      {tabs.map((t, i) => {
-        const active = t.match.includes(subView);
-        return (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={active}
-            onClick={() => setSubView(t.key)}
-            style={{
-              flex: 1,
-              padding: isBroadsheet ? "15px 6px 12px" : "11px 6px 9px",
-              background: active ? C.bg : "none",
-              border: "none",
-              borderLeft: i > 0 ? `1px solid ${C.line}` : "none",
-              borderBottom: active ? `2px solid ${C.text}` : "2px solid transparent",
-              marginBottom: -1,
-              color: active ? C.text : C.textFaint,
-              fontSize: 10,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              fontFamily: mono,
-              cursor: "pointer",
-              fontWeight: active ? 600 : 400,
-              transition: "color 140ms ease, background 140ms ease",
-            }}
-          >
-            {t.label}
-          </button>
-        );
-      })}
-    </div>
-  );
+const NBSP = "\u00a0";
+const SCREEN_TITLES = { strength: "Strength", running: "Running", body: "Body", recovery: "Recovery", review: "Weekly review", history: "History", periodization: "Block" };
+const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
+
+// Pace is logged as "m:ss" per mile.
+function paceToSeconds(paceStr) {
+  if (!paceStr || typeof paceStr !== "string") return null;
+  const parts = paceStr.replace("/mile", "").replace("/mi", "").trim().split(":");
+  if (parts.length !== 2) return null;
+  const mins = parseInt(parts[0], 10);
+  const secs = parseInt(parts[1], 10);
+  if (isNaN(mins) || isNaN(secs)) return null;
+  return mins * 60 + secs;
+}
+function secondsToPace(secs) {
+  const whole = Math.round(secs);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
-// Events ↔ Entries toggle inside History — one tab, two lenses on the same
-// logged past. Replaces the separate Timeline and Log top-level tabs.
-export function HistoryModeToggle({ subView, setSubView }) {
-  const { C } = useTheme();
-  const mono = C.fontFamily;
-  const modes = [
-    { key: "timeline", label: "Events" },
-    { key: "log", label: "Entries" },
-  ];
-  return (
-    <div style={{ display: "flex", gap: 6, padding: "10px 16px", borderBottom: `1px solid ${C.line}`, background: C.block }}>
-      {modes.map(m => (
-        <button
-          key={m.key}
-          onClick={() => setSubView(m.key)}
-          style={{ border: `1px solid ${subView === m.key ? C.text : C.lineBright}`, background: "none", color: subView === m.key ? C.text : C.textDim, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: mono, padding: "6px 12px", cursor: "pointer", fontWeight: subView === m.key ? 600 : 400 }}
-        >
-          {m.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, onSaveCoachingSettings, initialSubView = null }) {
+// Progress tab
+export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, onSaveCoachingSettings, initialSubView = null, onOpenDay, onExit }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
-  // Train links straight to the block ("program") and to history.
-  const [subView, setSubView] = useState(initialSubView === "program" ? "periodization" : initialSubView === "history" ? "timeline" : "charts"); // "charts" (Summary) | "coach" | "periodization" | "timeline" | "log"
-  // The default Summary view is the reflection loop; dense metrics/charts
-  // collapse behind one disclosure so the score narrative isn't repeated up top.
+  // Train links straight to the block ("program") and to history; Back from
+  // either returns there.
+  // home | strength | running | body | recovery | review | history | periodization
+  const landing = initialSubView === "program" ? "periodization" : initialSubView === "history" ? "history" : null;
+  const [subView, setSubView] = useState(landing || "home");
   const [selectedDay, setSelectedDay] = useState(null);
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
-  const [logFilter, setLogFilter] = useState("all");
-  const [logSearch, setLogSearch] = useState("");
-  const [timelineFilter, setTimelineFilter] = useState("all");
   const [periodizationEditOpen, setPeriodizationEditOpen] = useState(false);
   // Block settings persist via a namespaced localStorage key (see periodizationSettings.js
   // PERSISTENCE NOTE). Saved = last persisted; Draft = in-flight edits.
@@ -155,6 +95,20 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   const [periodizationDraft, setPeriodizationDraft] = useState(periodizationSaved);
   const [periodizationHistory, setPeriodizationHistory] = useState(() => readStoredPeriodizationHistory());
   const [wearableTrends, setWearableTrends] = useState(() => buildWearableTrendNotes({}));
+
+  // A screen under Progress: its name in the top bar, and Back to where it
+  // came from. A day opened from History on a phone goes back to History.
+  const dayOpen = Boolean(selectedDay) && !isBroadsheet && subView === "history";
+  const fromTrain = Boolean(onExit) && subView === landing;
+  useTopBar(subView === "home" ? null : dayOpen
+    ? { title: dayDate(selectedDay), back: "History", onBack: () => setSelectedDay(null) }
+    : { title: SCREEN_TITLES[subView] || "Progress", back: fromTrain ? "Train" : "Progress", onBack: () => { setSelectedDay(null); if (fromTrain) onExit(); else setSubView("home"); } });
+  // Each screen starts at its top.
+  const firstView = useRef(true);
+  useEffect(() => {
+    if (firstView.current) { firstView.current = false; return; }
+    (document.scrollingElement || document.documentElement).scrollTop = 0;
+  }, [subView, dayOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -197,25 +151,11 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   const totalMiles = entries.reduce((acc,[,d]) => acc+(parseFloat(d.workout?.cardio?.miles)||0),0);
   const goals = settings?.goals || { protein:200, calories:3600, water:128 };
   const review = calcWeeklyReview(data, goals);
-  const scoreColor = review.weekScore >= 80 ? C.green : review.weekScore >= 50 ? C.textDim : C.red;
-  const TARGET_LABELS = review.targetLabels || ["5+ workouts", "15+ miles", `${goals.protein}g protein 5d`, "7+ hrs sleep avg", "Water goal 5d"];
+  const TARGET_LABELS = review.targetLabels || ["5 or more workouts", "15 or more miles", `${goals.protein} g protein on 5 days`, "7 hours of sleep a night", "Water goal on 5 days"];
   const calibrationProfile = buildCoachingCalibrationProfile({ data, wearableTrends });
   const coachReview = buildWeeklyCoachReview({ data, goals, settings, program, wearableTrends, calibrationProfile });
   const decisionFeedback = buildDecisionFeedbackWeekly(data);
   const streak = calcStreak(data);
-  const streakColor = streak.count >= 30 ? C.textDim : streak.count >= 7 ? C.green : C.textDim;
-
-  // The week's coaching read, plus the clinician guardrails Session Mode and
-  // the coach both respect.
-  if (subView === "coach") {
-    return (
-      <div>
-        <ProgressSubnav subView={subView} setSubView={setSubView} />
-        <WeeklyCoachingReview review={coachReview} updateEntryAtDate={updateEntryAtDate} showToast={showToast} />
-        <ClinicianGuardrailsCard settings={settings} onSaveCoachingSettings={onSaveCoachingSettings} showToast={showToast} />
-      </div>
-    );
-  }
 
   // ── Periodization sub-view ──
   if (subView === "periodization") {
@@ -281,8 +221,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
     const previousBlock = periodizationHistory[0] || null;
 
     return (
-      <div>
-        <ProgressSubnav subView={subView} setSubView={setSubView} />
+      <div className="legacy-screen">
 
         {/* Broadsheet Program spread: summary, race block,
             and this-week guidance rail left; the week table + block history —
@@ -474,234 +413,29 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
     );
   }
 
-  // Day detail, shared by both History lenses. On mobile
-  // the Entries lens keeps its full-screen takeover exactly as before; at the
-  // broadsheet tier both lenses dock this alongside the master list instead.
-  const dayDetailPanel = selectedDay ? (() => {
-      const d = data[selectedDay] || defaultDay();
-      const dayName = getDayName(new Date(selectedDay + "T12:00:00"));
-      const p = (program?.[dayName]) || DEFAULT_PROGRAM[dayName];
-      return (
-        <div>
-          <div style={{ ...S.block, display:"flex", alignItems:"center", gap:12 }}>
-            <button style={S.smallBtn} onClick={() => setSelectedDay(null)}>← Back</button>
-            <span style={{ fontSize:13.5, color:C.text, letterSpacing:"0.05em" }}>{selectedDay} · {dayName}</span>
-          </div>
-          <div style={S.block}>
-            <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Workout · {p?.type}</span></div>
-            {Object.entries(d.workout?.exercises||{}).length === 0 && <div style={{ fontSize:11.5, color:C.textDim }}>No lifting logged.</div>}
-            {Object.entries(d.workout?.exercises||{}).map(([name,ex]) => (
-              <div key={name} style={{ marginBottom:10 }}>
-                <div style={{ fontSize:13, color:C.text, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>{name}</div>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(80px, 1fr))", gap:4 }}>
-                  {(ex.sets||[]).map((s,i) => (
-                    <div key={i} style={{ background: C.bg, border:`1px solid ${s.done ? C.text : C.lineBright}`, padding:"5px 6px", textAlign:"center" }}>
-                      <div style={{ fontSize:13, fontWeight:600, color: s.done ? C.green : C.textDim }}>{s.weight ? `${s.weight}` : "—"}</div>
-                      <div style={{ fontSize:9.5, color:C.textFaint, marginTop:1 }}>×{s.reps||"—"}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {d.workout?.cardio?.miles && (
-              <div style={{ marginTop:8, background:C.block, border:`1px solid ${C.lineBright}`, padding:"8px 10px" }}>
-                <div style={{ fontSize:11, color:C.text, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:4 }}>Run</div>
-                <div style={{ display:"flex", gap:16, fontSize:13, color:C.text }}>
-                  <span>{d.workout.cardio.miles}mi</span>
-                  {d.workout.cardio.time && <span>{d.workout.cardio.time}</span>}
-                  {d.workout.cardio.pace && <span>{d.workout.cardio.pace}/mi</span>}
-                </div>
-              </div>
-            )}
-            {d.workout?.notes && <div style={{ fontSize:11.5, color:C.textDim, marginTop:8, fontStyle:"italic" }}>// {d.workout.notes}</div>}
-          </div>
-          <div style={S.block}>
-            <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Nutrition</span></div>
-            <div style={S.macroLine}>
-              <div style={S.macroCell}><div style={{ fontSize:16, fontWeight:600, color:C.text }}>{d.nutrition?.calories||"—"}</div><div style={S.macroL}>Cal</div></div>
-              <div style={S.macroCell}><div style={{ fontSize:16, fontWeight:600, color:C.text }}>{d.nutrition?.protein||"—"}</div><div style={S.macroL}>Pro</div></div>
-              <div style={S.macroCell}><div style={{ fontSize:16, fontWeight:600, color:C.text }}>{d.nutrition?.carbs||"—"}</div><div style={S.macroL}>Carb</div></div>
-              <div style={S.macroCell}><div style={{ fontSize:16, fontWeight:600, color:C.text }}>{d.nutrition?.fats||"—"}</div><div style={S.macroL}>Fat</div></div>
-            </div>
-            <div style={{ fontSize:11.5, color:C.textDim, marginTop:6 }}>WATER: {d.nutrition?.water||0}oz</div>
-          </div>
-          <div style={S.block}>
-            <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Body</span></div>
-            <div style={S.bodyLine}>
-              <div style={S.bodyCell}><div style={{ fontSize:15, fontWeight:600 }}>{d.body?.weight||"—"}</div><div style={S.bodyL}>Weight</div></div>
-              <div style={S.bodyCell}><div style={{ fontSize:15, fontWeight:600 }}>{d.body?.sleep||"—"}</div><div style={S.bodyL}>Sleep</div></div>
-              <div style={S.bodyCell}><div style={{ fontSize:15, fontWeight:600 }}>{d.body?.energy||"—"}</div><div style={S.bodyL}>Energy</div></div>
-              <div style={S.bodyCell}><div style={{ fontSize:15, fontWeight:600 }}>{d.body?.soreness||"—"}</div><div style={S.bodyL}>Soreness</div></div>
-            </div>
-          </div>
-        </div>
-      );
-  })() : null;
-  const dayDetailHint = (
-    <div style={S.block} data-section="hist-detail-hint">
-      <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Day detail</span></div>
-      <div style={{ fontSize: 11.5, color: C.textDim, lineHeight: 1.5 }}>Select a day from the ledger and it opens here, alongside the timeline.</div>
-    </div>
-  );
-
-  // ── Timeline sub-view ──
-  if (subView === "timeline") {
-    const timeline = buildAthleteTimeline(data, { limit: 100 });
-    const filteredTimeline = filterTimelineEvents(timeline, timelineFilter);
-    const timelineGroups = groupTimelineByDate(filteredTimeline);
-    const timelineSummary = summarizeTimeline(filteredTimeline);
-    const toneFor = (tone) => tone === "positive" ? C.green : tone === "warning" ? C.red : tone === "caution" ? C.text : C.textDim;
-    const labelFor = (type) => ({ training: "TRAIN", nutrition: "FUEL", recovery: "REC", note: "NOTE", intelligence: "INTEL" }[type] || type.toUpperCase());
-    const filterLabels = [["all","All"],["training","Training"],["nutrition","Fuel"],["recovery","Recovery"],["intelligence","Intel"],["note","Notes"]];
-
+  if (subView === "history") {
     return (
-      <div>
-        <ProgressSubnav subView={subView} setSubView={setSubView} />
-        <HistoryModeToggle subView={subView} setSubView={setSubView} />
-        <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-s) 1fr", gap: 20, alignItems: "start" } : { display: "contents" }}>
-        <section data-section="hist-master" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
-        <div style={S.block}>
-          <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Timeline Summary</span><span style={S.blockStat}>{timelineSummary.total} EVENTS</span></div>
-          <div style={S.bodyLine}>
-            <div style={S.bodyCell}><div style={{ fontSize:17, fontWeight:600, color:C.text }}>{timelineSummary.recentTrainingDays}</div><div style={S.bodyL}>Train Days</div></div>
-            <div style={S.bodyCell}><div style={{ fontSize:17, fontWeight:600, color:C.text }}>{timelineSummary.recentMiles}</div><div style={S.bodyL}>Miles</div></div>
-            <div style={S.bodyCell}><div style={{ fontSize:17, fontWeight:600, color:C.text }}>{Math.round(timelineSummary.recentVolume/1000)}k</div><div style={S.bodyL}>Volume</div></div>
-          </div>
-          <div style={{ ...S.annotation, marginTop:8 }}>read-only timeline synthesized from workouts, nutrition, recovery, notes, and intelligence decisions</div>
-        </div>
-        <div style={{ display:"flex", overflowX:"auto", borderBottom:`1px solid ${C.line}`, background:C.panel }}>
-          {filterLabels.map(([key,label]) => (
-            <button key={key} onClick={() => setTimelineFilter(key)} style={{ flex:"0 0 auto", padding:"9px 10px", background:"none", border:"none", borderBottom: timelineFilter===key ? `1px solid ${C.text}` : "1px solid transparent", marginBottom:-1, color: timelineFilter===key ? C.text : C.textFaint, fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", fontFamily:mono, cursor:"pointer" }}>{label}</button>
-          ))}
-        </div>
-        <div style={{ ...S.block, padding:0 }}>
-          {filteredTimeline.length === 0 && <div style={{ padding:16, fontSize:11.5, color:C.textDim }}>No timeline events match.</div>}
-          {timelineGroups.map(group => (
-            <div key={group.date} style={{ borderBottom:`1px solid ${C.line}` }}>
-              <div onClick={isBroadsheet ? () => setSelectedDay(group.date) : undefined} role={isBroadsheet ? "button" : undefined} tabIndex={isBroadsheet ? 0 : undefined} onKeyDown={isBroadsheet ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedDay(group.date); } } : undefined} aria-label={isBroadsheet ? `Open day detail for ${group.date}` : undefined} style={{ padding:"10px 16px 6px", background:C.block, display:"flex", justifyContent:"space-between", cursor: isBroadsheet ? "pointer" : "default" }}>
-                <span style={{ fontSize:11, color:C.text, letterSpacing:"0.12em", textTransform:"uppercase" }}>{group.dayLabel}</span>
-                <span style={{ fontSize:9.5, color:C.textFaint }}>{group.date}</span>
-              </div>
-              {group.events.map((ev, idx) => (
-                <div key={`${ev.id}-${idx}`} style={{ display:"grid", gridTemplateColumns:"52px 1fr", gap:10, padding:"10px 16px", borderTop:`1px solid ${C.lineBright}` }}>
-                  <div style={{ marginTop:2, fontSize:9.5, color:toneFor(ev.tone), letterSpacing:"0.12em" }}>{labelFor(ev.type)}</div>
-                  <div>
-                    <div style={{ fontSize:13.5, color:C.text, letterSpacing:"0.03em", textTransform:"uppercase", marginBottom:4 }}>{ev.title}</div>
-                    <div style={{ fontSize:11.5, color:C.textDim, lineHeight:1.45 }}>{ev.detail}</div>
-                    {ev.metrics && Object.keys(ev.metrics).length > 0 && (
-                      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:7 }}>
-                        {Object.entries(ev.metrics).filter(([,v]) => v !== null && v !== undefined && v !== 0 && v !== "").slice(0, 4).map(([k,v]) => (
-                          <span key={k} style={{ fontSize:9.5, color:C.textFaint, letterSpacing:"0.08em", textTransform:"uppercase" }}>{k}: {v}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-        </section>
-        <section data-section="hist-detail" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "none" }}>
-          {dayDetailPanel || dayDetailHint}
-        </section>
-        </div>
-      </div>
+      <ProgressHistory
+        data={data}
+        program={program}
+        goals={goals}
+        selectedDay={selectedDay}
+        onSelectDay={setSelectedDay}
+        isBroadsheet={isBroadsheet}
+        onOpenDay={onOpenDay}
+      />
     );
   }
 
-  // ── Log sub-view ──
-  if (subView === "log") {
-    const logEntries = Object.entries(data).sort((a,b) => b[0].localeCompare(a[0]));
-    const logFiltered = logEntries.filter(([date, d]) => {
-      if (logSearch) {
-        const q = logSearch.toLowerCase();
-        if (date.includes(q)) return true;
-        if (Object.keys(d.workout?.exercises||{}).some(k => k.toLowerCase().includes(q))) return true;
-        if ((d.workout?.notes||"").toLowerCase().includes(q)) return true;
-        if (String(d.workout?.cardio?.miles||"").includes(q)) return true;
-        if (String(d.nutrition?.calories||"").includes(q)) return true;
-        if (String(d.nutrition?.protein||"").includes(q)) return true;
-        return false;
-      }
-      if (logFilter === "workouts") return Object.keys(d.workout?.exercises||{}).length > 0;
-      if (logFilter === "runs") return parseFloat(d.workout?.cardio?.miles) > 0;
-      if (logFilter === "nutrition") return parseFloat(d.nutrition?.calories) > 0;
-      return true;
-    });
-
-    if (selectedDay && !isBroadsheet) return dayDetailPanel;
-    return (
-      <div>
-        <ProgressSubnav subView={subView} setSubView={setSubView} />
-        <HistoryModeToggle subView={subView} setSubView={setSubView} />
-        <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-s) 1fr", gap: 20, alignItems: "start" } : { display: "contents" }}>
-        <section data-section="hist-master" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
-        <div style={{ padding:"10px 16px", borderBottom:`1px solid ${C.line}`, background:C.panel }}>
-          <input style={{ ...S.cell, textAlign:"left", padding:"9px 10px", fontSize:14, fontWeight:400, width:"100%" }}
-            placeholder="search by date or exercise..."
-            value={logSearch} onChange={e => setLogSearch(e.target.value)} />
-        </div>
-        <div style={{ display:"flex", borderBottom:`1px solid ${C.line}`, background:C.panel }}>
-          {[["all","All"],["workouts","Lifting"],["runs","Runs"],["nutrition","Nutrition"]].map(([key,label]) => (
-            <button key={key} onClick={() => { setLogFilter(key); setLogSearch(""); }}
-              style={{ flex:1, padding:"8px 4px", background:"none", border:"none", borderBottom: logFilter===key ? `1px solid ${C.text}` : "1px solid transparent", marginBottom:-1, color: logFilter===key ? C.text : C.textFaint, fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", fontFamily:mono, cursor:"pointer" }}>{label}</button>
-          ))}
-        </div>
-        <div style={{ ...S.block, padding:"8px 16px" }}>
-          <span style={S.blockStat}>{logFiltered.length} ENTRIES</span>
-        </div>
-        <div style={{ ...S.block, padding:0 }}>
-          {logFiltered.length===0 && <div style={{ padding:"16px", fontSize:11.5, color:C.textDim }}>No entries match.</div>}
-          {logFiltered.map(([date,d]) => {
-            const dayName = getDayName(new Date(date+"T12:00:00"));
-            const hasLifting = Object.keys(d.workout?.exercises||{}).length > 0;
-            const hasRun = parseFloat(d.workout?.cardio?.miles) > 0;
-            const hasMacros = parseFloat(d.nutrition?.calories) > 0;
-            const hasNote = !!(d.workout?.notes?.trim());
-            return (
-              <button key={date} type="button"
-                aria-label={`View log detail for ${date}`}
-                onClick={() => setSelectedDay(date)}
-                style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"11px 16px", border:"none", borderBottom:`1px solid ${C.line}`, background:"none", color:"inherit", cursor:"pointer", textAlign:"left" }}>
-                <div style={{ display:"flex", flexDirection:"column", gap:3, flexShrink:0 }}>
-                  <span style={{ width:7, height:7, background: hasLifting||hasRun ? C.green : C.textFaint }} />
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:13, color:C.text, marginBottom:3 }}>{date} <span style={{ color:C.textDim }}>· {dayName.slice(0,3).toUpperCase()}</span></div>
-                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                    {hasLifting && <span style={{ fontSize:10, color:C.textDim, letterSpacing:"0.05em" }}>↑ {Object.keys(d.workout.exercises).length} lifts</span>}
-                    {hasRun && <span style={{ fontSize:10, color:C.text, letterSpacing:"0.05em" }}>⟳ {d.workout.cardio.miles}mi</span>}
-                    {hasMacros && <span style={{ fontSize:10, color:C.textDim, letterSpacing:"0.05em" }}>{d.nutrition.calories}cal · {d.nutrition.protein}gP</span>}
-                    {d.body?.weight && <span style={{ fontSize:10, color:C.textDim, letterSpacing:"0.05em" }}>{d.body.weight}lb</span>}
-                  </div>
-                  {hasNote && <div style={{ fontSize:10, color:C.textFaint, fontStyle:"italic", marginTop:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"90%" }}>// {d.workout.notes}</div>}
-                </div>
-                <span style={{ color:C.textFaint, fontSize:13, flexShrink:0 }} aria-hidden="true">→</span>
-              </button>
-            );
-          })}
-        </div>
-        </section>
-        <section data-section="hist-detail" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "none" }}>
-          {dayDetailPanel || dayDetailHint}
-        </section>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Progress Intelligence Loop — reflection-first default view ──
-  // Reshape already-computed objects into the "is the plan working?" hierarchy.
-  // Block preview reuses the saved (not draft) block settings; all previews are
-  // read-only and suggest-only. No program/workout is written from Progress.
+  // Block guidance reuses the saved (not draft) block settings. It is read
+  // only: nothing on Progress writes a program or a workout.
   let blockPlanPreview;
   let blockActionPreview;
   try {
-    const blockStartPreview = periodizationSaved.startDate || entries[0]?.[0] || getTodayKey();
+    const previewToday = getTodayKey();
     blockPlanPreview = buildPeriodizationPlan({
-      startDate: blockStartPreview,
-      todayKey: getTodayKey(),
+      startDate: periodizationSaved.startDate || entries[0]?.[0] || previewToday,
+      todayKey: previewToday,
       program,
       entries: data,
       blockLengthWeeks: periodizationSaved.blockLengthWeeks,
@@ -711,418 +445,369 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
       runEmphasis: periodizationSaved.runEmphasis,
       strengthEmphasis: periodizationSaved.strengthEmphasis,
     });
-    const todayKeyPreview = getTodayKey();
-    const yKeyPreview = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
-    const todayNamePreview = getDayName(new Date(todayKeyPreview + "T12:00:00"));
-    const trainingLoadPreview = computeRollingLoads(buildDailyLoads(data, 28));
-    const recoveryPreview = calcRecoveryScore(data[yKeyPreview], data, yKeyPreview);
-    const recPreview = getDailyRecommendation(buildDecisionContext({
-      todayProgram: program?.[todayNamePreview] || DEFAULT_PROGRAM[todayNamePreview],
-      entries: data,
-      settings,
-      trainingLoad: trainingLoadPreview,
-      todayKey: todayKeyPreview,
-      recovery: recoveryPreview,
-    }));
-    blockActionPreview = suggestPeriodizationAction({ plan: blockPlanPreview, todayKey: todayKeyPreview, recommendation: recPreview, entries: data, trainingLoad: trainingLoadPreview });
+    blockActionPreview = suggestPeriodizationAction({ plan: blockPlanPreview, todayKey: previewToday, entries: data });
   } catch {
     blockPlanPreview = null;
     blockActionPreview = null;
   }
-
   const progressLimiters = buildProgressLimiters({ data, goals, review, decisionFeedback });
   const progressEvidence = buildProgressEvidence({ data, goals, settings });
   const blockPreview = buildBlockProgressPreview({ plan: blockPlanPreview, action: blockActionPreview });
 
-  const toneColor = (tone) => tone === "good" ? C.green : tone === "warning" ? C.red : tone === "caution" ? C.text : C.textDim;
+  const loading = (label) => <p className="t-s c2" role="status">Loading {label}…</p>;
+  const fmtInt = (value) => Math.round(Number(value) || 0).toLocaleString("en-US");
+  const limiter = progressLimiters[0] || null;
+  const todayKey = getTodayKey();
+  const saveToday = (path, message) => (value) => { updateEntryAtDate?.(todayKey, path, String(value)); showToast?.(message); };
 
-  // Overview third column. The planning DisclosureBlock is mobile chrome: at
-  // the broadsheet tier the spread is the unfolded view, as on Recovery. Mobile
-  // composes the three groups below in reading order with the fold intact; the
-  // broadsheet distributes them: figures → center, trends + planning → right rail.
-  const ovTrendsChunk = (<>
-      {/* ── 3b · Wearable trend context — source-aware, no fabricated trends ── */}
-      <DisclosureBlock label="Wearable context" sub={wearableTrends?.hasEnoughData ? "Source-aware recovery trends" : "Building your baseline"}>
-      <div style={S.block}>
-        <div style={S.blockHead}>
-          <span style={S.blockTitle}>{"> "}Wearable Trend Context</span>
-          <span style={S.blockStat}>{wearableTrends?.hasEnoughData ? "SOURCE-AWARE" : "BUILDING"}</span>
-        </div>
-        <div style={{ fontSize: 11.5, color: C.textDim, lineHeight: 1.5, marginTop: 5 }}>
-          {wearableTrends?.summary || "Not enough wearable data yet to trend."}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 1, marginTop: 8 }}>
-          {(wearableTrends?.notes || []).slice(0, 4).map((note) => (
-            <div key={note.metric} style={{ border: `1px solid ${C.lineBright}`, padding: "8px 10px", background: C.block }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
-                <span style={{ fontSize: 11, color: C.text, letterSpacing: "0.08em", textTransform: "uppercase" }}>{note.label}</span>
-                <span style={{ fontSize: 9.5, color: C.textFaint, letterSpacing: "0.08em", textTransform: "uppercase" }}>{note.sourceLabel || "pending"}</span>
-              </div>
-              <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.45, marginTop: 4 }}>{note.note}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ ...S.annotation, marginTop: 8 }}>Oura and Whoop trends are never averaged; each row names the winning source.</div>
-      </div>
-      </DisclosureBlock>
-
-      {/* ── 4 · Planning tools, reports, and charts — disclosed on demand. */}
-  </>);
-  const ovPlanningGroup = (<>
-      <div style={S.block}>
-        <div style={S.blockHead}>
-          <span style={S.blockTitle}>{"> "}Block Guidance</span>
-          {blockPreview.available && <span style={{ ...S.blockStat, color:toneColor(blockPreview.riskTone) }}>{blockPreview.weekLabel}</span>}
-        </div>
-        {blockPreview.available ? (
-          <>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10, marginBottom:6 }}>
-              <span style={{ fontSize:14, color:C.text, letterSpacing:"0.04em", textTransform:"uppercase", fontWeight:600 }}>{blockPreview.blockLabel}</span>
-              <span style={{ fontSize:11, color:toneColor(blockPreview.riskTone), letterSpacing:"0.06em", textTransform:"uppercase" }}>{blockPreview.actionLabel}</span>
-            </div>
-            <div style={{ fontFamily:S.fontSerif, fontStyle:"italic", color:C.textDim, fontSize:14, lineHeight:1.4 }}>{blockPreview.rationale}</div>
-            <div style={{ ...S.annotation, marginTop:8 }}>{blockPreview.suggestOnlyNote}</div>
-          </>
-        ) : (
-          <div style={{ fontSize:11.5, color:C.textDim, lineHeight:1.5 }}>{blockPreview.rationale}</div>
-        )}
-        <button onClick={() => setSubView("periodization")} style={{ ...S.smallBtn, width:"100%", textAlign:"left", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", marginTop:10 }}>
-          <span>Open Block View</span>
-          <span style={{ fontSize:13, color:C.textFaint }}>→</span>
-        </button>
-      </div>
-
-      {/* Detailed metrics + charts stay intact inside the Planning tools fold. */}
-      {/* Weekly metrics ledger — factual roll-up. Coaching narrative lives in Coach Review below. */}
-      <div style={S.block}>
-        <div style={S.blockHead}>
-          <span style={S.blockTitle}>{"> "}Weekly metrics</span>
-          <span style={{ fontSize:16, fontWeight:600, color:scoreColor }}>{review.weekScore}<span style={{ fontSize:10, color:C.textDim }}>/100</span></span>
-        </div>
-        <div style={{ height:2, background:C.line, marginBottom:10 }}>
-          <div style={{ height:"100%", background:scoreColor, width:`${review.weekScore}%` }} />
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:1, background:C.lineBright, border:`1px solid ${C.lineBright}`, marginBottom:10 }}>
-          {[
-            { val:`${review.workoutsDone}/7`, label:"Workouts", color: review.workoutsDone>=5 ? C.green : C.text },
-            { val:`${review.totalMiles}mi`,   label:"Miles",    color: review.totalMiles>=15  ? C.green : C.text },
-            { val:`${review.avgProtein}g`,    label:"Protein", color: review.avgProtein>=goals.protein ? C.green : C.text },
-            { val:`${review.avgSleep}hrs`,    label:"Sleep", color: parseFloat(review.avgSleep)>=7 ? C.green : C.text },
-            { val: review.avgWeight ? `${review.avgWeight}lb` : "—", label:"Weight", color:C.text },
-            { val:`${Math.round(review.totalVolume/1000)}k lbs`, label:"Volume", color:C.text },
-          ].map(({ val, label, color }) => (
-            <div key={label} style={{ background:C.block, padding:"8px 4px", textAlign:"center" }}>
-              <div style={{ fontSize:14, fontWeight:600, color }}>{val}</div>
-              <div style={{ fontSize: 9.5, color:C.textFaint, letterSpacing:"0.08em", textTransform:"uppercase", marginTop:2 }}>{label}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ fontSize:10, color:C.textDim, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:6 }}>Weekly targets</div>
-        {TARGET_LABELS.map((label, i) => (
-          <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 0", borderBottom:`1px solid ${C.line}` }}>
-            <span style={{ color: review.targetChecks[i] ? C.green : C.textFaint, fontSize:13 }}>{review.targetChecks[i] ? "✓" : "○"}</span>
-            <span style={{ fontSize:11.5, color: review.targetChecks[i] ? C.text : C.textDim }}>{label}</span>
-          </div>
-        ))}
-        {review.watchouts?.length > 0 && (
-          <div style={{ marginTop:10 }}>
-            <div style={{ fontSize:10, color:C.textDim, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:6 }}>Watchouts</div>
-            {review.watchouts.slice(0, 3).map(item => <div key={item} style={{ fontSize:11.5, color:C.textDim, padding:"3px 0" }}>○ {item}</div>)}
-          </div>
-        )}
-        {review.topLifts.length > 0 && (
-          <div style={{ marginTop:12 }}>
-            <div style={{ fontSize:10, color:C.textDim, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:6 }}>Top lifts this week</div>
-            {review.topLifts.map(([name, weight]) => {
-              const orm = epley1RM(weight, 5); // estimate at 5 reps as a conservative benchmark
-              return (
-                <div key={name} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", fontSize:11.5 }}>
-                  <span style={{ color:C.text, textTransform:"uppercase", letterSpacing:"0.03em" }}>{name}</span>
-                  <span style={{ color:C.text }}>
-                    {weight} lbs
-                    {orm && <span style={{ color:C.textDim, marginLeft:6 }}>· ~{orm} 1RM est.</span>}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-
-  </>);
-  const ovFiguresGroup = (<>
-      {/* ── Per-muscle weekly volume audit ── */}
-      <MuscleVolumeSection data={data} />
-
-      {/* ── Per-lift e1RM trends + stall detection ── */}
-      <LiftIntelligenceSection data={data} />
-
-      {/* ── Recovery map — what's fresh today ── */}
-      <MuscleRecencyMap data={data} />
-
-      {/* ── Coach calibration — decision responses vs next-day recovery ── */}
-      <CalibrationReport data={data} wearableTrends={wearableTrends} />
-
-      {/* ── N=1 correlation explorer — collapsed by default ── */}
-      <CorrelationExplorer data={data} />
-
-      {/* ── Bodyweight trend — smoothed line over raw weigh-ins ── */}
-      <WeightTrendFigure data={data} />
-
-      {/* Weekly running miles — manual + Strava, deduped per day. */}
-      <RunningVolumeFigure data={data} settings={settings} />
-
-      <div style={S.block}>
-        <div style={S.blockHead}><span style={S.blockTitle}>{"> "}All-Time</span></div>
-        <div style={S.bodyLine}>
-          <div style={S.bodyCell}><div style={{ fontSize:17, fontWeight:600, color:C.text }}>{workoutsDone}</div><div style={S.bodyL}>Workouts</div></div>
-          <div style={S.bodyCell}><div style={{ fontSize:17, fontWeight:600, color:C.text  }}>{totalMiles.toFixed(0)}</div><div style={S.bodyL}>Miles</div></div>
-          <div style={S.bodyCell}><div style={{ fontSize:17, fontWeight:600, color:C.text  }}>{entries.length}</div><div style={S.bodyL}>Days</div></div>
-          <div style={S.bodyCell}><div style={{ fontSize:17, fontWeight:600, color:streakColor }}>{streak.count}</div><div style={S.bodyL}>Streak</div></div>
-        </div>
-      </div>
-      <div style={S.block}>
-        <div style={S.blockHead}><span style={S.blockTitle}>{"> "}30-Day Averages</span></div>
-        <div style={S.progRow}><span>BODY WEIGHT</span><span style={{ color:C.text }}>{avg(weights)} lbs</span></div>
-        <div style={{ ...S.bar, marginBottom:10 }} />
-        <div style={S.progRow}><span>DAILY PROTEIN</span><span style={{ color:C.text }}>{avg(proteins)} g</span></div>
-        <div style={{ ...S.bar, marginBottom:10 }} />
-        <div style={S.progRow}><span>SLEEP</span><span style={{ color:C.text }}>{avg(sleeps)} hrs</span></div>
-      </div>
-      {weights.length>1  && <div style={S.block}><div style={S.blockHead}><span style={S.blockTitle}>{"> "}Weight Trend</span><span style={S.blockStat}>LAST 30D</span></div><MiniChart data={weights} color={C.green} unit="" /></div>}
-      {proteins.length>1 && <div style={S.block}><div style={S.blockHead}><span style={S.blockTitle}>{"> "}Protein Trend</span><span style={S.blockStat}>TARGET {goals.protein}g</span></div><MiniChart data={proteins} color={C.text} unit="g" target={goals.protein} /></div>}
-      <RunPaceTrend data={data} />
-      <RecoveryLoadFigure data={data} />
-  </>);
-
-  return (
-    <div>
-      <ProgressSubnav subView={subView} setSubView={setSubView} />
-
-      {/* Broadsheet Overview spread, in two columns: verdict rail left, plates
-          and tools right, with the planning disclosure open by default at the
-          tier. A three-column cut would slice through that stateful disclosure,
-          so it would need restructuring first. */}
-      <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)", gap: 20, alignItems: "start" } : { display: "contents" }}>
-      <section data-section="ov-verdict" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0, gridColumn: 1, gridRow: 1 } : { display: "contents" }}>
-      {/* ── 2 · Limiting Factors ── */}
-      <div style={S.block}>
-        <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Limiting Factors</span></div>
-        <div style={{ display:"flex", flexDirection:"column", gap:1, marginTop:6 }}>
-          {progressLimiters.slice(0, 1).map((card) => (
-            <div key={card.id} style={{ border:`1px solid ${C.lineBright}`, borderLeft:`2px solid ${toneColor(card.tone)}`, padding:"10px 12px", background:C.block }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10 }}>
-                <span style={{ fontSize:13, color:C.text, letterSpacing:"0.04em", textTransform:"uppercase" }}>{card.title}</span>
-                <span style={{ fontSize:10, color:toneColor(card.tone), letterSpacing:"0.08em", textTransform:"uppercase" }}>{card.status}</span>
-              </div>
-              <div style={{ fontSize:11.5, color:C.textDim, marginTop:5, lineHeight:1.45 }}>{card.body}</div>
-              <div style={{ fontSize:10.5, color:C.textFaint, marginTop:6, letterSpacing:"0.04em" }}>{card.metric}{card.action ? ` · ${card.action}` : ""}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ ...S.annotation, marginTop:8 }}>conservative read — likely limiters, not diagnoses</div>
-      </div>
-
-      {/* ── 3 · Evidence behind the verdict — disclosed on demand. */}
-      <DisclosureBlock label="Trend evidence" sub={`${progressEvidence.streakLabel} · last 30 days`}>
-        {progressLimiters.length > 1 && (
-          <div style={S.block}>
-            <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Other limiting factors</span></div>
-            <div style={{ display:"flex", flexDirection:"column", gap:1, marginTop:6 }}>
-              {progressLimiters.slice(1).map((card) => (
-                <div key={card.id} style={{ border:`1px solid ${C.lineBright}`, borderLeft:`2px solid ${toneColor(card.tone)}`, padding:"10px 12px", background:C.block }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10 }}>
-                    <span style={{ fontSize:13, color:C.text, letterSpacing:"0.04em", textTransform:"uppercase" }}>{card.title}</span>
-                    <span style={{ fontSize:10, color:toneColor(card.tone), letterSpacing:"0.08em", textTransform:"uppercase" }}>{card.status}</span>
-                  </div>
-                  <div style={{ fontSize:11.5, color:C.textDim, marginTop:5, lineHeight:1.45 }}>{card.body}</div>
-                  <div style={{ fontSize:10.5, color:C.textFaint, marginTop:6, letterSpacing:"0.04em" }}>{card.metric}{card.action ? ` · ${card.action}` : ""}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      <div style={S.block}>
-        <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Trend Evidence</span><span style={S.blockStat}>LAST 30D · {progressEvidence.streakLabel.toUpperCase()}</span></div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(2, 1fr)", gap:1, background:C.lineBright, border:`1px solid ${C.lineBright}` }}>
-          {progressEvidence.cards.map((card) => (
-            <div key={card.label} style={{ background:C.block, padding:"9px 10px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:8 }}>
-                <span style={{ fontSize:9.5, color:C.textFaint, letterSpacing:"0.1em", textTransform:"uppercase" }}>{card.label}</span>
-              </div>
-              <div style={{ fontSize:15, fontWeight:600, color:toneColor(card.tone), marginTop:3 }}>{card.value}</div>
-              <div style={{ fontSize:10, color:C.textFaint, marginTop:2, letterSpacing:"0.04em" }}>{card.subtext}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ ...S.annotation, marginTop:8 }}>full weekly ledger &amp; trend charts are in Planning tools</div>
-      </div>
-      </DisclosureBlock>
-
-      </section>
-      <section data-section="ov-plates" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0, gridColumn: 2, gridRow: 1 } : { display: "contents" }}>
-      {isBroadsheet ? (
-        <Suspense fallback={<div style={S.block}><div style={S.annotation}>Loading figures…</div></div>}>
-          {ovFiguresGroup}
-        </Suspense>
-      ) : (<>
-        {ovTrendsChunk}
-        <DisclosureBlock label="Planning tools" sub="Block guidance, weekly ledger, and charts">
-      <Suspense fallback={<div style={S.block}><div style={S.annotation}>Loading planning tools…</div></div>}>
-          {ovPlanningGroup}
-          {ovFiguresGroup}
-        </Suspense>
-        </DisclosureBlock>
-      </>)}
-      </section>
-      <section data-section="ov-trends" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0, gridColumn: 3, gridRow: 1 } : { display: "contents" }}>
-        {isBroadsheet && (<>
-          {ovTrendsChunk}
-          <Suspense fallback={<div style={S.block}><div style={S.annotation}>Loading planning tools…</div></div>}>
-            {ovPlanningGroup}
-          </Suspense>
-        </>)}
-      </section>
-      </div>
-    </div>
+  // ── Strength ──
+  const topLifts = review.topLifts.length > 0 && (
+    <section aria-labelledby="top-lifts" style={column(4)}>
+      <h2 id="top-lifts" className="t-h">Heaviest in the last 7 days</h2>
+      <ul className="rows">
+        {review.topLifts.map(([name, weight]) => {
+          const orm = epley1RM(weight, 5); // at 5 reps, as a conservative benchmark
+          return (
+            <li key={name} className="row" style={{ minHeight: 52 }}>
+              <span className="kv grow"><span className="t-bs">{name}</span>{orm && <span className="t-s c2">About {orm}{NBSP}lb for one rep, if that was a set of five</span>}</span>
+              <span className="n">{weight}{NBSP}lb</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
-}
+  const strengthScreen = [
+    <Suspense key="lift" fallback={loading("strength")}>
+      <LiftIntelligenceSection data={data} />
+    </Suspense>,
+    <Suspense key="sets" fallback={loading("sets this week")}>
+      <MuscleVolumeSection data={data} />
+      <MuscleRecencyMap data={data} />
+      {topLifts}
+    </Suspense>,
+  ];
 
-// Run Pace Trend Chart
-// Converts pace string "mm:ss" to seconds for charting, back to "mm:ss" for display
-function paceToSeconds(paceStr) {
-  if (!paceStr || typeof paceStr !== "string") return null;
-  const clean = paceStr.replace("/mi","").replace("/mile","").trim();
-  const parts = clean.split(":");
-  if (parts.length !== 2) return null;
-  const mins = parseInt(parts[0]);
-  const secs = parseInt(parts[1]);
-  if (isNaN(mins) || isNaN(secs)) return null;
-  return mins * 60 + secs;
-}
-
-function secondsToPace(secs) {
-  const m = Math.floor(secs / 60);
-  const s = Math.round(secs % 60);
-  return `${m}:${String(s).padStart(2,"0")}`;
-}
-
-function RunPaceTrend({  data }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-  const entries = Object.entries(data).sort((a,b) => a[0].localeCompare(b[0]));
-
-  // Collect pace + miles per run entry (last 30 days)
-  const runData = entries
-    .slice(-30)
+  // ── Running ──
+  const runs = last30
     .map(([date, d]) => {
-      const pace  = paceToSeconds(d.workout?.cardio?.pace);
       const miles = parseFloat(d.workout?.cardio?.miles) || 0;
-      return pace && miles > 0 ? { date, pace, miles } : null;
+      return miles > 0 ? { date, miles, time: d.workout.cardio.time || "", pace: paceToSeconds(d.workout.cardio.pace) } : null;
     })
     .filter(Boolean);
+  const paced = runs.filter((run) => run.pace);
+  const paces = paced.map((run) => run.pace);
+  const bestPace = paces.length ? Math.min(...paces) : null;
+  const runningScreen = [
+    <Suspense key="miles" fallback={loading("weekly miles")}>
+      <RunningVolumeFigure data={data} settings={settings} />
+    </Suspense>,
+    <Fragment key="runs">
+      {paced.length >= 2 && (
+        <section aria-labelledby="pace-title" style={column(8)}>
+          <div className="sec"><h2 id="pace-title" className="t-h">Pace</h2><span className="t-s c2">{paced.length} runs in your last 30 logged days</span></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+            {[["Best", bestPace], ["Average", paces.reduce((a, b) => a + b, 0) / paces.length], ["Latest", paces[paces.length - 1]]].map(([label, seconds]) => (
+              <div key={label} className="kv"><span className="t-c c2">{label}</span><span className="n-md">{secondsToPace(seconds)}</span><span className="t-s c2">min/mi</span></div>
+            ))}
+          </div>
+        </section>
+      )}
+      <RaceWeekLine program={program} dateKey={todayKey} />
+      {runs.length > 0 && (
+        <section aria-labelledby="runs-title" style={column(4)}>
+          <h2 id="runs-title" className="t-h">Recent runs</h2>
+          <ul className="rows">
+            {runs.slice(-5).reverse().map((run) => (
+              <li key={run.date} className="row" style={{ minHeight: 56 }}>
+                <span className="kv grow">
+                  <span className="t-bs">{dayDate(run.date)}</span>
+                  <span className="n-s c2">{[`${run.miles}${NBSP}mi`, run.time, run.pace ? `${secondsToPace(run.pace)}${NBSP}min/mi` : ""].filter(Boolean).join(" · ")}</span>
+                </span>
+                {run.pace && run.pace === bestPace && <span className="tag tag-f">Best pace</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <p className="t-s c2">{fmtInt(totalMiles)}{NBSP}mi logged all time.</p>
+    </Fragment>,
+  ];
 
-  if (runData.length < 2) return null;
-
-  const paces  = runData.map(r => r.pace);
-  const minP   = Math.min(...paces);
-  const maxP   = Math.max(...paces);
-  const rangeP = maxP - minP || 1;
-
-  // Note: lower pace = faster. We invert Y so faster (lower) is higher on chart.
-  const w = 300, h = 80, pad = 10;
-  const points = paces.map((p, i) => ({
-    x: pad + (i / (paces.length - 1 || 1)) * (w - 2 * pad),
-    // Invert: fast pace (low seconds) plots HIGH
-    y: pad + ((p - minP) / rangeP) * (h - 2 * pad),
-  }));
-  const path = points.map((p,i) => `${i===0?"M":"L"} ${p.x} ${p.y}`).join(" ");
-
-  const bestPace   = Math.min(...paces);
-  const latestPace = paces[paces.length - 1];
-  const trendColor = latestPace <= bestPace ? C.green : C.textDim;
-
-  return (
-    <div style={S.block}>
-      <div style={S.blockHead}>
-        <span style={S.blockTitle}>{"> "}Run Pace Trend</span>
-        <span style={S.blockStat}>LAST 30D · {runData.length} RUNS</span>
-      </div>
-
-      {/* Summary stats */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:1, background:C.lineBright, border:`1px solid ${C.lineBright}`, marginBottom:10 }}>
-        <div style={{ background:C.block, padding:"7px 4px", textAlign:"center" }}>
-          <div style={{ fontSize:14, fontWeight:600, color:C.text }}>{secondsToPace(bestPace)}</div>
-          <div style={{ fontSize: 9.5, color:C.textFaint, letterSpacing:"0.08em", textTransform:"uppercase", marginTop:2 }}>Best /mi</div>
-        </div>
-        <div style={{ background:C.block, padding:"7px 4px", textAlign:"center" }}>
-          <div style={{ fontSize:14, fontWeight:600, color:C.text }}>{secondsToPace(Math.round(paces.reduce((a,b)=>a+b,0)/paces.length))}</div>
-          <div style={{ fontSize: 9.5, color:C.textFaint, letterSpacing:"0.08em", textTransform:"uppercase", marginTop:2 }}>Avg /mi</div>
-        </div>
-        <div style={{ background:C.block, padding:"7px 4px", textAlign:"center" }}>
-          <div style={{ fontSize:14, fontWeight:600, color:trendColor }}>{secondsToPace(latestPace)}</div>
-          <div style={{ fontSize: 9.5, color:C.textFaint, letterSpacing:"0.08em", textTransform:"uppercase", marginTop:2 }}>Latest /mi</div>
-        </div>
-      </div>
-
-      {/* Chart — inverted so faster (lower pace) is visually higher */}
-      <div style={{ position:"relative" }}>
-        <div style={{ fontSize:9.5, color:C.textFaint, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:4, display:"flex", justifyContent:"space-between" }}>
-          <span>faster ↑</span>
-          <span>↓ slower</span>
-        </div>
-        <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} style={{ display:"block" }}>
-          {/* Best pace reference line */}
-          <line
-            x1={pad} y1={pad + ((bestPace - minP) / rangeP) * (h - 2 * pad)}
-            x2={w-pad} y2={pad + ((bestPace - minP) / rangeP) * (h - 2 * pad)}
-            stroke={C.line} strokeWidth={1} strokeDasharray="3,3"
+  // ── Body ──
+  const week7 = Array.from({ length: 7 }, (_, index) => {
+    const d = new Date(`${todayKey}T12:00:00`);
+    d.setDate(d.getDate() - (6 - index));
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return { key, letter: d.toLocaleDateString("en-US", { weekday: "narrow" }), protein: parseFloat(data[key]?.nutrition?.protein) || 0 };
+  });
+  const proteinDays = week7.filter((day) => day.protein > 0);
+  const proteinGoal = parseFloat(goals.protein) || 0;
+  const proteinMet = proteinDays.filter((day) => proteinGoal > 0 && day.protein >= proteinGoal).length;
+  const proteinAvg = proteinDays.length ? Math.round(proteinDays.reduce((total, day) => total + day.protein, 0) / proteinDays.length) : 0;
+  const waistNow = coachReview.trend.waistCurrent;
+  const waistDelta = coachReview.trend.waistDelta;
+  const waistChange = waistDelta == null ? "" : waistDelta === 0 ? ", level with last week" : `, ${waistDelta > 0 ? "up" : "down"} ${Math.abs(waistDelta)}${NBSP}in on last week`;
+  const waistLine = waistNow ? `${waistNow}${NBSP}in this week${waistChange}` : "No measurement yet this week";
+  const bodyScreen = [
+    <Suspense key="weight" fallback={loading("bodyweight")}>
+      <WeightTrendFigure data={data} onSaveWeight={updateEntryAtDate ? saveToday("body.weight", "Weigh-in saved") : undefined} />
+    </Suspense>,
+    <Fragment key="rest">
+      <div className="row" style={{ borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)", minHeight: 64, flexWrap: "wrap", paddingTop: 8, paddingBottom: 8 }}>
+        <span className="kv grow">
+          <span className="t-bs">Waist</span>
+          <span className="t-s c2">{waistLine}</span>
+        </span>
+        {updateEntryAtDate && (
+          <QuickNumber
+            action={waistNow ? "Update waist (in)" : "Add waist (in)"}
+            label="This week’s waist (in)"
+            hint="Enter your waist in inches, for example 32.5."
+            onSave={(value) => { updateEntryAtDate(coachReview.weekEndKey, "body.waist", String(value)); showToast?.("Waist measurement saved"); }}
           />
-          <path d={path} fill="none" stroke={C.text} strokeWidth={1.5} />
-          {points.map((p,i) => (
-            <rect key={i} x={p.x-2} y={p.y-2} width={4} height={4} fill={C.text} />
-          ))}
-          {/* Latest pace label */}
-          <text x={w-pad} y={points[points.length-1].y - 5} textAnchor="end" fill={trendColor} fontSize={8} fontFamily={mono}>
-            {secondsToPace(latestPace)}
-          </text>
-        </svg>
-        <div style={{ display:"flex", gap:12, marginTop:6 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:9.5, color:C.textDim }}>
-            <div style={{ width:12, height:1, background:C.textDim, borderTop:"1px dashed" }} />
-            best pace
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:9.5, color:C.textDim }}>
-            <div style={{ width:12, height:2, background:C.text }} />
-            your pace
-          </div>
-        </div>
+        )}
       </div>
+      <section aria-labelledby="protein-title" style={column(8)}>
+        <h2 id="protein-title" className="t-h">Protein, last 7{NBSP}days</h2>
+        {proteinDays.length === 0 ? (
+          <p className="t-s c2">No protein logged in the last 7 days. Log food in Fuel and each day shows here against your goal.</p>
+        ) : (
+          <>
+            <p className="t-s c2">{proteinAvg}{NBSP}g a day on average{proteinGoal ? ` against a ${proteinGoal}${NBSP}g goal. Goal met on ${proteinMet} of ${proteinDays.length} logged days. Filled bars met the goal.` : "."}</p>
+            <ColumnChart
+              label={`Bar chart of daily protein for 7 days${proteinGoal ? ` against a ${proteinGoal} gram goal. The goal was met on ${proteinMet} of ${proteinDays.length} logged days` : ""}.`}
+              columns={week7.map((day) => ({ key: day.key, value: day.protein, x: day.letter, filled: proteinGoal > 0 ? day.protein >= proteinGoal : true }))}
+              goal={proteinGoal || null}
+            />
+          </>
+        )}
+      </section>
+      <section aria-labelledby="avg-30" style={column(4)}>
+        <h2 id="avg-30" className="t-h">30-day averages</h2>
+        <ul className="rows">
+          <li className="row"><span className="t-bs grow">Body weight</span><span className="n">{avg(weights)}{NBSP}lb</span></li>
+          <li className="row"><span className="t-bs grow">Daily protein</span><span className="n">{avg(proteins)}{NBSP}g</span></li>
+          <li className="row"><span className="t-bs grow">Sleep</span><span className="n">{avg(sleeps)}{NBSP}h</span></li>
+        </ul>
+        <p className="t-s c2">Across the days you logged each one, out of your last 30 logged days.</p>
+      </section>
+    </Fragment>,
+  ];
 
-      {/* Recent runs table */}
-      <div style={{ marginTop:12 }}>
-        <div style={{ fontSize:9.5, color:C.textDim, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:6 }}>Recent runs</div>
-        {runData.slice(-5).reverse().map((r, i) => (
-          <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 0", borderBottom:`1px solid ${C.line}`, fontSize:11 }}>
-            <span style={{ color:C.textDim }}>{r.date}</span>
-            <span style={{ color:C.text }}>{r.miles}mi</span>
-            <span style={{ color: r.pace <= bestPace ? C.green : C.text, fontWeight:600 }}>{secondsToPace(r.pace)}/mi</span>
+  // ── Recovery ──
+  const wearableNotes = wearableTrends?.notes || [];
+  const recoveryScreen = [
+    <Fragment key="load">
+      <Suspense fallback={loading("recovery")}>
+        <RecoveryLoadFigure data={data} />
+      </Suspense>
+      <section aria-labelledby="devices-title" style={column(4)}>
+        <h2 id="devices-title" className="t-h">From your devices</h2>
+        {wearableNotes.length === 0 && <p className="t-s c2">{wearableTrends?.summary || "Not enough wearable data yet to show a trend."}</p>}
+        {wearableNotes.length > 0 && (
+          <ul className="rows">
+            {wearableNotes.slice(0, 4).map((note) => (
+              <li key={note.metric} className="row" style={{ alignItems: "flex-start", paddingTop: 10, paddingBottom: 10 }}>
+                <span className="tag">{note.sourceLabel || "Pending"}</span>
+                <span className="kv grow"><span className="t-bs">{note.label}</span><span className="t-s c2">{note.note}</span></span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {wearableNotes.length > 0 && <p className="t-s c2">Each note names its source. Devices are never averaged together.</p>}
+      </section>
+    </Fragment>,
+    <Fragment key="insights">
+      <section aria-labelledby="insights-title" style={column(8)}>
+        <h2 id="insights-title" className="t-h">Insights</h2>
+        <Suspense fallback={loading("insights")}>
+          <CalibrationReport data={data} wearableTrends={wearableTrends} />
+          <CorrelationExplorer data={data} />
+        </Suspense>
+      </section>
+    </Fragment>,
+  ];
+
+  // ── Weekly review ──
+  const reviewScreen = [
+    <WeeklyCoachingReview key="review" review={coachReview} week={review} limiter={limiter} updateEntryAtDate={updateEntryAtDate} showToast={showToast} />,
+    <Fragment key="rest">
+      <section aria-labelledby="targets-title" style={column(4)}>
+        <h2 id="targets-title" className="t-h">Weekly targets</h2>
+        <ul className="rows">
+          {TARGET_LABELS.map((label, index) => (
+            <li key={label} className="row" style={{ minHeight: 44 }}>
+              <Icon name={review.targetChecks[index] ? "done" : "open"} className={review.targetChecks[index] ? "good" : "c2"} />
+              <span className="t-bs grow">{label}</span>
+              <span className="t-s c2">{review.targetChecks[index] ? "Met" : "Open"}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="t-s c2">Counted over the last 7 days.</p>
+      </section>
+
+      {progressLimiters.length > 1 && (
+        <section aria-labelledby="limiters-title" style={column(4)}>
+          <h2 id="limiters-title" className="t-h">Also worth watching</h2>
+          <ul className="rows">
+            {progressLimiters.slice(1).map((card) => (
+              <li key={card.id} className="row" style={{ alignItems: "flex-start", paddingTop: 10, paddingBottom: 10 }}>
+                <span className="kv grow">
+                  <span className="t-bs">{card.title}</span>
+                  <span className="t-s c2">{card.body}</span>
+                  <span className="t-s c2">{[card.metric, card.action].filter(Boolean).join(" · ")}</span>
+                </span>
+                <span className="tag tag-f">{card.status}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="t-s c2">A conservative read. These are likely limiters, not diagnoses.</p>
+        </section>
+      )}
+
+      <section aria-labelledby="evidence-title" style={column(8)}>
+        <div className="sec"><h2 id="evidence-title" className="t-h">The last 30 days</h2><span className="t-s c2">{progressEvidence.streakLabel}</span></div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px 16px" }}>
+          {progressEvidence.cards.map((card) => (
+            <span key={card.label} className="kv"><span className="t-c c2">{card.label}</span><span className="n">{card.value}</span><span className="t-s c2">{card.subtext}</span></span>
+          ))}
+        </div>
+      </section>
+
+      <button type="button" className="row" onClick={() => setSubView("periodization")} style={{ borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)", minHeight: 64, alignItems: "flex-start", paddingTop: 10, paddingBottom: 10 }}>
+        <span className="kv grow">
+          <span className="t-bs">Block{blockPreview.available ? `: ${blockPreview.blockLabel}, ${blockPreview.weekLabel.toLowerCase().replace("/", " of ")}` : ""}</span>
+          {blockPreview.available && <span className="t-s">{blockPreview.actionLabel}</span>}
+          <span className="t-s c2">{blockPreview.rationale}</span>
+        </span>
+        <Icon name="next" size="s" className="c2" />
+      </button>
+
+      <ClinicianGuardrailsCard settings={settings} onSaveCoachingSettings={onSaveCoachingSettings} showToast={showToast} />
+    </Fragment>,
+  ];
+
+  const screens = { strength: strengthScreen, running: runningScreen, body: bodyScreen, recovery: recoveryScreen, review: reviewScreen };
+  if (screens[subView]) {
+    // One column on a phone. On a wide screen the same two halves sit side by side.
+    const [first, second] = screens[subView];
+    return (
+      <div className="shell" data-screen={`progress-${subView}`}>
+        {isBroadsheet ? (
+          <div className="main" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 48, alignItems: "start", width: "100%", maxWidth: 1180, margin: "0 auto" }}>
+            <div style={{ ...column(16), minWidth: 0 }}>{first}</div>
+            <div style={{ ...column(16), minWidth: 0 }}>{second}</div>
           </div>
+        ) : (
+          <div className="main" style={{ gap: 16 }}>{first}{second}</div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Home ──
+  const streakLine = streak.count > 0
+    ? `Logging streak: ${streak.count} day${streak.count === 1 ? "" : "s"}.`
+    : "No logging streak right now. It starts again with the next thing you log.";
+  const trends = [
+    ["strength", "Strength", review.topLifts.length ? `Heaviest in the last 7 days: ${review.topLifts[0][0]}, ${review.topLifts[0][1]}${NBSP}lb` : "Lifts, sets by muscle, and what is fresh"],
+    ["running", "Running", `${Math.round(review.totalMiles * 10) / 10}${NBSP}mi in the last 7 days`],
+    ["body", "Body", review.avgWeight ? `Averaging ${review.avgWeight}${NBSP}lb over the last 7 days` : "Bodyweight, waist and protein"],
+    ["recovery", "Recovery", parseFloat(review.avgSleep) > 0 ? `Sleep averaging ${review.avgSleep}${NBSP}h a night over the last 7 days` : "Recovery against load, and your patterns"],
+    ["history", "History", `${fmtInt(entries.length)} day${entries.length === 1 ? "" : "s"} logged, searchable`],
+  ];
+  const reviewCard = (
+    <section className="card" aria-labelledby="limiter" data-section="ov-verdict" style={{ ...column(6), ...(isBroadsheet ? { padding: 24 } : null) }}>
+      <p className="t-c c2">The last 7 days · likely limiter</p>
+      {limiter ? (
+        <>
+          <h2 id="limiter" className={isBroadsheet ? "t-xl" : "t-hl"}>{limiter.title}</h2>
+          <p className="t-s c2">{limiter.body}</p>
+          <p className="t-s c2">{[limiter.metric, limiter.action].filter(Boolean).join(" · ")}</p>
+        </>
+      ) : (
+        <h2 id="limiter" className={isBroadsheet ? "t-xl" : "t-hl"}>Nothing is holding the week back.</h2>
+      )}
+      <button type="button" className={isBroadsheet ? "btn btn-p" : "btn btn-p btn-b"} onClick={() => setSubView("review")} style={{ marginTop: 6, alignSelf: isBroadsheet ? "flex-start" : undefined }}>Open the weekly review</button>
+    </section>
+  );
+  const allTime = (
+    <section aria-labelledby="all-time" data-section="ov-plates" style={column(8)}>
+      <h2 id="all-time" className="t-h">All time</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, maxWidth: 560 }}>
+        {[["Workouts", fmtInt(workoutsDone)], ["Miles", fmtInt(totalMiles)], ["Days logged", fmtInt(entries.length)]].map(([label, value]) => (
+          <span key={label} className="kv"><span className="t-c c2">{label}</span><span className="n-md">{value}</span></span>
         ))}
       </div>
-    </div>
+    </section>
   );
-}
 
-function MiniChart({ data, color, unit, target }) {
+  if (isBroadsheet) {
+    return (
+      <div className="shell" data-screen="progress">
+        <div className="main" style={{ gap: 32 }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
+            <p className="t-b c2 grow">{streakLine}</p>
+            <button type="button" className="btn btn-s" onClick={() => setSubView("history")}>History</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 32, alignItems: "start" }}>
+            <div style={column(24)}>
+              {reviewCard}
+              {allTime}
+            </div>
+            <section aria-labelledby="home-numbers">
+              <table className="tbl" aria-labelledby="home-numbers">
+                <caption id="home-numbers" className="t-title" style={{ textAlign: "left", paddingBottom: 4 }}>The week in numbers</caption>
+                <tbody>
+                  {weekInNumbers(coachReview, review).slice(0, 8).map(([label, value]) => (
+                    <tr key={label}><th scope="row">{label}</th><td className="n-s" style={{ whiteSpace: "normal" }}>{value}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          </div>
+          <div data-section="ov-trends" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 32 }}>
+            {trends.slice(0, 4).map(([key, label, sub]) => (
+              <section key={key} aria-labelledby={`trend-${key}`} style={{ ...column(8), borderTop: "1px solid var(--edge)", paddingTop: 12 }}>
+                <div className="sec">
+                  <h2 id={`trend-${key}`} className="t-title">{label}</h2>
+                  <button type="button" className="btn btn-g btn-sm" aria-label={`Open ${label.toLowerCase()}`} onClick={() => setSubView(key)}>Open</button>
+                </div>
+                <Suspense fallback={<p className="t-s c2">{sub}.</p>}>
+                  {key === "strength" && <LiftIntelligenceSection data={data} glance />}
+                  {key === "running" && <RunningVolumeFigure data={data} settings={settings} glance />}
+                  {key === "body" && <WeightTrendFigure data={data} glance />}
+                  {key === "recovery" && <RecoveryLoadFigure data={data} glance />}
+                </Suspense>
+              </section>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <LineFigure
-      width={300}
-      height={70}
-      series={[{ values: data, stroke: color, endLabel: `${data[data.length - 1]}${unit || ""}` }]}
-      referenceLines={target ? [{ value: target, label: `TARGET ${target}${unit || ""}` }] : []}
-      ariaLabel={`Trend over ${data.length} entries${target ? `, target ${target}${unit || ""}` : ""}. Latest ${data[data.length - 1]}${unit || ""}.`}
-    />
+    <div className="shell" data-screen="progress">
+      <div className="main" style={{ gap: 16 }}>
+        {reviewCard}
+        <section aria-labelledby="trends" data-section="ov-trends" style={column(4)}>
+          <h2 id="trends" className="t-h">Trends</h2>
+          <ul className="rows">
+            {trends.map(([key, label, sub]) => (
+              <li key={key}>
+                <button type="button" className="row" onClick={() => setSubView(key)} style={{ minHeight: 60 }}>
+                  <span className="kv grow"><span className="t-bs">{label}</span><span className="t-s c2">{sub}</span></span>
+                  <Icon name="next" size="s" className="c2" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+        {allTime}
+        <p className="t-s c2">{streakLine}</p>
+      </div>
+    </div>
   );
 }

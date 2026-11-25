@@ -117,19 +117,21 @@ describe("broadsheet shell (V15.0)", () => {
     expect(coach).toContain('{ width: 480, maxWidth: "40vw"');
   });
 
-  it("V15.2 · every Progress sub-view composes its spread with a contents fallback", () => {
+  it("V15.2 · every Progress screen composes its own spread at the tier", () => {
     const src = read("src/ProgressTab.jsx");
-    for (const id of ["ov-verdict", "ov-plates", "ov-trends", "prog-rail", "prog-table", "hist-master", "hist-detail"]) {
+    for (const id of ["ov-verdict", "ov-plates", "ov-trends", "prog-rail", "prog-table"]) {
       expect(src).toContain(`data-section="${id}"`);
     }
-    // Both History lenses share one day-detail panel; mobile Entries keeps its
-    // full-screen takeover.
-    expect(src).toContain("if (selectedDay && !isBroadsheet) return dayDetailPanel;");
-    expect((src.match(/\{dayDetailPanel \|\| dayDetailHint\}/g) || []).length).toBe(2);
-    // The planning fold is mobile chrome; the tier renders unfolded.
-    expect(src).toContain("const ovFiguresGroup = (<>");
-    const tierBranch = src.slice(src.indexOf("{isBroadsheet ? (\n        <Suspense"), src.indexOf(") : (<>", src.indexOf("{isBroadsheet ? (\n        <Suspense")));
-    expect(tierBranch).not.toContain("DisclosureBlock");
+    // A trend screen is one column on a phone and two halves side by side at the tier.
+    expect(src).toContain("const [first, second] = screens[subView];");
+    expect(src).toContain('gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 48');
+    // History docks the day beside the list at the tier and takes the screen on a phone.
+    const history = read("src/ProgressHistory.jsx");
+    for (const id of ["hist-master", "hist-detail", "hist-detail-hint", "day-detail"]) {
+      expect(history).toContain(`data-section="${id}"`);
+    }
+    expect(history).toContain("if (selectedDay && !isBroadsheet) return");
+    expect(history).toContain('gridTemplateColumns: "var(--ovt-rail-m) minmax(0, 1fr)"');
   });
 
   it("a screen without a spread stays a centered reading column at the tier", () => {

@@ -1148,10 +1148,10 @@ function AppInner({ onThemeChange }) {
             </div>
           )}
           {tab === "Progress" && (
-            <div className="legacy-screen">
+            <div className={loaded && !dayZero.progress.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.progress.isZero
               ? <DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} />
-              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab key={progressLanding || "overview"} initialSubView={progressLanding} data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} /></>}
+              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab key={progressLanding || "overview"} initialSubView={progressLanding} data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onExit={progressLanding ? () => { setProgressLanding(null); navigateTo("Train"); } : undefined} /></>}
             </div>
           )}
           </>)}

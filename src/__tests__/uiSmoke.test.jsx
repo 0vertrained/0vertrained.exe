@@ -9,7 +9,6 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { ThemeProvider } from "../theme";
 import { BottomNav, QuickActionSheet, QUICK_ACTIONS, COACH_ACTION, TABS_ORDER } from "../AppBottomNav";
-import { ProgressSubnav, HistoryModeToggle } from "../ProgressTab";
 import { NotificationsCard } from "../NotificationsCard";
 
 // This repo runs vitest without globals, so RTL's automatic cleanup never
@@ -82,27 +81,6 @@ describe("QuickActionSheet", () => {
   it("is not in the page at all while closed", () => {
     wrap(<QuickActionSheet open={false} onAction={() => {}} onClose={() => {}} />);
     expect(screen.queryByRole("dialog")).toBeNull();
-  });
-});
-
-describe("ProgressSubnav + HistoryModeToggle", () => {
-  it("shows 4 labels and maps History to both timeline and log", () => {
-    const setSubView = vi.fn();
-    const { rerender } = wrap(<ProgressSubnav subView="charts" setSubView={setSubView} />);
-    expect(screen.getAllByRole("tab").map(t => t.textContent)).toEqual(["Overview", "Coach", "Program", "History"]);
-    fireEvent.click(screen.getByText("History"));
-    expect(setSubView).toHaveBeenCalledWith("timeline");
-    // History reads active for BOTH internal views
-    rerender(<ThemeProvider><ProgressSubnav subView="log" setSubView={setSubView} /></ThemeProvider>);
-    const history = screen.getByText("History");
-    expect(history.style.fontWeight).toBe("600");
-  });
-
-  it("toggles Events/Entries between the two internal views", () => {
-    const setSubView = vi.fn();
-    wrap(<HistoryModeToggle subView="timeline" setSubView={setSubView} />);
-    fireEvent.click(screen.getByText("Entries"));
-    expect(setSubView).toHaveBeenCalledWith("log");
   });
 });
 

@@ -17,7 +17,7 @@ function forceMatchMedia(matches) {
 describe("broadsheet progress (mounted)", () => {
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-  it("renders the Overview spread and the History master–detail at the tier", () => {
+  it("renders the home spread and the History master–detail at the tier", () => {
     forceMatchMedia(true);
     const { container } = render(
       <ThemeProvider>
@@ -27,8 +27,14 @@ describe("broadsheet progress (mounted)", () => {
     expect(container.querySelector('[data-section="ov-verdict"]')).toBeTruthy();
     expect(container.querySelector('[data-section="ov-plates"]')).toBeTruthy();
     expect(container.querySelector('[data-section="ov-trends"]')).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /History/ }));
+    // The wide home sets the review beside the week in numbers.
+    expect(screen.getByText("The week in numbers")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
     expect(container.querySelector('[data-section="hist-master"]')).toBeTruthy();
     expect(container.querySelector('[data-section="hist-detail-hint"]')).toBeTruthy();
+    // A day picked on the calendar opens beside it, not over it.
+    fireEvent.click(container.querySelector('.dayc[aria-current="date"]'));
+    expect(container.querySelector('[data-section="hist-master"]')).toBeTruthy();
+    expect(container.querySelector('[data-section="day-detail"]')).toBeTruthy();
   });
 });

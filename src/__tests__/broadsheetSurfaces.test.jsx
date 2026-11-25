@@ -61,8 +61,10 @@ describe("V16.2 static pins", () => {
     // Log opens the same sheet at every size; the palette has its own button and ⌘K.
     const app = read("src/App.jsx");
     expect(app).toContain("onQuickAction={() => setSheetOpen(true)} onOpenPalette={() => setPaletteOpen(true)}");
-    const prog = read("src/ProgressTab.jsx");
-    expect(prog).toContain('role={isBroadsheet ? "button" : undefined}');
+    // A timeline day opens from a real button at every size, not a div with a role.
+    const history = read("src/ProgressHistory.jsx");
+    expect(history).toContain('<button type="button" className="row" onClick={() => onOpen(group.date)}');
+    expect(history).not.toContain('role={isBroadsheet');
     expect(read("src/Coach.jsx")).toContain('e.key === "Escape"');
     expect(read("src/RecoveryDashboard.jsx")).toContain('"Insufficient data — no wearable signals reported"');
   });
