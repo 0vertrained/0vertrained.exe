@@ -290,8 +290,8 @@ export function buildStyles(C) {
     sheetTitle: { fontFamily: annot, fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: C.textFaint },
     sheetClose: { background: "none", border: `1px solid ${C.lineBright}`, color: C.textDim, fontFamily: annot, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", padding: "6px 9px", cursor: "pointer" },
     sheetAction: { width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 0", borderTop: `1px solid ${C.line}`, background: "none", border: "none", borderLeft: "none", borderRight: "none", borderBottom: "none", cursor: "pointer", textAlign: "left", WebkitTapHighlightColor: "transparent" },
-    sheetActionLabel: { fontSize: 14, color: C.text, fontWeight: 500 },
-    sheetActionSub: { fontSize: 11, color: C.textDim, marginTop: 2 },
+    sheetActionLabel: { display: "block", fontSize: 14, color: C.text, fontWeight: 500 },
+    sheetActionSub: { display: "block", fontSize: 11, color: C.textDim, marginTop: 2 },
     sheetActionArrow: { fontFamily: serif, fontSize: 15, color: C.textFaint, flexShrink: 0, marginLeft: 10 },
     // ── Header profile entry + full-screen overlay back bar ──
     profileBtn: { background: "none", border: `1px solid ${C.lineBright}`, color: C.textDim, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", fontFamily: annot, padding: "4px 9px" },
