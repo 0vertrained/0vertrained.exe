@@ -47,6 +47,7 @@ export function buildRecoveryChangeSummary(input = {}) {
         ? `${type} · ${markerCount} marker${markerCount === 1 ? "" : "s"}`
         : type,
       tone: top?.severity === "warning" ? "warning" : top?.severity === "positive" ? "good" : "caution",
+      sentence: `${top?.severity === "positive" ? "A good sign" : "A flag"} today: ${type}${markerCount ? `, from ${markerCount} marker${markerCount === 1 ? "" : "s"}` : ""}.`,
     });
   }
 
@@ -59,6 +60,7 @@ export function buildRecoveryChangeSummary(input = {}) {
       label: "HRV balance",
       value: `${hrv.score}/35 · z ${hrvZ.toFixed(2)}${lowConf ? " · low confidence" : ""}`,
       tone: hrvZ <= -1 ? "warning" : "caution",
+      sentence: `Last night’s HRV was ${hrvZ <= -1 ? "well below" : "below"} your baseline${lowConf ? ", read from few samples" : ""}.`,
     });
   }
 
@@ -70,6 +72,7 @@ export function buildRecoveryChangeSummary(input = {}) {
       label: "Resting HR",
       value: `${rhr.score}/25 · +${rhrDelta.toFixed(1)} bpm vs baseline`,
       tone: rhrDelta > 6 ? "warning" : "caution",
+      sentence: `Last night’s resting heart rate was ${rhrDelta.toFixed(1)} bpm above your baseline.`,
     });
   }
 
@@ -81,6 +84,7 @@ export function buildRecoveryChangeSummary(input = {}) {
       label: "Sleep",
       value: `${sleepNightly}/25 nightly · limiting`,
       tone: sleepNightly < 12 ? "warning" : "caution",
+      sentence: sleepNightly < 12 ? "Last night's sleep is holding the score down." : "Last night's sleep is a little short of what the score wants.",
     });
   }
 
@@ -93,6 +97,7 @@ export function buildRecoveryChangeSummary(input = {}) {
       label: "Sleep debt · 7d",
       value: `${debt.toFixed(1)}h${band ? ` · ${band}` : ""}`,
       tone: debt >= 5 ? "warning" : "caution",
+      sentence: `Sleep debt is ${debt.toFixed(1)} h over 7 days.`,
     });
   }
 
@@ -109,6 +114,9 @@ export function buildRecoveryChangeSummary(input = {}) {
       label: "Temperature",
       value,
       tone: tempNights >= 3 ? "warning" : "caution",
+      sentence: tempNights > 0
+        ? `Temperature has been raised for ${tempNights} night${tempNights === 1 ? "" : "s"} or more.`
+        : "Temperature is above your usual range.",
     });
   }
 
@@ -122,6 +130,9 @@ export function buildRecoveryChangeSummary(input = {}) {
       label: "Training load",
       value: `ACWR ${ratio !== null ? ratio.toFixed(2) : "n/a"} · ${zoneLabel}`,
       tone: zone === "high_risk" ? "warning" : "caution",
+      sentence: zone === "high_risk"
+        ? "Training load is well above what you are used to."
+        : "Training load is running ahead of what you are used to.",
     });
   }
 
@@ -132,6 +143,7 @@ export function buildRecoveryChangeSummary(input = {}) {
       label: "HRV balance",
       value: `${hrv.score}/35 · z +${hrvZ.toFixed(2)} · strong`,
       tone: "good",
+      sentence: "Last night’s HRV was above your baseline.",
     });
   }
   if (rhr && rhrDelta !== null && rhrDelta <= -2) {
@@ -140,6 +152,7 @@ export function buildRecoveryChangeSummary(input = {}) {
       label: "Resting HR",
       value: `${rhr.score}/25 · ${rhrDelta.toFixed(1)} bpm vs baseline`,
       tone: "good",
+      sentence: `Last night’s resting heart rate was ${Math.abs(rhrDelta).toFixed(1)} bpm below your baseline.`,
     });
   }
 
@@ -153,6 +166,7 @@ export function buildRecoveryChangeSummary(input = {}) {
         label: "Status",
         value: "No major stress flags surfaced; component ledger below has raw values.",
         tone: "good",
+        sentence: "No stress flags today.",
       }],
       hasFlags: false,
     };
@@ -195,7 +209,7 @@ export function buildRecoveryCoachInterpretation(input = {}) {
       ? `Your manual check-in reads ${subjectiveRecovery.score}/100 (${subjectiveRecovery.read}).`
       : "No manual check-in logged yet.";
     const cluster = "Manual check-in is your primary readiness signal today.";
-    const body = `${scoreNote} This is a first-class recovery read — Oura only layers biometric detail on top when it is connected.`;
+    const body = `${scoreNote} This is a first-class recovery read. Oura only layers biometric detail on top when it is connected.`;
     const guidance = subjectiveRecovery
       ? `Train in line with a ${subjectiveRecovery.read} day, and log more fields to raise data confidence.`
       : "Log sleep, sleep quality, soreness, stress, and motivation to build today's read.";
@@ -211,7 +225,7 @@ export function buildRecoveryCoachInterpretation(input = {}) {
   let cluster;
   let tone;
   if (hasWarning && hasType("illness_warning")) {
-    cluster = "This looks like a multi-system stress cluster — several recovery markers are deviating together.";
+    cluster = "This looks like a multi-system stress cluster: several recovery markers are deviating together.";
     tone = "warning";
   } else if (hasType("stress_alert")) {
     cluster = "Stress markers are clustering; recovery capacity is likely reduced today.";
@@ -220,7 +234,7 @@ export function buildRecoveryCoachInterpretation(input = {}) {
     cluster = "This looks like a sleep-limited day rather than systemic stress.";
     tone = "caution";
   } else if (hasType("minor_deviation")) {
-    cluster = "One or two markers are drifting from baseline — worth watching, not alarming.";
+    cluster = "One or two markers are drifting from baseline. Worth watching, not alarming.";
     tone = "caution";
   } else if (debt >= 5) {
     cluster = "Recovery is sleep-limited: you're carrying meaningful sleep debt.";
@@ -248,7 +262,7 @@ export function buildRecoveryCoachInterpretation(input = {}) {
 
   // Confidence framing.
   let confidenceNote = confidence?.level
-    ? `${confidence.level} data confidence${confidence.reason ? ` — ${confidence.reason}` : ""}.`
+    ? `${confidence.level} data confidence${confidence.reason ? `: ${confidence.reason}` : ""}.`
     : null;
   if (quality?.fallbackMode) {
     const fallbackCopy = "Some values use Oura readiness-contributor fallback because detailed sleep/readiness fields are missing, which lowers confidence.";
