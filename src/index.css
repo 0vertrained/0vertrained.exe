@@ -141,32 +141,10 @@ input[type="number"] { -moz-appearance: textfield; }
   }
 }
 
-/* ── Tab-panel enter animation ────────────────────────────────────────────────
-   Triggered via JS class toggle (no remounts). The class is added on every tab
-   switch after a forced reflow so the animation restarts cleanly each time.
-   ────────────────────────────────────────────────────────────────────────── */
-@keyframes ovtTabEnter {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.ovt-tab-enter {
-  animation: ovtTabEnter 200ms ease both;
-}
-
 /* ── Interactive surface press feedback ───────────────────────────────────────
    Instant opacity dip on press for tactile feel. :where() keeps specificity at
    zero so no inline style is overridden.
    ────────────────────────────────────────────────────────────────────────── */
 :where(button):active:not([disabled]) {
   opacity: 0.75;
-}
-
-/* Broadsheet shell — the bottom dock unmounts at >=1024px (see
-   AppBottomNav), so the mobile dock clearance is no longer needed. Inline
-   styles set the mobile padding, hence the !important here. */
-@media (min-width: 1024px) {
-  .ovt-app-shell {
-    padding-bottom: 32px !important;
-    scroll-padding-bottom: 32px;
-  }
 }

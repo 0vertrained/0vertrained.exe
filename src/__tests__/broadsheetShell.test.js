@@ -32,21 +32,16 @@ describe("broadsheet shell (V15.0)", () => {
     expect(src).toContain("defaultOpen={workoutStarted || isBroadsheet}");
   });
 
-  it("the masthead carries the outlined wordmark theta and the context strip", () => {
+  it("the top bar carries the drawn mark, and no streak", () => {
     const src = read("src/AppHeader.jsx");
-    expect(src).toContain("<WordmarkTheta />");
-    expect(src).not.toMatch(/aria-hidden="true">θ</); // the fallback-serif glyph is gone
-    // CalcStreak returns { count, active } — rendering the object
-    // was React #31 in prod. The strip must render the COUNT.
-    expect(src).toContain("Streak {calcStreak(allData || {}).count} days");
-    expect(src).toContain('Logging: {logDate || "Today"}');
-  });
-
-  it("the wordmark glyph is an embedded outline, not a font dependency", () => {
-    const src = read("src/ui/WordmarkTheta.jsx");
-    expect(src).toContain('fill="currentColor"');
-    expect(src).toMatch(/d="M[0-9]/);
-    expect(src).not.toMatch(/font-family|fontFamily/);
+    expect(src).toContain("<Wordmark ");
+    expect(src).not.toMatch(/aria-hidden="true">θ</); // never a font glyph
+    // The mark is drawn, so it does not depend on a typeface having a theta.
+    const kit = read("src/ui/ledger.jsx");
+    expect(kit).toMatch(/<ellipse cx="12" cy="12" rx="6\.5" ry="9\.5" \/>/);
+    expect(kit).toContain('translate="no"');
+    // A streak is a fact on Progress, never chrome that follows you around.
+    expect(src).not.toMatch(/Streak \{/);
   });
 
   it("V15.1 · Recovery composes the spread while mobile keeps the technical-details fold", () => {
@@ -137,11 +132,11 @@ describe("broadsheet shell (V15.0)", () => {
     expect(tierBranch).not.toContain("DisclosureBlock");
   });
 
-  it("tabs without a broadsheet spread stay a centered reading column at the tier", () => {
+  it("a screen without a spread stays a centered reading column at the tier", () => {
     const src = read("src/App.jsx");
-    // Today, Fuel, and Recovery now compose their own spreads; the
-    // remainder (Progress) centers at 760px until V15.2.
-    expect(src).toContain('isBroadsheet && !["Today", "Fuel", "Recovery", "Progress"].includes(tab) ? { maxWidth: "var(--ovt-content-width)"');
-    expect(src).toContain('{ display: "contents" }');
+    // Screens that compose their own spread take the shell width; Profile
+    // has none and keeps the reading column.
+    expect(src).toContain('<div className="legacy-screen" style={isBroadsheet ? { maxWidth: "var(--ovt-content-width)" } : undefined}>');
+    expect(read("src/ledger.css")).toMatch(/\.legacy-screen \{[^}]*max-width: var\(--ovt-shell-width, var\(--ovt-content-width\)\)/);
   });
 });

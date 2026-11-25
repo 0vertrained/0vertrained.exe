@@ -56,9 +56,11 @@ describe("V16.2 static pins", () => {
     const fuel = read("src/FuelTab.jsx");
     expect(fuel).toContain(': isBroadsheet ? { maxWidth: "var(--ovt-content-width)"');
     expect(read("src/ui/primitives.jsx")).toContain('...(isBroadsheet ? { maxWidth: "var(--ovt-content-width)"');
-    expect(read("src/AppHeader.jsx")).toContain('position: "sticky", top: 0');
+    // The desktop bar stays put while the page scrolls under it.
+    expect(read("src/ledger.css")).toMatch(/\.dtop \{[^}]*position: sticky; top: 0;/);
+    // Log opens the same sheet at every size; the palette has its own button and ⌘K.
     const app = read("src/App.jsx");
-    expect(app).toContain("isBroadsheet ? setPaletteOpen(true) : setSheetOpen(true)");
+    expect(app).toContain("onQuickAction={() => setSheetOpen(true)} onOpenPalette={() => setPaletteOpen(true)}");
     const prog = read("src/ProgressTab.jsx");
     expect(prog).toContain('role={isBroadsheet ? "button" : undefined}');
     expect(read("src/Coach.jsx")).toContain('e.key === "Escape"');

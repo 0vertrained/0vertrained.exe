@@ -23,7 +23,7 @@ vi.mock("../supabaseClient", () => {
 });
 
 import { ThemeProvider } from "../theme";
-import { MoreTab } from "../MoreTab";
+import { ProgramTab } from "../MoreTab";
 import { DEFAULT_PROGRAM, PROGRAM_PRESETS, PRESET_LINEUP } from "../constants";
 import { readSupersetPref } from "../liftLogPrefs";
 import { flattenProgramLifting } from "../programSessions";
@@ -42,10 +42,9 @@ function openPicker({ program = DEFAULT_PROGRAM } = {}) {
   const onSaveProgram = vi.fn(async () => true);
   render(
     <ThemeProvider>
-      <MoreTab program={program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={vi.fn()} settings={{}} allData={{}} showToast={vi.fn()} />
+      <ProgramTab program={program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={vi.fn()} settings={{}} initialAction="switch" />
     </ThemeProvider>,
   );
-  fireEvent.click(screen.getByText("Switch preset").closest("button"));
   return { onSaveProgram };
 }
 
@@ -116,10 +115,9 @@ describe("Program editor", () => {
     const onSaveProgram = vi.fn(async () => true);
     render(
       <ThemeProvider>
-        <MoreTab program={PROGRAM_PRESETS.hybrid.program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={vi.fn()} settings={{}} allData={{}} showToast={vi.fn()} />
+        <ProgramTab program={PROGRAM_PRESETS.hybrid.program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={vi.fn()} settings={{}} initialAction="edit" />
       </ThemeProvider>,
     );
-    fireEvent.click(screen.getByText("Edit weekly program").closest("button"));
     fireEvent.click(screen.getByRole("button", { name: "Wed" }));
     change();
     fireEvent.click(screen.getByRole("button", { name: "Save Program" }));

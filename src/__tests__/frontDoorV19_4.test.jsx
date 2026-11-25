@@ -139,7 +139,11 @@ async function finishSetup({ dataMode = /^Manual only\./ } = {}) {
   next(); // privacy → Finish setup
 }
 
-const tab = (name) => fireEvent.click(screen.getByRole("tab", { name: new RegExp(`^${name}`) }));
+// The four tabs are buttons in the Primary navigation. Recovery is not a tab:
+// it is the detail screen behind Today's Recovery row.
+const primaryTab = (name) => within(screen.getByRole("navigation", { name: "Primary" })).getByRole("button", { name });
+const tab = (name) => fireEvent.click(primaryTab(name));
+const openRecovery = () => fireEvent.click(screen.getByRole("button", { name: /^Recovery/ }));
 
 describe("V19.4 front door — a new account reaches a logger", () => {
   it("signs in → setup → Today is live → a logger in two taps → the first set banked on the third", async () => {
@@ -182,7 +186,9 @@ describe("V19.4 front door — a new account reaches a logger", () => {
     tab("Fuel");
     await waitFor(() => expect(screen.queryByTestId("specimen-stamp")).toBeNull(), WAIT);
 
-    tab("Recovery");
+    tab("Today");
+    await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
+    openRecovery();
     expect(await screen.findByText("Manual check-in is primary.", {}, WAIT)).toBeTruthy();
     expect(screen.queryByTestId("specimen-stamp")).toBeNull();
   }, 20000);
@@ -192,7 +198,7 @@ describe("V19.4 front door — a new account reaches a logger", () => {
     await finishSetup({ dataMode: /^Wearable connected\./ });
     await screen.findByRole("button", { name: /^Workout — Monday/ }, WAIT);
 
-    tab("Recovery");
+    openRecovery();
     expect(await screen.findByTestId("specimen-stamp", {}, WAIT)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Connect Oura" }));
     expect(await screen.findByText(/Fig\. 5 · Data sources/, {}, WAIT)).toBeTruthy();
@@ -227,7 +233,7 @@ describe("V19.4 wearable OAuth return finishes in the app", () => {
   it("leaves an ordinary launch alone", async () => {
     h.store.settings = { onboarded: true, setup: { dataMode: "manual" } };
     render(<App />);
-    await screen.findByRole("tab", { name: /^Today/ }, WAIT);
+    await waitFor(() => expect(primaryTab("Today")).toBeTruthy(), WAIT);
     await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
     expect(screen.queryByText(/Fig\. 5 · Data sources/)).toBeNull();
   }, 20000);
@@ -322,7 +328,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^Log out/ }, WAIT));
-    await waitFor(() => expect(screen.queryByRole("tab", { name: /^Today/ })).toBeNull(), WAIT);
+    await waitFor(() => expect(screen.queryByRole("navigation", { name: "Primary" })).toBeNull(), WAIT);
 
     // A second account signs in on the same page; its first read fails and it has no cache.
     h.store.settings = { ...PROFILE, username: "bea", goals: { ...PROFILE.goals, calories: 3000 } };
@@ -356,7 +362,7 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^Log out/ }, WAIT));
-    await waitFor(() => expect(screen.queryByRole("tab", { name: /^Today/ })).toBeNull(), WAIT);
+    await waitFor(() => expect(screen.queryByRole("navigation", { name: "Primary" })).toBeNull(), WAIT);
     const callsBefore = dataLayer.saveEntry.mock.calls.length;
 
     h.store.failEntrySaves = false;

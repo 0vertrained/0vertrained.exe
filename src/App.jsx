@@ -12,7 +12,7 @@ import { detectDayZero } from "./dayZero";
 import { readOAuthReturn, cleanOAuthReturnUrl } from "./oauthReturn";
 import { logFunnelEvent } from "./funnel";
 import { logOut, ensureProfileExists } from "./auth";
-import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
+import { useMediaQuery, useIsDesktop, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { CommandPalette } from "./ui/CommandPalette";
 import { supabase } from "./supabaseClient";
 import { loadAllEntries, loadAllEntriesChecked, loadRecentEntries, loadOlderEntries, entriesWindowCutoff, saveEntry, importEntries, loadProgramChecked, saveProgram, loadSettingsChecked, saveSettings, patchSettings, DEFAULT_SETTINGS, setCachedUserId, clearCachedUserId } from "./data";
@@ -29,7 +29,9 @@ import { perfStart, perfMark } from "./perf";
 import { isCoachEnabled } from "./coachEnabled";
 import { DEMO_USER, DEMO_SETTINGS, buildDemoEntries, buildDemoOuraData, getDemoWhoopData, isDemoMode } from "./demoData";
 import { Header } from "./AppHeader";
-import { BottomNav, QuickActionSheet, QUICK_ACTIONS, TABS_ORDER } from "./AppBottomNav";
+import { BottomNav, QuickActionSheet, QUICK_ACTIONS, COACH_ACTION, TABS_ORDER } from "./AppBottomNav";
+import { Icon, Toast } from "./ui/ledger";
+import { ShellProvider, useShellBar } from "./ui/shell";
 import { RefreshingBar } from "./ui/primitives";
 import { resolveLoadState } from "./uiStability";
 import { isFirstWeekUser, buildNewUserEmptyState, countLoggedDays } from "./firstWeekJourney";
@@ -48,41 +50,46 @@ const DemoPage = lazy(() => import("./DemoPage"));
 const ProgressTab = lazy(() => import("./ProgressTab").then(m => ({ default: m.ProgressTab })));
 const FuelTab = lazy(() => import("./FuelTab").then(m => ({ default: m.FuelTab })));
 const MoreTab = lazy(() => import("./MoreTab").then(m => ({ default: m.MoreTab })));
+const TrainTab = lazy(() => import("./TrainTab").then(m => ({ default: m.TrainTab })));
 const RecoveryDashboard = lazy(() => import("./RecoveryDashboard").then(m => ({ default: m.RecoveryDashboard })));
 const SettingsScreen = lazy(() => import("./SettingsScreen").then(m => ({ default: m.SettingsScreen })));
 const Tutorial = lazy(() => import("./Tutorial").then(m => ({ default: m.Tutorial })));
 const DayZeroSpecimen = lazy(() => import("./DayZeroSpecimen").then(m => ({ default: m.DayZeroSpecimen })));
 const Coach = lazy(() => import("./Coach").then(m => ({ default: m.Coach })));
 
-// The app shell reserves room for the persistent bottom dock during normal tab
-// navigation. Profile is a full-screen overlay that hides that dock, so
-// carrying its reserve space into it creates a blank tail on long pages. Keep the regular safe-area contract unchanged outside overlays.
-export function appShellStyle(appStyle, overlayOpen) {
-  return overlayOpen ? { ...appStyle, paddingBottom: 0 } : appStyle;
-}
-
 function AppInner({ onThemeChange }) {
-  const { C, S, themeId } = useTheme();
+  const { C, themeId } = useTheme();
   const demoMode = isDemoMode();
-  const mono = C.fontFamily;
+  const isDesktop = useIsDesktop();
+  // A screen one level down names itself and its Back here (see ui/shell).
+  const screenBar = useShellBar();
   const [user, setUser]           = useState(undefined);
   const [tab, setTab]             = useState("Today");
   const [appUpdateReady, setAppUpdateReady] = useState(false);
   const tabScrollPositions = useRef({ Today: 0 });
-  // Overlay is a full-screen panel stacked above the
-  // tab content: "profile" (was the More tab). null means no overlay is
-  // showing.
-  const [overlay, setOverlay]     = useState(null); // null | "profile"
-  const [sheetOpen, setSheetOpen] = useState(false); // FAB quick-action sheet
+  // A screen shown in place of the tab: "profile" (account, settings, data)
+  // or "recovery" (the detail behind the call). null means the tab shows.
+  const [overlay, setOverlay]     = useState(null); // null | "profile" | "recovery"
+  const [sheetOpen, setSheetOpen] = useState(false); // the Log sheet
+  // What Today should do when it next shows: start the session or open the
+  // run log. The nonce makes the same request twice still count twice.
+  const [todayIntent, setTodayIntent] = useState(null);
+  // Which sub-view Progress opens on when Train sends someone there.
+  const [progressLanding, setProgressLanding] = useState(null);
   const [coachOpen, setCoachOpen] = useState(false); // Coach chat sheet — was a floating self-positioned
                                                       // button that overlapped the header; now a normal
                                                       // controlled overlay triggered from the quick-action sheet.
-  // Wraps setTab so existing callers (first-week checklist CTAs, etc.) that
-  // still target the old "More" tab land on the Profile overlay instead of a
-  // tab value that no longer exists in TABS_ORDER.
+  // Wraps setTab so callers that still name the old "More" and "Recovery"
+  // tabs land where those now live: Profile, and the detail behind the call.
   const navigateTo = (t) => {
     setSheetOpen(false);
     if (t === "More") { setOverlay("profile"); return; }
+    if (t === "Recovery") {
+      tabScrollPositions.current[tab] = window.scrollY;
+      setOverlay("recovery");
+      requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+      return;
+    }
     setOverlay(null);
     if (t === tab) return;
     tabScrollPositions.current[tab] = window.scrollY;
@@ -143,7 +150,11 @@ function AppInner({ onThemeChange }) {
     setSelectedDay(null);
     if (key === "meal") navigateTo("Fuel");
     else if (key === "checkin") openCheckin();
-    else navigateTo("Today"); // workout lives on Today
+    else {
+      // Workouts and runs are logged on Today.
+      navigateTo("Today");
+      setTodayIntent({ kind: key === "run" ? "run" : "workout", nonce: Date.now() });
+    }
   };
   // The check-in sits at the top of Today, so land there at the top.
   const openCheckin = () => {
@@ -189,19 +200,6 @@ function AppInner({ onThemeChange }) {
     document.body.style.color = C.text;
   }, [C.text, C.bg]);
 
-  // Retrigger the tab-panel enter animation on every tab switch without causing
-  // component remounts. Remove the class, force a reflow so the browser discards
-  // the previous animation frame, then re-add it.
-  const tabPanelRef = useRef(null);
-  useEffect(() => {
-    const el = tabPanelRef.current;
-    if (!el) return undefined;
-    el.classList.remove("ovt-tab-enter");
-    // Re-add after the next paint so the animation restarts without a forced
-    // synchronous layout read on every tab switch.
-    const frame = requestAnimationFrame(() => el.classList.add("ovt-tab-enter"));
-    return () => cancelAnimationFrame(frame);
-  }, [tab]);
 
   // Demo page is a hash route (#/demo) so it's shareable and works logged-out.
   useEffect(() => {
@@ -1014,8 +1012,8 @@ function AppInner({ onThemeChange }) {
   }, [settings?.ouraConnected, ouraRecovery, loaded]);
 
   if (user === undefined) return (
-    <div style={{ ...S.app, display:"flex", alignItems:"center", justifyContent:"center", height:"100dvh" }}>
-      <span style={{ color: C.textDim, fontSize:11.5, letterSpacing:"0.2em" }}>LOADING...</span>
+    <div className="ot" style={{ alignItems: "center", justifyContent: "center" }}>
+      <p className="t-s c2" role="status">Loading…</p>
     </div>
   );
   if (showDemo) return <Suspense fallback={null}><DemoPage onClose={() => { try { history.replaceState(null, "", window.location.pathname + window.location.search); } catch {} setShowDemo(false); }} /></Suspense>;
@@ -1042,8 +1040,26 @@ function AppInner({ onThemeChange }) {
   const appLoadState = resolveLoadState({ loaded, refreshing });
   const coachEnabled = isCoachEnabled(user?.id);
 
+  const isPastDay = Boolean(logDate) && logDate !== getTodayKey();
+  const shortDay = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const closeOverlay = () => {
+    setOverlay(null);
+    const top = tabScrollPositions.current[tab] ?? 0;
+    requestAnimationFrame(() => window.scrollTo({ top, left: 0, behavior: "auto" }));
+  };
+  // What the top bar shows: the screen's own request first, then the overlay,
+  // then the tab.
+  const tabBar = overlay === "profile" ? { title: "Profile", close: "Close", onClose: closeOverlay }
+    : overlay === "recovery" ? { title: "Recovery", back: tab, onBack: closeOverlay }
+    : tab === "Today" && isPastDay ? { title: shortDay(new Date(`${logDate}T12:00:00`)), sub: " · past day" }
+    : { title: tab, sub: tab === "Today" || tab === "Fuel" ? ` · ${shortDay(new Date())}` : "" };
+  const bar = (!overlay && screenBar) || tabBar;
+  const logActions = coachEnabled ? [...QUICK_ACTIONS, COACH_ACTION] : QUICK_ACTIONS;
+  const changeTab = (t) => { setProgressLanding(null); navigateTo(t); setSelectedDay(null); };
+
   return (
-    <div className="ovt-app-shell" style={appShellStyle(S.app, Boolean(overlay))}>
+    <div className={`ot ovt-app-shell${isDesktop ? "" : " has-tabs"}`}>
+      <a className="skip" href="#main">Skip to content</a>
       {showTutorial && (
         <Suspense fallback={null}>
           <Tutorial
@@ -1053,88 +1069,97 @@ function AppInner({ onThemeChange }) {
           />
         </Suspense>
       )}
-      {/* Masthead — logout moved into Profile → Account + Data; at desktop
-          the header also carries the tab nav + "+ Log" (see AppHeader). Tab
-          changes from the masthead close any overlay first so desktop nav
-          always lands on the tab, never behind Profile. */}
-      <Header saving={saving} demoMode={demoMode} onOpenProfile={() => setOverlay("profile")} allData={data} isOnline={isOnline} pendingSaves={pendingSaves} currentTab={tab} onTabChange={(t) => { setOverlay(null); navigateTo(t); setSelectedDay(null); }} onQuickAction={() => (isBroadsheet ? setPaletteOpen(true) : setSheetOpen(true))} tabsOrder={TABS_ORDER} program={liveProgram} todayName={todayName} logDate={logDate} />
+      <Header title={bar.title} sub={bar.sub} back={bar.back} onBack={bar.onBack} close={bar.close} onClose={bar.onClose} saving={saving} demoMode={demoMode} onOpenProfile={() => setOverlay("profile")} isOnline={isOnline} pendingSaves={pendingSaves} currentTab={overlay === "profile" ? null : tab} onTabChange={changeTab} onQuickAction={() => setSheetOpen(true)} onOpenPalette={() => setPaletteOpen(true)} tabsOrder={TABS_ORDER} />
       {appLoadState.showRefreshing && <RefreshingBar label="Refreshing latest data in background…" />}
 
-      {/* ── Full-screen overlay: Profile (was More). Replaces tab content
-             rather than layering over it, and hides the tab bar — a clear
-             "pushed screen" rather than a fifth destination. ── */}
-      {overlay === "profile" && (
-        <div style={isBroadsheet ? { maxWidth: "var(--ovt-content-width)", margin: "0 auto", width: "100%" } : undefined}>
-          <div style={S.overlayBackRow}>
-            <button type="button" style={S.overlayBackBtn} onClick={() => setOverlay(null)}>← Back</button>
-            <span style={S.overlayBackTitle}>Profile</span>
+      <main id="main" tabIndex={-1} style={{ outline: "none", display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
+        {isDesktop && <ScreenTitle bar={bar} />}
+
+        {/* Profile: account, settings and data, behind the top bar on every screen. */}
+        {overlay === "profile" && (
+          <div className="legacy-screen" style={isBroadsheet ? { maxWidth: "var(--ovt-content-width)" } : undefined}>
+            {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} onLogout={handleLogout} /> : !loaded ? <AccountLoading /> : (<>
+            <BaselineBanner tab="More" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} />
+            <ErrorBoundary label="Profile">
+            <Suspense fallback={null}>
+            <MoreTab
+              exportJSON={exportJSON} exportCSV={exportCSV} fileRef={fileRef}
+              onPasteImport={() => setImportOpen(true)}
+              onSettings={() => { openSettings(); setOverlay(null); }}
+              onLogout={handleLogout}
+              settings={settings}
+              allData={data}
+              showToast={showToast}
+              onSaveCoachPreferences={handleSaveCoachPreferences}
+            />
+            </Suspense>
+            </ErrorBoundary>
+            </>)}
           </div>
-          {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} onLogout={handleLogout} /> : !loaded ? <AccountLoading /> : (<>
-          <BaselineBanner tab="More" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} />
-          <ErrorBoundary label="Profile">
-          <Suspense fallback={null}>
-          <MoreTab
-            program={program} onSaveProgram={handleSaveProgram}
-            onApplyGeneratedProgram={handleApplyGeneratedProgram}
-            exportJSON={exportJSON} exportCSV={exportCSV} fileRef={fileRef}
-            onPasteImport={() => setImportOpen(true)}
-            onSettings={() => { openSettings(); setOverlay(null); }}
-            onLogout={handleLogout}
-            settings={settings}
-            allData={data}
-            showToast={showToast}
-            onSaveCoachPreferences={handleSaveCoachPreferences}
-          />
-          </Suspense>
-          </ErrorBoundary>
-          </>)}
-        </div>
-      )}
-      {!overlay && (
-        <>
-          <div ref={tabPanelRef} id="tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`} tabIndex={0} style={{ outline: "none" }}>
-          {/* Key={tab} resets the boundary on tab switch, so a crash in
-              one tab never leaves another tab stuck on the fallback. */}
+        )}
+
+        {/* Recovery: the detail behind the call, one level down from the tab it was opened on. */}
+        {overlay === "recovery" && (
+          <div className="legacy-screen">
+            <ErrorBoundary label="Recovery">
+            <Suspense fallback={null}>
+            {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /> : loaded && dayZero.recovery.isZero
+              ? <DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} />
+              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} onOpenIntegrations={() => openSettings("integrations")} /></>}
+            </Suspense>
+            </ErrorBoundary>
+          </div>
+        )}
+
+        {!overlay && (
+          /* key={tab} resets the boundary on tab switch, so a crash in one tab
+             never leaves another tab stuck on the fallback. */
           <ErrorBoundary key={tab} label={`${tab} tab`}>
           <Suspense fallback={null}>
-          {/* At the broadsheet tier only Today composes into columns
-              (this slice); the other tabs keep their reading-column layout,
-              centered inside the widened shell, until they get spreads of their
-              own. Below 1440px this wrapper is display:contents — the DOM
-              gains a node but layout is as before. */}
-          <div style={isBroadsheet && !["Today", "Fuel", "Recovery", "Progress"].includes(tab) ? { maxWidth: "var(--ovt-content-width)", margin: "0 auto", width: "100%" } : { display: "contents" }}>
-          {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /> : (<>
-          {tab === "Today"   && (loaded && dayZero.today.isZero
-            ? <Suspense fallback={null}><DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} /></Suspense>
-            : <TodayTab   todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} />)}
-          {tab === "Fuel"    && (loaded && dayZero.fuel.isZero
-            ? <Suspense fallback={null}><DayZeroSpecimen tab="Fuel" onAction={() => setShowTutorial(true)} /></Suspense>
-            : <><BaselineBanner tab="Fuel" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><FuelTab settings={settings} todayData={todayData} updateToday={updateToday} showToast={showToast} todayKey={todayKey} loaded={loaded} data={data} /></>)}
-          {tab === "Recovery" && (loaded && dayZero.recovery.isZero
-            ? <Suspense fallback={null}><DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} /></Suspense>
-            : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} onOpenIntegrations={() => openSettings("integrations")} /></>)}
-          {tab === "Progress"&& (loaded && dayZero.progress.isZero
-            ? <Suspense fallback={null}><DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} /></Suspense>
-            : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} /></>)}
+          {accountUnavailable ? <div className="legacy-screen"><AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /></div> : (<>
+          {tab === "Today" && (
+            <div className="legacy-screen">
+            {loaded && dayZero.today.isZero
+              ? <DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />
+              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} />}
+            </div>
+          )}
+          {tab === "Train" && (
+            <TrainTab
+              program={program} liveProgram={liveProgram} entries={data} settings={settings}
+              onSaveProgram={handleSaveProgram} onApplyGeneratedProgram={handleApplyGeneratedProgram}
+              onStartToday={() => { setLogDate(null); navigateTo("Today"); setTodayIntent({ kind: "workout", nonce: Date.now() }); }}
+              onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }}
+              onOpenProgress={(view) => { setProgressLanding(view); navigateTo("Progress"); }}
+            />
+          )}
+          {tab === "Fuel" && (
+            <div className="legacy-screen">
+            {loaded && dayZero.fuel.isZero
+              ? <DayZeroSpecimen tab="Fuel" onAction={() => setShowTutorial(true)} />
+              : <><BaselineBanner tab="Fuel" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><FuelTab settings={settings} todayData={todayData} updateToday={updateToday} showToast={showToast} todayKey={todayKey} loaded={loaded} data={data} /></>}
+            </div>
+          )}
+          {tab === "Progress" && (
+            <div className="legacy-screen">
+            {loaded && dayZero.progress.isZero
+              ? <DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} />
+              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab key={progressLanding || "overview"} initialSubView={progressLanding} data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} /></>}
+            </div>
+          )}
           </>)}
-          </div>
           </Suspense>
           </ErrorBoundary>
-          </div>
-          <BottomNav
-            currentTab={tab}
-            onTabChange={(t) => { navigateTo(t); setSelectedDay(null); }}
-            tabsOrder={TABS_ORDER}
-            onQuickAction={() => (isBroadsheet ? setPaletteOpen(true) : setSheetOpen(true))}
-          />
-        </>
-      )}
+        )}
+      </main>
+
+      <BottomNav currentTab={overlay === "profile" ? null : tab} onTabChange={changeTab} tabsOrder={TABS_ORDER} onQuickAction={() => setSheetOpen(true)} />
 
       {isBroadsheet && (
         <CommandPalette
           open={paletteOpen}
           onClose={() => setPaletteOpen(false)}
-          actions={coachEnabled ? [...QUICK_ACTIONS, { key: "coach", label: "Ask Coach", sub: "Chat about training, fuel, recovery" }] : QUICK_ACTIONS}
+          actions={logActions}
           tabs={TABS_ORDER}
           onAction={handleQuickAction}
           onNavigate={(t) => { setPaletteOpen(false); setOverlay(null); navigateTo(t); setSelectedDay(null); }}
@@ -1143,17 +1168,14 @@ function AppInner({ onThemeChange }) {
       <QuickActionSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        actions={coachEnabled ? [...QUICK_ACTIONS, { key: "coach", label: "Ask Coach", sub: "Chat about training, fuel, recovery" }] : QUICK_ACTIONS}
+        actions={logActions}
         onAction={handleQuickAction}
       />
 
-      {appUpdateReady && (
-        <div role="status" aria-live="polite" style={{ position:"fixed", bottom:76, left:"50%", transform:"translateX(-50%)", width:"max-content", maxWidth:"calc(min(var(--ovt-content-width), 100vw) - 32px)", background:C.text, color:C.bg, padding:"9px 12px", border:`1px solid ${C.text}`, fontSize:11, letterSpacing:"0.08em", textTransform:"uppercase", zIndex:1000, fontFamily:mono, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", justifyContent:"center" }}>
-          <span>Updated — reload for the newest version</span>
-          <button type="button" onClick={() => window.location.reload()} style={{ background:C.bg, color:C.text, border:`1px solid ${C.bg}`, padding:"5px 9px", fontFamily:mono, fontSize:10, textTransform:"uppercase", cursor:"pointer" }}>Reload</button>
-        </div>
-      )}
-      {toast && !appUpdateReady && <div role="status" aria-live="polite" style={{ position:"fixed", bottom:76, left:"50%", transform:"translateX(-50%)", width:"max-content", maxWidth:"calc(min(var(--ovt-content-width), 100vw) - 32px)", background:C.bg, color:C.text, padding:"7px 16px", border:`1px solid ${C.line}`, fontSize:11, letterSpacing:"0.12em", textTransform:"uppercase", zIndex:999, fontFamily:mono, whiteSpace:"normal", textAlign:"center", overflowWrap:"anywhere" }}>{toast}</div>}
+      <div className="toast-dock">
+        {appUpdateReady && <Toast action="Reload" onAction={() => window.location.reload()}>Updated. Reload for the newest version.</Toast>}
+        {toast && !appUpdateReady && <Toast>{toast}</Toast>}
+      </div>
       <input ref={fileRef} type="file" accept=".json" aria-label="Import data from JSON file" style={{ display:"none" }} onChange={importFile} />
       {exportModal && <ExportModal modal={exportModal} onClose={() => setExportModal(null)} showToast={showToast} />}
       {settingsOpen && accountReady && <Suspense fallback={null}><SettingsScreen settings={settings} onSave={handleSaveSettings} onPatch={handlePatchSettings} onClose={() => setSettingsOpen(false)} busy={settingsBusy} onThemeChange={handleThemeChange} currentTheme={themeId} initialSection={settingsLanding.section} notice={settingsLanding.notice} loggedDays={countLoggedDays(data)} currentTab={tab} /></Suspense>}
@@ -1193,6 +1215,19 @@ function AccountUnavailable({ reason, onRetry, onLogout }) {
 
 // Profile while the account is still loading: its settings aren't
 // known yet, so Settings and the program editors wait.
+// At 1024 px and up the tabs sit in the top bar, so the screen's h1 moves into
+// the page, with Back or Close beside it when the screen is one level down.
+function ScreenTitle({ bar }) {
+  return (
+    <div className="screen-title">
+      {bar.back && <button type="button" className="back" style={{ marginLeft: 0 }} onClick={bar.onBack}><Icon name="back" size="s" />{bar.back}</button>}
+      {bar.close && <button type="button" className="back" style={{ marginLeft: 0, gap: 4 }} onClick={bar.onClose}><Icon name="close" size="s" />{bar.close}</button>}
+      <h1 className="t-xl">{bar.title}</h1>
+      {bar.sub && <p className="t-b c2">{bar.sub.replace(/^ · /, "")}</p>}
+    </div>
+  );
+}
+
 function AccountLoading() {
   const { C, S } = useTheme();
   return <section role="status" style={S.block}><div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.6 }}>Loading your account…</div></section>;
@@ -1273,7 +1308,9 @@ export default function App() {
   return (
     <ThemeProvider themeId={themeId}>
       <ErrorBoundary label="App">
-        <AppInner onThemeChange={setThemeId} />
+        <ShellProvider>
+          <AppInner onThemeChange={setThemeId} />
+        </ShellProvider>
       </ErrorBoundary>
     </ThemeProvider>
   );

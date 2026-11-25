@@ -9,7 +9,6 @@ import { DEFAULT_PROGRAM, DAYS, PROGRAM_PRESETS, PRESET_LINEUP, presetProgram, g
 import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
 import { seedSupersetPrefsFromProgram } from "./liftLogPrefs";
 import { buildSplitSessionsFromLegacy, getProgramSessions, usesProgramSessions } from "./programSessions";
-import { summarizeProgramForHub } from "./moreHub";
 import { DEFAULT_COACH_PREFERENCES, normalizeCoachPreferences, mergeCoachPreferences, buildCoachMemoryExport, summarizeRecentTrend } from "./coachMemory";
 import { ProgramBuilderPanel } from "./ProgramBuilderPanel";
 import { NotificationsCard } from "./NotificationsCard";
@@ -574,20 +573,6 @@ function SessionProgramEditor({ draft, setDraft, openDay, setOpenDay, onCancel, 
 // Small consistent header for every More subview: a "← More" back-to-hub button
 // plus a title. Replaces the old always-visible horizontal subnav — the hub
 // cards are now the navigation, so each detail view just needs a way home.
-function MoreSubHeader({ title, onBack }) {
-  const { C } = useTheme();
-  const mono = C.fontFamily;
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 16px", borderBottom:`1px solid ${C.line}`, background:C.panel }}>
-      <button onClick={onBack}
-        style={{ background:"none", border:`1px solid ${C.lineBright}`, color:C.textDim, fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", cursor:"pointer", fontFamily:mono, padding:"5px 11px" }}>
-        ← More
-      </button>
-      <span style={{ fontSize:13, letterSpacing:"0.14em", textTransform:"uppercase", color:C.text, fontFamily:mono }}>{title}</span>
-    </div>
-  );
-}
-
 // A single labelled navigation/action row inside a hub group. Left column is a
 // label + optional sublabel; the whole row is the tap target. Keeps the ledger
 // look (hairline border, mono) while giving each action a generous target.
@@ -686,52 +671,25 @@ function CoachPreferencesCard({ settings, allData, onSave, showToast }) {
   );
 }
 
-export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, exportJSON, exportCSV, fileRef, onPasteImport, onSettings, onLogout, settings, allData, showToast, onSaveCoachPreferences }) {
+// Profile: account, data and app settings. The training plan lives in Train.
+export function MoreTab({ exportJSON, exportCSV, fileRef, onPasteImport, onSettings, onLogout, settings, allData, showToast, onSaveCoachPreferences }) {
   const { C, S } = useTheme();
   const mono = C.fontFamily;
-  const [subView, setSubView] = useState("hub"); // "hub" | "program"
-  const [programAction, setProgramAction] = useState(null); // "generate" | "switch" | "edit" | null
-  const backToHub = () => { setSubView("hub"); setProgramAction(null); };
-  const openProgram = (action) => { setProgramAction(action); setSubView("program"); };
-
-  const planSummary = summarizeProgramForHub(program);
 
   // Group note — quiet caption used for privacy / deferred / routing copy.
   const note = { fontSize:11, color:C.textDim, lineHeight:1.6, marginTop:10, letterSpacing:"0.03em" };
   const groupDesc = { fontSize:11, color:C.textDim, lineHeight:1.6, marginBottom:2, letterSpacing:"0.03em" };
-
-  if (subView === "program") {
-    return (
-      <div>
-        <MoreSubHeader title="Training Plan" onBack={backToHub} />
-        <ProgramTab program={program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={onApplyGeneratedProgram} settings={settings} initialAction={programAction} />
-      </div>
-    );
-  }
 
   // ── Hub landing: grouped management cards ──
   return (
     <div>
       <div style={{ padding:"14px 16px 4px", background:C.bg }}>
         <div style={{ fontSize:13.5, letterSpacing:"0.16em", textTransform:"uppercase", color:C.text, fontFamily:mono }}>Manage</div>
-        <div style={{ fontSize:11, color:C.textDim, marginTop:3, letterSpacing:"0.04em" }}>Plan, data, and app settings.</div>
+        <div style={{ fontSize:11, color:C.textDim, marginTop:3, letterSpacing:"0.04em" }}>Data and app settings. Your training plan is in Train.</div>
       </div>
 
-      {/* 1 — Training Plan (first: never bury the builder) */}
-      <div style={S.block}>
-        <div style={S.blockHead}>
-          <span style={S.blockTitle}>{"> "}Training Plan</span>
-          <span style={S.blockStat}>{planSummary.hasProgram ? planSummary.line : "no plan"}</span>
-        </div>
-        <div style={groupDesc}>{planSummary.hasProgram ? `Your current week: ${planSummary.line}.` : "No plan yet — generate one to get started."}</div>
-        <HubAction label="Generate plan" sublabel="Build a fresh weekly program" onClick={() => openProgram("generate")} variant="primary" />
-        <HubAction label="Edit weekly program" sublabel="Adjust days, exercises, and cardio" onClick={() => openProgram("edit")} variant="primary" />
-        <HubAction label="Switch preset" sublabel="Preview and load a ready-made split" onClick={() => openProgram("switch")} />
-        <HubAction label="Race plan" sublabel={isRunPlanSpec(program?.__raceBuild) ? `${program.__raceBuild.raceName} · edit or end it` : "Train for a 5K, 10K or half, built around your lifting"} onClick={() => openProgram("race")} />
-        <div style={note}>Block and periodization guidance lives in Progress → Program.</div>
-      </div>
+      {/* Account + Data */}
 
-      {/* 2 — Account + Data */}
       <div style={S.block}>
         <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Account + Data</span></div>
         <div style={groupDesc}>Settings, integrations, and local backups.</div>
@@ -756,7 +714,7 @@ export function MoreTab({ program, onSaveProgram, onApplyGeneratedProgram, expor
 
       </div>
 
-      {/* 3 — App */}
+      {/* App */}
       <div style={S.block}>
         <div style={S.blockHead}>
           <span style={S.blockTitle}>{"> "}App</span>

@@ -3,7 +3,9 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { ThemeProvider } from "../theme";
 import { ReadinessMethodToggle } from "../RecoveryDashboard";
 import { MuscleVolumeSection } from "../MuscleVolumeSection";
-import { appShellStyle } from "../App";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 afterEach(cleanup);
 
@@ -42,9 +44,16 @@ describe("accessibility remediation", () => {
     expect(screen.getByRole("img", { name: /chest: 6 hard sets this week/i })).toBeTruthy();
   });
 
-  it("removes dock-reserve whitespace only while an overlay is open", () => {
-    const base = { minHeight: "100dvh", paddingBottom: "calc(80px + env(safe-area-inset-bottom, 0px))" };
-    expect(appShellStyle(base, false)).toBe(base);
-    expect(appShellStyle(base, true)).toEqual({ ...base, paddingBottom: 0 });
+  it("reserves room for the tab bar only where the tab bar shows", () => {
+    const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const css = readFileSync(resolve(root, "src/ledger.css"), "utf8");
+    // The reserve is one custom property: zero by default, the bar's height
+    // on a shell that carries has-tabs. Screens and toasts read it.
+    expect(css).toContain(".ot { --tabbar-h: 0px; }");
+    expect(css).toMatch(/\.ot\.has-tabs \{ --tabbar-h: \d+px; \}/);
+    expect(css).toMatch(/\.main \{[^}]*var\(--tabbar-h\)[^}]*safe-area-inset-bottom/);
+    expect(css).toMatch(/\.legacy-screen \{[^}]*var\(--tabbar-h\)/);
+    const app = readFileSync(resolve(root, "src/App.jsx"), "utf8");
+    expect(app).toContain('isDesktop ? "" : " has-tabs"');
   });
 });
