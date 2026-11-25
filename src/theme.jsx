@@ -1,134 +1,97 @@
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
 
-export const THEME_NAMES = ["whitepaperLight", "whitepaperDark", "terminal"];
+export const THEME_NAMES = ["whitepaperLight", "whitepaperDark"];
 
-// Themes shown in Settings (terminal retained as a legacy option).
+// Themes shown in Settings.
 export const PRIMARY_THEMES = ["whitepaperLight", "whitepaperDark"];
 
-// ── Terminal palette (legacy, retained for backwards compatibility) ────────────
-const TERMINAL = {
-  id: "terminal",
-  label: "Terminal",
-  desc: "Dark · monospace · precision",
-  mono: true,
-  serif: false,
-  fontFamily: "'IBM Plex Mono', 'DM Mono', monospace",
-  serifFamily: "'IBM Plex Mono', monospace",
-  monoFamily: "'IBM Plex Mono', monospace",
-  bg:        "#07090a",
-  panel:     "#090c0d",
-  block:     "#0a100d",
-  cell:      "#0c1310",
-  line:      "#14201b",
-  lineBright:"#1a2a20",
-  green:     "#5fd68a",
-  greenDim:  "#2a5d3e",
-  greenDark: "#0d1f14",
-  greenMid:  "#4a9d6e",
-  text:      "#e8efe8",
-  textDim:   "#4a6d5a",
-  textFaint: "#3a5d4a",
-  blue:      "#4a9de8",
-  blueDim:   "#1a3a4a",
-  amber:     "#e8c547",
-  red:       "#e85a5a",
-  signal:    "#e85a5a",
-  // UI specific
-  navInactiveTxt: "#2a4a3a",
-  inputBg:        "#0c1310",
-  cardBg:         "#0a100d",
-  cardRadius:     0,
-  inputRadius:    0,
-  pillRadius:     0,
-  setDoneBg:      "#0d1f14",
-  setDoneBorder:  "#2a5d3e",
-  setDoneText:    "#5fd68a",
-};
-
-// ── Whitepaper Light: Paper theme with ink-based UI ──────────────────────────
-// Light stock: warm white paper background, ink primary text, hairline rules.
+// ── Ledger palettes ───────────────────────────────────────────────────────────
+// The same values as the custom properties in src/ledger.css, for the screens
+// that still style inline. Hue is spent on status and earned moments only, so
+// the old colour names all resolve to an ink. The ids stay whitepaperLight and
+// whitepaperDark because they are what saved settings hold.
 const WHITEPAPER_LIGHT = {
   id: "whitepaperLight",
+  mode: "light",
   label: "Paper",
-  desc: "Light · ink · ruled",
+  desc: "Light",
   mono: false,
   serif: true,
-  fontFamily: "'IBM Plex Sans', 'Inter', sans-serif",
+  fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
   serifFamily: "'Newsreader', Georgia, serif",
-  monoFamily: "'IBM Plex Mono', monospace",
-  // Light paper stock with warm tone
-  bg:        "#FAF9F6",  // warm white paper
-  panel:     "#FFFFFF",  // surface white
-  block:     "#FFFFFF",  // block white
-  cell:      "#FFFFFF",  // cell white
-  line:      "#E6E3DB",  // hairline rule (warm beige)
-  lineBright:"#DDD9CF",  // slightly darker hairline
-  // Ink tones (no color, single-ink language)
-  green:     "#1A1A1A",  // primary ink (black)
-  greenDim:  "#67655E",  // secondary ink (warm gray)
-  greenDark: "#E6E3DB",  // highlight surface (hairline tone)
-  greenMid:  "#3A3A3A",  // mid ink
-  text:      "#1A1A1A",  // primary ink
-  textDim:   "#67655E",  // secondary ink (warm gray)
-  textFaint: "#767368",  // faint ink (light gray) · 4.5:1 on paper (WCAG AA)
-  blue:      "#1A1A1A",  // same as green, no color distinction
-  blueDim:   "#E6E3DB",  // hairline tone
-  amber:     "#1A1A1A",  // monochrome error (ink)
-  red:       "#B23A1E",  // error ink (muted warm red for error states only)
-  signal:    "#B23A1E",
+  monoFamily: "'IBM Plex Mono', ui-monospace, monospace",
+  bg:        "#FAF9F6",  // page ground
+  panel:     "#FFFFFF",  // surface
+  block:     "#FFFFFF",
+  cell:      "#FFFFFF",
+  line:      "#E2DED5",  // hairline between rows
+  lineBright:"#837E75",  // edge of a control, 3:1 on paper
+  green:     "#1A1A1A",  // ink
+  greenDim:  "#55524C",  // second ink
+  greenDark: "#F1EFE9",  // sunk surface
+  greenMid:  "#1F6B45",  // good
+  text:      "#1A1A1A",
+  textDim:   "#55524C",
+  textFaint: "#6B675F",  // third ink, 5.3:1 on paper
+  blue:      "#1A1A1A",
+  blueDim:   "#E6E3DB",
+  amber:     "#8A5A00",  // caution
+  red:       "#B3261E",  // stop
+  signal:    "#B3261E",
+  earned:    "#8E6201",
+  earnedFill:"#E1B850",
   // UI specific
-  navInactiveTxt: "#767368",
+  navInactiveTxt: "#55524C",
   inputBg:        "#FFFFFF",
   cardBg:         "#FFFFFF",
-  cardRadius:     2,
-  inputRadius:    2,
+  cardRadius:     12,
+  inputRadius:    8,
   pillRadius:     4,
   setDoneBg:      "#FAF9F6",
-  setDoneBorder:  "#E6E3DB",
+  setDoneBorder:  "#837E75",
   setDoneText:    "#1A1A1A",
 };
 
-// ── Whitepaper Dark: Negative theme with inverted ink structure ───────────────
-// Dark stock: warm near-black, inverted ink light (off-white), same hairline rules.
 const WHITEPAPER_DARK = {
   id: "whitepaperDark",
+  mode: "dark",
   label: "Negative",
-  desc: "Dark · ink · ruled",
+  desc: "Dark",
   mono: false,
   serif: true,
-  fontFamily: "'IBM Plex Sans', 'Inter', sans-serif",
+  fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
   serifFamily: "'Newsreader', Georgia, serif",
-  monoFamily: "'IBM Plex Mono', monospace",
-  // Dark warm stock (near-black)
-  bg:        "#141311",  // warm near-black stock
-  panel:     "#1C1B18",  // warm surface
-  block:     "#1C1B18",  // block surface
-  cell:      "#1C1B18",  // cell surface
-  line:      "#2E2A26",  // hairline rule (warm gray)
-  lineBright:"#3A3632",  // slightly lighter hairline
-  // Inverted ink tones (light ink on dark stock)
-  green:     "#F1EFE8",  // primary ink (off-white)
-  greenDim:  "#9C988C",  // secondary ink (warm light gray)
-  greenDark: "#2E2A26",  // highlight surface (hairline tone)
-  greenMid:  "#D4D0C8",  // mid ink (lighter gray)
-  text:      "#F1EFE8",  // primary ink (off-white)
-  textDim:   "#9C988C",  // secondary ink (warm light gray)
-  textFaint: "#8A867C",  // faint ink (medium gray) · 5.1:1 on stock (WCAG AA)
-  blue:      "#F1EFE8",  // same as green, no color distinction
-  blueDim:   "#2E2A26",  // hairline tone
-  amber:     "#F1EFE8",  // monochrome (ink)
-  red:       "#EE8160",  // error ink (warm muted coral)
-  signal:    "#EE8160",
+  monoFamily: "'IBM Plex Mono', ui-monospace, monospace",
+  bg:        "#141412",
+  panel:     "#1D1C1A",
+  block:     "#1D1C1A",
+  cell:      "#1D1C1A",
+  line:      "#34322E",
+  lineBright:"#8C877E",
+  green:     "#F1EEE7",
+  greenDim:  "#B9B4AA",
+  greenDark: "#272523",
+  greenMid:  "#7FD1A3",
+  text:      "#F1EEE7",
+  textDim:   "#B9B4AA",
+  textFaint: "#9A958B",
+  blue:      "#F1EEE7",
+  blueDim:   "#33312E",
+  amber:     "#E5B95C",
+  red:       "#FF8A80",
+  signal:    "#FF8A80",
+  earned:    "#E3BD5F",
+  earnedFill:"#E3BD5F",
   // UI specific
-  navInactiveTxt: "#8A867C",
-  inputBg:        "#1C1B18",
-  cardBg:         "#1C1B18",
-  cardRadius:     2,
-  inputRadius:    2,
+  navInactiveTxt: "#B9B4AA",
+  inputBg:        "#1D1C1A",
+  cardBg:         "#1D1C1A",
+  cardRadius:     12,
+  inputRadius:    8,
   pillRadius:     4,
-  setDoneBg:      "#141311",
-  setDoneBorder:  "#2E2A26",
-  setDoneText:    "#F1EFE8",
+  setDoneBg:      "#141412",
+  setDoneBorder:  "#8C877E",
+  setDoneText:    "#F1EEE7",
 };
 
 export const THEMES = {
@@ -137,7 +100,7 @@ export const THEMES = {
   // Backwards-compatible aliases for saved settings from previous builds.
   instrument: WHITEPAPER_DARK,
   instrumentLight: WHITEPAPER_LIGHT,
-  terminal: TERMINAL,
+  terminal: WHITEPAPER_DARK,
 };
 
 // ── Build style objects from a palette ────────────────────────────────────────
@@ -349,6 +312,16 @@ const ThemeContext = createContext(null);
 export function ThemeProvider({ children, themeId = "whitepaperLight" }) {
   const C = THEMES[themeId] || THEMES.whitepaperLight;
   const S = useMemo(() => buildStyles(C), [themeId]);
+  // The stylesheet's tokens follow the same choice through data-theme on
+  // <html>. data-switching is held for one frame so nothing transitions
+  // because the theme changed.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute("data-switching", "");
+    root.setAttribute("data-theme", C.mode);
+    const frame = requestAnimationFrame(() => root.removeAttribute("data-switching"));
+    return () => { cancelAnimationFrame(frame); root.removeAttribute("data-switching"); };
+  }, [C.mode]);
   return (
     <ThemeContext.Provider value={{ C, S, themeId }}>
       {children}

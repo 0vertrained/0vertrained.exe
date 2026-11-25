@@ -75,7 +75,7 @@ describe("ConfirmDialog", () => {
     expect(destructiveColor).not.toBe(neutralColor);
     // Destructive resolves to the theme's reserved red/signal ink.
     const C = THEMES.whitepaperLight;
-    expect([C.red, "rgb(178, 58, 30)"]).toContain(destructiveColor);
+    expect([C.red, "rgb(179, 38, 30)"]).toContain(destructiveColor);
   });
 });
 
