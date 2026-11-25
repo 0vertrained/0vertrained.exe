@@ -1,27 +1,23 @@
 // src/sections/RunningVolumeFigure.jsx
-// Fig · Running volume — weekly miles for the Progress charts view.
-//
-// One number that matters (this week's miles), a sparkline of the last eight
-// Monday-anchored weeks, and honest provenance: manual logs and Strava runs
-// counted once per day (runningVolume.js dedupe). Self-loading like
-// RecoveryDashboard's wearable reads — Progress receives no Strava props, so
-// the figure fetches its own rows when the connection exists and renders as a
-// manual-only figure otherwise. Nothing here blocks paint: the manual weeks
-// render immediately, Strava layers in when the query lands.
+// Weekly miles on Progress › Running: the last eight Monday-anchored weeks,
+// with manual logs and Strava runs counted once per day (runningVolume.js).
+// Progress receives no Strava props, so the figure fetches its own rows when
+// the connection exists and is a manual-only figure otherwise. Nothing here
+// blocks paint: the manual weeks render at once and Strava layers in.
 //
 // Attribution: when Strava rows contribute, the figure carries the "Powered
-// by Strava" mark per the API Agreement. Display only — this figure's data
+// by Strava" mark per the API Agreement. Display only; this figure's data
 // never feeds coach payloads.
 
 import { useEffect, useMemo, useState } from "react";
-import { useTheme } from "../theme";
-import { FigureSection, LeadMetric, Sparkline } from "../whitepaper";
 import { isDemoMode } from "../demoData";
 import { loadStravaActivities, groupStravaByDate } from "../strava/dataLoading";
 import { buildWeeklyRunVolume } from "../runningVolume";
+import { ColumnChart, DataTable, Glance, shortDate } from "./charts";
 
-export function RunningVolumeFigure({ data, settings }) {
-  const { C, S } = useTheme();
+const NBSP = "\u00a0";
+
+export function RunningVolumeFigure({ data, settings, glance = false }) {
   const [stravaByDate, setStravaByDate] = useState(null);
 
   useEffect(() => {
@@ -39,33 +35,51 @@ export function RunningVolumeFigure({ data, settings }) {
     [data, stravaByDate]
   );
 
-  const anyMiles = volume.weeks.some((w) => w.miles > 0);
-  if (!anyMiles) return null; // Nothing to say — a lifter's Progress page stays quiet.
+  const anyMiles = volume.weeks.some((week) => week.miles > 0);
+  if (!anyMiles && glance) return <Glance text="No runs in the last eight weeks." />;
+  if (!anyMiles) {
+    return (
+      <section aria-labelledby="miles-title" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <h2 id="miles-title" className="t-h">Weekly miles</h2>
+        <p className="t-s c2">No runs in the last eight weeks. Log a run from Today or the Log button and your weekly miles appear here.</p>
+      </section>
+    );
+  }
 
-  const delta = Math.round((volume.thisWeekMiles - volume.lastWeekMiles) * 10) / 10;
-  const points = volume.weeks.map((w) => ({ date: w.weekStart, value: w.miles }));
+  const tidy = (miles) => Math.round(miles * 10) / 10;
+  const thisWeek = tidy(volume.thisWeekMiles);
+  const lastWeek = tidy(volume.lastWeekMiles);
+  const compare = lastWeek > 0
+    ? thisWeek > lastWeek ? `, up from ${lastWeek} last week` : thisWeek < lastWeek ? `, against ${lastWeek} last week` : ", level with last week"
+    : "";
+  const source = volume.stravaContributed
+    ? "Manual and Strava runs are counted once."
+    : "From your manual logs. Connect Strava in Profile to fill in missed runs.";
+  const weeks = volume.weeks.map((week) => ({ ...week, miles: tidy(week.miles) }));
+  const middle = Math.floor(weeks.length / 2);
+  const chart = (
+    <ColumnChart
+      label={`Bar chart of weekly miles for ${weeks.length} weeks, from ${weeks[0].miles} miles to ${thisWeek} miles this week.`}
+      columns={weeks.map((week, index) => ({
+        key: week.weekStart,
+        value: week.miles,
+        x: index === 0 || index === middle || index === weeks.length - 1 ? shortDate(week.weekStart) : "",
+      }))}
+    />
+  );
+  if (glance) return <Glance text={`${thisWeek}${NBSP}mi since Monday${compare}. ${volume.stravaContributed ? "Manual and Strava runs are counted once." : "From your manual logs."}`}>{chart}</Glance>;
 
   return (
-    <FigureSection title="Running volume" right="weekly · mi">
-      <LeadMetric
-        value={volume.thisWeekMiles}
-        unit="mi"
-        caption="This training week, Monday to today."
-        note={volume.lastWeekMiles > 0 ? `${delta >= 0 ? "+" : ""}${delta} mi vs last week` : "first tracked week"}
+    <section aria-labelledby="miles-title" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <h2 id="miles-title" className="t-h">Weekly miles</h2>
+      <p className="t-s c2">{thisWeek}{NBSP}mi since Monday{compare}. {source}</p>
+      {chart}
+      <DataTable
+        caption="Miles by week, newest first"
+        head={["Week of", "Miles"]}
+        rows={[...weeks].reverse().map((week) => [shortDate(week.weekStart), `${week.miles}${NBSP}mi`])}
       />
-      <div style={{ marginTop: 12 }}>
-        <Sparkline points={points} width={260} height={44} label="8 weeks" />
-      </div>
-      <div style={{ ...S.annotation, marginTop: 10 }}>
-        {volume.stravaContributed
-          ? "manual + Strava · each day counted once"
-          : "manual logs · connect Strava to fill missed runs"}
-      </div>
-      {volume.stravaContributed && (
-        <div style={{ fontFamily: C.monoFamily, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: C.textFaint, marginTop: 6 }}>
-          Powered by Strava
-        </div>
-      )}
-    </FigureSection>
+      {volume.stravaContributed && <p className="t-c c2">Powered by Strava</p>}
+    </section>
   );
 }

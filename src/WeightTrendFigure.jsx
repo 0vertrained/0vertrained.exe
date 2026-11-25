@@ -1,65 +1,94 @@
 // src/WeightTrendFigure.jsx
-// Bodyweight trend block for Progress → Overview. Raw weigh-ins render
-// as faint dots, the exponentially smoothed trend as the line — the point is
-// teaching the eye to read the line and ignore the scatter. Display only,
-// built on weightTrend.js.
+// Bodyweight on Progress › Body: the one bodyweight chart in the app. Each
+// weigh-in is a ring and the smoothed trend is the line, so the eye learns to
+// read the line and let the scatter go. Built on weightTrend.js. A weigh-in
+// can be added here for today; it lands in the same field the check-in writes.
 
-import { useMemo } from "react";
-import { useTheme } from "./theme";
-import { buildWeightTrend, SMOOTHING_ALPHA } from "./weightTrend";
+import { useMemo, useState } from "react";
+import { buildWeightTrend } from "./weightTrend";
+import { Method } from "./ui/ledger";
+import { LineChart, DataTable, Glance, dayDate } from "./sections/charts";
 
-export function WeightTrendFigure({ data }) {
-  const { C, S } = useTheme();
-  const trend = useMemo(() => buildWeightTrend(data), [data]);
+const NBSP = "\u00a0";
+const TABLE_ROWS = 14;
 
-  if (!trend) return null;
-
+// One number, asked for where it is needed: a button that opens a field.
+export function QuickNumber({ action, label, hint, onSave }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [error, setError] = useState("");
+  const save = (event) => {
+    event.preventDefault();
+    const value = Number.parseFloat(text);
+    if (!Number.isFinite(value) || value <= 0) { setError(hint); return; }
+    onSave(value);
+    setText(""); setError(""); setOpen(false);
+  };
+  if (!open) return <button type="button" className="btn btn-s btn-sm" onClick={() => setOpen(true)}>{action}</button>;
   return (
-    <div style={S.block}>
-      <div style={S.blockHead}>
-        <span style={S.blockTitle}>{"> "}Bodyweight trend</span>
-        {trend.ready && <span style={S.blockStat}>{trend.count} weigh-ins · 90D</span>}
+    <form onSubmit={save} noValidate style={{ display: "flex", flexDirection: "column", gap: 6, flex: "1 1 100%" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+        <label className="field grow">
+          <span className="lbl">{label}</span>
+          <input className="input n" inputMode="decimal" autoComplete="off" autoFocus value={text} aria-invalid={error ? "true" : undefined} onChange={(event) => { setText(event.target.value); setError(""); }} />
+        </label>
+        <button type="submit" className="btn btn-p">Save</button>
+        <button type="button" className="btn btn-g" onClick={() => { setOpen(false); setText(""); setError(""); }}>Cancel</button>
       </div>
-
-      {!trend.ready ? (
-        <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6 }}>
-          {trend.count}/{trend.needed} weigh-ins logged — log morning weight in Check-in a few more days to unlock the smoothed trend.
-        </div>
-      ) : (
-        <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-            <span style={{ fontFamily: S.fontSerif, fontSize: 26, color: C.text, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-              {trend.current.trend}
-              <span style={{ fontSize: 13, color: C.textFaint, marginLeft: 4 }}>lb trend</span>
-            </span>
-            <span style={{ fontSize: 11.5, color: trend.current.direction === "holding" ? C.textDim : C.text, fontFamily: C.fontFamily, letterSpacing: "0.04em" }}>
-              {trend.current.weeklyRate > 0 ? "+" : ""}{trend.current.weeklyRate} lb/wk · {trend.current.direction}
-            </span>
-          </div>
-          <TrendChart points={trend.points} C={C} />
-          <div style={{ ...S.annotation, marginTop: 8, color: C.textFaint, lineHeight: 1.5 }}>
-            dots = scale readings · line = smoothed trend (α={SMOOTHING_ALPHA}) — daily swings are water and glycogen, the line is you
-          </div>
-        </>
-      )}
-    </div>
+      {error && <p className="err" role="alert">{error}</p>}
+    </form>
   );
 }
 
-function TrendChart({ points, C, width = 300, height = 90 }) {
-  const pad = 6;
-  const vals = points.flatMap(p => [p.weight, p.trend]);
-  const min = Math.min(...vals), max = Math.max(...vals);
-  const span = (max - min) || 1;
-  const px = (i) => pad + (i / Math.max(1, points.length - 1)) * (width - pad * 2);
-  const py = (v) => height - pad - ((v - min) / span) * (height - pad * 2);
-  const line = points.map((p, i) => `${px(i).toFixed(1)},${py(p.trend).toFixed(1)}`).join(" ");
+export function WeightTrendFigure({ data, onSaveWeight, glance = false }) {
+  const trend = useMemo(() => buildWeightTrend(data), [data]);
+  if (!trend) return null;
+  if (glance && !trend.ready) return <Glance text={`${trend.count} of ${trend.needed} weigh-ins logged. The trend line appears after a few more.`} />;
+  const add = onSaveWeight && <QuickNumber action="Add a weigh-in" label="Today’s weight (lb)" hint="Enter your weight in pounds, for example 181.4." onSave={onSaveWeight} />;
+
+  if (!trend.ready) {
+    return (
+      <section aria-labelledby="weight-title" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <h2 id="weight-title" className="t-h">Bodyweight</h2>
+        <p className="t-s c2">{trend.count} of {trend.needed} weigh-ins logged. Log your morning weight a few more days and the trend line appears.</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{add}</div>
+      </section>
+    );
+  }
+
+  const { current, points } = trend;
+  const rate = Math.abs(current.weeklyRate);
+  const direction = current.direction === "holding" ? "holding steady" : `${current.direction === "losing" ? "down" : "up"} ${rate}${NBSP}lb a week`;
+  const first = points[0];
+  const recent = points.slice(-TABLE_ROWS).reverse();
+  const chart = (
+    <LineChart
+      label={`Line chart of bodyweight trend over ${trend.count} weigh-ins, from ${first.trend} to ${current.trend} pounds, with single weigh-ins scattered around the line.`}
+      points={points.map((point) => ({ date: point.date, value: point.trend, raw: point.weight }))}
+      rings
+      unit="lb"
+    />
+  );
+  if (glance) return <Glance text={`Weight trend ${current.trend}${NBSP}lb, ${direction}. Line: smoothed trend. Rings: weigh-ins.`}>{chart}</Glance>;
+
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="Bodyweight trend chart" style={{ display: "block" }}>
-      {points.map((p, i) => (
-        <circle key={i} cx={px(i).toFixed(1)} cy={py(p.weight).toFixed(1)} r="1.8" fill={C.textFaint} fillOpacity="0.5" />
-      ))}
-      <polyline points={line} fill="none" stroke={C.text} strokeWidth="1.6" />
-    </svg>
+    <section aria-labelledby="weight-title" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <h2 id="weight-title" className="t-h">Bodyweight</h2>
+      <p className="t-s c2">Trend {current.trend}{NBSP}lb, {direction}, from {trend.count} weigh-ins. The line is the smoothed trend. The rings are your weigh-ins.</p>
+      {chart}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 8 }}>
+        {add}
+      </div>
+      <DataTable
+        caption={`Bodyweight: the last ${recent.length} weigh-ins and the trend on each day`}
+        head={["Day", "Weigh-in", "Trend"]}
+        rows={recent.map((point) => [dayDate(point.date), `${point.weight}${NBSP}lb`, `${point.trend}${NBSP}lb`])}
+      />
+      <Method
+        testId="method-weight"
+        method="Daily swings are mostly water and food in transit. The line is the part that is you."
+        detail={<p>The trend is an exponentially smoothed average: each weigh-in moves it a tenth of the way toward the new reading. The weekly rate compares the trend now with the trend up to 14 weigh-ins ago, scaled by the calendar days between them.</p>}
+      />
+    </section>
   );
 }
