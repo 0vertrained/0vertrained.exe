@@ -37,7 +37,7 @@ describe("V16.8 Morning Edition — dashboard anatomy (source guards)", () => {
   });
 
   it("taps live on Today and write to the shared body fields through updateToday", () => {
-    expect(read("src/MorningCheckin.jsx")).toContain("updateToday(`body.${row.field}`, String(opt.value))");
+    expect(read("src/MorningCheckin.jsx")).toContain("updateToday(`body.${row.field}`, String(value))");
     expect(src).not.toContain("CHECKIN_ROWS.map");
     expect(read("src/TodayTab.jsx")).toContain("<MorningCheckin body={bod} updateToday={updateToday} />");
   });

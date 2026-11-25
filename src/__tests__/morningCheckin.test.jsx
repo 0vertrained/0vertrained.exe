@@ -15,27 +15,30 @@ const mount = (body, updateToday = vi.fn()) => {
 describe("MorningCheckin", () => {
   it("shows the four rows until answered and writes taps to the body fields", () => {
     const updateToday = mount({});
-    for (const row of ["slept", "sore", "stress", "energy"]) expect(screen.getByRole("group", { name: row })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "well" }));
+    for (const row of ["Slept", "Sore", "Stress", "Energy"]) expect(screen.getByRole("radiogroup", { name: row })).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "well" }));
     expect(updateToday).toHaveBeenCalledWith("body.sleepQuality", "9");
-    expect(screen.getByText("0/4")).toBeTruthy();
+    expect(screen.getByText("Before you see the score")).toBeTruthy();
   });
 
-  it("marks the selected tap for assistive tech", () => {
+  it("marks the selected answer for assistive tech", () => {
     mount({ soreness: "5" });
-    const sore = screen.getByRole("group", { name: "sore" });
+    const sore = screen.getByRole("radiogroup", { name: "Sore" });
     const some = [...sore.querySelectorAll("button")].find((b) => b.textContent === "some");
-    expect(some.getAttribute("aria-pressed")).toBe("true");
+    expect(some.getAttribute("role")).toBe("radio");
+    expect(some.getAttribute("aria-checked")).toBe("true");
+    expect(sore.querySelectorAll('[aria-checked="true"]')).toHaveLength(1);
   });
 
   it("folds to one line once complete and reopens on Edit", () => {
     mount({ sleepQuality: "6", soreness: "2", stress: "2", energy: "6" });
-    expect(screen.getByText("slept fine · sore no · stress low · energy ok")).toBeTruthy();
-    expect(screen.queryByRole("group", { name: "slept" })).toBeNull();
+    expect(screen.getByText("Slept fine · sore no · stress low · energy ok")).toBeTruthy();
+    // The folded rows stay mounted, out of reach of the keyboard and screen readers.
+    expect(screen.queryByRole("radiogroup", { name: "Slept" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Edit check-in" }));
-    expect(screen.getByRole("group", { name: "slept" })).toBeTruthy();
+    expect(screen.getByRole("radiogroup", { name: "Slept" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(screen.queryByRole("group", { name: "slept" })).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "Slept" })).toBeNull();
   });
 
   it("renders nothing without a write path", () => {

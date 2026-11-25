@@ -214,7 +214,10 @@ export function Switch({ checked, onChange, labelledBy, label, disabled = false 
 
 // A block that closes without unmounting, so what follows moves once.
 export function Fold({ open, id, children }) {
-  return <div id={id} className={`fold${open ? "" : " is-shut"}`}><div>{children}</div></div>;
+  const ref = useRef(null);
+  // A shut fold is out of reach at once, not only when its closing transition ends.
+  useEffect(() => { if (ref.current) ref.current.inert = !open; }, [open]);
+  return <div ref={ref} id={id} className={`fold${open ? "" : " is-shut"}`} aria-hidden={open ? undefined : true}><div>{children}</div></div>;
 }
 
 // A row that goes somewhere: label, an optional second line, a chevron.
