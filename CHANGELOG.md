@@ -3,6 +3,10 @@
 One entry per release, newest first, from the first beta builds to the current version. The detailed notes each
 release shipped with are in the repository's history, before the notes were folded into this file.
 
+## 19.9.0 — Google Health retired
+
+The Google Health/Fitbit integration, which never left its feature flag, is gone: client, server functions, Settings card, landing-page disclosure, Search Console tag and policy text. The CSP no longer allows Google's domains. Run `supabase/migration_v35_drop_google_health.sql` with this deploy.
+
 ## 19.8.0 — Fewer moving parts
 
 Social boards, the coaching approval loop, four hidden presets and four unused Today components are gone. Progress → Coach is a read-only weekly review plus the clinician guardrails, an old plan version no longer changes sessions, and the check-in lives at the top of Today. Run `supabase/migration_v34_drop_social.sql` with this deploy.
