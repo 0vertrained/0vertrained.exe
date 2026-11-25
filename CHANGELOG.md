@@ -3,6 +3,10 @@
 One entry per release, newest first, from the first beta builds to the current version. The detailed notes each
 release shipped with are in the repository's history, before the notes were folded into this file.
 
+## 19.7.0 — Form Check retired
+
+Form Check is gone from the quick-log sheet, Profile and Progress, along with its analyzers, its Netlify proxy and the site's camera permission. Progress keeps four tabs: Overview, Coach, Program and History.
+
 ## 19.6.1 — The sleep-debt ceiling holds
 
 ## 19.6.0 — Less on every screen
