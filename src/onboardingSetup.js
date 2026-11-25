@@ -168,7 +168,7 @@ function normalizeGoals(input, fallback) {
 const GOAL_TO_PROGRAM_PRESET = {
   hybrid: "hybrid",
   muscle: "bodybuilding",
-  strength: "powerlifting",
+  strength: "hybrid",
   fat_loss: "hybrid",
   endurance: "running",
 };

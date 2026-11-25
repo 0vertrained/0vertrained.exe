@@ -82,12 +82,10 @@ describe("Switch preset lineup", () => {
     expect(presetProgram("no-such-preset")).toBe(DEFAULT_PROGRAM);
   });
 
-  it("presets left out stay defined for anyone on them and for onboarding's legacy path", () => {
-    for (const id of ["highIntensityHybrid", "ramiHybridCut", "raceEdition50k", "powerlifting", "beginner"]) {
-      expect(PROGRAM_PRESETS[id], id).toBeTruthy();
-      expect(PRESET_LINEUP).not.toContain(id);
-    }
-    expect(resolveOnboardingProgramPreset("strength")).toBe("powerlifting");
+  it("keeps only the lineup and the unlisted 50K race build", () => {
+    expect(Object.keys(PROGRAM_PRESETS).sort()).toEqual([...PRESET_LINEUP, "raceEdition50k"].sort());
+    expect(PRESET_LINEUP).not.toContain("raceEdition50k");
+    expect(resolveOnboardingProgramPreset("strength")).toBe("hybrid");
     expect(resolveOnboardingProgramPreset("muscle")).toBe("bodybuilding");
     expect(resolveOnboardingProgramPreset("endurance")).toBe("running");
   });

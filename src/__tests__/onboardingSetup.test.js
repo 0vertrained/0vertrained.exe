@@ -97,8 +97,8 @@ describe("program preset resolution", () => {
     expect(PROGRAM_PRESETS.hybrid).toBeTruthy();
   });
 
-  it("maps strength → powerlifting and endurance → running", () => {
-    expect(resolveOnboardingProgramPreset("strength")).toBe("powerlifting");
+  it("maps strength → hybrid and endurance → running", () => {
+    expect(resolveOnboardingProgramPreset("strength")).toBe("hybrid");
     expect(resolveOnboardingProgramPreset("endurance")).toBe("running");
     expect(resolveOnboardingProgramPreset("muscle")).toBe("bodybuilding");
   });

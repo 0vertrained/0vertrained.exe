@@ -36,13 +36,13 @@ const SPEC = {
   benchmark: null, benchmarkTest: "2026-11-26",
 };
 const LINEUP_NAMES = PRESET_LINEUP.map((id) => PROGRAM_PRESETS[id].name);
-const UNLISTED_NAMES = ["highIntensityHybrid", "ramiHybridCut", "raceEdition50k", "powerlifting", "beginner"].map((id) => PROGRAM_PRESETS[id].name);
+const UNLISTED_NAMES = ["raceEdition50k"].map((id) => PROGRAM_PRESETS[id].name);
 
 function openPicker({ program = DEFAULT_PROGRAM } = {}) {
   const onSaveProgram = vi.fn(async () => true);
   render(
     <ThemeProvider>
-      <MoreTab program={program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={vi.fn()} settings={{}} allData={{}} showToast={vi.fn()} myUsername="athlete" />
+      <MoreTab program={program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={vi.fn()} settings={{}} allData={{}} showToast={vi.fn()} />
     </ThemeProvider>,
   );
   fireEvent.click(screen.getByText("Switch preset").closest("button"));
@@ -116,7 +116,7 @@ describe("Program editor", () => {
     const onSaveProgram = vi.fn(async () => true);
     render(
       <ThemeProvider>
-        <MoreTab program={PROGRAM_PRESETS.hybrid.program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={vi.fn()} settings={{}} allData={{}} showToast={vi.fn()} myUsername="athlete" />
+        <MoreTab program={PROGRAM_PRESETS.hybrid.program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={vi.fn()} settings={{}} allData={{}} showToast={vi.fn()} />
       </ThemeProvider>,
     );
     fireEvent.click(screen.getByText("Edit weekly program").closest("button"));

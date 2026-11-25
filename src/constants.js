@@ -330,185 +330,6 @@ export const PROGRAM_PRESETS = {
       Sunday: { type: "Full Rest", code: "REST", lifting: [], cardio: null },
     },
   },
-  highIntensityHybrid: {
-    id: "highIntensityHybrid",
-    name: "Aggressive 2-a-Day Strength + Recomp",
-    desc: "AM/PM lifting split with cardio in both sessions. Advanced workload; readiness-gated for strength, muscle, cardio, and fat loss.",
-    tags: ["2x/day", "Strength", "Hypertrophy", "Cardio", "Advanced"],
-    program: {
-      Monday: {
-        type: "Upper Strength + Lower Hypertrophy", code: "AM/PM",
-        lifting: [], cardio: null,
-        sessions: [
-          { id:"am", label:"AM", title:"Upper Strength", timeOfDay:"morning", emphasis:"Heavy compounds · 1-2 RIR", lifting:[
-            {name:"Barbell Bench Press",sets:2,reps:3,notes:"Heavy but clean. Leave 1-2 reps in reserve — no grinders."},
-            {name:"Weighted Pull-Up",sets:2,reps:5,notes:"Full hang, controlled top. Use lat pulldown if needed."},
-            {name:"Overhead Press",sets:2,reps:5,notes:"Brace hard. Stop before technical breakdown."},
-            {name:"Barbell Row",sets:2,reps:6,notes:"Explosive pull, controlled lower."},
-            {name:"Face Pull",sets:2,reps:15,notes:"Shoulder health; do not skip."},
-          ], cardio:{type:"Zone 2 Run",miles:3,effort:"Easy",notes:"Conversational. If legs feel flat, bike/row Zone 2 instead."} },
-          { id:"pm", label:"PM", title:"Lower Hypertrophy", timeOfDay:"evening", emphasis:"Volume · controlled tempo", lifting:[
-            {name:"Front Squat",sets:2,reps:8,notes:"Controlled depth. Leave 2 RIR."},
-            {name:"Romanian Deadlift",sets:2,reps:8,notes:"Hamstring stretch, neutral spine."},
-            {name:"Leg Press",sets:2,reps:12,notes:"Full range. Do not lock out aggressively."},
-            {name:"Walking Lunges",sets:2,reps:12,notes:"Per leg. Smooth reps."},
-            {name:"Seated Calf Raise",sets:2,reps:15,notes:"Pause stretch and contraction."},
-          ], cardio:{type:"Incline Walk",miles:2,effort:"Very Easy",notes:"Recovery-biased. Drop this first if readiness is low."} },
-        ],
-      },
-      Tuesday: {
-        type: "Lower Strength + Upper Hypertrophy", code: "AM/PM",
-        lifting: [], cardio: null,
-        sessions: [
-          { id:"am", label:"AM", title:"Lower Strength", timeOfDay:"morning", emphasis:"Squat/deadlift strength", lifting:[
-            {name:"Back Squat",sets:2,reps:3,notes:"Heavy triples, 1-2 RIR."},
-            {name:"Conventional Deadlift",sets:2,reps:3,notes:"Fast reps only. Stop before grind."},
-            {name:"Bulgarian Split Squat",sets:2,reps:8,notes:"Per leg."},
-            {name:"Lying Leg Curl",sets:2,reps:10,notes:"Controlled eccentric."},
-            {name:"Standing Calf Raise",sets:2,reps:12,notes:"Heavy, full range."},
-          ], cardio:{type:"Zone 2 Bike/Run",miles:3,effort:"Easy",notes:"Low-impact if squat/deadlift fatigue is high."} },
-          { id:"pm", label:"PM", title:"Upper Hypertrophy", timeOfDay:"evening", emphasis:"Chest/back/shoulders volume", lifting:[
-            {name:"Incline DB Press",sets:2,reps:10,notes:"Deep stretch."},
-            {name:"Chest-Supported Row",sets:2,reps:10,notes:"Squeeze shoulder blades."},
-            {name:"Cable Fly",sets:2,reps:12,notes:"1-sec peak squeeze."},
-            {name:"Lat Pulldown",sets:2,reps:12,notes:"Elbows down and in."},
-            {name:"Cable Lateral Raise",sets:2,reps:15,notes:"Strict reps."},
-          ], cardio:{type:"Easy Run",miles:2,effort:"Easy",notes:"Keep it aerobic. No racing."} },
-        ],
-      },
-      Wednesday: {
-        type: "Pull Strength + Push/Arms", code: "AM/PM",
-        lifting: [], cardio: null,
-        sessions: [
-          { id:"am", label:"AM", title:"Pull Strength", timeOfDay:"morning", emphasis:"Heavy back + posterior chain", lifting:[
-            {name:"Weighted Chin-Up",sets:2,reps:4,notes:"Add load only if all reps are crisp."},
-            {name:"Pendlay Row",sets:2,reps:5,notes:"Reset each rep."},
-            {name:"Rack Pull",sets:2,reps:5,notes:"Heavy hinge accessory, no maxing."},
-            {name:"Rear Delt Fly",sets:2,reps:15,notes:"Strict."},
-            {name:"Hammer Curl",sets:2,reps:10,notes:"No swing."},
-          ], cardio:{type:"Zone 2 Run",miles:3,effort:"Easy",notes:"Base work. Keep it boring."} },
-          { id:"pm", label:"PM", title:"Push + Arms Hypertrophy", timeOfDay:"evening", emphasis:"Pump work", lifting:[
-            {name:"DB Bench Press",sets:2,reps:10,notes:"Controlled range."},
-            {name:"Seated DB Shoulder Press",sets:2,reps:10,notes:"Stop if shoulders feel unstable."},
-            {name:"Dips",sets:2,reps:10,notes:"Weighted only if clean."},
-            {name:"EZ Bar Curl",sets:2,reps:12,notes:"Slow negative."},
-            {name:"Rope Pushdown",sets:2,reps:15,notes:"Full extension."},
-          ], cardio:{type:"Tempo Intervals",miles:2.5,effort:"Moderate",notes:"Short controlled tempo, not a race. Skip if readiness is suppressed."} },
-        ],
-      },
-      Thursday: {
-        type: "Lower Volume + Upper Volume", code: "AM/PM",
-        lifting: [], cardio: null,
-        sessions: [
-          { id:"am", label:"AM", title:"Lower Volume", timeOfDay:"morning", emphasis:"Quad/glute volume", lifting:[
-            {name:"Hack Squat",sets:2,reps:10,notes:"Deep, controlled."},
-            {name:"Hip Thrust",sets:2,reps:10,notes:"Pause at top."},
-            {name:"Leg Extension",sets:2,reps:15,notes:"Squeeze hard."},
-            {name:"Seated Leg Curl",sets:2,reps:12,notes:"Full range."},
-            {name:"Tibialis Raise",sets:2,reps:15,notes:"Lower-leg durability."},
-          ], cardio:{type:"Easy Run",miles:2.5,effort:"Easy",notes:"Aerobic only."} },
-          { id:"pm", label:"PM", title:"Upper Volume", timeOfDay:"evening", emphasis:"Back/chest density", lifting:[
-            {name:"Close-Grip Bench Press",sets:2,reps:8,notes:"Triceps bias."},
-            {name:"Cable Row",sets:2,reps:12,notes:"Constant tension."},
-            {name:"Machine Chest Press",sets:2,reps:12,notes:"Pump work."},
-            {name:"Single-Arm Pulldown",sets:2,reps:12,notes:"Lat focus."},
-            {name:"Lateral Raise Mechanical Dropset",sets:2,reps:15,notes:"Strict then partials."},
-          ], cardio:{type:"Incline Walk",miles:2,effort:"Very Easy",notes:"Recovery flush."} },
-        ],
-      },
-      Friday: {
-        type: "Full-Body Power + Posterior Chain", code: "AM/PM",
-        lifting: [], cardio: null,
-        sessions: [
-          { id:"am", label:"AM", title:"Full-Body Power", timeOfDay:"morning", emphasis:"Power without misses", lifting:[
-            {name:"Power Clean",sets:2,reps:3,notes:"Technique speed. No ugly catches."},
-            {name:"Push Press",sets:2,reps:4,notes:"Explosive, controlled lockout."},
-            {name:"Trap Bar Deadlift",sets:2,reps:5,notes:"Heavy but fast."},
-            {name:"Box Jump",sets:2,reps:5,notes:"Full reset between reps."},
-            {name:"Farmer Carry",sets:2,reps:40,notes:"40 yards. Brace."},
-          ], cardio:{type:"Zone 2 Run",miles:3,effort:"Easy",notes:"Keep intensity down after power work."} },
-          { id:"pm", label:"PM", title:"Posterior Chain + Back", timeOfDay:"evening", emphasis:"Hypertrophy accessories", lifting:[
-            {name:"Romanian Deadlift",sets:2,reps:10,notes:"Moderate load."},
-            {name:"Glute-Ham Raise",sets:2,reps:8,notes:"Use assistance if needed."},
-            {name:"T-Bar Row",sets:2,reps:10,notes:"Hard squeeze."},
-            {name:"Back Extension",sets:2,reps:12,notes:"Glute focus."},
-            {name:"Cable Curl",sets:2,reps:15,notes:"Pump finisher."},
-          ], cardio:{type:"Easy Run",miles:2,effort:"Easy",notes:"Optional if strain is high."} },
-        ],
-      },
-      Saturday: {
-        type: "Hypertrophy Pump + Optional Core", code: "AM/PM",
-        lifting: [], cardio: null,
-        sessions: [
-          { id:"am", label:"AM", title:"Hypertrophy Pump", timeOfDay:"morning", emphasis:"Lower joint stress", lifting:[
-            {name:"Machine Shoulder Press",sets:2,reps:12,notes:"Smooth reps."},
-            {name:"Pulldown",sets:2,reps:12,notes:"Lat focus."},
-            {name:"Leg Press",sets:2,reps:15,notes:"Moderate load."},
-            {name:"Cable Fly",sets:2,reps:15,notes:"Pump."},
-            {name:"Superset Curl + Pushdown",sets:2,reps:15,notes:"Each movement."},
-          ], cardio:{type:"Long Zone 2",miles:4,effort:"Zone 2",notes:"Weekly aerobic anchor. Cut to 2 miles if fatigue is accumulating."} },
-          { id:"pm", label:"PM", title:"Optional Arms + Core", timeOfDay:"evening", emphasis:"Optional recovery-biased work", lifting:[
-            {name:"Hanging Leg Raise",sets:2,reps:12,notes:"Controlled."},
-            {name:"Cable Crunch",sets:2,reps:15,notes:"Exhale hard."},
-            {name:"Incline DB Curl",sets:2,reps:12,notes:"Optional."},
-            {name:"Overhead Tricep Extension",sets:2,reps:12,notes:"Optional."},
-          ], cardio:{type:"Recovery Walk",miles:1,effort:"Very Easy",notes:"Only if it helps you feel better. Skip when readiness is low."} },
-        ],
-      },
-      Sunday: { type:"Full Rest", code:"REST", lifting:[], cardio:null, sessions:[] },
-    },
-  },
-  ramiHybridCut: {
-    id: "ramiHybridCut",
-    name: "Rami · Aggressive Hybrid Cut",
-    desc: "Five focused lifting sessions, three runs, two low-impact aerobic sessions, and one optional pump session. AM/PM structure prioritizes fat loss, V-taper hypertrophy, strength retention, and 5K development.",
-    tags: ["AM/PM", "Cut", "Hypertrophy", "Running", "Advanced"],
-    program: {
-      Monday: { type:"Threshold + Upper Strength", code:"RUN / UPPER", lifting:[], cardio:null, sessions:[
-        { id:"am", label:"AM", title:"Threshold Run", timeOfDay:"morning", emphasis:"Controlled hard · never a race", lifting:[], cardio:{type:"Threshold Intervals",miles:4,effort:"Hard",notes:"10 min easy, 4 × 5 min controlled hard with 2 min easy, 10 min cool-down. Progress to 3 × 8 min in block 2."}},
-        { id:"pm", label:"PM", title:"Upper Strength", timeOfDay:"evening", emphasis:"Heavy compounds · 1–2 RIR", lifting:[
-          {name:"Incline Smith Press",sets:4,reps:6,notes:"5–8 reps. Add load after all four sets reach 8 clean reps."},
-          {name:"Neutral-Grip Lat Pulldown",sets:4,reps:7,notes:"6–8 reps. Full stretch, drive elbows down."},
-          {name:"Chest-Supported Row",sets:4,reps:8,notes:"6–10 reps. No torso momentum."},
-          {name:"Machine Chest Press",sets:3,reps:8,notes:"6–10 reps. Controlled eccentric."},
-          {name:"Seated Shoulder Press",sets:3,reps:8,notes:"6–10 reps. Stop before technical failure."},
-          {name:"Cable Lateral Raise",sets:4,reps:15,notes:"12–20 strict reps."},
-          {name:"Cable Crunch",sets:3,reps:12,notes:"10–15 reps."},
-        ], cardio:null },
-      ]},
-      Tuesday: { type:"Aerobic + Lower Strength", code:"ZONE 2 / LOWER", lifting:[], cardio:null, sessions:[
-        { id:"am", label:"AM", title:"Easy Aerobic", timeOfDay:"morning", emphasis:"Recovery-supportive", lifting:[], cardio:{type:"Bike / Elliptical / Incline Walk",miles:2.5,effort:"Easy",notes:"30–40 min conversational. Keep legs fresh for PM strength."}},
-        { id:"pm", label:"PM", title:"Lower Strength", timeOfDay:"evening", emphasis:"Heavy, crisp work · 1–2 RIR", lifting:[
-          {name:"Hack Squat",sets:4,reps:6,notes:"5–8 reps. Full controlled depth."},{name:"Romanian Deadlift",sets:4,reps:7,notes:"6–8 reps. Long hamstring position."},{name:"Bulgarian Split Squat",sets:3,reps:9,notes:"8–10 per side."},{name:"Seated Leg Curl",sets:4,reps:10,notes:"8–12 reps."},{name:"Leg Extension",sets:2,reps:14,notes:"12–15 reps; final set may approach failure."},{name:"Standing Calf Raise",sets:4,reps:10,notes:"8–12 with pauses."},{name:"Hanging Leg Raise",sets:3,reps:12,notes:"8–15 controlled."}
-        ], cardio:null },
-      ]},
-      Wednesday: { type:"Recovery Walk + Delts / Arms", code:"WALK / SPECIALIZATION", lifting:[], cardio:null, sessions:[
-        { id:"am", label:"AM", title:"Incline Recovery Walk", timeOfDay:"morning", emphasis:"Low fatigue · daily movement", lifting:[], cardio:{type:"Incline Walk",miles:2.5,effort:"Very Easy",notes:"35–45 min. Nasal-breathing effort."}},
-        { id:"pm", label:"PM", title:"Delts, Arms & Abs", timeOfDay:"evening", emphasis:"V-taper specialization", lifting:[
-          {name:"Machine Shoulder Press",sets:3,reps:10,notes:"8–12 reps."},{name:"Cable Lateral Raise",sets:5,reps:16,notes:"12–20; final set may reach technical failure."},{name:"Reverse Pec Deck",sets:4,reps:16,notes:"12–20 strict."},{name:"Rear-Delt Row",sets:3,reps:12,notes:"10–15 reps."},{name:"EZ-Bar Curl",sets:3,reps:10,notes:"8–12 reps."},{name:"Incline Dumbbell Curl",sets:3,reps:12,notes:"10–15 reps."},{name:"Hammer Curl",sets:2,reps:12,notes:"10–15 reps."},{name:"Overhead Cable Triceps Extension",sets:4,reps:10,notes:"8–12 reps."},{name:"Rope Pressdown",sets:3,reps:12,notes:"10–15 reps."},{name:"Cable Crunch",sets:4,reps:12,notes:"10–15 reps."}
-        ], cardio:null },
-      ]},
-      Thursday: { type:"Easy Run + Lower Hypertrophy", code:"RUN / LOWER", lifting:[], cardio:null, sessions:[
-        { id:"am", label:"AM", title:"Easy Run", timeOfDay:"morning", emphasis:"Aerobic base", lifting:[], cardio:{type:"Easy Run",miles:4,effort:"Easy",notes:"40–50 min conversational. Add time before pace."}},
-        { id:"pm", label:"PM", title:"Lower Hypertrophy", timeOfDay:"evening", emphasis:"Volume without grinding", lifting:[
-          {name:"Hip Thrust",sets:4,reps:10,notes:"8–12 reps."},{name:"Leg Press",sets:4,reps:12,notes:"10–15 reps."},{name:"Lying Leg Curl",sets:4,reps:12,notes:"10–15 reps."},{name:"Reverse Lunge",sets:3,reps:11,notes:"10–12 per side."},{name:"Leg Extension",sets:3,reps:16,notes:"12–20 reps."},{name:"Seated Calf Raise",sets:5,reps:15,notes:"12–20 reps."},{name:"Pallof Press",sets:3,reps:12,notes:"12 per side."}
-        ], cardio:null },
-      ]},
-      Friday: { type:"Zone 2 + Upper Hypertrophy", code:"ZONE 2 / UPPER", lifting:[], cardio:null, sessions:[
-        { id:"am", label:"AM", title:"Zone 2 Conditioning", timeOfDay:"morning", emphasis:"Aerobic volume · low impact", lifting:[], cardio:{type:"Bike / Elliptical",miles:3,effort:"Zone 2",notes:"40–50 min. Smooth, sustainable output."}},
-        { id:"pm", label:"PM", title:"Upper Hypertrophy", timeOfDay:"evening", emphasis:"Upper chest, lats, delts", lifting:[
-          {name:"Incline Machine Press",sets:4,reps:10,notes:"8–12 reps."},{name:"Single-Arm Lat Pulldown",sets:4,reps:10,notes:"8–12 per side."},{name:"Flat Dumbbell Press",sets:3,reps:10,notes:"8–12 reps."},{name:"Single-Arm Cable Row",sets:4,reps:12,notes:"10–15 per side."},{name:"Pec Deck",sets:3,reps:15,notes:"12–20 reps."},{name:"Straight-Arm Pulldown",sets:3,reps:15,notes:"12–20 reps."},{name:"Cable Lateral Raise",sets:4,reps:18,notes:"15–25 reps."},{name:"Reverse Pec Deck",sets:3,reps:18,notes:"15–25 reps."},{name:"Cable Curl",sets:3,reps:12,notes:"10–15 reps."},{name:"Rope Pressdown",sets:3,reps:12,notes:"10–15 reps."}
-        ], cardio:null },
-      ]},
-      Saturday: { type:"Long Run + Optional Pump", code:"LONG / OPTIONAL", lifting:[], cardio:null, sessions:[
-        { id:"am", label:"AM", title:"Long Easy Run", timeOfDay:"morning", emphasis:"Weekly aerobic anchor", lifting:[], cardio:{type:"Long Easy Run",miles:6,effort:"Easy",notes:"Start at 60 min; add 5 min after successful weeks, cap at 90 min. Conversational throughout."}},
-        { id:"pm", label:"PM", title:"Optional Pump", timeOfDay:"evening", emphasis:"Optional · skip before it harms recovery", notes:"Optional session. Complete only when sleep, joints, and running performance are good.", lifting:[
-          {name:"Cable Lateral Raise",sets:4,reps:20,notes:"15–25 reps."},{name:"Preacher Curl",sets:3,reps:12,notes:"10–15 reps."},{name:"Overhead Rope Extension",sets:3,reps:12,notes:"10–15 reps."},{name:"Calf Raise",sets:4,reps:16,notes:"12–20 reps."},{name:"Cable Crunch",sets:3,reps:15,notes:"12–20 reps."}
-        ], cardio:null },
-      ]},
-      Sunday: { type:"Full Recovery", code:"RECOVER", lifting:[], cardio:null, sessions:[] },
-    },
-  },
   doubleEdition: {
     id: "doubleEdition",
     name: "The Double Edition",
@@ -742,21 +563,6 @@ export const PROGRAM_PRESETS = {
       Sunday: { type: "Rest", code: "REST", lifting: [], cardio: null },
     },
   },
-  powerlifting: {
-    id: "powerlifting",
-    name: "Powerlifting",
-    desc: "Squat, bench, deadlift and accessories. 4 days, heavy.",
-    tags: ["Strength", "Heavy", "Competition"],
-    program: {
-      Monday:    { type:"Squat Focus",         code:"SQUAT",    lifting:[{name:"Back Squat",sets:5,reps:3},{name:"Romanian Deadlift",sets:3,reps:5},{name:"Leg Press",sets:3,reps:8},{name:"Walking Lunges",sets:3,reps:8},{name:"Leg Curl",sets:3,reps:10}], cardio:null },
-      Tuesday:   { type:"Bench Focus",         code:"BENCH",    lifting:[{name:"Barbell Bench Press",sets:5,reps:3},{name:"Close Grip Bench",sets:3,reps:5},{name:"DB Press",sets:3,reps:8},{name:"Tricep Pushdowns",sets:3,reps:10},{name:"Lateral Raises",sets:3,reps:12}], cardio:null },
-      Wednesday: { type:"Rest",                code:"REST",     lifting:[], cardio:null },
-      Thursday:  { type:"Deadlift Focus",      code:"DEAD",     lifting:[{name:"Conventional Deadlift",sets:5,reps:3},{name:"Deficit Deadlift",sets:3,reps:5},{name:"Barbell Row",sets:3,reps:6},{name:"Lat Pulldown",sets:3,reps:8},{name:"Face Pulls",sets:3,reps:15}], cardio:null },
-      Friday:    { type:"Overhead & Accessory",code:"OHP",      lifting:[{name:"Overhead Press",sets:4,reps:5},{name:"Seated DB Press",sets:3,reps:8},{name:"Barbell Curl",sets:3,reps:8},{name:"Skull Crushers",sets:3,reps:10},{name:"Core Work",sets:3,reps:15}], cardio:null },
-      Saturday:  { type:"Rest",                code:"REST",     lifting:[], cardio:null },
-      Sunday:    { type:"Rest",                code:"REST",     lifting:[], cardio:null },
-    },
-  },
   running: {
     id: "running",
     name: "Runner",
@@ -827,21 +633,6 @@ export const PROGRAM_PRESETS = {
       Sunday: { type: "Rest", code: "REST", lifting: [], cardio: null },
     },
   },
-  beginner: {
-    id: "beginner",
-    name: "Beginner Full Body",
-    desc: "3 days per week. Squat, hinge, push, pull — the fundamentals.",
-    tags: ["Beginner", "Full Body", "3 Days"],
-    program: {
-      Monday:    { type:"Full Body A",         code:"LIFT A",   lifting:[{name:"Squat",sets:3,reps:8},{name:"Bench Press",sets:3,reps:8},{name:"Barbell Row",sets:3,reps:8},{name:"Overhead Press",sets:3,reps:8},{name:"Plank",sets:3,reps:45}], cardio:{type:"Easy Walk/Run",miles:1.5,effort:"Light",notes:"Light cardio to finish — walk or easy jog."} },
-      Tuesday:   { type:"Rest",                code:"REST",     lifting:[], cardio:null },
-      Wednesday: { type:"Full Body B",         code:"LIFT B",   lifting:[{name:"Deadlift",sets:3,reps:6},{name:"Incline DB Press",sets:3,reps:10},{name:"Lat Pulldown",sets:3,reps:10},{name:"DB Lunges",sets:3,reps:10},{name:"Calf Raises",sets:3,reps:15}], cardio:{type:"Easy Walk/Run",miles:1.5,effort:"Light",notes:"Light cardio to finish."} },
-      Thursday:  { type:"Rest",                code:"REST",     lifting:[], cardio:null },
-      Friday:    { type:"Full Body C",         code:"LIFT C",   lifting:[{name:"Goblet Squat",sets:3,reps:10},{name:"Push-Ups",sets:3,reps:12},{name:"DB Row",sets:3,reps:10},{name:"Romanian Deadlift",sets:3,reps:10},{name:"Core Work",sets:3,reps:15}], cardio:{type:"Easy Walk/Run",miles:1.5,effort:"Light",notes:"Light cardio to finish."} },
-      Saturday:  { type:"Active Recovery",     code:"ACTIVE",   lifting:[], cardio:{type:"Easy Walk",miles:2,effort:"Very Light",notes:"Optional — light walk or stretching only."} },
-      Sunday:    { type:"Rest",                code:"REST",     lifting:[], cardio:null },
-    },
-  },
   calisthenics: {
     id: "calisthenics",
     name: "Calisthenics",
@@ -910,11 +701,10 @@ export const PROGRAM_PRESETS = {
   },
 };
 
-// What Switch preset lists, in this order: one plan per kind of
-// athlete. Presets left out stay defined. A loaded preset is copied into the
-// account's program, so nobody already on one is affected; onboarding's legacy
-// path and the presets' own tests still read them, and any can come back by
-// adding its id here.
+// What Switch preset lists, in this order: one plan per kind of athlete.
+// The 50K preset stays defined but unlisted: its race build drives the
+// race-plan resolver's tests. A loaded preset is copied into the account's
+// program, so removing a preset never changes anyone already on it.
 export const PRESET_LINEUP = ["hybrid", "bodybuilding", "calisthenics", "running", "doubleEdition"];
 
 // The program a preset loads. A preset without one of its own loads
