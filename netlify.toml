@@ -19,12 +19,12 @@
     X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(self), microphone=(), geolocation=(), payment=()"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
     # V12.1 CSP tightening:
     #  · script-src drops 'unsafe-inline' — Vite production builds emit no
     #    inline scripts, so it only widened the XSS blast radius.
     #  · connect-src drops the https://*.run.app wildcard (it whitelisted every
-    #    Cloud Run service on the internet); the specific formcheck host stays.
+    #    Cloud Run service on the internet).
     #  · style-src/font-src drop Google's domains — fonts are self-hosted via
     #    @fontsource (src/fonts.js). style-src keeps 'unsafe-inline' because
     #    React style props require it.
