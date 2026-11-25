@@ -719,10 +719,8 @@ function AppInner({ onThemeChange }) {
     return { ok: true };
   };
 
-  // Persist coaching-system changes without opening or closing the
-  // generic Settings screen. Approved plan versions can update the real goal
-  // targets, while guardrails, projection ranges, and notification policy stay
-  // namespaced under settings.coachingSystem.
+  // Persist the clinician guardrails (settings.coachingSystem) from
+  // Progress → Coach without opening or closing the generic Settings screen.
   const handleSaveCoachingSystemSettings = async (nextSettings) => {
     const merged = { ...settings, ...nextSettings };
     if (demoMode) {

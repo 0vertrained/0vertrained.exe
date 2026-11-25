@@ -57,7 +57,7 @@ describe("V19 coach evidence packets", () => {
     expect(classifyCoachQuestion("Analyze which intervention worked over the last 12 weeks.").routeHint).toBe("deep");
   });
 
-  it("includes hard constraints, the active plan, today, weekly evidence, and missing-data honesty", () => {
+  it("includes hard constraints, today, weekly evidence, and missing-data honesty", () => {
     const packet = buildCoachEvidencePacket({
       question: "Should I reduce calories because my weight has not moved?",
       data,
@@ -70,7 +70,8 @@ describe("V19 coach evidence packets", () => {
     });
     const types = packet.evidence.map((item) => item.type);
     expect(types).toContain("clinician_guardrails");
-    expect(types).toContain("active_plan");
+    // A stored plan version from the retired approval flow is not cited.
+    expect(types).not.toContain("active_plan");
     expect(types).toContain("today");
     expect(types).toContain("weekly_comparison");
     expect(types).toContain("wearable_recovery");

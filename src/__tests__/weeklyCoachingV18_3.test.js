@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWeeklyCoachReview, buildWeeklyReviewResponse } from "../weeklyCoachReview";
+import { buildWeeklyCoachReview } from "../weeklyCoachReview";
 
 const endKey = "2026-07-20";
 
@@ -82,14 +82,5 @@ const calibrated = { authority: "calibrated", confidenceAdjustment: 0, falsePosi
     });
     expect(["recovery", "diet_break"]).toContain(result.recommendation.kind);
     expect(result.recommendation.summary.toLowerCase()).toMatch(/do not reduce calories|hold restriction/);
-  });
-
-  it("persists a review response with the comparison baseline", () => {
-    const review = buildWeeklyCoachReview({ data: twoWeeks(), goals, weekEndKey: endKey, calibrationProfile: calibrated });
-    const response = buildWeeklyReviewResponse(review, "modified", { modifiedKind: "recovery", reason: "Leg fatigue" });
-    expect(response.response).toBe("modified");
-    expect(response.modifiedKind).toBe("recovery");
-    expect(response.baseline.loggedDays).toBe(7);
-    expect(response.baseline.weight).toBeGreaterThan(0);
   });
 });

@@ -9,7 +9,6 @@ import { buildCoachContext } from "./coachContextBuilder";
 import { buildDailyLoads, computeRollingLoads } from "./loadModel";
 import { buildDecisionContext, getDailyRecommendation, summarizeRecommendationForCoach } from "./decisionEngine";
 import { MarkdownMessage } from "./MarkdownMessage";
-import { buildOutcomeLoop } from "./coachingOutcomeLoop";
 import { buildCoachEvidencePacket } from "./coachEvidence";
 
 //  Coach — embedded AI assistant (mobile-first floating button + slide-up sheet)
@@ -123,24 +122,9 @@ export function buildSlice({ data, settings, program, todayKey, todayName }) {
 
   let coachingSystem = null;
   try {
-    const loop = buildOutcomeLoop({ data, settings, todayKey });
-    const activePlan = settings?.coachingSystem?.activePlan || loop.activePlan;
-    const latestOutcome = loop.evaluated?.[0] || null;
     const guardrails = settings?.coachingSystem?.clinicianGuardrails || null;
     coachingSystem = {
       phase: settings?.coachingPhase?.phase || settings?.coachingSystem?.phase || null,
-      activePlan: activePlan ? {
-        label: activePlan.label || null,
-        effectiveDate: activePlan.effectiveDate || null,
-        recommendationKind: activePlan.recommendationKind || null,
-        goals: activePlan.snapshot?.goals || null,
-        trainingModifiers: activePlan.snapshot?.trainingModifiers || null,
-      } : null,
-      latestOutcome: latestOutcome ? {
-        recommendationKind: latestOutcome.kind,
-        status: latestOutcome.outcome?.status,
-        label: latestOutcome.outcome?.label,
-      } : null,
       clinicianGuardrails: guardrails?.enabled === true ? {
         enabled: true,
         exerciseHeartRateGuidance: guardrails.exerciseHeartRateGuidance || null,

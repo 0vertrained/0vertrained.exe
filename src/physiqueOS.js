@@ -78,7 +78,6 @@ export function buildOperatingTargets({ mode = "full", goals = {}, settings = {}
   const calories = Math.max(0, rounded(goals.calories, 2400));
   const baseProtein = Math.max(0, rounded(goals.protein, 200));
   const configuredSteps = rounded(goals.steps, rounded(settings?.physiqueOS?.stepTarget, DAY_MODES.full.stepTarget));
-  const activeModifiers = settings?.coachingSystem?.activePlan?.snapshot?.trainingModifiers || {};
   const fullSteps = Math.max(1000, configuredSteps);
   const stepTarget = selected.key === "full"
     ? fullSteps
@@ -100,9 +99,6 @@ export function buildOperatingTargets({ mode = "full", goals = {}, settings = {}
     protein,
     steps: stepTarget,
     sleepHours: selected.sleepTarget,
-    volumeReductionPct: Math.max(0, rounded(activeModifiers.volumeReductionPct, 0)),
-    cardioMinutesDelta: rounded(activeModifiers.cardioMinutesDelta, 0),
-    activePlanLabel: settings?.coachingSystem?.activePlan?.label || null,
   };
 }
 

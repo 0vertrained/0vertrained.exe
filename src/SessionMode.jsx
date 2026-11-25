@@ -127,14 +127,7 @@ export function SessionMode({
   const scrollRef = useRef(null);
   const hapticsEnabled = settings?.trainingCues?.haptics !== false;
   const restAudioEnabled = settings?.trainingCues?.restAudio === true;
-  const activePlan = settings?.coachingSystem?.activePlan || null;
-  const activeVolumeReduction = Math.max(0, Math.min(60, Number.parseFloat(activePlan?.snapshot?.trainingModifiers?.volumeReductionPct) || 0));
-  const lifting = useMemo(() => (configuredLifting || []).map((item) => ({
-    ...item,
-    sets: activeVolumeReduction > 0
-      ? Math.max(1, Math.ceil((Number.parseInt(item.sets, 10) || 1) * (1 - activeVolumeReduction / 100)))
-      : item.sets,
-  })), [configuredLifting, activeVolumeReduction]);
+  const lifting = useMemo(() => configuredLifting || [], [configuredLifting]);
   const clinicianGuardrails = settings?.coachingSystem?.clinicianGuardrails || {};
   const hardStop = clinicianGuardrails.enabled === true && safetyFlag === true;
   const [browserOnline, setBrowserOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
@@ -386,12 +379,6 @@ export function SessionMode({
           <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.13em", textTransform: "uppercase", color: hardStop ? C.red : C.amber }}>{hardStop ? "Clinician stop rule active" : "Clinician constraints active"}</div>
           <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.45, color: C.text }}>{hardStop ? clinicianGuardrails.stopRules : clinicianGuardrails.trainingRestrictions || clinicianGuardrails.exerciseHeartRateGuidance}</div>
           {hardStop && clinicianGuardrails.emergencyInstructions && <div style={{ marginTop: 4, fontFamily: mono, fontSize: 10, color: C.textDim }}>{clinicianGuardrails.emergencyInstructions}</div>}
-        </div>
-      )}
-
-      {activeVolumeReduction > 0 && !hardStop && (
-        <div data-testid="active-plan-modifier" role="status" style={{ padding: "7px 16px", borderBottom: `1px solid ${C.line}`, background: C.panel, fontFamily: mono, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: C.textDim }}>
-          {activePlan?.label || "Active plan"} · working sets reduced {activeVolumeReduction}%
         </div>
       )}
 

@@ -5,7 +5,7 @@
 // evidence to explain, not raw logs to recalculate.
 
 import { buildNutritionAutopilot } from "./nutritionAutopilot";
-import { buildOutcomeLoop, shiftDate, summarizeWindow } from "./coachingOutcomeLoop";
+import { shiftDate, summarizeWindow } from "./coachWindows";
 import { getExerciseSessions } from "./progressionEngine";
 import { flattenProgramLifting } from "./programSessions";
 
@@ -227,22 +227,6 @@ export function buildCoachEvidencePacket({
     }, { importance: "hard_constraint" });
   }
 
-  const outcomeLoop = (() => {
-    try { return buildOutcomeLoop({ data, settings, todayKey }); }
-    catch { return null; }
-  })();
-  const activePlan = settings?.coachingSystem?.activePlan || outcomeLoop?.activePlan || null;
-  if (activePlan) {
-    collector.add("active_plan", activePlan.label || "Active coaching plan", {
-      version: activePlan.version || null,
-      effectiveDate: activePlan.effectiveDate || null,
-      evaluationDue: activePlan.evaluationDue || null,
-      recommendationKind: activePlan.recommendationKind || null,
-      goals: activePlan.snapshot?.goals || null,
-      trainingModifiers: activePlan.snapshot?.trainingModifiers || null,
-    }, { dateRange: activePlan.effectiveDate ? `${activePlan.effectiveDate} onward` : null, importance: "authoritative" });
-  }
-
   collector.add("today", `${todayName || "Today"} progress`, summarizeToday(today, goals), {
     dateRange: todayKey,
     importance: classification.routeHint === "fast" ? "primary" : "supporting",
@@ -335,20 +319,6 @@ export function buildCoachEvidencePacket({
         sessions: sessions.map(compactExerciseSession),
       }, { dateRange: `${sessions.at(-1)?.date || todayKey} to ${sessions[0]?.date || todayKey}`, importance: mentions.includes(exerciseName) ? "primary" : "supporting" });
     }
-  }
-
-  const latestOutcome = outcomeLoop?.evaluated?.[0] || outcomeLoop?.records?.find((record) => record?.outcome) || null;
-  if (latestOutcome) {
-    collector.add("recommendation_outcome", "Latest coaching recommendation outcome", {
-      kind: latestOutcome.kind || latestOutcome.recommendationKind || null,
-      response: latestOutcome.response || null,
-      status: latestOutcome.outcome?.status || null,
-      label: cleanText(latestOutcome.outcome?.label, 80),
-      reason: cleanText(latestOutcome.outcome?.reason, 240),
-      adherence: latestOutcome.outcome?.adherence ?? null,
-      deltas: latestOutcome.outcome?.deltas || null,
-      evaluationDue: latestOutcome.lifecycle?.evaluationDue || null,
-    }, { importance: classification.routeHint === "deep" ? "primary" : "supporting" });
   }
 
   if (classification.routeHint === "deep") {

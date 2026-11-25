@@ -8,7 +8,8 @@ import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName } from "./constant
 import { calcRecoveryScore, calcWeeklyReview } from "./recovery";
 import { buildWeeklyCoachReview } from "./weeklyCoachReview";
 import { buildCoachingCalibrationProfile } from "./coachingCalibration";
-import { CoachingOutcomeCenter } from "./CoachingOutcomeCenter";
+import { WeeklyCoachingReview } from "./WeeklyCoachingReview";
+import { ClinicianGuardrailsCard } from "./ClinicianGuardrailsCard";
 import { isOuraConnected, loadOuraData } from "./oura";
 import { isWhoopConnected, loadWhoopData } from "./whoop";
 import { buildDailyLoads, computeRollingLoads } from "./loadModel";
@@ -203,21 +204,14 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   const streak = calcStreak(data);
   const streakColor = streak.count >= 30 ? C.textDim : streak.count >= 7 ? C.green : C.textDim;
 
-  // Dedicated coaching workspace. Outcome lifecycle, plan versions,
-  // projection, monthly review, phase transitions, inbox, and controls live
-  // here instead of turning Overview or Today into another dense dashboard.
+  // The week's coaching read, plus the clinician guardrails Session Mode and
+  // the coach both respect.
   if (subView === "coach") {
     return (
       <div>
         <ProgressSubnav subView={subView} setSubView={setSubView} />
-        <CoachingOutcomeCenter
-          review={coachReview}
-          data={data}
-          settings={settings}
-          updateEntryAtDate={updateEntryAtDate}
-          showToast={showToast}
-          onSaveCoachingSettings={onSaveCoachingSettings}
-        />
+        <WeeklyCoachingReview review={coachReview} updateEntryAtDate={updateEntryAtDate} showToast={showToast} />
+        <ClinicianGuardrailsCard settings={settings} onSaveCoachingSettings={onSaveCoachingSettings} showToast={showToast} />
       </div>
     );
   }
