@@ -214,7 +214,7 @@ export function Meter({ level, label, style }) {
 
 // One choice of several, as separate 44 px targets. Arrow keys move the choice;
 // the group is one Tab stop.
-export function Seg({ label, options, value, onChange, labelledBy }) {
+export function Seg({ label, options, value, onChange, labelledBy, chips = false }) {
   const ref = useRef(null);
   const onKeyDown = (event) => {
     const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
@@ -227,11 +227,11 @@ export function Seg({ label, options, value, onChange, labelledBy }) {
   };
   const hasValue = options.some((o) => o.value === value);
   return (
-    <div ref={ref} className="seg" role="radiogroup" aria-label={labelledBy ? undefined : label} aria-labelledby={labelledBy} onKeyDown={onKeyDown}>
+    <div ref={ref} className={chips ? "chips" : "seg"} role="radiogroup" aria-label={labelledBy ? undefined : label} aria-labelledby={labelledBy} onKeyDown={onKeyDown}>
       {options.map((o, i) => {
         const on = o.value === value;
         return (
-          <button key={String(o.value)} type="button" role="radio" aria-checked={on} tabIndex={on || (!hasValue && i === 0) ? 0 : -1} onClick={() => onChange(o.value)}>
+          <button key={String(o.value)} type="button" className={chips ? "chip" : undefined} role="radio" aria-checked={on} tabIndex={on || (!hasValue && i === 0) ? 0 : -1} onClick={() => onChange(o.value)}>
             {o.label}
           </button>
         );

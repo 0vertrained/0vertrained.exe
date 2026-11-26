@@ -150,6 +150,17 @@ describe("Block settings", () => {
     expect(ui.getByText("Deload moves from Week 4 to Week 3.")).toBeTruthy();
   });
 
+  it("makes the goal one Tab stop, with the arrow keys moving the choice", () => {
+    const { ui } = mount();
+    open(ui);
+    const group = ui.getByRole("radiogroup", { name: "Goal" });
+    expect(group.className).toBe("chips");
+    expect(within(group).getAllByRole("radio").filter((radio) => radio.tabIndex === 0)).toHaveLength(1);
+    fireEvent.keyDown(group, { key: "ArrowRight" });
+    expect(within(group).getByRole("radio", { name: "Strength build" }).getAttribute("aria-checked")).toBe("true");
+    expect(within(group).getAllByRole("radio").filter((radio) => radio.tabIndex === 0)).toHaveLength(1);
+  });
+
   it("sets the emphasis for running and strength", () => {
     const { ui } = mount();
     open(ui);

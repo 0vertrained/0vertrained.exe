@@ -195,11 +195,7 @@ export function BlockScreen({ data, settings, program, onOpenProgram }) {
       <label className="field"><span className="lbl">Block name</span><input className="input" value={draft.name} onChange={(event) => set({ name: event.target.value })} /></label>
       <div style={column(6)}>
         <span id="block-goal" className="lbl">Goal</span>
-        <div className="chips" role="radiogroup" aria-labelledby="block-goal">
-          {Object.entries(PERIODIZATION_GOAL_PRESETS).map(([key, preset]) => (
-            <button key={key} type="button" className="chip" role="radio" aria-checked={draft.goalPreset === key} onClick={() => set({ goalPreset: key, goal: key === "custom" ? draft.goal : (preset.goal || draft.goal) })}>{preset.label}</button>
-          ))}
-        </div>
+        <Seg chips labelledBy="block-goal" options={Object.entries(PERIODIZATION_GOAL_PRESETS).map(([value, preset]) => ({ value, label: preset.label }))} value={draft.goalPreset} onChange={(key) => set({ goalPreset: key, goal: key === "custom" ? draft.goal : (PERIODIZATION_GOAL_PRESETS[key]?.goal || draft.goal) })} />
       </div>
       <label className="field"><span className="lbl">Goal, in your words</span><textarea className="input area" rows={2} value={draft.goal} onChange={(event) => set({ goal: event.target.value })} /></label>
       <label className="field"><span className="lbl">Start date</span><input className="input" type="date" value={draft.startDate || plan.startDate} onChange={(event) => set({ startDate: event.target.value })} /></label>
