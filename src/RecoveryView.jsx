@@ -6,7 +6,7 @@
 // it, so nothing here can change a score.
 
 import { useState } from "react";
-import { Icon, Meter, Sheet, Method } from "./ui/ledger";
+import { FoldRow, Icon, Meter, Sheet, Method } from "./ui/ledger";
 import { LineChart, DataTable, dayDate } from "./sections/charts";
 import { describeCall } from "./recovery/verdictResolver";
 import { checkinEvidenceLine, divergenceNote, checkinSummaryLine } from "./checkinMorning";
@@ -25,21 +25,6 @@ const duration = (minutes) => {
   const total = Math.round(Number(minutes));
   return `${Math.floor(total / 60)}${NBSP}h ${String(total % 60).padStart(2, "0")}${NBSP}min`;
 };
-
-// A row that opens what is under it.
-function FoldRow({ title, sub, tag = null, children }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <li>
-      <button type="button" className="row" aria-expanded={open} onClick={() => setOpen((value) => !value)} style={{ minHeight: 60 }}>
-        <span className="kv grow"><span className="t-bs">{title}</span><span className="t-s c2">{sub}</span></span>
-        {tag && <span className="tag tag-f">{tag}</span>}
-        <Icon name={open ? "up" : "down"} size="s" className="c2" />
-      </button>
-      {open && <div style={{ ...column(16), padding: "4px 0 20px" }}>{children}</div>}
-    </li>
-  );
-}
 
 // Label and value pairs, one to a line.
 function Ledger({ title, rows, note = null }) {

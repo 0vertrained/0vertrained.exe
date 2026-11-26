@@ -312,3 +312,18 @@ export function QuickNumber({ action, label, hint, onSave }) {
     </form>
   );
 }
+
+// A row that opens what is under it, in place. Use it in a ul.rows.
+export function FoldRow({ title, sub, tag = null, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <li>
+      <button type="button" className="row" aria-expanded={open} onClick={() => setOpen((value) => !value)} style={{ minHeight: 60 }}>
+        <span className="kv grow"><span className="t-bs">{title}</span>{sub && <span className="t-s c2">{sub}</span>}</span>
+        {tag && <span className="tag tag-f">{tag}</span>}
+        <Icon name={open ? "up" : "down"} size="s" className="c2" />
+      </button>
+      {open && <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "4px 0 20px" }}>{children}</div>}
+    </li>
+  );
+}

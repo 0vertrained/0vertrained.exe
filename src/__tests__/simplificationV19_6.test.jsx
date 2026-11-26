@@ -78,8 +78,9 @@ describe("Recovery · one verdict", () => {
     // Each is drawn once, and only there.
     expect(connected.match(/<Trust view=/g)).toHaveLength(1);
     expect(connected.match(/<Wearables view=/g)).toHaveLength(1);
-    // A fold row is a real disclosure.
-    expect(src).toContain('<button type="button" className="row" aria-expanded={open}');
+    // A fold row is a real disclosure, and it is the kit's.
+    expect(read("src/ui/ledger.jsx")).toContain('<button type="button" className="row" aria-expanded={open}');
+    expect(src).toContain('import { FoldRow, Icon, Meter, Sheet, Method } from "./ui/ledger";');
   });
 
   it("the reconnect banner stands above the call, and the reasons still carry the limiter", () => {
