@@ -88,7 +88,9 @@ describe("NotificationsCard", () => {
   it("renders the unavailable state gracefully in a non-push environment", () => {
     // jsdom has no PushManager/serviceWorker — the card must explain, not crash.
     wrap(<NotificationsCard showToast={() => {}} />);
-    expect(screen.getByText("Notifications")).toBeTruthy();
-    expect(screen.getByText(/unavailable/i)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Notifications are unavailable here" })).toBeTruthy();
+    // It says why, and offers nothing it cannot do.
+    expect(screen.queryByRole("button", { name: /Turn on notifications/ })).toBeNull();
+    expect(screen.queryByRole("switch")).toBeNull();
   });
 });
