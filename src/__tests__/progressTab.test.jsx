@@ -149,13 +149,14 @@ describe("Progress screens", () => {
     expect(ui.getByText(/^175\sg a day on average against a 200\sg goal\. Goal met on 1 of 7 logged days\. Filled bars met the goal\.$/)).toBeTruthy();
   });
 
-  it("counts weekly miles and pace on Running", async () => {
+  it("counts weekly miles, lists recent runs and keeps races on Running", async () => {
     const { ui, container } = mount();
     fireEvent.click(container.querySelector('[data-section="ov-trends"] li:nth-child(2) button'));
     expect(await ui.findByRole("heading", { name: "Weekly miles" })).toBeTruthy();
-    expect(ui.getByRole("heading", { name: "Pace" })).toBeTruthy();
-    expect(ui.getAllByText("9:00").length).toBe(3); // best, average, latest
     expect(ui.getByRole("heading", { name: "Recent runs" })).toBeTruthy();
+    // Pace is no longer one average over every kind of run.
+    expect(ui.queryByRole("heading", { name: "Pace" })).toBeNull();
+    expect(await ui.findByText(/Mark a run as a race on Today/)).toBeTruthy();
   });
 });
 

@@ -33,6 +33,7 @@ const CalibrationReport = lazyNamed(() => import("./ProgressInsights"), "Calibra
 const CorrelationExplorer = lazyNamed(() => import("./ProgressInsights"), "CorrelationExplorer");
 const WeightTrendFigure = lazyNamed(() => import("./WeightTrendFigure"), "WeightTrendFigure");
 const RunningVolumeFigure = lazyNamed(() => import("./sections/RunningVolumeFigure"), "RunningVolumeFigure");
+const RunningProgress = lazyNamed(() => import("./sections/RunningProgress"), "RunningProgress");
 const MuscleVolumeSection = lazyNamed(() => import("./MuscleVolumeSection"), "MuscleVolumeSection");
 const LiftIntelligenceSection = lazyNamed(() => import("./LiftIntelligenceSection"), "LiftIntelligenceSection");
 const MuscleRecencyMap = lazyNamed(() => import("./LiftIntelligenceSection"), "MuscleRecencyMap");
@@ -209,27 +210,19 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   const runs = last30
     .map(([date, d]) => {
       const miles = parseFloat(d.workout?.cardio?.miles) || 0;
-      return miles > 0 ? { date, miles, time: d.workout.cardio.time || "", pace: paceToSeconds(d.workout.cardio.pace) } : null;
+      return miles > 0 ? { date, miles, time: d.workout.cardio.time || "", pace: paceToSeconds(d.workout.cardio.pace), race: Boolean(d.workout.cardio.race) } : null;
     })
     .filter(Boolean);
-  const paced = runs.filter((run) => run.pace);
-  const paces = paced.map((run) => run.pace);
-  const bestPace = paces.length ? Math.min(...paces) : null;
   const runningScreen = [
-    <Suspense key="miles" fallback={loading("weekly miles")}>
-      <RunningVolumeFigure data={data} settings={settings} />
-    </Suspense>,
+    <Fragment key="figures">
+      <Suspense fallback={loading("weekly miles")}>
+        <RunningVolumeFigure data={data} settings={settings} />
+      </Suspense>
+      <Suspense fallback={loading("races and easy pace")}>
+        <RunningProgress data={data} program={program} todayKey={todayKey} />
+      </Suspense>
+    </Fragment>,
     <Fragment key="runs">
-      {paced.length >= 2 && (
-        <section aria-labelledby="pace-title" style={column(8)}>
-          <div className="sec"><h2 id="pace-title" className="t-h">Pace</h2><span className="t-s c2">{paced.length} runs in your last 30 logged days</span></div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
-            {[["Best", bestPace], ["Average", paces.reduce((a, b) => a + b, 0) / paces.length], ["Latest", paces[paces.length - 1]]].map(([label, seconds]) => (
-              <div key={label} className="kv"><span className="t-c c2">{label}</span><span className="n-md">{secondsToPace(seconds)}</span><span className="t-s c2">min/mi</span></div>
-            ))}
-          </div>
-        </section>
-      )}
       <RaceWeekLine program={program} dateKey={todayKey} />
       {runs.length > 0 && (
         <section aria-labelledby="runs-title" style={column(4)}>
@@ -241,7 +234,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
                   <span className="t-bs">{dayDate(run.date)}</span>
                   <span className="n-s c2">{[`${run.miles}${NBSP}mi`, run.time, run.pace ? `${secondsToPace(run.pace)}${NBSP}min/mi` : ""].filter(Boolean).join(" · ")}</span>
                 </span>
-                {run.pace && run.pace === bestPace && <span className="tag tag-f">Best pace</span>}
+                {run.race && <span className="tag tag-f">Race</span>}
               </li>
             ))}
           </ul>
