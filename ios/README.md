@@ -4,10 +4,13 @@ A private build for your own phone and watch.
 
 - `App/` is the iPhone app: a web view that opens the site, plus the native
   pieces a web page can't do: haptics, a rest-over notification when the phone
-  is locked, keeping the screen on during a session, and the link to the watch.
+  is locked, keeping the screen on during a session, the link to the watch,
+  planned runs scheduled in the watch's Workout app, and recorded runs read
+  back from Apple Health.
 - `WatchApp/` is the Apple Watch app, written in SwiftUI: today's lifts, one
-  set at a time, a tap on the wrist when the rest is over, and the workout
-  tracked in Health.
+  set at a time, a tap on the wrist when the rest is over, the workout
+  tracked in Health, and today's run, which opens in the Workout app.
+- `Shared/` is code both apps build: a planned run as a WorkoutKit workout.
 
 The project opens in Xcode as it is. You don't need Node or the command line.
 
@@ -55,6 +58,22 @@ TestFlight instead, where a build lasts 90 days and installs over the air.
   go into your log the next time the iPhone app is open.
 - End workout saves the workout to Health and Fitness, and marks the session
   finished on the phone if every set is logged.
+
+## Runs on the watch
+
+- Turn it on in the iPhone app: Settings > Integrations > Apple Watch > Turn
+  on. iOS asks twice: to add workouts to the watch, and to read runs from
+  Health. Allow both.
+- The next 7 days of planned runs then wait in the Workout app on the watch,
+  under 0VERTRAINED, each with its warm-up, intervals and cool-down, and a
+  pace alert on each step that has a target pace. A plan without paces gets a
+  heart-rate zone alert instead. When the plan changes, the runs on the watch
+  change with it.
+- The watch app lists today's run too: Start in Workout opens it there.
+- When you open the iPhone app after a run, it fills in that day's miles,
+  time and pace from Health, unless you've already logged a run for that day.
+  Undo in the message takes it back out. Each run is filled in only once.
+- Turning it off takes the runs off the watch.
 
 ## The site the app opens
 
