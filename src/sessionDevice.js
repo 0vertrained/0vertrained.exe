@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
+import { nativeHaptic, nativeKeepAwake } from "./native";
 
+// In the iPhone app the phone's own haptics stand in for navigator.vibrate,
+// which iOS has never supported.
 export function triggerHaptic(pattern, enabled = true) {
   if (!enabled) return false;
+  if (nativeHaptic(pattern)) return true;
   try { return navigator.vibrate?.(pattern) === true; } catch { return false; }
 }
 
@@ -31,6 +35,8 @@ export function useScreenWakeLock(active) {
   const lockRef = useRef(null);
 
   useEffect(() => {
+    // The iPhone app keeps the screen on itself.
+    if (active && nativeKeepAwake(true)) return () => { nativeKeepAwake(false); };
     let cancelled = false;
     const release = async () => {
       const lock = lockRef.current;

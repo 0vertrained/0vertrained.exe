@@ -24,6 +24,7 @@ import { buildDeloadRecommendation } from "./fatigueManagement";
 import { buildSessionArbitration, buildSessionVolumeProjection } from "./trainingArbitration";
 import { readExerciseNote, writeExerciseNote, readSupersetPref, writeSupersetPref } from "./liftLogPrefs";
 import { playRestChirp, triggerHaptic, useScreenWakeLock } from "./sessionDevice";
+import { cancelRestAlert, scheduleRestAlert } from "./native";
 import {
   completedSetCount,
   firstIncompleteExerciseIndex,
@@ -219,6 +220,16 @@ export function SessionMode({
     triggerHaptic([200, 100, 200], hapticsEnabled);
     playRestChirp(restAudioEnabled);
   }, [rest, restOver, hapticsEnabled, restAudioEnabled]);
+  // In the iPhone app a notification marks the end of the rest too, because
+  // this timer stops when the phone locks. It follows the same cue settings
+  // and is withdrawn when the rest is paused, skipped or left.
+  const restEndsAt = rest && !rest.pausedAt ? rest.startedAt + rest.seconds * 1000 : null;
+  const restAlertText = rest?.next?.line || null;
+  useEffect(() => {
+    if (!restEndsAt || !(hapticsEnabled || restAudioEnabled)) return undefined;
+    scheduleRestAlert((restEndsAt - Date.now()) / 1000, restAlertText ? { body: restAlertText } : undefined);
+    return () => { cancelRestAlert(); };
+  }, [restEndsAt, restAlertText, hapticsEnabled, restAudioEnabled]);
 
   const exercise = lifting?.[idx] || null;
   const exData = exercise ? (workoutData?.exercises?.[exercise.name] || {}) : {};

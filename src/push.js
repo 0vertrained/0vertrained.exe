@@ -6,11 +6,15 @@
 // TO THE HOME SCREEN on iOS 16.4+ — plain Safari tabs never get pushes.
 
 import { supabase } from "./supabaseClient";
+import { isNativeApp } from "./native";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
 
 export function pushSupportState() {
   if (typeof window === "undefined") return { supported: false, reason: "no window" };
+  // Web Push doesn't reach a web view inside an app, so the Home Screen
+  // advice below would be wrong here.
+  if (isNativeApp()) return { supported: false, reason: "The iPhone app doesn't send reminders. To get them, add 0VERTRAINED to your Home Screen from Safari." };
   if (!("serviceWorker" in navigator)) return { supported: false, reason: "no service worker support" };
   if (!("PushManager" in window)) {
     // The usual cause on iPhone: running in a Safari tab instead of from the

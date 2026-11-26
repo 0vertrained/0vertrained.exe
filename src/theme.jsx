@@ -4,6 +4,7 @@
 // The ids stay whitepaperLight and whitepaperDark because saved settings hold
 // them, and the ids from earlier builds map onto the two.
 import { createContext, useContext, useEffect } from "react";
+import { setNativeBarStyle } from "./native";
 
 // The two themes Settings offers.
 export const PRIMARY_THEMES = ["whitepaperLight", "whitepaperDark"];
@@ -32,6 +33,7 @@ export function ThemeProvider({ children, themeId = "whitepaperLight" }) {
     const root = document.documentElement;
     root.setAttribute("data-switching", "");
     root.setAttribute("data-theme", C.mode);
+    setNativeBarStyle(C.mode); // the iPhone app's status bar; nothing in a browser
     const frame = requestAnimationFrame(() => root.removeAttribute("data-switching"));
     return () => { cancelAnimationFrame(frame); root.removeAttribute("data-switching"); };
   }, [C.mode]);
