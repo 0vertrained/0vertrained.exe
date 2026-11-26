@@ -125,10 +125,10 @@ afterEach(() => {
 
 const WAIT = { timeout: 5000 };
 
-async function finishSetup({ dataMode = /^Manual only\./ } = {}) {
-  fireEvent.click(await screen.findByRole("button", { name: /Skip the welcome tour/ }, WAIT));
-  const next = () => fireEvent.click(screen.getByRole("button", { name: /Continue →|Finish setup →/ }));
-  fireEvent.click(screen.getByRole("radio", { name: /^Strength\./ }));
+async function finishSetup({ dataMode = "Manual only" } = {}) {
+  fireEvent.click(await screen.findByRole("button", { name: "Skip tour" }, WAIT));
+  const next = () => fireEvent.click(screen.getByRole("button", { name: /^Next: |^Go to Today$/ }));
+  fireEvent.click(screen.getByRole("radio", { name: "Strength" }));
   next();
   fireEvent.click(screen.getByRole("radio", { name: dataMode }));
   next();
@@ -136,7 +136,7 @@ async function finishSetup({ dataMode = /^Manual only\./ } = {}) {
   fireEvent.click(within(screen.getByRole("radiogroup", { name: "Experience level" })).getByRole("radio", { name: "Intermediate" }));
   next(); // program
   next(); // macros (preset chosen from the goal)
-  next(); // privacy → Finish setup
+  next(); // privacy → Go to Today
 }
 
 // The four tabs are buttons in the Primary navigation. Recovery is not a tab:
@@ -198,7 +198,7 @@ describe("V19.4 front door — a new account reaches a logger", () => {
 
   it("a wearable setup shows Recovery's sample until it connects, and its one action opens Integrations", async () => {
     render(<App />);
-    await finishSetup({ dataMode: /^Wearable connected\./ });
+    await finishSetup({ dataMode: "Wearable connected" });
     await liveToday();
 
     openRecovery();
@@ -212,8 +212,8 @@ describe("V19.4 front door — a new account reaches a logger", () => {
     render(<App />);
     await finishSetup();
 
-    expect(await screen.findByText("Setup didn't save. Check your connection and tap Finish again.", {}, WAIT)).toBeTruthy();
-    const finish = await screen.findByRole("button", { name: "Finish setup →" }, WAIT);
+    expect(await screen.findByText("Setup didn't save. Check your connection and tap Go to Today again.", {}, WAIT)).toBeTruthy();
+    const finish = await screen.findByRole("button", { name: "Go to Today" }, WAIT);
     expect(h.store.settings).toBeNull();
 
     fireEvent.click(finish);

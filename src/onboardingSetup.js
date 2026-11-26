@@ -65,17 +65,17 @@ export const ONBOARDING_DATA_MODES = [
   {
     id: "manual",
     label: "Manual only",
-    desc: "Log sleep, energy, soreness and stress yourself. Full recovery scoring, no wearable required.",
+    desc: "Log sleep, energy, soreness and stress yourself. A full recovery score, no wearable needed.",
   },
   {
     id: "oura",
     label: "Wearable connected",
-    desc: "Add HRV, resting heart rate, sleep and workout context from Oura or Whoop. Connect from Settings → Integrations.",
+    desc: "Add HRV, resting heart rate, sleep and workouts from Oura or Whoop.",
   },
   {
     id: "later",
     label: "Connect later",
-    desc: "Start with manual logging now. Link a wearable whenever you like from Settings → Integrations.",
+    desc: "Start by hand now and connect a wearable whenever you like.",
   },
 ];
 
@@ -239,22 +239,22 @@ export function mergeOnboardingSettings(existing, payload) {
 
 // First-task copy for the Today landing
 export function buildFirstTask({ dataMode } = {}) {
-  const base = { tab: "Today", title: "Log today's session" };
+  const base = { tab: "Today", title: "Check in, then train" };
   if (dataMode === "oura") {
     return {
       ...base,
-      body: "Your program is loaded and your wearable can sync in the background once connected. Open Today to see your readiness call, then log your first sets.",
+      body: "Your program is ready. Connect your wearable in Settings, under Integrations, and it syncs in the background. Today shows the call, then you log your first sets.",
     };
   }
   if (dataMode === "later") {
     return {
       ...base,
-      body: "Your program is loaded. Log sleep and energy under Recovery for a readiness call — or connect a wearable later in Settings → Integrations.",
+      body: "Your program is ready. Check in on Today for a call, and connect a wearable whenever you like in Settings, under Integrations.",
     };
   }
   // manual (and any fallback)
   return {
     ...base,
-    body: "Your program is loaded. Manual recovery is first-class: log sleep and energy under Recovery, then start today's sets.",
+    body: "Your program is ready. Checking in by hand is first-class: four quick answers on Today give you the call, then start today's sets.",
   };
 }

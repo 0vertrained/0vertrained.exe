@@ -861,7 +861,7 @@ function AppInner({ onThemeChange }) {
         programRes = { error: e?.message || "save failed" };
       }
       if (programRes?.error || settingsRes?.error) {
-        showToast("Setup didn't save. Check your connection and tap Finish again.");
+        showToast("Setup didn't save. Check your connection and tap Go to Today again.");
         return;
       }
     }
@@ -1110,11 +1110,7 @@ function AppInner({ onThemeChange }) {
       <a className="skip" href="#main">Skip to content</a>
       {showTutorial && (
         <Suspense fallback={null}>
-          <Tutorial
-            username={myUsername || "athlete"}
-            onComplete={handleTutorialComplete}
-            theme={themeId}
-          />
+          <Tutorial onComplete={handleTutorialComplete} />
         </Suspense>
       )}
       <Header title={bar.title} sub={bar.sub} back={bar.back} onBack={bar.onBack} close={bar.close} onClose={bar.onClose} saving={saving} demoMode={demoMode} onOpenProfile={overlay === "profile" && !isDesktop ? undefined : openProfile} isOnline={isOnline} pendingSaves={pendingSaves} currentTab={overlay === "profile" ? null : tab} onTabChange={changeTab} onQuickAction={() => setSheetOpen(true)} onOpenPalette={() => setPaletteOpen(true)} tabsOrder={TABS_ORDER} />
