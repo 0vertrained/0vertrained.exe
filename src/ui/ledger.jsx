@@ -4,6 +4,7 @@
 // screen reads as its structure and the stylesheet stays the one place that
 // knows what things look like.
 import { useEffect, useId, useRef, useState } from "react";
+import { useSheetDrag } from "./sheetDrag";
 
 // Icons sit on a 24 grid with a 1.75 stroke, round joins and no fills. They are
 // decoration: the control that holds one always carries the words.
@@ -108,6 +109,7 @@ export function Sheet({ open, title, onClose, children, closeLabel = "Close" }) 
   const ref = useRef(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useSheetDrag(ref, { onClose, enabled: open });
   useEffect(() => {
     if (!open) return undefined;
     const opener = document.activeElement;

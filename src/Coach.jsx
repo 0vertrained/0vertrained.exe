@@ -9,6 +9,7 @@ import { buildDailyLoads, computeRollingLoads } from "./loadModel";
 import { buildDecisionContext, getDailyRecommendation, summarizeRecommendationForCoach } from "./decisionEngine";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { Icon } from "./ui/ledger";
+import { useSheetDrag } from "./ui/sheetDrag";
 import { buildCoachEvidencePacket } from "./coachEvidence";
 
 //  Coach — embedded AI assistant (mobile-first floating button + slide-up sheet)
@@ -209,6 +210,9 @@ export function Coach({ data, settings, program, todayKey, todayName, userId, op
   const inputRef = useRef(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  // On a phone the panel closes by dragging its top down, like any sheet; the
+  // conversation below scrolls on its own.
+  useSheetDrag(panelRef, { onClose, enabled: Boolean(open) && !isBroadsheet, handleHeight: 64 });
 
   // A dialog at every size: focus starts in the question field, Tab stays
   // inside, Escape closes, and focus goes back to what opened it.

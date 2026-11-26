@@ -269,7 +269,7 @@ a.row:active, button.row:active { background: var(--press); }
 .sw[aria-checked="true"] i { background: var(--on-accent); transform: translateX(20px); }
 
 /* ── Overlays ───────────────────────────────────────────────────────────────── */
-.scrim { position: fixed; inset: 0; z-index: var(--z-sheet); background: var(--scrim); }
+.scrim { position: fixed; inset: 0; z-index: var(--z-sheet); background: var(--scrim); touch-action: none; }
 .sheet { position: fixed; left: 0; right: 0; bottom: 0; margin: 0 auto; width: 100%; max-width: var(--ovt-content-width); z-index: var(--z-sheet); max-height: calc(100dvh - 48px); overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border-radius: 20px 20px 0 0; box-shadow: var(--sh-sheet); padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 12px; }
 .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--edge); align-self: center; flex: none; }
 .dialog { background: var(--surface); border-radius: 12px; box-shadow: var(--sh-sheet); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
