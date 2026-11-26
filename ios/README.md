@@ -5,12 +5,15 @@ A private build for your own phone and watch.
 - `App/` is the iPhone app: a web view that opens the site, plus the native
   pieces a web page can't do: haptics, a rest-over notification when the phone
   is locked, keeping the screen on during a session, the link to the watch,
-  planned runs scheduled in the watch's Workout app, and recorded runs read
-  back from Apple Health.
-- `WatchApp/` is the Apple Watch app, written in SwiftUI: today's lifts, one
+  planned runs scheduled in the watch's Workout app, recorded runs read back
+  from Apple Health, and the evening check-in and Sunday Edition reminders.
+- `RestActivity/` draws the rest timer on the Lock Screen and in the Dynamic
+  Island (a widget extension the app embeds).
+- `WatchApp/` is the Apple Watch app, written in SwiftUI: the day's lifts, one
   set at a time, a tap on the wrist when the rest is over, the workout
-  tracked in Health, and today's run, which opens in the Workout app.
-- `Shared/` is code both apps build: a planned run as a WorkoutKit workout.
+  tracked in Health, and the day's runs, which open in the Workout app.
+- `Shared/` is code more than one of them builds: a planned run as a
+  WorkoutKit workout, and the rest timer's data.
 
 The project opens in Xcode as it is. You don't need Node or the command line.
 
@@ -26,7 +29,7 @@ The project opens in Xcode as it is. You don't need Node or the command line.
 4. Add your Apple ID: Xcode > Settings > Accounts > + > Apple ID.
 5. In the left sidebar, select the blue App project. Under Targets, select
    App, open Signing & Capabilities, and set Team to your name. Do the same for
-   the WatchApp target.
+   the WatchApp and RestActivity targets.
    - If Xcode says the bundle identifier isn't available, select the App
      project (not a target), open Build Settings, search for `APP_BUNDLE_ID`,
      and change it, for example to `com.yourname.overtrained`. The watch's
@@ -48,8 +51,11 @@ TestFlight instead, where a build lasts 90 days and installs over the air.
 
 ## Using the watch
 
-- Open the iPhone app once before you train. It sends today's lifts to the
-  watch, and sends them again whenever something changes.
+- The iPhone app sends the watch the next 7 days of lifts and runs, and sends
+  them again whenever something changes. The watch moves to the new day at
+  midnight, so it has the day's lifts even if you haven't opened the iPhone
+  app that day, as long as you have in the last week. A set's starting numbers
+  come from your log as it stood when the phone last sent the week.
 - On the watch, press Start workout, pick an exercise, and press Log set. Each
   set arrives filled the way the phone would fill it and says from what. The
   Digital Crown changes the outlined number; tap the other number to switch.
@@ -75,6 +81,25 @@ TestFlight instead, where a build lasts 90 days and installs over the air.
   Undo in the message takes it back out. Each run is filled in only once.
 - Turning it off takes the runs off the watch.
 
+## The rest timer on the Lock Screen
+
+- While the session runner rests, the rest shows as a timer on the Lock
+  Screen and in the Dynamic Island, with what's next. A new rest moves it on;
+  pausing the rest, closing the runner or finishing takes it away.
+- If the rest runs out with the phone locked, it turns to "Rest over".
+- To switch it off: iPhone Settings > 0VERTRAINED > Live Activities.
+
+## Reminders
+
+- In the iPhone app, Profile > Notifications has the evening check-in (7:30
+  pm) and the Sunday Edition (Sunday, 5 pm), off until you turn them on. The
+  phone schedules them itself, with the same words the web app's
+  notifications use.
+- The Morning Edition and state changes go out only once your data has
+  reached the server, so they need push. Push in the app needs the paid Apple
+  Developer Program and work on the server; the Home Screen web app gets them
+  today.
+
 ## The site the app opens
 
 `server.url` in `capacitor.config.json` at the repository root says which
@@ -85,14 +110,17 @@ configuration > Continuous deployment > Branches and deploy contexts >
 Branch deploys. A branch added there is built on its next push.
 Once that code is on the production branch, point it at the production
 address, then run `npx cap copy ios` to update `App/App/capacitor.config.json`
-(or edit that file the same way).
+(or edit that file the same way). Put the new address in `WKAppBoundDomains`
+in `App/App/Info.plist` too, in place of the `ios--` one: the app only runs
+the site's offline cache for the domains listed there.
 
-If the site can't load, the app shows `native-shell/offline.html`, and tries
-again when the connection comes back.
+After the first launch the app opens without a connection: the site's
+service worker keeps the app on the phone, and entries logged offline are
+saved once the connection is back. If the site can't load and there's
+nothing kept yet, the app shows `native-shell/offline.html`, and tries again
+when the connection comes back.
 
 ## Not in this build
 
-- Reminders: Web Push doesn't reach a web view inside an app.
-- Opening with no connection: the app loads the site each time it starts.
-- Today's lifts on the watch without opening the iPhone app that day.
-- Widgets, Live Activities and Siri.
+- Push notifications: the Morning Edition and state changes (see Reminders).
+- Widgets and Siri.
