@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>OTAppGroup</key>
+	<string>group.$(APP_BUNDLE_ID)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>0VERTRAINED uses the camera to scan food barcodes into your food log.</string>
 	<key>NSHealthShareUsageDescription</key>

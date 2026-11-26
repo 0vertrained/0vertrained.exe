@@ -41,6 +41,16 @@
 		D0D575D3BCD95695BB5BD5E5 /* RestActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D29DCFA400B75CBDC65B8EF4 /* RestActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E233F4A1D1AD582ED027E896 /* HealthDailyPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB98C39ECD0FDBC356304F13 /* HealthDailyPlugin.swift */; };
 		B9192DDD082CC473DB2925E2 /* BarcodePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E0FBB92F9188757DAEEB6E /* BarcodePlugin.swift */; };
+		FAC58688D4858A5CE537631A /* WidgetPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA867C705B211CE3B3AD39D8 /* WidgetPlugin.swift */; };
+		2CA228DD7AD54C6F43A9D265 /* DayCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64B325A3E3869E212D1EA303 /* DayCards.swift */; };
+		1C50B0C512856B76CE4E5BF6 /* TodayWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960CD64C3CEBB27AC384A1BB /* TodayWidget.swift */; };
+		1B25A5BE236684C410C4FAA1 /* DayCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64B325A3E3869E212D1EA303 /* DayCards.swift */; };
+		3498DC8D5C7D11DDA603F386 /* TodayTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5BD495E632C8DBCDE10DB77 /* TodayTimeline.swift */; };
+		CF97977C9688BF7FD2F91E91 /* DayCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64B325A3E3869E212D1EA303 /* DayCards.swift */; };
+		0307187791F02726E9B4776D /* WatchWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18FC2C4A8FED20FEA388F18 /* WatchWidgets.swift */; };
+		3D77A39D449F765F2EB8B5BB /* DayCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64B325A3E3869E212D1EA303 /* DayCards.swift */; };
+		0DE1D0E9353684A6695FE0BF /* TodayTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5BD495E632C8DBCDE10DB77 /* TodayTimeline.swift */; };
+		304277F21E0CCDF0AC4084C9 /* WatchWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C8F1A6BD14A3DE9D2204B45C /* WatchWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +67,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = ACAE2E3758D4C0E9DDEF42A7;
 			remoteInfo = RestActivity;
+		};
+		9958FB599865EE55884F5209 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EA4C914923A072E4F1D075AE;
+			remoteInfo = WatchWidgets;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -79,6 +96,17 @@
 			dstSubfolderSpec = 13;
 			files = (
 				D0D575D3BCD95695BB5BD5E5 /* RestActivity.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1B430F76CE42E32812B037C1 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				304277F21E0CCDF0AC4084C9 /* WatchWidgets.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -124,6 +152,15 @@
 		D29DCFA400B75CBDC65B8EF4 /* RestActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RestActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB98C39ECD0FDBC356304F13 /* HealthDailyPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDailyPlugin.swift; sourceTree = "<group>"; };
 		62E0FBB92F9188757DAEEB6E /* BarcodePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodePlugin.swift; sourceTree = "<group>"; };
+		64B325A3E3869E212D1EA303 /* DayCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCards.swift; sourceTree = "<group>"; };
+		F5BD495E632C8DBCDE10DB77 /* TodayTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayTimeline.swift; sourceTree = "<group>"; };
+		EA867C705B211CE3B3AD39D8 /* WidgetPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetPlugin.swift; sourceTree = "<group>"; };
+		960CD64C3CEBB27AC384A1BB /* TodayWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayWidget.swift; sourceTree = "<group>"; };
+		D08F2D6D5225205399494283 /* RestActivity.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RestActivity.entitlements; sourceTree = "<group>"; };
+		B18FC2C4A8FED20FEA388F18 /* WatchWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWidgets.swift; sourceTree = "<group>"; };
+		51DB2E0A0C74595B9E0092D0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		320E99B6F45E1804730A076F /* WatchWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WatchWidgets.entitlements; sourceTree = "<group>"; };
+		C8F1A6BD14A3DE9D2204B45C /* WatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -149,6 +186,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EBE627CDBDF341706162FD00 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -160,6 +204,7 @@
 				FF2C3C4CC3F8B1BAB583026E /* WatchApp */,
 				3E5F9B74BC6E3262075D2F6C /* Shared */,
 				82136B49D5A936FFBD4A6F95 /* RestActivity */,
+				D7DFE88014AE6D92CAC38C93 /* WatchWidgets */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -170,6 +215,7 @@
 				504EC3041FED79650016851F /* App.app */,
 				8BAEAEF91065D80CBCA650A4 /* WatchApp.app */,
 				D29DCFA400B75CBDC65B8EF4 /* RestActivity.appex */,
+				C8F1A6BD14A3DE9D2204B45C /* WatchWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -197,6 +243,7 @@
 				928997AD756BEB39DCD549AC /* RestActivityController.swift */,
 				EB98C39ECD0FDBC356304F13 /* HealthDailyPlugin.swift */,
 				62E0FBB92F9188757DAEEB6E /* BarcodePlugin.swift */,
+				EA867C705B211CE3B3AD39D8 /* WidgetPlugin.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -223,6 +270,8 @@
 			children = (
 				FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */,
 				190EAC8F00D0886AC873CB93 /* RestActivity.swift */,
+				64B325A3E3869E212D1EA303 /* DayCards.swift */,
+				F5BD495E632C8DBCDE10DB77 /* TodayTimeline.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -232,8 +281,20 @@
 			children = (
 				6666C1E2C15995D857490A0F /* RestActivityWidget.swift */,
 				D7CB2D2005C11CF8565A96AD /* Info.plist */,
+				960CD64C3CEBB27AC384A1BB /* TodayWidget.swift */,
+				D08F2D6D5225205399494283 /* RestActivity.entitlements */,
 			);
 			path = RestActivity;
+			sourceTree = "<group>";
+		};
+		D7DFE88014AE6D92CAC38C93 /* WatchWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				B18FC2C4A8FED20FEA388F18 /* WatchWidgets.swift */,
+				51DB2E0A0C74595B9E0092D0 /* Info.plist */,
+				320E99B6F45E1804730A076F /* WatchWidgets.entitlements */,
+			);
+			path = WatchWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -270,10 +331,12 @@
 				2522485A0DB4982136A007AF /* Sources */,
 				AF3A3D8076540C4BE449BED4 /* Frameworks */,
 				B7A2249C7E67C266BE1875CA /* Resources */,
+				1B430F76CE42E32812B037C1 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				03468F74ABE9DEE3221ABC67 /* PBXTargetDependency */,
 			);
 			name = WatchApp;
 			productName = WatchApp;
@@ -297,6 +360,23 @@
 			productReference = D29DCFA400B75CBDC65B8EF4 /* RestActivity.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		EA4C914923A072E4F1D075AE /* WatchWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FE06147AFFFDDD41B1420B88 /* Build configuration list for PBXNativeTarget "WatchWidgets" */;
+			buildPhases = (
+				A47E0526213337332C5E498A /* Sources */,
+				EBE627CDBDF341706162FD00 /* Frameworks */,
+				4A23FBD5338016D48762707C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WatchWidgets;
+			productName = WatchWidgets;
+			productReference = C8F1A6BD14A3DE9D2204B45C /* WatchWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -306,6 +386,9 @@
 				LastSwiftUpdateCheck = 0920;
 				LastUpgradeCheck = 0920;
 				TargetAttributes = {
+					EA4C914923A072E4F1D075AE = {
+						CreatedOnToolsVersion = 16.0;
+					};
 					ACAE2E3758D4C0E9DDEF42A7 = {
 						CreatedOnToolsVersion = 16.0;
 					};
@@ -338,6 +421,7 @@
 				504EC3031FED79650016851F /* App */,
 				C5F8E853E9232317CD26114F /* WatchApp */,
 				ACAE2E3758D4C0E9DDEF42A7 /* RestActivity */,
+				EA4C914923A072E4F1D075AE /* WatchWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -371,6 +455,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4A23FBD5338016D48762707C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -392,6 +483,8 @@
 				FD79FEAE77134C454FA1A913 /* RestActivity.swift in Sources */,
 				E233F4A1D1AD582ED027E896 /* HealthDailyPlugin.swift in Sources */,
 				B9192DDD082CC473DB2925E2 /* BarcodePlugin.swift in Sources */,
+				FAC58688D4858A5CE537631A /* WidgetPlugin.swift in Sources */,
+				2CA228DD7AD54C6F43A9D265 /* DayCards.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -407,6 +500,7 @@
 				D141DFA9A02021E77D905979 /* TodayView.swift in Sources */,
 				CF6923614FD9B2B006C793AD /* SetLoggerView.swift in Sources */,
 				D683DD74C45E98DE4F01DB66 /* RunWorkout.swift in Sources */,
+				CF97977C9688BF7FD2F91E91 /* DayCards.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -416,6 +510,19 @@
 			files = (
 				4AD6C3E5C481CF73A0C2C41A /* RestActivityWidget.swift in Sources */,
 				45CFB109FC61644BA9F2519E /* RestActivity.swift in Sources */,
+				1C50B0C512856B76CE4E5BF6 /* TodayWidget.swift in Sources */,
+				1B25A5BE236684C410C4FAA1 /* DayCards.swift in Sources */,
+				3498DC8D5C7D11DDA603F386 /* TodayTimeline.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A47E0526213337332C5E498A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0307187791F02726E9B4776D /* WatchWidgets.swift in Sources */,
+				3D77A39D449F765F2EB8B5BB /* DayCards.swift in Sources */,
+				0DE1D0E9353684A6695FE0BF /* TodayTimeline.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -431,6 +538,11 @@
 			isa = PBXTargetDependency;
 			target = ACAE2E3758D4C0E9DDEF42A7 /* RestActivity */;
 			targetProxy = 15472F487385F676921CDA98 /* PBXContainerItemProxy */;
+		};
+		03468F74ABE9DEE3221ABC67 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EA4C914923A072E4F1D075AE /* WatchWidgets */;
+			targetProxy = 9958FB599865EE55884F5209 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -673,6 +785,7 @@
 		E2473968539E7BF5169BE744 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = RestActivity/RestActivity.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -700,6 +813,7 @@
 		D0145D9CF812A6FE6B84F64B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = RestActivity/RestActivity.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -720,6 +834,61 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		1B1E978F168845228B66639C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = WatchWidgets/WatchWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WatchWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = 0VERTRAINED;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).watchkitapp.widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		FAC47A75B9CDFFF67890AC3A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = WatchWidgets/WatchWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WatchWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = 0VERTRAINED;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).watchkitapp.widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Release;
 		};
@@ -758,6 +927,15 @@
 			buildConfigurations = (
 				E2473968539E7BF5169BE744 /* Debug */,
 				D0145D9CF812A6FE6B84F64B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FE06147AFFFDDD41B1420B88 /* Build configuration list for PBXNativeTarget "WatchWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1B1E978F168845228B66639C /* Debug */,
+				FAC47A75B9CDFFF67890AC3A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

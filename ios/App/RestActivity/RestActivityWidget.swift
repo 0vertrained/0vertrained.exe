@@ -4,11 +4,13 @@ import WidgetKit
 
 /// The rest timer while the session runner rests between sets: on the Lock
 /// Screen, and in the Dynamic Island while the app isn't on screen. The app
-/// starts and ends it (App/RestActivityController.swift).
+/// starts and ends it (App/RestActivityController.swift). Today's training
+/// for the Home and Lock Screen lives here too (TodayWidget.swift).
 @main
 struct RestActivityBundle: WidgetBundle {
     var body: some Widget {
         RestActivityWidget()
+        TodayWidget()
     }
 }
 

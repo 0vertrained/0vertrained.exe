@@ -1,6 +1,7 @@
 import Foundation
 import WatchConnectivity
 import WatchKit
+import WidgetKit
 
 /// The week's plans from the phone, the sets logged here that the phone
 /// hasn't confirmed yet, and the rest timer. Today's plan is the one for the
@@ -233,6 +234,33 @@ final class SessionStore: NSObject, ObservableObject {
             defaults.set(data, forKey: Key.week)
         }
         prunePending()
+        Self.saveCards(incoming)
+    }
+
+    // MARK: - The watch face
+
+    /// The week as day cards for the complication (WatchWidgets), which
+    /// reloads when they change.
+    private static func saveCards(_ week: WatchWeek) {
+        let cards = week.days.map(card)
+        if DayCards.save(cards) {
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+
+    private static func card(_ day: WatchPlan) -> DayCard {
+        let exercises = day.sessions.reduce(0) { $0 + $1.exercises.count }
+        let runs = day.runs ?? []
+        var parts: [String] = []
+        if exercises > 0 { parts.append(exercises == 1 ? "1 exercise" : "\(exercises) exercises") }
+        for run in runs {
+            let length = run.summary?.components(separatedBy: " · ").first ?? ""
+            parts.append(length.isEmpty ? run.name : "\(run.name), \(length)")
+        }
+        let kind = exercises > 0 && !runs.isEmpty ? "both" : exercises > 0 ? "lift" : !runs.isEmpty ? "run" : "rest"
+        let named = [day.title, day.sessions.first?.title, runs.first?.name].compactMap { $0 }.first { !$0.isEmpty }
+        let title = kind == "rest" ? "Rest day" : named ?? "Training"
+        return DayCard(date: day.date, title: title, detail: parts.joined(separator: " · "), kind: kind)
     }
 
     private static func singleDay(_ plan: WatchPlan) -> WatchWeek {
@@ -273,6 +301,7 @@ final class SessionStore: NSObject, ObservableObject {
             pending = (try? JSONDecoder().decode([PendingSet].self, from: data)) ?? []
         }
         outbox = defaults.stringArray(forKey: Key.outbox) ?? []
+        if let week { Self.saveCards(week) }
     }
 
     private func savePending() {
