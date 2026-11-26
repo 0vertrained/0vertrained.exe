@@ -53,6 +53,10 @@ input[type="number"] { -moz-appearance: textfield; }
 
 /* Keep fixed bottom navigation from covering the last form rows on mobile. */
 #root { padding-bottom: env(safe-area-inset-bottom); }
+/* The Ledger shell pads for the home indicator itself (.main, .tabbar, .foot),
+   so #root doesn't add it again: twice made every short page a little taller
+   than the screen, so it scrolled with nothing to show. */
+#root:has(> .ot) { padding-bottom: 0; }
 .app-shell, main { scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 
 /* Reduced motion is designed in ledger.css: with the OS setting on, nothing
