@@ -27,7 +27,7 @@
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>0VERTRAINED reads the runs you record on your Apple Watch, with their heart rate, to fill in your training log.</string>
+	<string>0VERTRAINED reads your runs, with their heart rate, and your steps, weight, sleep, resting heart rate and HRV to fill in your training log.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -34,6 +34,7 @@ import { BottomNav, QuickActionSheet, QUICK_ACTIONS, COACH_ACTION, TABS_ORDER } 
 import { Flow, Icon, Toast, TopBar } from "./ui/ledger";
 import { NavMain } from "./ui/navTransition";
 import { setUiHaptics } from "./native";
+import { useHealthDaily } from "./health/useHealthDaily";
 import { ShellProvider, useShellBar } from "./ui/shell";
 import { LoadingShell, RefreshingBar } from "./ui/primitives";
 import { getSkeletonPlan, resolveLoadState } from "./uiStability";
@@ -722,6 +723,7 @@ function AppInner({ onThemeChange }) {
   // the watch into the log. Nothing in a browser.
   useWatchBridge({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, updateEntryAtDate });
   useWatchRuns({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, updateEntryAtDate, showToast });
+  useHealthDaily({ ready: accountReady && !demoMode && Boolean(user?.id), data, wearables: Boolean(settings?.ouraConnected || settings?.whoopConnected), updateEntryAtDate });
   // The app's light taps on controls follow the runner's haptics setting.
   const uiHapticsOn = settings?.trainingCues?.haptics !== false;
   useEffect(() => { setUiHaptics(uiHapticsOn); }, [uiHapticsOn]);

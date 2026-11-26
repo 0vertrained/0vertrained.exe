@@ -16,6 +16,7 @@ import { copyToClipboard } from "./clipboard";
 import { APP_VERSION, SUPPORT_EMAIL, buildSupportMailto } from "./appMeta";
 import { nativePlugin } from "./native";
 import { AppleWatchCard } from "./sections/AppleWatchCard";
+import { AppleHealthCard } from "./sections/AppleHealthCard";
 import { useNavTransition } from "./ui/navTransition";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 
@@ -115,6 +116,8 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
   // Runs on the Apple Watch: only in an iPhone app build that has them.
   const watchRuns = Boolean(nativePlugin("OTRuns"));
+  // Daily numbers from Apple Health: only in a build that reads them.
+  const healthDaily = Boolean(nativePlugin("OTHealth"));
   const [goals, setGoals]     = useState({ ...settings.goals });
   const [supps, setSupps]     = useState([...settings.supplements]);
   const [newSupp, setNewSupp] = useState("");
@@ -527,7 +530,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
       <ul className="rows" style={{ borderTop: "1px solid var(--line)" }}>
         <li><LinkRow label="Supplements" sub={supps.length ? supps.join(", ") : "None yet"} onClick={() => setSection("supps")} /></li>
         <li><LinkRow label="Dietary restrictions" sub={dietary.length ? DIETARY_TAGS.filter((tag) => dietary.includes(tag.key)).map((tag) => tag.label).join(", ") : "None"} onClick={() => setSection("diet")} /></li>
-        <li><LinkRow label="Integrations" sub={watchRuns ? "Apple Watch, Oura, Whoop and Strava" : "Oura, Whoop and Strava"} onClick={() => setSection("integrations")} /></li>
+        <li><LinkRow label="Integrations" sub={healthDaily ? "Apple Watch, Apple Health, Oura, Whoop and Strava" : watchRuns ? "Apple Watch, Oura, Whoop and Strava" : "Oura, Whoop and Strava"} onClick={() => setSection("integrations")} /></li>
         <li><LinkRow label="Account" sub="Change your recovery phrase" onClick={() => setSection("account")} /></li>
         <li><LinkRow label="Help and about" sub="Version, support and beta feedback" onClick={() => setSection("about")} /></li>
       </ul>
@@ -579,6 +582,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
         <p role="status" data-testid="integrations-notice" className={notice.tone === "error" ? "banner caution" : "banner"}>{notice.text}</p>
       )}
       {watchRuns && <AppleWatchCard />}
+      {healthDaily && <AppleHealthCard wearables={Boolean(settings.ouraConnected || settings.whoopConnected)} />}
       <ProviderCard onSync={onSync} {...{
         id: "oura", name: "Oura", on: ouraOn, status: ouraStatus, lastSynced: ouraStatus?.lastSynced || ouraCounts?.lastSynced,
         about: "HRV-based recovery, sleep, resting heart rate and body temperature.",
