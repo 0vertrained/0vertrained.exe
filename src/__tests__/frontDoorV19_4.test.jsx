@@ -203,7 +203,7 @@ describe("V19.4 front door — a new account reaches a logger", () => {
 
     openRecovery();
     expect(await screen.findByTestId("specimen-stamp", {}, WAIT)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Connect Oura" }));
+    fireEvent.click(screen.getByRole("button", { name: "Connect a wearable" }));
     expect(await screen.findByRole("heading", { level: 1, name: "Integrations" }, WAIT)).toBeTruthy();
   }, 20000);
 

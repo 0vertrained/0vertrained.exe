@@ -114,12 +114,12 @@ describe("V17.0 detector — meaningful content, not key existence", () => {
   });
 });
 
-describe("V17.0 specimens (mounted) — stamp, caption, one action", () => {
-  it.each(["Today", "Recovery", "Fuel"])("%s: SPECIMEN stamp, sample caption, exactly ONE action that fires", (tab) => {
+describe("V17.0 specimens (mounted) — Sample label, caption, one action", () => {
+  it.each(["Today", "Recovery", "Fuel"])("%s: Sample label, sample caption, exactly ONE action that fires", (tab) => {
     const onAction = vi.fn();
     const { container, getByTestId, getByText } = wrap(<DayZeroSpecimen tab={tab} onAction={onAction} />);
-    expect(getByTestId("specimen-stamp").textContent).toBe("SPECIMEN");
-    expect(getByText(/Sample week — yours replaces this/)).toBeTruthy();
+    expect(getByTestId("specimen-stamp").textContent).toBe("Sample");
+    expect(getByText(/This is a sample, not your data/)).toBeTruthy();
     const buttons = container.querySelectorAll("button");
     expect(buttons.length).toBe(1); // choice paralysis is the enemy of minute one
     fireEvent.click(buttons[0]);
@@ -128,21 +128,22 @@ describe("V17.0 specimens (mounted) — stamp, caption, one action", () => {
     expect(container.textContent).toMatch(/minute|two minutes|two numbers/i);
   });
 
-  it("Progress: zero buttons; the unlock countdown in the calibration voice", () => {
+  it("Progress: zero buttons; how many logged days are left", () => {
     const { container, getByText } = wrap(
       <DayZeroSpecimen tab="Progress" progressInfo={{ daysHave: 4, daysNeeded: 3 }} />
     );
     expect(container.querySelectorAll("button").length).toBe(0);
-    expect(getByText(/UNLOCKS AFTER 7 LOGGED DAYS — 3 TO GO/)).toBeTruthy();
+    expect(getByText("Three more days.")).toBeTruthy();
+    expect(getByText(/Progress opens after 7 logged days/)).toBeTruthy();
   });
 
   it("plates render the curated specimen content, not empty frames", () => {
     const { getByText, rerender } = wrap(<DayZeroSpecimen tab="Today" onAction={() => {}} />);
     expect(getByText("Incline DB Press")).toBeTruthy();
-    expect(getByText(/Last time · 70 lb/)).toBeTruthy();
+    expect(getByText(/Last time: 70 lb/)).toBeTruthy();
     rerender(<ThemeProvider><DayZeroSpecimen tab="Recovery" onAction={() => {}} /></ThemeProvider>);
-    expect(getByText("Push day. Load the bar.")).toBeTruthy();
-    expect(getByText("FRESH")).toBeTruthy();
+    expect(getByText("Green light — load the bar.")).toBeTruthy();
+    expect(getByText("Push")).toBeTruthy();
   });
 });
 
