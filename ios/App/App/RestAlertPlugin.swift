@@ -5,13 +5,17 @@ import Capacitor
 /// A local notification at the end of a rest. The page's own timer stops
 /// when the phone locks; this one doesn't. While the app is open the page's
 /// timer and haptic do the job, and iOS doesn't show the notification.
+/// The same rest also shows as a timer on the Lock Screen and in the Dynamic
+/// Island (showTimer, hideTimer).
 @objc(RestAlertPlugin)
 public class RestAlertPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "RestAlertPlugin"
     public let jsName = "OTRestAlert"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "schedule", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "showTimer", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "hideTimer", returnType: CAPPluginReturnPromise)
     ]
 
     private static let requestId = "ovt.rest"
@@ -53,6 +57,23 @@ public class RestAlertPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func cancel(_ call: CAPPluginCall) {
         Self.clear()
         call.resolve()
+    }
+
+    /// seconds: time left in the rest. next: what comes after it.
+    @objc func showTimer(_ call: CAPPluginCall) {
+        let seconds = call.getDouble("seconds") ?? 0
+        let next = call.getString("next") ?? ""
+        DispatchQueue.main.async {
+            RestActivityController.show(seconds: seconds, next: next)
+            call.resolve()
+        }
+    }
+
+    @objc func hideTimer(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            RestActivityController.end()
+            call.resolve()
+        }
     }
 
     private static func clear() {

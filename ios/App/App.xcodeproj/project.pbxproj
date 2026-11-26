@@ -34,6 +34,11 @@
 		28750D975F84203C6125340E /* RunWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */; };
 		D683DD74C45E98DE4F01DB66 /* RunWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */; };
 		47E1448CC805B21301C50317 /* RemindersPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D29241F9B5F62D439F87F16 /* RemindersPlugin.swift */; };
+		3FD49D64B4380268CA2337C8 /* RestActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 928997AD756BEB39DCD549AC /* RestActivityController.swift */; };
+		FD79FEAE77134C454FA1A913 /* RestActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190EAC8F00D0886AC873CB93 /* RestActivity.swift */; };
+		45CFB109FC61644BA9F2519E /* RestActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190EAC8F00D0886AC873CB93 /* RestActivity.swift */; };
+		4AD6C3E5C481CF73A0C2C41A /* RestActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6666C1E2C15995D857490A0F /* RestActivityWidget.swift */; };
+		D0D575D3BCD95695BB5BD5E5 /* RestActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D29DCFA400B75CBDC65B8EF4 /* RestActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -43,6 +48,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = C5F8E853E9232317CD26114F;
 			remoteInfo = WatchApp;
+		};
+		15472F487385F676921CDA98 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ACAE2E3758D4C0E9DDEF42A7;
+			remoteInfo = RestActivity;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -56,6 +68,17 @@
 				4C6B28BBC80DBF91D65282C0 /* WatchApp.app in Embed Watch Content */,
 			);
 			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2739CC6AA1222445EEFA0B1B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D0D575D3BCD95695BB5BD5E5 /* RestActivity.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -92,6 +115,11 @@
 		FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunWorkout.swift; sourceTree = "<group>"; };
 		79A65BABD675768D7B7FDC32 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		0D29241F9B5F62D439F87F16 /* RemindersPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersPlugin.swift; sourceTree = "<group>"; };
+		928997AD756BEB39DCD549AC /* RestActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestActivityController.swift; sourceTree = "<group>"; };
+		190EAC8F00D0886AC873CB93 /* RestActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestActivity.swift; sourceTree = "<group>"; };
+		6666C1E2C15995D857490A0F /* RestActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestActivityWidget.swift; sourceTree = "<group>"; };
+		D7CB2D2005C11CF8565A96AD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D29DCFA400B75CBDC65B8EF4 /* RestActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RestActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -110,6 +138,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8AE1303E5999F38C1B7E26A9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -120,6 +155,7 @@
 				504EC3061FED79650016851F /* App */,
 				FF2C3C4CC3F8B1BAB583026E /* WatchApp */,
 				3E5F9B74BC6E3262075D2F6C /* Shared */,
+				82136B49D5A936FFBD4A6F95 /* RestActivity */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -129,6 +165,7 @@
 			children = (
 				504EC3041FED79650016851F /* App.app */,
 				8BAEAEF91065D80CBCA650A4 /* WatchApp.app */,
+				D29DCFA400B75CBDC65B8EF4 /* RestActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -153,6 +190,7 @@
 				1D95201F6381D68DFE7A852F /* RunsPlugin.swift */,
 				79A65BABD675768D7B7FDC32 /* App.entitlements */,
 				0D29241F9B5F62D439F87F16 /* RemindersPlugin.swift */,
+				928997AD756BEB39DCD549AC /* RestActivityController.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -178,8 +216,18 @@
 			isa = PBXGroup;
 			children = (
 				FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */,
+				190EAC8F00D0886AC873CB93 /* RestActivity.swift */,
 			);
 			path = Shared;
+			sourceTree = "<group>";
+		};
+		82136B49D5A936FFBD4A6F95 /* RestActivity */ = {
+			isa = PBXGroup;
+			children = (
+				6666C1E2C15995D857490A0F /* RestActivityWidget.swift */,
+				D7CB2D2005C11CF8565A96AD /* Info.plist */,
+			);
+			path = RestActivity;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -193,11 +241,13 @@
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
 				6B8C9454334717A1109DF9B5 /* Embed Watch Content */,
+				2739CC6AA1222445EEFA0B1B /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				037CCDF7BC4C3A030C56D771 /* PBXTargetDependency */,
+				7B6576B87B6875479BB975D1 /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -224,6 +274,23 @@
 			productReference = 8BAEAEF91065D80CBCA650A4 /* WatchApp.app */;
 			productType = "com.apple.product-type.application";
 		};
+		ACAE2E3758D4C0E9DDEF42A7 /* RestActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2C43BDACFEF532F067AE17A5 /* Build configuration list for PBXNativeTarget "RestActivity" */;
+			buildPhases = (
+				843B1F21C0FA635B3FAEC1F8 /* Sources */,
+				8AE1303E5999F38C1B7E26A9 /* Frameworks */,
+				BB3976B126A8E80FF3D37F5B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RestActivity;
+			productName = RestActivity;
+			productReference = D29DCFA400B75CBDC65B8EF4 /* RestActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -233,6 +300,9 @@
 				LastSwiftUpdateCheck = 0920;
 				LastUpgradeCheck = 0920;
 				TargetAttributes = {
+					ACAE2E3758D4C0E9DDEF42A7 = {
+						CreatedOnToolsVersion = 16.0;
+					};
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
@@ -261,6 +331,7 @@
 			targets = (
 				504EC3031FED79650016851F /* App */,
 				C5F8E853E9232317CD26114F /* WatchApp */,
+				ACAE2E3758D4C0E9DDEF42A7 /* RestActivity */,
 			);
 		};
 /* End PBXProject section */
@@ -287,6 +358,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BB3976B126A8E80FF3D37F5B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -304,6 +382,8 @@
 				A92E61295872EE52B7F69B9D /* RunsPlugin.swift in Sources */,
 				28750D975F84203C6125340E /* RunWorkout.swift in Sources */,
 				47E1448CC805B21301C50317 /* RemindersPlugin.swift in Sources */,
+				3FD49D64B4380268CA2337C8 /* RestActivityController.swift in Sources */,
+				FD79FEAE77134C454FA1A913 /* RestActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -322,6 +402,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		843B1F21C0FA635B3FAEC1F8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4AD6C3E5C481CF73A0C2C41A /* RestActivityWidget.swift in Sources */,
+				45CFB109FC61644BA9F2519E /* RestActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -329,6 +418,11 @@
 			isa = PBXTargetDependency;
 			target = C5F8E853E9232317CD26114F /* WatchApp */;
 			targetProxy = BAEB8E38258B2FD954255E00 /* PBXContainerItemProxy */;
+		};
+		7B6576B87B6875479BB975D1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = ACAE2E3758D4C0E9DDEF42A7 /* RestActivity */;
+			targetProxy = 15472F487385F676921CDA98 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -568,6 +662,59 @@
 			};
 			name = Release;
 		};
+		E2473968539E7BF5169BE744 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = RestActivity/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = 0VERTRAINED;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).RestActivity";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D0145D9CF812A6FE6B84F64B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = RestActivity/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = 0VERTRAINED;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).RestActivity";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -594,6 +741,15 @@
 			buildConfigurations = (
 				975A0F64B8DD6868CC1B7F1A /* Debug */,
 				7C5D218649BB10D6CCE8CA21 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2C43BDACFEF532F067AE17A5 /* Build configuration list for PBXNativeTarget "RestActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E2473968539E7BF5169BE744 /* Debug */,
+				D0145D9CF812A6FE6B84F64B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

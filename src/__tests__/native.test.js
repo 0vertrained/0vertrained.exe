@@ -12,8 +12,10 @@ import {
   isNativeApp,
   nativeHaptic,
   nativeKeepAwake,
+  hideRestTimer,
   scheduleRestAlert,
   setNativeBarStyle,
+  showRestTimer,
 } from "../native";
 import { triggerHaptic } from "../sessionDevice";
 import { pushSupportState } from "../push";
@@ -21,7 +23,12 @@ import { pushSupportState } from "../push";
 function installApp(overrides = {}) {
   const plugins = {
     OTDevice: { haptic: vi.fn(async () => {}), keepAwake: vi.fn(async () => {}) },
-    OTRestAlert: { schedule: vi.fn(async () => ({ scheduled: true })), cancel: vi.fn(async () => {}) },
+    OTRestAlert: {
+      schedule: vi.fn(async () => ({ scheduled: true })),
+      cancel: vi.fn(async () => {}),
+      showTimer: vi.fn(async () => {}),
+      hideTimer: vi.fn(async () => {}),
+    },
     SystemBars: { setStyle: vi.fn(async () => {}) },
     ...overrides,
   };
@@ -42,6 +49,8 @@ describe("in a browser", () => {
     expect(scheduleRestAlert(90)).toBe(false);
     expect(cancelRestAlert()).toBe(false);
     expect(setNativeBarStyle("dark")).toBe(false);
+    expect(showRestTimer(90, "Set 2")).toBe(false);
+    expect(hideRestTimer()).toBe(false);
   });
 
   it("still vibrates where the browser can", () => {
@@ -88,6 +97,22 @@ describe("in the iPhone app", () => {
     expect(plugins.OTRestAlert.schedule).toHaveBeenCalledWith({ seconds: 90, title: "Rest over", body: "Next: set 2 of 3" });
     scheduleRestAlert(0.2);
     expect(plugins.OTRestAlert.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("puts the rest on the Lock Screen in whole seconds, and takes it off", () => {
+    const plugins = installApp();
+    expect(showRestTimer(89.6, "Bench Press · Set 2")).toBe(true);
+    expect(plugins.OTRestAlert.showTimer).toHaveBeenCalledWith({ seconds: 90, next: "Bench Press · Set 2" });
+    expect(showRestTimer(0.3)).toBe(false);
+    expect(plugins.OTRestAlert.showTimer).toHaveBeenCalledTimes(1);
+    expect(hideRestTimer()).toBe(true);
+    expect(plugins.OTRestAlert.hideTimer).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the Lock Screen alone in an app build without the timer", () => {
+    installApp({ OTRestAlert: { schedule: vi.fn(async () => ({})), cancel: vi.fn(async () => {}) } });
+    expect(showRestTimer(90)).toBe(false);
+    expect(hideRestTimer()).toBe(false);
   });
 
   it("matches the status bar to the theme", () => {

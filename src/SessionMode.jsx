@@ -25,7 +25,7 @@ import { buildDeloadRecommendation } from "./fatigueManagement";
 import { buildSessionArbitration, buildSessionVolumeProjection } from "./trainingArbitration";
 import { readExerciseNote, writeExerciseNote, readSupersetPref, writeSupersetPref } from "./liftLogPrefs";
 import { playRestChirp, triggerHaptic, useScreenWakeLock } from "./sessionDevice";
-import { cancelRestAlert, scheduleRestAlert } from "./native";
+import { cancelRestAlert, hideRestTimer, scheduleRestAlert, showRestTimer } from "./native";
 import {
   completedSetCount,
   firstIncompleteExerciseIndex,
@@ -231,6 +231,14 @@ export function SessionMode({
     scheduleRestAlert((restEndsAt - Date.now()) / 1000, restAlertText ? { body: restAlertText } : undefined);
     return () => { cancelRestAlert(); };
   }, [restEndsAt, restAlertText, hapticsEnabled, restAudioEnabled]);
+  // And a timer on the Lock Screen, whatever the cue settings: moved on when
+  // the rest changes, gone when it's paused or cleared and when the runner
+  // closes. A rest that runs out stays up as "Rest over" until then.
+  useEffect(() => {
+    if (restEndsAt) showRestTimer((restEndsAt - Date.now()) / 1000, restAlertText || "");
+    else hideRestTimer();
+  }, [restEndsAt, restAlertText]);
+  useEffect(() => () => { hideRestTimer(); }, []);
 
   const exercise = lifting?.[idx] || null;
   const exData = exercise ? (workoutData?.exercises?.[exercise.name] || {}) : {};

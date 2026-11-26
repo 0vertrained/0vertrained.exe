@@ -57,6 +57,18 @@ export function cancelRestAlert() {
   return call("OTRestAlert", "cancel");
 }
 
+// The rest as a timer on the Lock Screen and in the Dynamic Island, counting
+// down to its end. Shown again, it moves the same timer on.
+export function showRestTimer(seconds, next = "") {
+  const whole = Math.round(Number(seconds) || 0);
+  if (whole < 1) return false;
+  return call("OTRestAlert", "showTimer", { seconds: whole, next: String(next || "") });
+}
+
+export function hideRestTimer() {
+  return call("OTRestAlert", "hideTimer");
+}
+
 // Status bar text that reads on the theme's background: dark text on Paper,
 // light text on Negative. SystemBars is built into Capacitor.
 export function setNativeBarStyle(mode) {

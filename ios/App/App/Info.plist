@@ -24,6 +24,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>NSHealthShareUsageDescription</key>
 	<string>0VERTRAINED reads the runs you record on your Apple Watch to fill in your training log.</string>
 	<key>UIApplicationSceneManifest</key>
