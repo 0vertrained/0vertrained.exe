@@ -1,0 +1,14 @@
+{
+	"appId": "com.ramimartinez.overtrained",
+	"appName": "0VERTRAINED",
+	"webDir": "native-shell",
+	"server": {
+		"url": "https://ios--0vertrained.netlify.app",
+		"errorPath": "offline.html"
+	},
+	"ios": {
+		"contentInset": "never",
+		"allowsLinkPreview": false
+	},
+	"packageClassList": []
+}

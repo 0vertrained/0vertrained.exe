@@ -1,0 +1,13 @@
+App/build
+App/Pods
+App/output
+DerivedData
+xcuserdata
+
+# Cordova plugins for Capacitor
+capacitor-cordova-ios-plugins
+
+# App/App/public, App/App/capacitor.config.json and App/App/config.xml are
+# written by `npx cap sync ios` and are committed on purpose: the Mac that
+# builds the app opens the project in Xcode without running Node. Run the sync
+# after changing capacitor.config.json or native-shell/, and commit the result.

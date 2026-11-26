@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <title>No connection · 0VERTRAINED</title>
+  <!-- Shown by the iPhone app when the site can't load. It ships inside the
+       app, so it uses system fonts and needs nothing from the network. -->
+  <style>
+    :root {
+      --bg: #FAF9F6; --ink: #1A1A1A; --ink-2: #55524C;
+      --accent: #1A1A1A; --on-accent: #FAF9F6;
+      --f-voice: ui-serif, "New York", Georgia, serif;
+      --f-ui: system-ui, -apple-system, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #141412; --ink: #F1EEE7; --ink-2: #B9B4AA; --accent: #F1EEE7; --on-accent: #141412; }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); }
+    body {
+      display: flex; flex-direction: column; justify-content: center;
+      min-height: 100vh;
+      padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+      font: 400 16px/24px var(--f-ui);
+      -webkit-text-size-adjust: 100%;
+    }
+    main { width: 100%; max-width: 30rem; margin: 0 auto; }
+    .mark { margin: 0 0 32px; font: 600 14px/20px var(--f-ui); letter-spacing: .02em; }
+    h1 { margin: 0 0 12px; font: 600 32px/38px var(--f-voice); letter-spacing: -.015em; }
+    p { margin: 0 0 16px; }
+    .quiet { color: var(--ink-2); font-size: 14px; line-height: 20px; }
+    button {
+      display: flex; align-items: center; justify-content: center; width: 100%;
+      min-height: 56px; margin-top: 16px; padding: 0 20px;
+      border: 0; border-radius: 8px; background: var(--accent); color: var(--on-accent);
+      font: 600 18px/24px var(--f-ui); cursor: pointer;
+    }
+    button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+    button[aria-busy="true"] { opacity: .7; }
+    @media (prefers-reduced-motion: no-preference) {
+      button { transition: opacity 160ms cubic-bezier(.23, 1, .32, 1); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="mark" aria-hidden="true">0VERTRAINED</p>
+    <h1>No connection</h1>
+    <p>0VERTRAINED needs a connection to open. It tries again on its own when you're back online.</p>
+    <p class="quiet">Sets you log on your Apple Watch stay on the watch and are added when the app opens.</p>
+    <button type="button" id="retry">Try again</button>
+    <p class="quiet" id="status" role="status" aria-live="polite"></p>
+  </main>
+  <script>
+    (function () {
+      var button = document.getElementById("retry");
+      var status = document.getElementById("status");
+      function retry() {
+        button.setAttribute("aria-busy", "true");
+        status.textContent = "Trying again…";
+        var plugins = window.Capacitor && window.Capacitor.Plugins;
+        var device = plugins && plugins.OTDevice;
+        if (device && typeof device.retry === "function") {
+          device.retry().catch(function () { done(); });
+        } else {
+          done();
+        }
+        // A load that fails again comes back to this page; one that works
+        // replaces it. Either way the button is usable again shortly.
+        setTimeout(done, 8000);
+      }
+      function done() {
+        button.removeAttribute("aria-busy");
+        status.textContent = navigator.onLine === false ? "Still offline." : "";
+      }
+      button.addEventListener("click", retry);
+      window.addEventListener("online", retry);
+    })();
+  </script>
+</body>
+</html>
