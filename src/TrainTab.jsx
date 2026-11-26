@@ -1,9 +1,10 @@
 // src/TrainTab.jsx
 // Train: the plan, in one place. Today's session, the seven days of this
 // week, and the rows that lead to the program, the block, the race plan and
-// history. The program screens themselves still come from MoreTab's
-// ProgramTab; they are shown here one level down.
-import { useEffect, useRef, useState } from "react";
+// history. The block is its own screen here (BlockScreen.jsx). The program
+// screens themselves still come from MoreTab's ProgramTab; they are shown
+// here one level down.
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { DAYS, getTodayKey } from "./constants";
 import { getProgramSessions, flattenProgramLifting } from "./programSessions";
 import { summarizeProgramDay } from "./programSummary";
@@ -15,6 +16,10 @@ import { summarizeProgramForHub } from "./moreHub";
 import { Icon, LinkRow } from "./ui/ledger";
 import { useTopBar } from "./ui/shell";
 import { ProgramTab } from "./MoreTab";
+
+// The block brings the planner and the decision engine with it, so it loads
+// when it is opened.
+const BlockScreen = lazy(() => import("./BlockScreen").then((module) => ({ default: module.BlockScreen })));
 
 const NBSP = "\u00a0";
 
@@ -60,9 +65,9 @@ export function buildTrainWeek({ program, entries, todayKey }) {
   });
 }
 
-export function TrainTab({ program, liveProgram, entries, settings, onSaveProgram, onApplyGeneratedProgram, onStartToday, onOpenDay, onOpenProgress }) {
-  // "home", or the program screens opened at one of their actions.
-  const [view, setView] = useState("home");
+export function TrainTab({ program, liveProgram, entries, settings, onSaveProgram, onApplyGeneratedProgram, onStartToday, onOpenDay, onOpenProgress, initialView = null }) {
+  // "home", the block, or the program screens opened at one of their actions.
+  const [view, setView] = useState(initialView === "block" ? "block" : "home");
   // A screen opened from Train starts at its top, not wherever Train was scrolled.
   const firstView = useRef(true);
   useEffect(() => {
@@ -78,10 +83,18 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
   const raceCopy = hasRacePlan ? raceWeekCopy(describeBuildWeek(program, todayKey)) : null;
 
   useTopBar(view === "home" ? null : {
-    title: view === "race" ? "Race plan" : "Program",
+    title: view === "race" ? "Race plan" : view === "block" ? "Block" : "Program",
     back: "Train",
     onBack: () => setView("home"),
   });
+
+  if (view === "block") {
+    return (
+      <Suspense fallback={<div className="shell"><div className="main"><p className="t-s c2" role="status">Loading the block…</p></div></div>}>
+        <BlockScreen data={entries} settings={settings} program={shown} onOpenProgram={() => setView("program")} />
+      </Suspense>
+    );
+  }
 
   if (view !== "home") {
     return (
@@ -140,7 +153,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
           <h2 id="train-plan" className="t-h">The plan</h2>
           <ul className="rows">
             <li><LinkRow label="Program" sub={planSummary.hasProgram ? planSummary.line : "No program yet. Build one or pick a preset."} onClick={() => setView("program")} /></li>
-            <li><LinkRow label="Block" sub="Where this week sits in the block" onClick={() => onOpenProgress("program")} /></li>
+            <li><LinkRow label="Block" sub="Where this week sits in the block" onClick={() => setView("block")} /></li>
             <li><LinkRow label="Race plan" sub={hasRacePlan ? `${program.__raceBuild.raceName} · ${formatPlanDate(program.__raceBuild.raceDate)}${raceCopy ? ` · ${raceCopy.countdown}` : ""}` : "Train for a 5K, 10K or half, built around your lifting"} onClick={() => setView("race")} /></li>
             <li><LinkRow label="History" sub="Every session and run" onClick={() => onOpenProgress("history")} /></li>
           </ul>

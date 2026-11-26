@@ -151,7 +151,7 @@ html, body { background: var(--bg); color: var(--ink); }
 .btn-s:active, .ibtn:active, .step button:active, .opt:active, .tab:active, .dayc:active { background: var(--press); }
 .seg button:not([aria-checked="true"], [aria-pressed="true"], [aria-selected="true"]):active, .chip:not([aria-checked="true"], [aria-pressed="true"], [aria-selected="true"]):active { background: var(--press); }
 a.row:active, button.row:active { background: var(--press); }
-.seg [aria-disabled="true"], .chip[aria-disabled="true"], .sw[aria-disabled="true"] { color: var(--ink-3); border-color: var(--line); background: var(--sunk); }
+.seg [aria-disabled="true"], .chip[aria-disabled="true"], .sw[aria-disabled="true"], .step button[aria-disabled="true"] { color: var(--ink-3); border-color: var(--line); background: var(--sunk); }
 
 /* ── Choices ────────────────────────────────────────────────────────────────── */
 /* Separate 44px targets, 8px apart. Selected is filled, ticked and heavier, never colour alone. */

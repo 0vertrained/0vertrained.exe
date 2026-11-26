@@ -6,37 +6,19 @@
 // here writes to a program or a workout.
 import { Fragment, useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
-import { useTheme } from "./theme";
 import { Icon, LinkRow, QuickNumber } from "./ui/ledger";
 import { useTopBar } from "./ui/shell";
-import { DEFAULT_PROGRAM, getTodayKey, getDayName } from "./constants";
-import { calcRecoveryScore, calcWeeklyReview } from "./recovery";
+import { getTodayKey } from "./constants";
+import { calcWeeklyReview } from "./recovery";
 import { buildWeeklyCoachReview } from "./weeklyCoachReview";
 import { buildCoachingCalibrationProfile } from "./coachingCalibration";
 import { WeeklyCoachingReview, weekInNumbers, ON_TARGET_NOTE } from "./WeeklyCoachingReview";
 import { ClinicianGuardrailsCard } from "./ClinicianGuardrailsCard";
 import { isOuraConnected, loadOuraData } from "./oura";
 import { isWhoopConnected, loadWhoopData } from "./whoop";
-import { buildDailyLoads, computeRollingLoads } from "./loadModel";
-import { buildDecisionContext, getDailyRecommendation } from "./decisionEngine";
 import { buildDecisionFeedbackWeekly } from "./decisionFeedback";
 import { buildPeriodizationPlan, suggestPeriodizationAction } from "./periodizationPlanner";
-import {
-  PERIODIZATION_GOAL_PRESETS,
-  RUN_EMPHASIS_OPTIONS,
-  STRENGTH_EMPHASIS_OPTIONS,
-  normalizePeriodizationSettings,
-  describePeriodizationPreview,
-  periodizationSettingsChanged,
-  buildPeriodizationStoragePatch,
-  buildNextBlockSettings,
-  buildBlockSnapshot,
-  appendBlockHistory,
-  readStoredPeriodization,
-  writeStoredPeriodization,
-  readStoredPeriodizationHistory,
-  writeStoredPeriodizationHistory,
-} from "./periodizationSettings";
+import { normalizePeriodizationSettings, readStoredPeriodization } from "./periodizationSettings";
 import { calcStreak } from "./AppHeader";
 import { LoadingShell } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
@@ -55,11 +37,10 @@ const RunningVolumeFigure = lazyNamed(() => import("./sections/RunningVolumeFigu
 const MuscleVolumeSection = lazyNamed(() => import("./MuscleVolumeSection"), "MuscleVolumeSection");
 const LiftIntelligenceSection = lazyNamed(() => import("./LiftIntelligenceSection"), "LiftIntelligenceSection");
 const MuscleRecencyMap = lazyNamed(() => import("./LiftIntelligenceSection"), "MuscleRecencyMap");
-const RaceBlockSection = lazyNamed(() => import("./RaceBlockSection"), "RaceBlockSection");
 const RecoveryLoadFigure = lazyNamed(() => import("./sections/TrendCharts"), "RecoveryLoadFigure");
 
 const NBSP = "\u00a0";
-const SCREEN_TITLES = { strength: "Strength", running: "Running", body: "Body", recovery: "Recovery", review: "Weekly review", history: "History", periodization: "Block" };
+const SCREEN_TITLES = { strength: "Strength", running: "Running", body: "Body", recovery: "Recovery", review: "Weekly review", history: "History" };
 const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
 
 // Pace is logged as "m:ss" per mile.
@@ -78,22 +59,17 @@ function secondsToPace(secs) {
 }
 
 // Progress tab
-export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, onSaveCoachingSettings, initialSubView = null, onOpenDay, onExit, onOpenEdition = null }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
+export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, onSaveCoachingSettings, initialSubView = null, onOpenDay, onExit, onOpenEdition = null, onOpenBlock = null }) {
   // Train links straight to the block ("program") and to history; Back from
   // either returns there.
-  // home | strength | running | body | recovery | review | history | periodization
-  const landing = initialSubView === "program" ? "periodization" : initialSubView === "history" ? "history" : null;
+  // home | strength | running | body | recovery | review | history
+  const landing = initialSubView === "history" ? "history" : null;
   const [subView, setSubView] = useState(landing || "home");
   const [selectedDay, setSelectedDay] = useState(null);
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
-  const [periodizationEditOpen, setPeriodizationEditOpen] = useState(false);
-  // Block settings persist via a namespaced localStorage key (see periodizationSettings.js
-  // PERSISTENCE NOTE). Saved = last persisted; Draft = in-flight edits.
-  const [periodizationSaved, setPeriodizationSaved] = useState(() => normalizePeriodizationSettings(readStoredPeriodization() || {}));
-  const [periodizationDraft, setPeriodizationDraft] = useState(periodizationSaved);
-  const [periodizationHistory, setPeriodizationHistory] = useState(() => readStoredPeriodizationHistory());
+  // The saved block settings, read once for the weekly review's block row.
+  // They are edited in Train, under Block (BlockScreen.jsx).
+  const [periodizationSaved] = useState(() => normalizePeriodizationSettings(readStoredPeriodization() || {}));
   const [wearableTrends, setWearableTrends] = useState(() => buildWearableTrendNotes({}));
 
   // A screen under Progress: its name in the top bar, and Back to where it
@@ -156,262 +132,6 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   const coachReview = buildWeeklyCoachReview({ data, goals, settings, program, wearableTrends, calibrationProfile });
   const decisionFeedback = buildDecisionFeedbackWeekly(data);
   const streak = calcStreak(data);
-
-  // ── Periodization sub-view ──
-  if (subView === "periodization") {
-    const blockStart = periodizationDraft.startDate || entries[0]?.[0] || getTodayKey();
-    const plan = buildPeriodizationPlan({
-      startDate: blockStart,
-      todayKey: getTodayKey(),
-      program,
-      entries: data,
-      blockLengthWeeks: periodizationDraft.blockLengthWeeks,
-      blockName: periodizationDraft.name,
-      goal: periodizationDraft.goal,
-      deloadWeek: periodizationDraft.deloadWeek,
-      runEmphasis: periodizationDraft.runEmphasis,
-      strengthEmphasis: periodizationDraft.strengthEmphasis,
-    });
-    const today = getTodayKey();
-    const yesterdayKeyForRecovery = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
-    const todayName = getDayName(new Date(today + "T12:00:00"));
-    const dailyLoads = buildDailyLoads(data, 28);
-    const trainingLoad = computeRollingLoads(dailyLoads);
-    const recovery = calcRecoveryScore(data[yesterdayKeyForRecovery], data, yesterdayKeyForRecovery);
-    const dailyRecommendation = getDailyRecommendation(buildDecisionContext({
-      todayProgram: program?.[todayName] || DEFAULT_PROGRAM[todayName],
-      entries: data,
-      settings,
-      trainingLoad,
-      todayKey: today,
-      recovery,
-    }));
-    const action = suggestPeriodizationAction({ plan, todayKey: today, recommendation: dailyRecommendation, entries: data, trainingLoad });
-    const current = action.currentWeek;
-    const riskColor = action.risk === "high" ? C.red : action.risk === "medium" ? C.text : C.green;
-
-    // ── Block settings lifecycle (suggest-only; never writes program/workouts) ──
-    const periodizationDirty = periodizationSettingsChanged(periodizationSaved, periodizationDraft);
-    const previewLines = describePeriodizationPreview(periodizationSaved, periodizationDraft);
-    const blockEnded = !!plan.endDate && today > plan.endDate;
-    const cap = (s) => (typeof s === "string" && s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-
-    const commitPeriodization = (settingsObj, opts = {}) => {
-      const patch = buildPeriodizationStoragePatch({ ...settingsObj, savedAt: new Date().toISOString() });
-      writeStoredPeriodization(patch);
-      const normalized = normalizePeriodizationSettings(patch);
-      setPeriodizationSaved(normalized);
-      setPeriodizationDraft(normalized);
-      if (opts.history) {
-        writeStoredPeriodizationHistory(opts.history);
-        setPeriodizationHistory(opts.history);
-      }
-      setPeriodizationEditOpen(false);
-    };
-    const handleSavePeriodization = () => commitPeriodization(periodizationDraft);
-    const handleResetPeriodization = () => setPeriodizationDraft(periodizationSaved);
-    const handleCancelPeriodization = () => { setPeriodizationDraft(periodizationSaved); setPeriodizationEditOpen(false); };
-    const handleStartNextBlock = () => {
-      const snapshot = buildBlockSnapshot(plan, today);
-      const nextHistory = appendBlockHistory(periodizationHistory, snapshot);
-      commitPeriodization(buildNextBlockSettings(plan), { history: nextHistory });
-    };
-
-    const statusColor = (status) => status === "current" ? C.text : status === "completed" ? C.textFaint : C.textDim;
-    const previousBlock = periodizationHistory[0] || null;
-
-    return (
-      <div className="legacy-screen">
-
-        {/* Broadsheet Program spread: summary, race block,
-            and this-week guidance rail left; the week table + block history —
-            the part that reads as a table — gets the width. */}
-        <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-m) 1fr", gap: 20, alignItems: "start" } : { display: "contents" }}>
-        <section data-section="prog-rail" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
-        {/* ── Polished summary card ── */}
-        <div style={S.block}>
-          <div style={S.blockHead}>
-            <span style={S.blockTitle}>{"> "}Block</span>
-            {!periodizationEditOpen && <button onClick={() => setPeriodizationEditOpen(true)} style={{ ...S.smallBtn, padding:"4px 10px", fontSize:9.5 }}>Edit block</button>}
-          </div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10, marginBottom:6 }}>
-            <span style={{ fontSize:16, color:C.text, letterSpacing:"0.04em", textTransform:"uppercase", fontWeight:600 }}>{plan.name}</span>
-            <span style={{ ...S.blockStat, color:C.text, fontSize:11 }}>Week {plan.currentWeekNumber}/{plan.blockLengthWeeks}</span>
-          </div>
-          <div style={{ fontFamily:S.fontSerif, fontStyle:"italic", color:C.textDim, fontSize:14, lineHeight:1.35, marginBottom:8 }}>{plan.goal}</div>
-          <div style={S.ruledRow}><span style={S.ruledLabel}>Dates</span><span style={S.ruledValue}>{plan.startDate} → {plan.endDate}</span></div>
-          <div style={S.ruledRow}><span style={S.ruledLabel}>Structure</span><span style={S.ruledValue}>{plan.blockLengthWeeks} weeks · Deload W{plan.deloadWeek}</span></div>
-          <div style={S.ruledRow}><span style={S.ruledLabel}>Emphasis</span><span style={S.ruledValue}>Run {cap(plan.emphasis.run)} · Strength {cap(plan.emphasis.strength)}</span></div>
-          <div style={S.ruledRow}><span style={S.ruledLabel}>Progress</span><span style={S.ruledValue}>{plan.completionPct}%</span></div>
-          <div style={{ ...S.annotation, marginTop:8 }}>planner guidance only — no weekly program or workout is rewritten</div>
-          {blockEnded && (
-            <div style={{ marginTop:10, borderTop:`1px solid ${C.line}`, paddingTop:10, display:"flex", justifyContent:"space-between", alignItems:"center", gap:10 }}>
-              <span style={{ fontSize:11.5, color:C.textDim }}>This block has ended.</span>
-              <button onClick={handleStartNextBlock} style={{ ...S.smallBtn, padding:"6px 12px", fontSize:10, borderColor:C.text }}>Start next block</button>
-            </div>
-          )}
-        </div>
-
-        {/* ── Race block — countdown, taper flag, station benchmarks ── */}
-        <Suspense fallback={<div style={S.block}><div style={S.annotation}>Loading race block…</div></div>}>
-          <RaceBlockSection program={program} />
-        </Suspense>
-
-        {/* ── Edit mode ── */}
-        {periodizationEditOpen && (
-          <div style={S.block}>
-            <div style={S.blockHead}>
-              <span style={S.blockTitle}>{"> "}Block Settings</span>
-              <span style={{ ...S.blockStat, color: periodizationDirty ? C.text : C.textFaint }}>{periodizationDirty ? "unsaved" : "saved"}</span>
-            </div>
-
-            {/* Identity */}
-            <div style={{ ...S.annotation, marginBottom:8, color:C.textDim }}>Identity</div>
-            <div style={{ display:"grid", gap:9, marginBottom:14 }}>
-              <label style={{ display:"grid", gap:4 }}>
-                <span style={S.ruledLabel}>Block name</span>
-                <input value={periodizationDraft.name} onChange={e => setPeriodizationDraft(d => ({ ...d, name:e.target.value }))} style={{ background:C.cell, border:`1px solid ${C.lineBright}`, color:C.text, padding:"8px 9px", fontFamily:mono, fontSize:13 }} />
-              </label>
-              <label style={{ display:"grid", gap:4 }}>
-                <span style={S.ruledLabel}>Goal preset</span>
-                <select value={periodizationDraft.goalPreset} onChange={e => {
-                  const preset = e.target.value;
-                  const presetGoal = PERIODIZATION_GOAL_PRESETS[preset]?.goal || "";
-                  setPeriodizationDraft(d => ({ ...d, goalPreset:preset, goal: preset === "custom" ? d.goal : (presetGoal || d.goal) }));
-                }} style={{ background:C.cell, border:`1px solid ${C.lineBright}`, color:C.text, padding:"8px 9px", fontFamily:mono, fontSize:13 }}>
-                  {Object.entries(PERIODIZATION_GOAL_PRESETS).map(([key, p]) => <option key={key} value={key}>{p.label}</option>)}
-                </select>
-              </label>
-              <label style={{ display:"grid", gap:4 }}>
-                <span style={S.ruledLabel}>Goal description</span>
-                <textarea value={periodizationDraft.goal} onChange={e => setPeriodizationDraft(d => ({ ...d, goal:e.target.value }))} rows={2} style={{ background:C.cell, border:`1px solid ${C.lineBright}`, color:C.text, padding:"8px 9px", fontFamily:mono, fontSize:13, resize:"vertical" }} />
-              </label>
-            </div>
-
-            {/* Structure */}
-            <div style={{ ...S.annotation, marginBottom:8, color:C.textDim }}>Structure</div>
-            <div style={{ display:"grid", gap:9, marginBottom:14 }}>
-              <label style={{ display:"grid", gap:4 }}>
-                <span style={S.ruledLabel}>Start date</span>
-                <input type="date" value={periodizationDraft.startDate || plan.startDate} onChange={e => setPeriodizationDraft(d => ({ ...d, startDate:e.target.value }))} style={{ background:C.cell, border:`1px solid ${C.lineBright}`, color:C.text, padding:"8px 9px", fontFamily:mono, fontSize:13 }} />
-              </label>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                <label style={{ display:"grid", gap:4 }}>
-                  <span style={S.ruledLabel}>Length</span>
-                  <select value={periodizationDraft.blockLengthWeeks} onChange={e => setPeriodizationDraft(d => ({ ...d, blockLengthWeeks:Number(e.target.value), deloadWeek:Math.min(Number(e.target.value), d.deloadWeek || Number(e.target.value)) }))} style={{ background:C.cell, border:`1px solid ${C.lineBright}`, color:C.text, padding:"8px 9px", fontFamily:mono, fontSize:13 }}>
-                    {[4,5,6,7,8].map(w => <option key={w} value={w}>{w} weeks</option>)}
-                  </select>
-                </label>
-                <label style={{ display:"grid", gap:4 }}>
-                  <span style={S.ruledLabel}>Deload</span>
-                  <select value={periodizationDraft.deloadWeek} onChange={e => setPeriodizationDraft(d => ({ ...d, deloadWeek:Number(e.target.value) }))} style={{ background:C.cell, border:`1px solid ${C.lineBright}`, color:C.text, padding:"8px 9px", fontFamily:mono, fontSize:13 }}>
-                    {Array.from({ length: Number(periodizationDraft.blockLengthWeeks) || 4 }, (_, i) => i + 1).map(w => <option key={w} value={w}>Week {w}</option>)}
-                  </select>
-                </label>
-              </div>
-            </div>
-
-            {/* Emphasis */}
-            <div style={{ ...S.annotation, marginBottom:8, color:C.textDim }}>Emphasis</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:6 }}>
-              <label style={{ display:"grid", gap:4 }}>
-                <span style={S.ruledLabel}>Run</span>
-                <select value={periodizationDraft.runEmphasis} onChange={e => setPeriodizationDraft(d => ({ ...d, runEmphasis:e.target.value }))} style={{ background:C.cell, border:`1px solid ${C.lineBright}`, color:C.text, padding:"8px 9px", fontFamily:mono, fontSize:13 }}>
-                  {RUN_EMPHASIS_OPTIONS.map(o => <option key={o} value={o}>{cap(o)}</option>)}
-                </select>
-              </label>
-              <label style={{ display:"grid", gap:4 }}>
-                <span style={S.ruledLabel}>Strength</span>
-                <select value={periodizationDraft.strengthEmphasis} onChange={e => setPeriodizationDraft(d => ({ ...d, strengthEmphasis:e.target.value }))} style={{ background:C.cell, border:`1px solid ${C.lineBright}`, color:C.text, padding:"8px 9px", fontFamily:mono, fontSize:13 }}>
-                  {STRENGTH_EMPHASIS_OPTIONS.map(o => <option key={o} value={o}>{cap(o)}</option>)}
-                </select>
-              </label>
-            </div>
-
-            {/* Preview — only when dirty */}
-            {periodizationDirty && (
-              <div style={{ marginTop:10, borderTop:`1px solid ${C.line}`, paddingTop:10 }}>
-                <div style={{ ...S.annotation, marginBottom:6, color:C.textDim }}>Preview</div>
-                {previewLines.map((line, idx) => (
-                  <div key={idx} style={{ fontSize:11.5, color: idx === previewLines.length - 1 ? C.textFaint : C.textDim, lineHeight:1.5, marginBottom:3, fontStyle: idx === previewLines.length - 1 ? "italic" : "normal" }}>· {line}</div>
-                ))}
-              </div>
-            )}
-
-            {/* Buttons */}
-            <div style={{ display:"flex", gap:8, marginTop:12 }}>
-              <button onClick={handleSavePeriodization} disabled={!periodizationDirty} style={{ ...S.smallBtn, flex:1, padding:"9px 0", borderColor: periodizationDirty ? C.text : C.line, color: periodizationDirty ? C.text : C.textFaint, cursor: periodizationDirty ? "pointer" : "default", opacity: periodizationDirty ? 1 : 0.6 }}>Save</button>
-              <button onClick={handleResetPeriodization} disabled={!periodizationDirty} style={{ ...S.smallBtn, flex:1, padding:"9px 0", opacity: periodizationDirty ? 1 : 0.6, cursor: periodizationDirty ? "pointer" : "default" }}>Reset</button>
-              <button onClick={handleCancelPeriodization} style={{ ...S.smallBtn, flex:1, padding:"9px 0" }}>Cancel</button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Current week status ── */}
-        <div style={S.block}>
-          <div style={S.blockHead}>
-            <span style={S.blockTitle}>{"> "}Current Week</span>
-            <span style={{ ...S.blockStat, color:riskColor }}>{action.action.replace("_", " ")}</span>
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:14, alignItems:"end" }}>
-            <div><span style={S.leadFigure}>W{current?.weekNumber || 1}</span><span style={S.leadUnit}>{current?.focus || "base"}</span></div>
-            <div style={{ paddingBottom:7 }}>
-              <div style={{ ...S.figureRule, background:riskColor, marginBottom:7 }} />
-              <div style={{ fontFamily:S.fontSerif, fontStyle:"italic", color:C.textDim, fontSize:14, lineHeight:1.35 }}>{action.rationale}</div>
-            </div>
-          </div>
-          <div style={{ borderTop:`1px solid ${C.line}`, marginTop:12 }}>
-            <div style={S.ruledRow}><span style={S.ruledLabel}>Density</span><span style={S.ruledValue}>{action.density.trainingDays}/7 days · {action.density.miles} mi</span></div>
-            <div style={S.ruledRow}><span style={S.ruledLabel}>Weekly template</span><span style={S.ruledValue}>{plan.programAnalysis.liftingDays} lift · {plan.programAnalysis.runDays} run · {plan.programAnalysis.hardDays} hard</span></div>
-          </div>
-        </div>
-
-        {/* ── Suggested action ── */}
-        <div style={S.block}>
-          <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Suggested Action</span><span style={{ ...S.blockStat, color:riskColor }}>{action.risk} risk</span></div>
-          {(action.suggestedChanges || []).map((change, idx) => (
-            <div key={`${change.type}-${idx}`} style={S.ruledRow}>
-              <span style={S.ruledLabel}>{change.type}</span>
-              <span style={{ ...S.ruledValue, maxWidth:"62%" }}>{change.label}</span>
-            </div>
-          ))}
-          <div style={{ ...S.annotation, marginTop:8 }}>suggest-only — review before changing training. no program edits are made automatically.</div>
-        </div>
-
-        </section>
-        <section data-section="prog-table" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
-        {/* ── Week list ── */}
-        <div style={S.block}>
-          <div style={S.blockHead}><span style={S.blockTitle}>{"> "}{plan.blockLengthWeeks}-Week Block</span><span style={S.blockStat}>{plan.programAnalysis.weeklyMiles} MI/WK BASE</span></div>
-          {plan.weeks.map(week => {
-            const active = week.status === "current";
-            return (
-              <div key={week.weekNumber} style={{ padding:"10px 0", borderBottom:`1px solid ${C.line}`, borderLeft: active ? `2px solid ${C.text}` : "2px solid transparent", paddingLeft: active ? 8 : 10, opacity: week.status === "completed" ? 0.6 : 1 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:4 }}>
-                  <span style={{ fontSize:13, color:C.text, letterSpacing:"0.05em", textTransform:"uppercase" }}>Week {week.weekNumber} · {week.label}</span>
-                  <span style={{ fontSize:10, color:statusColor(week.status), letterSpacing:"0.1em", textTransform:"uppercase" }}>{week.status}</span>
-                </div>
-                <div style={{ fontSize:11.5, color:C.textDim, lineHeight:1.45 }}>{week.guidance}</div>
-                <div style={{ fontSize:10, color:C.textFaint, marginTop:4 }}>{week.startDate} → {week.endDate} · {Math.round(week.volumeMultiplier * 100)}% vol · target {week.targetMiles} mi</div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* ── Block history (current + previous) ── */}
-        {previousBlock && (
-          <div style={S.block}>
-            <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Block History</span><span style={S.blockStat}>{periodizationHistory.length} archived</span></div>
-            <div style={S.ruledRow}><span style={S.ruledLabel}>Current</span><span style={S.ruledValue}>{plan.name} · Week {plan.currentWeekNumber}/{plan.blockLengthWeeks}</span></div>
-            <div style={S.ruledRow}><span style={S.ruledLabel}>Previous</span><span style={S.ruledValue}>{previousBlock.name} · ended {previousBlock.completedAt || previousBlock.endDate}</span></div>
-            <div style={{ ...S.annotation, marginTop:8 }}>last {Math.min(periodizationHistory.length, 6)} blocks kept locally</div>
-          </div>
-        )}
-        </section>
-        </div>
-      </div>
-    );
-  }
 
   if (subView === "history") {
     return (
@@ -675,7 +395,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
         </div>
       </section>
 
-      <button type="button" className="row" onClick={() => setSubView("periodization")} style={{ borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)", minHeight: 64, alignItems: "flex-start", paddingTop: 10, paddingBottom: 10 }}>
+      <button type="button" className="row" onClick={() => onOpenBlock?.()} style={{ borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)", minHeight: 64, alignItems: "flex-start", paddingTop: 10, paddingBottom: 10 }}>
         <span className="kv grow">
           <span className="t-bs">Block{blockPreview.available ? `: ${blockPreview.blockLabel}, ${blockPreview.weekLabel.toLowerCase().replace("/", " of ")}` : ""}</span>
           {blockPreview.available && <span className="t-s">{blockPreview.actionLabel}</span>}

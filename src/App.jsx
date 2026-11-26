@@ -77,6 +77,8 @@ function AppInner({ onThemeChange }) {
   const [todayIntent, setTodayIntent] = useState(null);
   // Which sub-view Progress opens on when Train sends someone there.
   const [progressLanding, setProgressLanding] = useState(null);
+  // Progress can open Train on the block.
+  const [trainLanding, setTrainLanding] = useState(null);
   // Today and Progress can ask Recovery to open on the week's edition.
   const [editionAsked, setEditionAsked] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false); // Coach chat sheet — was a floating self-positioned
@@ -1066,7 +1068,7 @@ function AppInner({ onThemeChange }) {
     : { title: tab, sub: tab === "Today" || tab === "Fuel" ? ` · ${shortDay(new Date())}` : "" };
   const bar = (!overlay && screenBar) || tabBar;
   const logActions = coachEnabled ? [...QUICK_ACTIONS, COACH_ACTION] : QUICK_ACTIONS;
-  const changeTab = (t) => { setProgressLanding(null); navigateTo(t); setSelectedDay(null); };
+  const changeTab = (t) => { setProgressLanding(null); setTrainLanding(null); navigateTo(t); setSelectedDay(null); };
   // The Sunday Edition is drawn from wearable mornings, so its doors show only
   // on a connected account, and only while an edition is out.
   const openEdition = ouraConnected && !dayZero.recovery.isZero && editionWindow(new Date()).available
@@ -1142,6 +1144,7 @@ function AppInner({ onThemeChange }) {
           )}
           {tab === "Train" && (
             <TrainTab
+              key={trainLanding || "home"} initialView={trainLanding}
               program={program} liveProgram={liveProgram} entries={data} settings={settings}
               onSaveProgram={handleSaveProgram} onApplyGeneratedProgram={handleApplyGeneratedProgram}
               onStartToday={() => { setLogDate(null); navigateTo("Today"); setTodayIntent({ kind: "workout", nonce: Date.now() }); }}
@@ -1160,7 +1163,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.progress.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.progress.isZero
               ? <DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} />
-              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab key={progressLanding || "overview"} initialSubView={progressLanding} data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onExit={progressLanding ? () => { setProgressLanding(null); navigateTo("Train"); } : undefined} onOpenEdition={openEdition} /></>}
+              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab key={progressLanding || "overview"} initialSubView={progressLanding} data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onSaveCoachingSettings={handleSaveCoachingSystemSettings} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onExit={progressLanding ? () => { setProgressLanding(null); setTrainLanding(null); navigateTo("Train"); } : undefined} onOpenEdition={openEdition} onOpenBlock={() => { setTrainLanding("block"); navigateTo("Train"); }} /></>}
             </div>
           )}
           </>)}

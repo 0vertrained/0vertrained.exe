@@ -116,9 +116,21 @@ describe("broadsheet shell (V15.0)", () => {
 
   it("V15.2 · every Progress screen composes its own spread at the tier", () => {
     const src = read("src/ProgressTab.jsx");
-    for (const id of ["ov-verdict", "ov-plates", "ov-trends", "prog-rail", "prog-table"]) {
+    for (const id of ["ov-verdict", "ov-plates", "ov-trends"]) {
       expect(src).toContain(`data-section="${id}"`);
     }
+    // The Block left Progress for Train and took its spread with it: the
+    // week it is and the suggestion on the rail, every week and the settings
+    // in the wide column.
+    const block = read("src/BlockScreen.jsx");
+    for (const id of ["prog-rail", "prog-table"]) {
+      expect(block).toContain(`data-section="${id}"`);
+      expect(src).not.toContain(`data-section="${id}"`);
+    }
+    expect(block).toContain('gridTemplateColumns: "var(--ovt-rail-m) minmax(0, 1fr)"');
+    // Progress keeps one read-only row about the block; it saves nothing.
+    expect(src).not.toMatch(/writeStoredPeriodization|buildNextBlockSettings|legacy-screen/);
+    expect(src).toContain("onClick={() => onOpenBlock?.()}");
     // A trend screen is one column on a phone and two halves side by side at the tier.
     expect(src).toContain("const [first, second] = screens[subView];");
     expect(src).toContain('gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 48');
