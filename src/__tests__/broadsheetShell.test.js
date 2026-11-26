@@ -106,9 +106,10 @@ describe("broadsheet shell (V15.0)", () => {
     expect(app).toContain('e.key.toLowerCase() === "k"');
     expect(app).toContain("onAction={handleQuickAction}");
     const settings = read("src/SettingsScreen.jsx");
-    expect(settings).toContain('data-section="settings-nav"');
-    expect(settings).toContain('data-section="settings-pane"');
-    expect(settings).toContain('gridTemplateColumns: "300px 1fr"');
+    // Settings is one reading column at every width, like Profile: a page
+    // of targets, cues and theme with its own screens behind rows.
+    expect(settings).toContain('<div ref={shellRef} className="shell" data-screen="settings" style={{ maxWidth: "var(--ovt-content-width)" }}>');
+    expect(settings).not.toMatch(/settings-nav|settings-pane/);
     const coach = read("src/Coach.jsx");
     expect(coach).toContain("...(isBroadsheet");
     expect(coach).toContain('{ width: 480, maxWidth: "40vw"');

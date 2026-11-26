@@ -204,7 +204,7 @@ describe("V19.4 front door — a new account reaches a logger", () => {
     openRecovery();
     expect(await screen.findByTestId("specimen-stamp", {}, WAIT)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Connect Oura" }));
-    expect(await screen.findByText(/Fig\. 5 · Data sources/, {}, WAIT)).toBeTruthy();
+    expect(await screen.findByRole("heading", { level: 1, name: "Integrations" }, WAIT)).toBeTruthy();
   }, 20000);
 
   it("a failed setup save keeps the wizard open, and Finish retries", async () => {
@@ -238,7 +238,7 @@ describe("V19.4 wearable OAuth return finishes in the app", () => {
     render(<App />);
     await waitFor(() => expect(primaryTab("Today")).toBeTruthy(), WAIT);
     await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
-    expect(screen.queryByText(/Fig\. 5 · Data sources/)).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1, name: "Integrations" })).toBeNull();
   }, 20000);
 });
 
@@ -418,13 +418,13 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     await liveToday();
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^Settings/ }, WAIT));
-    await screen.findByText("Targets & Sources", {}, WAIT);
+    await screen.findByTestId("settings", {}, WAIT);
 
     await act(async () => { h.authCb("SIGNED_OUT", null); });
-    await waitFor(() => expect(screen.queryByText("Targets & Sources")).toBeNull(), WAIT);
+    await waitFor(() => expect(screen.queryByTestId("settings")).toBeNull(), WAIT);
     await act(async () => { h.authCb("SIGNED_IN", { user: h.user, access_token: "t3" }); });
     await liveToday();
-    expect(screen.queryByText("Targets & Sources")).toBeNull();
+    expect(screen.queryByTestId("settings")).toBeNull();
     expect(dataLayer.saveSettings).not.toHaveBeenCalled();
   }, 20000);
 

@@ -39,15 +39,17 @@ describe("V16.2 surfaces (mounted)", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("settings mounts as a two-pane at the tier", () => {
+  it("settings mounts as one reading column at the tier", () => {
     forceMatchMedia(true);
     const { container } = render(
       <ThemeProvider>
         <SettingsScreen settings={{ supplements: [], goals: {}, macroTargets: {} }} onSave={() => {}} onClose={() => {}} busy={false} onThemeChange={() => {}} currentTheme="whitepaperLight" />
       </ThemeProvider>
     );
-    expect(container.querySelector('[data-section="settings-nav"]')).toBeTruthy();
-    expect(container.querySelector('[data-section="settings-pane"]')).toBeTruthy();
+    const screen = container.querySelector('[data-screen="settings"]');
+    expect(screen).toBeTruthy();
+    expect(screen.style.maxWidth).toBe("var(--ovt-content-width)");
+    expect(container.querySelector('[data-section="settings-nav"]')).toBeNull();
   });
 });
 

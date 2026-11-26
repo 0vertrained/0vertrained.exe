@@ -110,8 +110,8 @@ describe("Settings", () => {
 
   it("Integrations has no 'coming soon' card and no sprint promise", async () => {
     renderSettings();
-    fireEvent.click(screen.getByText("Integrations"));
-    await screen.findByText("Whoop");
+    fireEvent.click(screen.getByRole("button", { name: /^Integrations/ }));
+    await screen.findByRole("heading", { level: 2, name: "Whoop" });
     expect(screen.queryByText(/coming soon/i)).toBeNull();
     expect(screen.queryByText(/Fitbit/i)).toBeNull();
     expect(screen.queryByText(/next sprint/i)).toBeNull();
@@ -128,10 +128,10 @@ describe("Settings", () => {
     const writeText = vi.fn(async () => {});
     Object.assign(navigator, { clipboard: { writeText } });
     renderSettings();
-    fireEvent.click(screen.getByText("About"));
+    fireEvent.click(screen.getByRole("button", { name: /^Help and about/ }));
     expect(screen.queryByText(/Load diagnostics/i)).toBeNull();
     expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
-    expect(screen.getByText("View / share the demo page →").getAttribute("href")).toBe("#/demo");
+    expect(screen.getByText("See or share the demo").getAttribute("href")).toBe("#/demo");
     fireEvent.change(screen.getByLabelText("Beta feedback note"), { target: { value: "The Recovery tab was long." } });
     fireEvent.click(screen.getByRole("button", { name: "Copy beta feedback note" }));
     await screen.findByText(/Copied/);

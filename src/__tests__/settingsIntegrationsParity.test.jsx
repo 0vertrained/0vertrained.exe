@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 import { ThemeProvider } from "../theme";
 import { DEFAULT_SETTINGS } from "../data";
 import { SettingsScreen } from "../SettingsScreen";
@@ -41,12 +41,13 @@ describe("Settings integrations parity", () => {
   it("shows Oura sync controls when the server says Oura is connected, even before local settings flag catches up", async () => {
     renderSettings({ ouraConnected: false, whoopConnected: false });
 
-    fireEvent.click(screen.getByText("Integrations"));
+    fireEvent.click(screen.getByRole("button", { name: /^Integrations/ }));
 
-    expect(await screen.findByText((content) => content.includes("Oura Connected"))).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sync now" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sync last 30 days" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "+ Connect Oura Ring" })).toBeNull();
+    const oura = within(screen.getByRole("heading", { level: 2, name: "Oura" }).closest("section"));
+    expect(await oura.findByText(/^Connected · /)).toBeTruthy();
+    expect(oura.getByRole("button", { name: "Sync now" })).toBeTruthy();
+    expect(oura.getByRole("button", { name: "Sync last 30 days" })).toBeTruthy();
+    expect(oura.queryByRole("button", { name: "Connect Oura Ring" })).toBeNull();
   });
 });
 
@@ -79,7 +80,8 @@ describe("V19.4 Integrations landing", () => {
     const notice = screen.getByTestId("integrations-notice");
     expect(notice.textContent).toMatch(/^Oura connected\./);
     expect(notice.getAttribute("role")).toBe("status");
-    expect(await screen.findByText((content) => content.includes("Oura Connected"))).toBeTruthy();
+    const oura = within(screen.getByRole("heading", { level: 2, name: "Oura" }).closest("section"));
+    expect(await oura.findByText(/^Connected · /)).toBeTruthy();
   });
 
   it("persists the confirmed connection through the quiet patch, not the closing Save", async () => {
@@ -93,11 +95,11 @@ describe("V19.4 Integrations landing", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ ouraConnected: true })));
   });
 
-  it("ignores a section it doesn't know and opens on Macros", () => {
+  it("ignores a section it doesn't know and opens on Settings itself", () => {
     renderLanding({ initialSection: "nope", notice: { tone: "ok", text: "Oura connected." } });
-    expect(screen.getByText("Daily Calories (kcal)")).toBeTruthy(); // the Macros section's content, not just its tab
-    expect(screen.queryByText(/Fig\. 5 · Data sources/)).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeTruthy();
+    expect(screen.getByLabelText("Calories (kcal)")).toBeTruthy();
+    expect(screen.queryByRole("heading", { level: 2, name: "Oura" })).toBeNull();
     expect(screen.queryByTestId("integrations-notice")).toBeNull();
-    expect(screen.getByRole("button", { name: "Macros" }).getAttribute("aria-current")).toBe("true");
   });
 });

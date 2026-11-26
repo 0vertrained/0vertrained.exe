@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
+import { Fragment, useState, useEffect, useRef } from "react";
 import { THEMES, PRIMARY_THEMES } from "./theme";
-import { useTheme } from "./theme";
+import { FoldRow, Flow, Icon, LinkRow, Seg, Switch, TopBar } from "./ui/ledger";
 import { DIETARY_TAGS } from "./mealPlan";
 import { getOuraAuthUrl, disconnectOura, getOuraSyncEvents, getOuraTokenStatus, getOuraSyncCounts, syncOuraNow } from "./oura";
 import { getWhoopAuthUrl, getWhoopTokenStatus, syncWhoopNow, disconnectWhoop, getWhoopSyncCounts, getWhoopSyncEvents } from "./whoop";
@@ -19,71 +18,113 @@ import { APP_VERSION, SUPPORT_EMAIL, buildSupportMailto } from "./appMeta";
 const GOAL_LABELS = Object.fromEntries(ONBOARDING_GOALS.map(g => [g.id, g.label]));
 const DATA_MODE_LABELS = Object.fromEntries(ONBOARDING_DATA_MODES.map(m => [m.id, m.label]));
 
-// Sync event debug timeline — metadata only, no raw payloads. Oura and Whoop
-// rendered byte-identical timelines; this is that one grammar. `showCounts`
-// appends the per-event record counts (Whoop only); `title` labels the block.
+// A provider's sync events, newest first: metadata only, never payloads.
+// `showCounts` adds each event's record counts (Whoop reports them).
 function SyncTimeline({ events, source, title, showCounts = false }) {
-  const { C } = useTheme();
-  const mono = C.fontFamily;
   const timeline = buildSyncTimeline(events, { source, limit: 8 });
   const badge = buildSyncHealthBadge(events, source);
-  const badgeColor = badge.tone === "warning" ? C.red : badge.tone === "caution" ? C.textDim : badge.tone === "good" ? C.green : C.textFaint;
+  const tone = (value) => (value === "warning" ? "stop" : value === "caution" ? "caution" : value === "good" ? "good" : "c2");
   return (
-    <div style={{ marginTop: 12, border: `1px solid ${C.line}`, padding: "10px 12px", fontFamily: mono }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-        <span style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textDim }}>{title}</span>
-        <span style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: badgeColor }}>{badge.label}</span>
-      </div>
-      {timeline.entries.map((e, i) => {
-        const toneColor = e.tone === "warning" ? C.red : e.tone === "caution" ? C.textDim : e.tone === "good" ? C.green : C.textFaint;
-        const countsStr = showCounts ? formatSyncCounts(e.counts) : "";
-        return (
-          <div key={e.id || i} style={{ padding: "5px 0", borderTop: i === 0 ? "none" : `1px solid ${C.line}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-              <span style={{ fontSize: 11, color: C.text, letterSpacing: "0.04em", textTransform: "uppercase" }}>{e.eventLabel}</span>
-              <span style={{ fontSize: 10, color: toneColor, letterSpacing: "0.06em", textTransform: "uppercase" }}>{e.status}</span>
-            </div>
-            <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.45, marginTop: 2 }}>
-              {e.message}
-              {countsStr && <span style={{ color: C.textFaint }}> · {countsStr}</span>}
-            </div>
-            <div style={{ fontSize: 10, color: C.textFaint, marginTop: 2 }}>{e.timeAgo || "—"}</div>
-          </div>
-        );
-      })}
-      <div style={{ marginTop: 8, fontSize: 9.5, color: C.textFaint, lineHeight: 1.5 }}>
-        Metadata only — no raw biometric payloads or tokens are stored.
-      </div>
-    </div>
+    <section aria-label={`${title} sync timeline`} style={column(6)}>
+      <div className="sec"><h3 className="t-ss">{title}</h3><span className={`t-s ${tone(badge.tone)}`}>{badge.label}</span></div>
+      <ul className="rows">
+        {timeline.entries.map((entry, index) => {
+          const counts = showCounts ? formatSyncCounts(entry.counts) : "";
+          return (
+            <li key={entry.id || index} className="row" style={{ alignItems: "flex-start", padding: "8px 0", minHeight: 0 }}>
+              <span className="kv grow">
+                <span className="t-s">{entry.eventLabel} · <span className={tone(entry.tone)}>{entry.status}</span></span>
+                <span className="t-s c2">{entry.message}{counts ? ` · ${counts}` : ""}</span>
+              </span>
+              <span className="t-s c2">{entry.timeAgo || "—"}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
-const SETTINGS_SECTIONS = [["goals","Macros"],["supps","Supplements"],["diet","Dietary"],["training","Training"],["theme","Theme"],["integrations","Integrations"],["account","Account"],["about","About"]];
+// When a provider last synced, in words.
+function synced(at) {
+  if (!at) return "not synced yet";
+  const when = new Date(at);
+  if (Number.isNaN(when.getTime())) return "not synced yet";
+  const sameDay = when.toDateString() === new Date().toDateString();
+  return `synced ${sameDay ? "" : `${when.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}, `}${when.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase()}`;
+}
+const statusLine = (on, status, lastSynced) => {
+  if (!on) return <p className="t-ss c2">Not connected</p>;
+  if (status?.isExpired) return <p className="t-ss caution">Sign-in expired. Reconnect to resume syncing. Last {synced(lastSynced)}.</p>;
+  return <p className="t-ss good">Connected · {synced(lastSynced)}</p>;
+};
+const countRows = (rows) => (
+  <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 16px" }}>
+    {rows.map(([label, value]) => (
+      <Fragment key={label}><dt className="t-s c2">{label}</dt><dd className="t-s">{value}</dd></Fragment>
+    ))}
+  </dl>
+);
+const plural = (n, one, many) => `${n}${NBSP}${n === 1 ? one : many}`;
+
+// One wearable: its state, what it brings, and its controls.
+function ProviderCard({ id, name, on, status, lastSynced, about, extra = null, busyNow, onConnect, connectLabel, onDisconnect, syncs, onSync, message, counts }) {
+  return (
+    <section className="card" aria-labelledby={`int-${id}`} style={{ ...column(8), padding: 12, borderColor: on && status?.isExpired ? "var(--caution)" : undefined }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <h2 id={`int-${id}`} className="t-h grow">{name}</h2>
+        {!on && <button type="button" className="btn btn-p btn-sm" aria-disabled={busyNow || undefined} onClick={() => !busyNow && onConnect()}>{connectLabel}</button>}
+        {on && status?.isExpired && <button type="button" className="btn btn-p btn-sm" aria-disabled={busyNow || undefined} onClick={() => !busyNow && onConnect()}>Reconnect</button>}
+      </div>
+      {statusLine(on, status, lastSynced)}
+      <p className="t-s c2">{about}</p>
+      {extra}
+      {on && (
+        <>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {syncs.map(([label, days]) => (
+              <button key={label} type="button" className="btn btn-s btn-sm" aria-disabled={busyNow || undefined} onClick={() => !busyNow && onSync(id, days)}>{busyNow ? "Syncing…" : label}</button>
+            ))}
+            <button type="button" className="btn btn-g btn-sm" aria-disabled={busyNow || undefined} onClick={() => !busyNow && onDisconnect()}>Disconnect</button>
+          </div>
+          {counts && <ul className="rows" style={{ borderTop: "1px solid var(--line)" }}><FoldRow title="What has synced" sub="Days and records by type">{counts}</FoldRow></ul>}
+        </>
+      )}
+      {message && <p className="t-s" role="status">{message}</p>}
+    </section>
+  );
+}
+
+// Settings is one page (targets, training cues, theme) with its own screens
+// for these. A section the app opens Settings at (Recovery's links and the
+// wearable sign-in return name "integrations") lands on its screen.
+const SETTINGS_PAGES = ["supps", "diet", "integrations", "account", "about"];
+const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
+const NBSP = "\u00a0";
 
 // InitialSection opens a section directly (Recovery's links and the
 // OAuth return land on Integrations); notice is the one status line shown
 // there ({ tone: "ok" | "error", text }); onPatch persists a connection flag
 // quietly, without the full Save path's close + toast.
-export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange, currentTheme, initialSection = null, notice = null, onPatch = null, loggedDays = 0, currentTab = "Settings" }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
+export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange, currentTheme, initialSection = null, notice = null, onPatch = null, loggedDays = 0, currentTab = "Settings", backLabel = null }) {
   const { confirm, confirmDialog } = useConfirm();
   const [goals, setGoals]     = useState({ ...settings.goals });
   const [supps, setSupps]     = useState([...settings.supplements]);
   const [newSupp, setNewSupp] = useState("");
   const [dietary, setDietary] = useState([...(settings.dietaryRestrictions || [])]);
   const [trainingCues, setTrainingCues] = useState({ haptics: true, restAudio: false, ...(settings.trainingCues || {}) });
-  const [section, setSection] = useState(() => (SETTINGS_SECTIONS.some(([key]) => key === initialSection) ? initialSection : "goals"));
-  // Opened straight onto a later section (Integrations sits off-screen in the
-  // phone's scrolling tab row): bring its tab into view once.
-  const sectionNavRef = useRef(null);
+  const [section, setSection] = useState(() => (SETTINGS_PAGES.includes(initialSection) ? initialSection : "home"));
+  // A new screen starts at its top, with focus on its way back.
+  const shellRef = useRef(null);
+  const shownSection = useRef(section);
   useEffect(() => {
-    const nav = sectionNavRef.current;
-    const active = nav?.querySelector('[aria-current="true"]');
-    if (initialSection && active && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = Math.max(0, active.offsetLeft - nav.offsetLeft - 16);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // two-pane
+    if (shownSection.current === section) return;
+    shownSection.current = section;
+    const shell = shellRef.current;
+    const frame = shell?.closest(".flow-screen");
+    if (frame) frame.scrollTop = 0;
+    shell?.querySelector(".top .back")?.focus({ preventScroll: true });
+  }, [section]);
 
   // Change-recovery-phrase panel (Account section). Lets a signed-in
   // user rotate their phrase — closes the permanent-lockout gap where a phrase
@@ -400,640 +441,247 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
     setRecErr(""); setRecMsg("");
   };
 
-  const inp = {
-    ...S.cell,
-    textAlign: "center",
-    fontSize: 16,
-    fontWeight: 600,
-    padding: "10px 6px",
-  };
+  // ── The screens ────────────────────────────────────────────────────────────
+  const page = section;
+  const goHome = () => setSection("home");
+  const draftDirty = JSON.stringify({ goals, supps, dietary, trainingCues }) !== JSON.stringify({
+    goals: { ...settings.goals },
+    supps: [...(settings.supplements || [])],
+    dietary: [...(settings.dietaryRestrictions || [])],
+    trainingCues: { haptics: true, restAudio: false, ...(settings.trainingCues || {}) },
+  });
+  const macroKcal = ["protein", "carbs", "fats"].every((key) => Number(goals[key]) > 0)
+    ? Math.round(Number(goals.protein) * 4 + Number(goals.carbs) * 4 + Number(goals.fats) * 9)
+    : null;
+  const ouraOn = Boolean(ouraStatus?.connected || settings.ouraConnected);
+  const stravaOn = Boolean(stravaStatus?.connected || settings.stravaConnected);
+  const whoopOn = Boolean(whoopStatus?.connected);
+  const titles = { home: "Settings", supps: "Supplements", diet: "Dietary restrictions", integrations: "Integrations", account: "Account", about: "Help and about" };
 
-  const lbl = {
-    fontSize: 10,
-    color: C.textDim,
-    letterSpacing: "0.12em",
-    textTransform: "uppercase",
-    display: "block",
-    marginBottom: 4,
-    marginTop: 12,
-  };
+  const foot = (
+    <div className="foot" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {draftDirty && <p className="t-s c2" role="status">Not saved yet.</p>}
+      <button type="button" className="btn btn-p btn-b" aria-disabled={busy || undefined} onClick={() => !busy && handleSave()}>{busy ? "Saving…" : "Save settings"}</button>
+    </div>
+  );
 
-  // Shared integration-card styles. Oura and Whoop rendered these identically;
-  // pulling them here keeps the two cards in lockstep and thins the inline noise.
-  const statusBox = {
-    padding: "10px", backgroundColor: C.bg, border: `1px solid ${C.line}`,
-    borderRadius: 0, color: C.text, fontSize: 11, fontWeight: 600,
-    marginBottom: 8, fontFamily: mono,
-  };
-  const countsBox = {
-    padding: "10px", border: `1px solid ${C.line}`, borderRadius: 0,
-    marginBottom: 8, fontFamily: mono, fontSize: 11, color: C.textDim,
-  };
-  const syncBtn = (busy) => ({
-    ...S.cell, background: C.cell, color: C.text, border: `1px solid ${C.line}`,
-    cursor: busy ? "default" : "pointer", fontSize: 11.5, fontWeight: 600,
-  });
-  const disconnectBtn = (busy) => ({
-    ...S.cell, background: C.text, color: C.bg, border: "none", width: "100%",
-    marginTop: 8, cursor: busy ? "default" : "pointer", fontSize: 11.5, fontWeight: 600,
-  });
-  const connectBtn = (busy) => ({
-    ...S.cell, background: C.text, color: C.bg, border: "none", width: "100%",
-    cursor: busy ? "default" : "pointer", fontSize: 13.5, fontWeight: 600,
-  });
-  // Ledger-style checkbox indicator shared by the dietary and theme toggles.
-  const checkDot = { width: 6, height: 6, borderRadius: 0, background: C.bg };
-  const checkBox = (on, marginLeft) => ({
-    width: 16, height: 16, borderRadius: 0,
-    border: `1px solid ${on ? C.text : C.textFaint}`,
-    background: on ? C.text : "transparent",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    flexShrink: 0, ...(marginLeft ? { marginLeft } : {}),
-  });
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, background: C.bg, zIndex: 500,
-      display: "flex", flexDirection: "column", maxWidth: "var(--ovt-content-width)", margin: "0 auto",
-    }}>
-      {confirmDialog}
-      {/* Header */}
-      <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${C.line}`, background: C.bg, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div>
-          <div style={{ fontSize: 10, letterSpacing: "0.25em", color: C.textFaint, textTransform: "uppercase" }}>§ Settings</div>
-          <div style={{ fontSize: 28, fontWeight: 500, color: C.text, letterSpacing: "-0.03em", marginTop: 4, fontFamily: S.fontSerif }}>Targets & Sources</div>
+  const home = (
+    <>
+      {(settings.setup?.goal || settings.setup?.dataMode) && (
+        <p className="t-s c2">Goal: {GOAL_LABELS[settings.setup?.goal] || "not set"}. Recovery data: {DATA_MODE_LABELS[settings.setup?.dataMode] || "Manual only"}.</p>
+      )}
+      <section aria-labelledby="set-targets" style={column(12)}>
+        <h2 id="set-targets" className="t-h">Targets</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px 16px" }}>
+          {[["calories", "Calories (kcal)"], ["protein", "Protein (g)"], ["carbs", "Carbs (g)"], ["fats", "Fat (g)"], ["water", "Water (oz)"]].map(([key, label]) => (
+            <label key={key} className="field">
+              <span className="lbl">{label}</span>
+              <input className="input n" type="number" inputMode="numeric" value={goals[key] ?? ""} onChange={(event) => updateGoal(key, event.target.value)} />
+            </label>
+          ))}
         </div>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: C.textDim, fontSize: 13, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", fontFamily: mono }}>✕ Close</button>
+        {macroKcal !== null && (
+          <p className="banner" role="status">
+            <span>Protein, carbs and fat add up to <b>{macroKcal.toLocaleString("en-US")}{NBSP}kcal</b>. Protein is {Math.round((Number(goals.protein) * 4 / macroKcal) * 100)}% of that.</span>
+          </p>
+        )}
+        <p className="t-s c2">Today and Fuel measure your day against these.</p>
+      </section>
+      <hr className="hr" />
+      <section aria-labelledby="set-cues" style={column(4)}>
+        <h2 id="set-cues" className="t-h">Training cues</h2>
+        <div className="rows">
+          {[
+            ["haptics", "Haptics", "A light tick when a set is logged, a stronger one when rest ends."],
+            ["restAudio", "Sound when rest ends", "A short chirp when lifting rest reaches zero."],
+          ].map(([key, label, sub]) => (
+            <div key={key} className="row" style={{ alignItems: "flex-start", padding: "8px 0" }}>
+              <span className="kv grow"><span id={`cue-${key}`} className="t-bs">{label}</span><span className="t-s c2">{sub}</span></span>
+              <Switch checked={trainingCues[key] === true} onChange={(value) => setTrainingCues((current) => ({ ...current, [key]: value }))} labelledBy={`cue-${key}`} />
+            </div>
+          ))}
+        </div>
+        <p className="t-s c2">Haptics work where the device supports them. Sound stays off until you turn it on.</p>
+      </section>
+      <div style={column(6)}>
+        <span id="set-theme" className="lbl">Theme</span>
+        <Seg labelledBy="set-theme" options={PRIMARY_THEMES.map((id) => THEMES[id]).filter(Boolean).map((theme) => ({ value: theme.id, label: theme.desc }))} value={currentTheme || "whitepaperLight"} onChange={(id) => onThemeChange?.(id)} />
+        <p className="t-s c2">Changes at once, and is kept for this device.</p>
       </div>
+      <ul className="rows" style={{ borderTop: "1px solid var(--line)" }}>
+        <li><LinkRow label="Supplements" sub={supps.length ? supps.join(", ") : "None yet"} onClick={() => setSection("supps")} /></li>
+        <li><LinkRow label="Dietary restrictions" sub={dietary.length ? DIETARY_TAGS.filter((tag) => dietary.includes(tag.key)).map((tag) => tag.label).join(", ") : "None"} onClick={() => setSection("diet")} /></li>
+        <li><LinkRow label="Integrations" sub="Oura, Whoop and Strava" onClick={() => setSection("integrations")} /></li>
+        <li><LinkRow label="Account" sub="Change your recovery phrase" onClick={() => setSection("account")} /></li>
+        <li><LinkRow label="Help and about" sub="Version, support and beta feedback" onClick={() => setSection("about")} /></li>
+      </ul>
+    </>
+  );
 
-      {/* Two-pane Settings: persistent section nav left,
-          content right; below the tier both wrappers are display:contents. */}
-      <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "300px 1fr", gap: 20, alignItems: "start" } : { display: "contents" }}>
-      <aside data-section="settings-nav" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
-      {/* Sub tabs */}
-      <div ref={sectionNavRef} style={{ display: "flex", flexDirection: isBroadsheet ? "column" : "row", position: isBroadsheet ? "sticky" : "static", top: isBroadsheet ? 12 : "auto", overflowX: "auto", scrollbarWidth: "none", borderBottom: isBroadsheet ? "none" : `1px solid ${C.line}`, borderRight: isBroadsheet ? `1px solid ${C.line}` : "none", background: C.bg }}>
-        {SETTINGS_SECTIONS.map(([key,label]) => (
-          <button key={key} aria-current={section === key ? "true" : undefined} onClick={() => setSection(key)} style={{ flex: "0 0 auto", minWidth: 88, padding: "10px 10px", background: "none", border: "none", borderBottom: section === key ? `1px solid ${C.text}` : "1px solid transparent", marginBottom: -1, color: section === key ? C.text : C.textFaint, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer" }}>
-            {label}
-          </button>
+  const suppsPage = (
+    <>
+      <p className="t-b">These appear on Today, in this order, to tick off.</p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <label className="field grow">
+          <span className="lbl">Add a supplement</span>
+          <input className="input" value={newSupp} onChange={(event) => setNewSupp(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addSupp()} />
+        </label>
+        <button type="button" className="btn btn-s" onClick={addSupp} style={{ alignSelf: "flex-end" }}>Add</button>
+      </div>
+      {supps.length === 0 ? <p className="t-s c2">No supplements yet. Add one above.</p> : (
+        <ul className="rows" style={{ borderTop: "1px solid var(--line)" }}>
+          {supps.map((supp, index) => (
+            <li key={supp} className="row" style={{ minHeight: 52, gap: 4 }}>
+              <span className="t-bs grow">{supp}</span>
+              <button type="button" className="ibtn" aria-label={`Move ${supp} up`} aria-disabled={index === 0 || undefined} onClick={() => moveSupp(index, -1)}><Icon name="up" size="s" /></button>
+              <button type="button" className="ibtn" aria-label={`Move ${supp} down`} aria-disabled={index === supps.length - 1 || undefined} onClick={() => moveSupp(index, +1)}><Icon name="down" size="s" /></button>
+              <button type="button" className="ibtn" aria-label={`Remove ${supp}`} onClick={() => removeSupp(index)}><Icon name="close" size="s" /></button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+
+  const dietPage = (
+    <>
+      <p className="t-b">Meal plans leave out recipes that break these.</p>
+      <div className="chips" role="group" aria-label="Dietary restrictions">
+        {DIETARY_TAGS.map(({ key, label }) => (
+          <button key={key} type="button" className="chip" aria-pressed={dietary.includes(key)} onClick={() => toggleDietary(key)}>{label}</button>
         ))}
       </div>
-      </aside>
-      <section data-section="settings-pane" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
+      {dietary.length === 0 && <p className="t-s c2">None set, so every recipe is available.</p>}
+    </>
+  );
 
+  const onSync = (id, days) => (id === "oura" ? handleOuraSync(days) : id === "whoop" ? handleWhoopSync(days) : handleStravaSync(days));
 
-      {/* Content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-
-        {section === "goals" && (
+  const integrationsPage = (
+    <>
+      {notice?.text && (
+        <p role="status" data-testid="integrations-notice" className={notice.tone === "error" ? "banner caution" : "banner"}>{notice.text}</p>
+      )}
+      <ProviderCard onSync={onSync} {...{
+        id: "oura", name: "Oura", on: ouraOn, status: ouraStatus, lastSynced: ouraStatus?.lastSynced || ouraCounts?.lastSynced,
+        about: "HRV-based recovery, sleep, resting heart rate and body temperature.",
+        busyNow: ouraBusy, onConnect: handleOuraConnect, connectLabel: "Connect Oura Ring", onDisconnect: handleOuraDisconnect,
+        syncs: [["Sync now", 14], ["Sync last 30 days", 30]], message: ouraMsg,
+        counts: ouraCounts && (
           <>
-            {/* Setup summary — read-only glance at goal + data mode. */}
-            {(settings.setup?.goal || settings.setup?.dataMode) && (
-              <div style={{ border: `1px solid ${C.line}`, padding: "10px 12px", marginBottom: 16, display: "flex", gap: 16 }}>
-                <div>
-                  <div style={{ fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: C.textFaint, marginBottom: 3 }}>Goal</div>
-                  <div style={{ fontSize: 13, color: C.text, fontFamily: S.fontSerif }}>{GOAL_LABELS[settings.setup?.goal] || "—"}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: C.textFaint, marginBottom: 3 }}>Recovery data</div>
-                  <div style={{ fontSize: 13, color: C.text, fontFamily: S.fontSerif }}>{DATA_MODE_LABELS[settings.setup?.dataMode] || "Manual only"}</div>
-                </div>
-              </div>
-            )}
-
-            <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.6, marginBottom: 16 }}>
-              Fig. 1 · Daily targets. Ruled values feed the Today ledger.
-            </div>
-
-            {/* Calorie target */}
-            <div>
-              <label style={lbl}>Daily Calories (kcal)</label>
-              <input style={inp} type="number" inputMode="numeric" value={goals.calories} onChange={e => updateGoal("calories", e.target.value)} />
-            </div>
-
-            {/* Macro grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 4 }}>
-              {[
-                { key: "protein", label: "Protein (g)" },
-                { key: "carbs",   label: "Carbs (g)" },
-                { key: "fats",    label: "Fats (g)" },
-              ].map(({ key, label }) => (
-                <div key={key}>
-                  <label style={lbl}>{label}</label>
-                  <input style={inp} type="number" inputMode="numeric" value={goals[key]} onChange={e => updateGoal(key, e.target.value)} />
-                </div>
-              ))}
-            </div>
-
-            {/* Water */}
-            <div>
-              <label style={lbl}>Daily Water (oz)</label>
-              <input style={inp} type="number" inputMode="numeric" value={goals.water} onChange={e => updateGoal("water", e.target.value)} />
-            </div>
-
-            {/* Macro preview */}
-            <div style={{ marginTop: 20, background: C.bg, border: `1px solid ${C.lineBright}`, padding: "12px 14px" }}>
-              <div style={{ fontSize: 10, color: C.text, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 10 }}>&gt; Daily Target Preview</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 1, background: C.lineBright, border: `1px solid ${C.lineBright}` }}>
-                {[
-                  { label: "Cal",  val: goals.calories },
-                  { label: "Pro",  val: `${goals.protein}g` },
-                  { label: "Carb", val: `${goals.carbs}g` },
-                  { label: "Fat",  val: `${goals.fats}g` },
-                  { label: "H₂O",  val: `${goals.water}oz` },
-                ].map(({ label, val }) => (
-                  <div key={label} style={{ background: C.cell, padding: "8px 4px", textAlign: "center" }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{val}</div>
-                    <div style={{ fontSize: 9.5, color: C.textFaint, letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 2 }}>{label}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {countRows([
+              ["Sleep", plural(ouraCounts.sleep || 0, "day", "days")],
+              ["Readiness", plural(ouraCounts.readiness || 0, "day", "days")],
+              ["Activity", plural(ouraCounts.activity || 0, "day", "days")],
+              ["Heart rate", plural(ouraCounts.heartrate || 0, "record", "records")],
+              ["SpO₂", plural(ouraCounts.spo2 || 0, "day", "days")],
+              ...(ouraCounts.latestDate ? [["Latest day", ouraCounts.latestDate]] : []),
+            ])}
+            {!(ouraCounts.readiness || 0) && <p className="t-s c2">Scored readiness fills in after your next night. Background sync keeps it current, so there is nothing to do here.</p>}
           </>
-        )}
-
-        {section === "supps" && (
+        ),
+      }} />
+      <ProviderCard onSync={onSync} {...{
+        id: "whoop", name: "Whoop", on: whoopOn, status: whoopStatus, lastSynced: whoopStatus?.lastSynced,
+        about: "Opt-in. Syncs recovery, sleep, strain cycles and workouts. Manual recovery stays first-class, and the recovery score is still computed by the app.",
+        busyNow: whoopBusy, onConnect: handleWhoopConnect, connectLabel: "Connect Whoop", onDisconnect: handleWhoopDisconnect,
+        syncs: [["Sync now", 14], ["Sync last 30 days", 30]], message: whoopMsg,
+        counts: whoopCounts && (
           <>
-            <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.6, marginBottom: 16 }}>
-              Fig. 2 · Supplement stack. Ordered entries appear as Today toggles.
-            </div>
-
-            {/* Add new supplement */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              <input
-                style={{ ...S.cell, flex: 1, textAlign: "left", padding: "10px 10px", fontSize: 14, fontWeight: 400 }}
-                placeholder="Add supplement..."
-                value={newSupp}
-                onChange={e => setNewSupp(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && addSupp()}
-              />
-              <button style={{ ...S.smallBtn, padding: "10px 14px", fontSize: 13 }} onClick={addSupp}>+ Add</button>
-            </div>
-
-            {/* Supplement list */}
-            {supps.length === 0 && (
-              <div style={{ fontSize: 11.5, color: C.textDim }}>No supplements yet — add one above.</div>
-            )}
-            {supps.map((s, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 32px 32px 32px", gap: 6, marginBottom: 6, alignItems: "center" }}>
-                <div style={{ background: C.cell, border: `1px solid ${C.lineBright}`, padding: "10px 12px", fontSize: 13.5, color: C.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>{s}</div>
-                <button type="button" aria-label={`Move ${s} up`} onClick={() => moveSupp(i, -1)} style={{ ...S.smallBtn, padding: "8px", fontSize: 13, textAlign: "center" }}>↑</button>
-                <button type="button" aria-label={`Move ${s} down`} onClick={() => moveSupp(i, +1)} style={{ ...S.smallBtn, padding: "8px", fontSize: 13, textAlign: "center" }}>↓</button>
-                <button type="button" aria-label={`Remove ${s}`} onClick={() => removeSupp(i)} style={{ ...S.smallBtn, padding: "8px", fontSize: 13, color: C.red, borderColor: "#5a1a14", textAlign: "center" }}>✕</button>
-              </div>
-            ))}
+            {countRows([
+              ["Cycle", plural(whoopCounts.cycle || 0, "day", "days")],
+              ["Sleep", plural(whoopCounts.sleep || 0, "day", "days")],
+              ["Recovery", plural(whoopCounts.recovery || 0, "day", "days")],
+              ["Workout", plural(whoopCounts.workout || 0, "session", "sessions")],
+              ...(whoopCounts.latestDate ? [["Latest day", whoopCounts.latestDate]] : []),
+            ])}
+            {(whoopCounts.cycle || 0) > 0 && !(whoopCounts.sleep || whoopCounts.recovery) && <p className="t-s c2">Sleep and recovery appear after Whoop processes your next sleep. Background sync keeps this current, so there is nothing to do here.</p>}
+            {!(whoopCounts.recovery || 0) && <p className="t-s c2">Scored recovery fills in after your next sleep.</p>}
           </>
-        )}
+        ),
+      }} />
+      <ProviderCard onSync={onSync} {...{
+        id: "strava", name: "Strava", on: stravaOn, status: stravaStatus, lastSynced: stravaStatus?.lastSynced || stravaCounts?.lastSynced,
+        about: "Opt-in. Brings your runs, rides, walks and hikes into the cardio log and training load. One tap on Today logs a Strava session as that day’s cardio. Strava data stays out of AI Coach.",
+        extra: <p className="t-ss">Powered by Strava</p>,
+        busyNow: stravaBusy, onConnect: handleStravaConnect, connectLabel: "Connect Strava", onDisconnect: handleStravaDisconnect,
+        syncs: [["Sync now", 30], ["Sync last 90 days", 90]], message: stravaMsg,
+        counts: stravaCounts && countRows([
+          ["Activities", plural(stravaCounts.activities || 0, "session", "sessions")],
+          ...(stravaCounts.latestDate ? [["Latest day", stravaCounts.latestDate]] : []),
+          ["AI Coach", stravaStatus?.aiEligible ? "Included" : "Left out, as Strava’s policy requires"],
+        ]),
+      }} />
+      {ouraOn && (
+        <div style={column(6)}>
+          <span id="set-hrv" className="lbl">HRV source for Oura</span>
+          <Seg labelledBy="set-hrv" options={[{ value: "ourAlgorithm", label: "Our algorithm" }, { value: "ouraMapped", label: "Oura HRV Balance" }]} value={settings.hrvSource || "ourAlgorithm"} onChange={(value) => (onPatch ? onPatch({ hrvSource: value }) : onSave({ ...settings, hrvSource: value }))} />
+        </div>
+      )}
+      {(ouraEvents.length > 0 || whoopEvents.length > 0 || stravaEvents.length > 0) && (
+        <ul className="rows" style={{ borderTop: "1px solid var(--line)" }}>
+          <FoldRow title="Diagnostics" sub="Sync timeline for each provider">
+            {ouraEvents.length > 0 && <SyncTimeline events={ouraEvents} source="oura" title="Oura" />}
+            {whoopEvents.length > 0 && <SyncTimeline events={whoopEvents} source="whoop" title="Whoop" showCounts />}
+            {stravaEvents.length > 0 && <SyncTimeline events={stravaEvents} source="strava" title="Strava" />}
+          </FoldRow>
+        </ul>
+      )}
+      <p className="t-s c2">Each value in the app names its source, and the two wearables are never averaged.</p>
+    </>
+  );
 
-        {section === "diet" && (
-          <>
-            <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.6, marginBottom: 16 }}>
-              Fig. 3 · Dietary constraints. Meal plans are filtered against these rules.
-            </div>
-            {DIETARY_TAGS.map(({ key, label }) => {
-              const on = dietary.includes(key);
-              return (
-                <button key={key} onClick={() => toggleDietary(key)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: C.bg, border: `1px solid ${on ? C.text : C.line}`, borderRadius: 0, padding: "14px 16px", marginBottom: 8, cursor: "pointer", fontFamily: mono, textAlign: "left" }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: on ? C.text : C.textDim, letterSpacing: "0.04em" }}>{label}</div>
-                  <div style={checkBox(on)}>
-                    {on && <div style={checkDot} />}
-                  </div>
-                </button>
-              );
-            })}
-            {dietary.length === 0 && (
-              <div style={{ fontSize: 11.5, color: C.textFaint, marginTop: 4 }}>No restrictions — all recipes available.</div>
-            )}
-          </>
-        )}
+  const accountPage = (
+    <>
+      <p className="t-b">Your recovery phrase is the only way to reset your password: there is no email on file. A new phrase replaces the old one at once, so write it down somewhere safe.</p>
+      {[["phrase-new", "New recovery phrase", recPhrase, setRecPhrase, "At least 8 characters."], ["phrase-again", "Confirm the new phrase", recConfirm, setRecConfirm, null]].map(([id, label, value, setValue, hint]) => (
+        <div key={id} className="field">
+          <label className="lbl" htmlFor={id}>{label}</label>
+          <input id={id} className="input" type="text" autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={value} onChange={(event) => setValue(event.target.value)} aria-describedby={hint ? `${id}-hint` : undefined} />
+          {hint && <span id={`${id}-hint`} className="hint">{hint}</span>}
+        </div>
+      ))}
+      <button type="button" className="btn btn-s" onClick={fillSuggestedPhrase} style={{ alignSelf: "flex-start" }}>Suggest a strong phrase</button>
+      {recErr && <p className="t-s err" role="alert">{recErr}</p>}
+      {recMsg && <p className="t-s good" role="status">{recMsg}</p>}
+      <button type="button" className="btn btn-p btn-b" aria-disabled={recBusy || undefined} onClick={() => !recBusy && submitRecoveryPhrase()}>{recBusy ? "Updating…" : "Update recovery phrase"}</button>
+    </>
+  );
 
-        {section === "training" && (
-          <>
-            <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.6, marginBottom: 16 }}>
-              Fig. 4 · Session cues. Haptics are used when the device supports them; audio stays off until you opt in.
-            </div>
-            {[
-              ["haptics", "Haptic cues", "A light tick on set completion and a stronger rest-timer cue."],
-              ["restAudio", "Rest-end audio", "An optional short chirp when lifting rest reaches zero."],
-            ].map(([key, label, description]) => {
-              const on = trainingCues[key] === true;
-              return (
-                <button key={key} type="button" onClick={() => setTrainingCues(v => ({ ...v, [key]: !on }))}
-                  style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, background: C.bg, border: `1px solid ${on ? C.text : C.line}`, padding: "14px 16px", marginBottom: 8, cursor: "pointer", fontFamily: mono, textAlign: "left" }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: on ? C.text : C.textDim, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
-                    <div style={{ fontSize: 11, color: C.textFaint, marginTop: 4, lineHeight: 1.5 }}>{description}</div>
-                  </div>
-                  <div style={checkBox(on, 12)}>{on && <div style={checkDot} />}</div>
-                </button>
-              );
-            })}
-          </>
-        )}
-
-        {section === "theme" && (
-          <div>
-            <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.6, marginBottom: 16 }}>
-              Fig. 4 · Plate mode. Same layout, inverted stock.
-            </div>
-            {PRIMARY_THEMES.map(id => THEMES[id]).filter(Boolean).map(t => {
-              const active = (currentTheme || "whitepaperLight") === t.id;
-              return (
-                <button key={t.id} onClick={() => onThemeChange && onThemeChange(t.id)}
-                  style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: C.bg, border: `1px solid ${active ? C.text : C.line}`, borderRadius: 0, padding: "14px 16px", marginBottom: 8, cursor: "pointer", fontFamily: mono, textAlign: "left" }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: active ? C.text : C.textDim, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>{t.label}</div>
-                    <div style={{ fontSize: 11.5, color: C.textDim }}>{t.desc}</div>
-                  </div>
-                  <div style={checkBox(active, 12)}>
-                    {active && <div style={checkDot} />}
-                  </div>
-                </button>
-              );
-            })}
-            <div style={{ fontSize: 11, color: C.textFaint, marginTop: 8, lineHeight: 1.6 }}>
-              // Two stocks, one layout.
-            </div>
-          </div>
-        )}
-
-        {section === "integrations" && (
-          <>
-            <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.6, marginBottom: 16 }}>
-              Fig. 5 · Data sources. Wearables become recovery figures and ledger rows.
-            </div>
-
-            {/* The result of the connection you just made (OAuth return). */}
-            {notice?.text && (
-              <div role="status" data-testid="integrations-notice" style={{ ...statusBox, marginBottom: 16, fontWeight: 500, lineHeight: 1.6, color: notice.tone === "error" ? C.red : C.text, border: `1px solid ${notice.tone === "error" ? C.red : C.text}` }}>
-                {notice.text}
-              </div>
-            )}
-
-            {/* Strava Connection */}
-            <div style={{ marginBottom: 20, paddingTop: 20, borderTop: `1px solid ${C.line}` }}>
-              <label style={lbl}>Strava</label>
-              <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 12, lineHeight: 1.6 }}>
-                Opt-in. Brings your runs, rides, walks, and hikes into the cardio ledger and training load —
-                one tap on Today logs a Strava session as that day&apos;s cardio. Strava data stays out of AI Coach.
-              </div>
-              <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textFaint, marginBottom: 12 }}>
-                Powered by Strava
-              </div>
-              {(stravaStatus?.connected || settings.stravaConnected) ? (
-                <>
-                  <div style={statusBox}>
-                    {stravaStatus?.isExpired ? "⚠ Connection needs reconnect." : "✓ Strava Connected"}
-                    {(stravaStatus?.lastSynced || stravaCounts?.lastSynced)
-                      ? ` · last synced ${new Date(stravaStatus?.lastSynced || stravaCounts?.lastSynced).toLocaleDateString()} ${new Date(stravaStatus?.lastSynced || stravaCounts?.lastSynced).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                      : " · not synced yet"}
-                  </div>
-
-                  {stravaCounts && (
-                    <div style={countsBox}>
-                      <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", color: (stravaCounts.activities || 0) > 0 ? C.text : C.textFaint }}>
-                        <span>Activities:</span>
-                        <span>{stravaCounts.activities || 0} sessions</span>
-                      </div>
-                      {stravaCounts.latestDate && (
-                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid ${C.line}`, color: C.textFaint }}>
-                          Latest available date: {stravaCounts.latestDate}
-                        </div>
-                      )}
-                      <div style={{ marginTop: 6, color: C.textFaint, lineHeight: 1.6 }}>
-                        AI Coach eligibility: {stravaStatus?.aiEligible ? "enabled" : "excluded by Strava policy guardrail"}.
-                      </div>
-                    </div>
-                  )}
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <button onClick={() => handleStravaSync(30)} disabled={stravaBusy} style={syncBtn(stravaBusy)}>
-                      {stravaBusy ? "…" : "Sync now"}
-                    </button>
-                    <button onClick={() => handleStravaSync(90)} disabled={stravaBusy} style={syncBtn(stravaBusy)}>
-                      {stravaBusy ? "…" : "Sync last 90 days"}
-                    </button>
-                  </div>
-                  <button onClick={handleStravaDisconnect} disabled={stravaBusy} style={disconnectBtn(stravaBusy)}>
-                    Disconnect
-                  </button>
-
-                  {stravaMsg && (
-                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 8, lineHeight: 1.6, fontFamily: mono }}>
-                      {stravaMsg}
-                    </div>
-                  )}
-
-                  {stravaEvents.length > 0 && (
-                    <SyncTimeline events={stravaEvents} source="strava" title="Strava sync timeline" />
-                  )}
-                </>
-              ) : (
-                <button onClick={handleStravaConnect} disabled={stravaBusy} style={connectBtn(stravaBusy)}>
-                  + Connect Strava
-                </button>
-              )}
-            </div>
-
-            {/* Oura Ring Connection */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={lbl}>Oura Ring</label>
-              <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 12, lineHeight: 1.6 }}>
-                HRV-based recovery, sleep analysis, resting heart rate, and body temperature tracking.
-              </div>
-              {(ouraStatus?.connected || settings.ouraConnected) ? (
-                <>
-                  <div style={statusBox}>
-                    {ouraStatus?.isExpired ? "⚠ Connection needs reconnect." : "✓ Oura Connected"}
-                    {(ouraStatus?.lastSynced || ouraCounts?.lastSynced)
-                      ? ` · last synced ${new Date(ouraStatus?.lastSynced || ouraCounts?.lastSynced).toLocaleDateString()} ${new Date(ouraStatus?.lastSynced || ouraCounts?.lastSynced).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                      : " · not synced yet"}
-                  </div>
-
-                  {ouraCounts && (
-                    <div style={countsBox}>
-                      {[
-                        { key: "sleep", label: "Sleep", unit: "days" },
-                        { key: "readiness", label: "Readiness", unit: "days" },
-                        { key: "activity", label: "Activity", unit: "days" },
-                        { key: "heartrate", label: "Heart rate", unit: "record" },
-                        { key: "spo2", label: "SpO₂", unit: "days" },
-                      ].map(({ key, label, unit }) => {
-                        const n = ouraCounts[key] || 0;
-                        const u = unit === "record" ? (n === 1 ? "record" : "records") : unit;
-                        return (
-                          <div key={key} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", color: n > 0 ? C.text : C.textFaint }}>
-                            <span>{label}:</span>
-                            <span>{n} {u}</span>
-                          </div>
-                        );
-                      })}
-                      {ouraCounts.latestDate && (
-                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid ${C.line}`, color: C.textFaint }}>
-                          Latest available date: {ouraCounts.latestDate}
-                        </div>
-                      )}
-                      {!(ouraCounts.readiness || 0) && (
-                        <div style={{ marginTop: 6, color: C.textFaint, lineHeight: 1.6 }}>
-                          Oura connected. Scored readiness will fill in automatically after your next
-                          night — background sync keeps it current, so there's nothing to do here.
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <button onClick={() => handleOuraSync(14)} disabled={ouraBusy} style={syncBtn(ouraBusy)}>
-                      {ouraBusy ? "…" : "Sync now"}
-                    </button>
-                    <button onClick={() => handleOuraSync(30)} disabled={ouraBusy} style={syncBtn(ouraBusy)}>
-                      {ouraBusy ? "…" : "Sync last 30 days"}
-                    </button>
-                  </div>
-                  <button onClick={handleOuraDisconnect} disabled={ouraBusy} style={disconnectBtn(ouraBusy)}>
-                    Disconnect
-                  </button>
-
-                  {ouraMsg && (
-                    <div style={{ fontSize: 11, color: C.textDim, marginTop: 8, lineHeight: 1.6, fontFamily: mono }}>
-                      {ouraMsg}
-                    </div>
-                  )}
-
-                  {/* Oura sync event debug timeline */}
-                  {ouraEvents.length > 0 && (
-                    <SyncTimeline events={ouraEvents} source="oura" title="Oura sync timeline" />
-                  )}
-                </>
-              ) : (
-                <button onClick={handleOuraConnect} disabled={ouraBusy} style={connectBtn(false)}>
-                  + Connect Oura Ring
-                </button>
-              )}
-            </div>
-
-            {/* HRV Source Selection (if connected) */}
-            {(ouraStatus?.connected || settings.ouraConnected) && (
-              <div>
-                <label style={lbl}>HRV Calculation</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  {[["ourAlgorithm", "Our Algorithm"], ["ouraMapped", "Oura Balance"]].map(([val, label]) => (
-                    <button
-                      key={val}
-                      onClick={() => onSave({ ...settings, hrvSource: val })}
-                      style={{
-                        ...S.cell,
-                        background: (settings.hrvSource || "ourAlgorithm") === val ? C.text : C.cell,
-                        color: (settings.hrvSource || "ourAlgorithm") === val ? C.bg : C.text,
-                        border: "none",
-                        cursor: "pointer",
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Whoop Connection */}
-            <div style={{ marginTop: 24, marginBottom: 20, paddingTop: 20, borderTop: `1px solid ${C.line}` }}>
-              <label style={lbl}>Whoop</label>
-              <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 12, lineHeight: 1.6 }}>
-                Opt-in. Syncs recovery, sleep, strain cycles, and workouts. Manual recovery
-                stays first-class, and the recovery score is still computed by the app.
-              </div>
-
-              {whoopStatus?.connected ? (
-                <>
-                  <div style={statusBox}>
-                    {whoopStatus.isExpired
-                      ? "⚠ Connection needs reconnect."
-                      : "✓ Whoop Connected"}
-                    {whoopStatus.lastSynced
-                      ? ` · last synced ${new Date(whoopStatus.lastSynced).toLocaleDateString()} ${new Date(whoopStatus.lastSynced).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                      : " · not synced yet"}
-                  </div>
-
-                  {/* Per-type data completeness */}
-                  {whoopCounts && (
-                    <div style={countsBox}>
-                      {[
-                        { key: "cycle", label: "Cycle", unit: "days" },
-                        { key: "sleep", label: "Sleep", unit: "days" },
-                        { key: "recovery", label: "Recovery", unit: "days" },
-                        { key: "workout", label: "Workout", unit: "session" },
-                      ].map(({ key, label, unit }) => {
-                        const n = whoopCounts[key] || 0;
-                        const u = unit === "session" ? (n === 1 ? "session" : "sessions") : unit;
-                        return (
-                          <div key={key} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", color: n > 0 ? C.text : C.textFaint }}>
-                            <span>{label}:</span>
-                            <span>{n} {u}</span>
-                          </div>
-                        );
-                      })}
-                      {whoopCounts.latestDate && (
-                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px solid ${C.line}`, color: C.textFaint }}>
-                          Latest available date: {whoopCounts.latestDate}
-                        </div>
-                      )}
-                      {/* Missing-data explanation — cycle-only is expected early on. */}
-                      {(whoopCounts.cycle || 0) > 0 && !(whoopCounts.sleep || whoopCounts.recovery) && (
-                        <div style={{ marginTop: 6, color: C.textFaint, lineHeight: 1.6 }}>
-                          Sleep and recovery will appear automatically after Whoop processes your next
-                          sleep — background sync keeps this current, so there's nothing to do here.
-                        </div>
-                      )}
-                      {/* No scored recovery yet, but a connection exists. */}
-                      {!(whoopCounts.recovery || 0) && (
-                        <div style={{ marginTop: 6, color: C.textFaint, lineHeight: 1.6 }}>
-                          Whoop connected. Scored recovery fills in automatically after your next sleep.
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <button onClick={() => handleWhoopSync(14)} disabled={whoopBusy} style={syncBtn(whoopBusy)}>
-                      {whoopBusy ? "…" : "Sync now"}
-                    </button>
-                    <button onClick={() => handleWhoopSync(30)} disabled={whoopBusy} style={syncBtn(whoopBusy)}>
-                      {whoopBusy ? "…" : "Sync last 30 days"}
-                    </button>
-                  </div>
-                  <button onClick={handleWhoopDisconnect} disabled={whoopBusy} style={disconnectBtn(whoopBusy)}>
-                    Disconnect
-                  </button>
-
-                  {/* Sync event debug timeline — metadata only, no raw payloads */}
-                  {whoopEvents.length > 0 && (
-                    <SyncTimeline events={whoopEvents} source="whoop" title="Sync timeline" showCounts />
-                  )}
-                </>
-              ) : (
-                <button onClick={handleWhoopConnect} disabled={whoopBusy} style={connectBtn(whoopBusy)}>
-                  + Connect Whoop
-                </button>
-              )}
-
-              {whoopMsg && (
-                <div style={{ fontSize: 11, color: C.textDim, marginTop: 8, lineHeight: 1.6, fontFamily: mono }}>
-                  {whoopMsg}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-        {section === "account" && (
-          <div>
-            <div style={{ fontSize: 11, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono, marginBottom: 6 }}>
-              Recovery phrase
-            </div>
-            <div style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6, marginBottom: 14 }}>
-              Your recovery phrase is the only way to reset your password — there's no email on file. Change it here, and write the new one down somewhere safe. Setting a new phrase replaces the old one immediately.
-            </div>
-
-            <label style={{ ...lbl, marginBottom: 6 }}>New recovery phrase</label>
-            <input
-              type="text"
-              autoComplete="off"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              value={recPhrase}
-              onChange={(e) => setRecPhrase(e.target.value)}
-              placeholder="at least 8 characters"
-              style={{ ...inp, textAlign: "left", width: "100%", boxSizing: "border-box", marginBottom: 10 }}
-            />
-
-            <label style={{ ...lbl, marginBottom: 6 }}>Confirm new phrase</label>
-            <input
-              type="text"
-              autoComplete="off"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              value={recConfirm}
-              onChange={(e) => setRecConfirm(e.target.value)}
-              placeholder="re-enter the phrase"
-              style={{ ...inp, textAlign: "left", width: "100%", boxSizing: "border-box", marginBottom: 10 }}
-            />
-
-            <button
-              type="button"
-              onClick={fillSuggestedPhrase}
-              style={{ background: "none", border: `1px solid ${C.lineBright}`, color: C.textDim, padding: "8px 12px", fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", marginBottom: 12 }}
-            >
-              ⚄ Suggest a strong phrase
-            </button>
-
-            {recErr && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{recErr}</div>}
-            {recMsg && <div style={{ fontSize: 12, color: C.green, marginBottom: 10 }}>{recMsg}</div>}
-
-            <button
-              type="button"
-              onClick={submitRecoveryPhrase}
-              disabled={recBusy}
-              style={{ ...S.foodBtn, marginTop: 0, width: "100%" }}
-            >
-              {recBusy ? "Updating..." : "Update recovery phrase"}
-            </button>
-          </div>
-        )}
-
-        {section === "about" && (
-          <div>
-            <div style={{ fontSize: 11, color: C.textDim, lineHeight: 1.6, marginBottom: 16 }}>
-              0VERTRAINED {APP_VERSION} · private beta training ledger.
-            </div>
-            <a href={buildSupportMailto({ subject: "0VERTRAINED support" })}
-              style={{ display: "block", border: `1px solid ${C.text}`, padding: "14px 16px", color: C.text, textDecoration: "none", fontFamily: mono, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              Email support · {SUPPORT_EMAIL}
-            </a>
-
-            {/* Beta feedback — a privacy-safe plain-text note (version,
-                tab, logged-day count, setup mode, browser; never entries). The
-                load-diagnostics panel that was here is development
-                instrumentation and no longer ships on a user screen. */}
-            <div style={{ marginTop: 24 }}>
-              <div style={{ fontSize: 10, color: C.textDim, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono, borderBottom: `1px solid ${C.line}`, paddingBottom: 6, marginBottom: 8 }}>
-                Beta feedback
-              </div>
-              <div style={{ fontSize: 11, color: C.textFaint, lineHeight: 1.6, marginBottom: 6 }}>
-                Copies the app version, current tab, logged-day count, setup goal and mode, and browser. No entries or account details are included.
-              </div>
-              <textarea value={feedbackNote} onChange={(e) => { setFeedbackNote(e.target.value); setFeedbackCopied(false); }} rows={2}
-                placeholder="What worked, what was confusing, what you'd change…"
-                aria-label="Beta feedback note"
-                style={{ ...S.notesInput, marginTop: 0, fontSize: 13.5 }} />
-              <button type="button" style={{ ...S.foodBtn, marginTop: 8 }} onClick={copyBetaFeedback}>
-                {feedbackCopied ? "Copied — paste it into an email" : "Copy beta feedback note"}
-              </button>
-              {feedbackFallback && (
-                <textarea readOnly value={feedbackFallback} onFocus={(e) => e.target.select()} rows={7} aria-label="Beta feedback note text"
-                  style={{ ...S.notesInput, marginTop: 8, fontSize: 11.5, fontFamily: mono }} />
-              )}
-            </div>
-
-            <a href="#/demo" style={{ display: "block", marginTop: 20, padding: "10px 0", borderTop: `1px solid ${C.line}`, fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textFaint, textDecoration: "none" }}>
-              View / share the demo page →
-            </a>
-          </div>
-        )}
-      </div>
+  const aboutPage = (
+    <>
+      <p className="t-b">0VERTRAINED {APP_VERSION}, private beta.</p>
+      <a className="btn btn-s btn-b" href={buildSupportMailto({ subject: "0VERTRAINED support" })}>Email support</a>
+      <p className="t-s c2">{SUPPORT_EMAIL}</p>
+      <hr className="hr" />
+      <section aria-labelledby="set-feedback" style={column(8)}>
+        <h2 id="set-feedback" className="t-h">Beta feedback</h2>
+        <p className="t-s c2">Copies the app version, this screen, how many days you have logged, your setup goal and mode, and your browser. No entries and no account details.</p>
+        <label className="field">
+          <span className="lbl">What worked, what was confusing, what you would change</span>
+          <textarea className="input area" rows={3} value={feedbackNote} aria-label="Beta feedback note" onChange={(event) => { setFeedbackNote(event.target.value); setFeedbackCopied(false); }} />
+        </label>
+        <button type="button" className="btn btn-s btn-b" onClick={copyBetaFeedback}>{feedbackCopied ? "Copied. Paste it into an email." : "Copy beta feedback note"}</button>
+        {feedbackFallback && <textarea className="input area" readOnly rows={7} value={feedbackFallback} aria-label="Beta feedback note text" onFocus={(event) => event.target.select()} />}
       </section>
-      </div>
+      <a className="t-s" href="#/demo" style={{ minHeight: 44, display: "inline-flex", alignItems: "center", textDecoration: "underline" }}>See or share the demo</a>
+    </>
+  );
 
-      {/* Save bar */}
-      <div style={{ padding: "10px 16px", borderTop: `1px solid ${C.lineBright}`, background: C.bg, display: "flex", gap: 8 }}>
-        <button style={{ ...S.foodBtn, marginTop: 0, flex: 1, color: C.textDim, borderColor: C.lineBright }} onClick={onClose}>Cancel</button>
-        <button style={{ ...S.foodBtn, marginTop: 0, flex: 2 }} onClick={handleSave} disabled={busy}>
-          {busy ? "Saving..." : "Save Settings"}
-        </button>
+  const body = { home, supps: suppsPage, diet: dietPage, integrations: integrationsPage, account: accountPage, about: aboutPage }[page] || home;
+  const drafts = page === "home" || page === "supps" || page === "diet";
+  return (
+    <Flow label={titles[page] || "Settings"} onClose={onClose} data-testid="settings">
+      {confirmDialog}
+      <div ref={shellRef} className="shell" data-screen="settings" style={{ maxWidth: "var(--ovt-content-width)" }}>
+        {page === "home"
+          ? <TopBar title="Settings" close={backLabel ? null : "Close"} onClose={onClose} back={backLabel || null} onBack={onClose} />
+          : <TopBar title={titles[page]} back="Settings" onBack={goHome} />}
+        <div className="main" style={{ gap: 16 }}>
+          {body}
+        </div>
+        {drafts && foot}
       </div>
-    </div>
+    </Flow>
   );
 }
