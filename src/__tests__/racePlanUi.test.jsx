@@ -138,8 +138,8 @@ describe("Progress race block", () => {
     wrap(<RaceBlockSection program={PROGRAM} />);
     expect(screen.getByText(/66 days · Base · 140 min of running this week/)).toBeTruthy();
     expect(screen.getByText(/Chilly Willy 10K · Sat, Jan 16/)).toBeTruthy();
-    expect(screen.getByText("BUILD")).toBeTruthy();
-    expect(screen.getByText(/Edit the plan under Profile → Training plan/)).toBeTruthy();
+    expect(screen.getByText("Build")).toBeTruthy();
+    expect(screen.getByText(/Edit the plan in Train, under Race plan\./)).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull(); // nothing to edit here, no second race
   });
 
@@ -147,7 +147,7 @@ describe("Progress race block", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2027-01-10T12:00:00"));
     wrap(<RaceBlockSection program={PROGRAM} />);
-    expect(screen.getByText("TAPER")).toBeTruthy();
+    expect(screen.getByText("Taper")).toBeTruthy();
     expect(racePhase(0).stamp).toBe("RACE DAY");
     expect(racePhase(-1).phase).toBe("past");
     expect(racePhase(11).phase).toBe("build");
