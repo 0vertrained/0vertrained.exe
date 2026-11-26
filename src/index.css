@@ -90,3 +90,13 @@ input[type="number"] { -moz-appearance: textfield; }
     --ovt-rail-m: 480px;
   }
 }
+
+/* ── Inside the iPhone app ──────────────────────────────────────────────────
+   html.native-app is set by src/nativeShell.js. Pages bounce at their ends,
+   as lists do on iPhone, and a long press doesn't select interface text or
+   open a callout. Fields and the coach's conversation stay selectable. */
+html.native-app, html.native-app body { overscroll-behavior: auto; }
+html.native-app .ot { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html.native-app .ot :is(input, textarea, [contenteditable="true"], [role="log"], [role="log"] *) {
+  -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
+}
