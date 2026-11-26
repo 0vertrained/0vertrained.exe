@@ -38,22 +38,39 @@ export function hasLoggedRun(workout) {
   return filled(workout?.cardio) || Object.values(workout?.cardioSessions || {}).some(filled);
 }
 
+// Average heart rate across runs, each weighted by how long it lasted.
+function averageHeartRate(runs) {
+  let beats = 0;
+  let seconds = 0;
+  for (const run of runs) {
+    const bpm = positive(run?.avgHr);
+    const length = positive(run?.seconds);
+    if (bpm && length) {
+      beats += bpm * length;
+      seconds += length;
+    }
+  }
+  return seconds > 0 ? Math.round(beats / seconds) : 0;
+}
+
 /** A day's runs as the log's fields. Runs on the same day add up. */
 export function runFill(runs) {
   const meters = runs.reduce((sum, run) => sum + positive(run?.meters), 0);
   const seconds = runs.reduce((sum, run) => sum + positive(run?.seconds), 0);
   const miles = Math.round((meters / METERS_PER_MILE) * 100) / 100;
   if (!(miles > 0) && !(seconds > 0)) return null;
+  const hr = averageHeartRate(runs);
   return {
     miles: miles > 0 ? String(miles) : "",
     time: formatRunTime(seconds),
     pace: miles > 0 && seconds > 0 ? formatRunPace(seconds / miles) : "",
+    hr: hr > 0 ? String(hr) : "",
   };
 }
 
 /** The log writes a fill makes, one per field it has a value for. */
 export function fillWrites(fill) {
-  return ["miles", "time", "pace"]
+  return ["miles", "time", "pace", "hr"]
     .filter((field) => fill?.[field])
     .map((field) => ({ path: `workout.cardio.${field}`, value: fill[field] }));
 }

@@ -9,11 +9,16 @@ const logged = (cardio) => ({ workout: { cardio } });
 
 describe("runFill", () => {
   it("writes miles, time and pace the way the log reads them", () => {
-    expect(runFill([run("a", "2026-11-26", 8046.72, 2430)])).toEqual({ miles: "5", time: "40:30", pace: "8:06" });
+    expect(runFill([run("a", "2026-11-26", 8046.72, 2430)])).toEqual({ miles: "5", time: "40:30", pace: "8:06", hr: "" });
   });
 
   it("adds up runs on the same day", () => {
-    expect(runFill([run("a", "d", 1609.344, 480), run("b", "d", 3218.688, 1080)])).toEqual({ miles: "3", time: "26:00", pace: "8:40" });
+    expect(runFill([run("a", "d", 1609.344, 480), run("b", "d", 3218.688, 1080)])).toEqual({ miles: "3", time: "26:00", pace: "8:40", hr: "" });
+  });
+
+  it("averages heart rate by how long each run lasted", () => {
+    const fill = runFill([{ ...run("a", "d", 1609.344, 600), avgHr: 140 }, { ...run("b", "d", 1609.344, 1800), avgHr: 160 }]);
+    expect(fill.hr).toBe("155");
   });
 
   it("counts minutes past the hour", () => {
@@ -21,7 +26,7 @@ describe("runFill", () => {
   });
 
   it("fills what it has", () => {
-    expect(runFill([run("a", "d", 0, 1800)])).toEqual({ miles: "", time: "30:00", pace: "" });
+    expect(runFill([run("a", "d", 0, 1800)])).toEqual({ miles: "", time: "30:00", pace: "", hr: "" });
     expect(runFill([run("a", "d", 0, 0)])).toBeNull();
   });
 });
@@ -38,7 +43,7 @@ describe("hasLoggedRun", () => {
 describe("planHealthFills", () => {
   it("fills an empty day and remembers the run", () => {
     const result = planHealthFills({ runs: [run("a", "2026-11-26", 8046.72, 2430)], data: {} });
-    expect(result.fills).toEqual([{ dateKey: "2026-11-26", miles: "5", time: "40:30", pace: "8:06", count: 1 }]);
+    expect(result.fills).toEqual([{ dateKey: "2026-11-26", miles: "5", time: "40:30", pace: "8:06", hr: "", count: 1 }]);
     expect(result.handled).toEqual(["a"]);
   });
 
@@ -67,9 +72,10 @@ describe("planHealthFills", () => {
 
 describe("fillWrites", () => {
   it("writes only the fields it has", () => {
-    expect(fillWrites({ miles: "5", time: "40:30", pace: "" })).toEqual([
+    expect(fillWrites({ miles: "5", time: "40:30", pace: "", hr: "152" })).toEqual([
       { path: "workout.cardio.miles", value: "5" },
       { path: "workout.cardio.time", value: "40:30" },
+      { path: "workout.cardio.hr", value: "152" },
     ]);
   });
 });

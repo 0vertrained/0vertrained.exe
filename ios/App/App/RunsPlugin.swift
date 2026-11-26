@@ -81,8 +81,8 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     /// days: how far back to look. Resolves { runs: [{ id, date, start,
-    /// seconds, meters }] }, newest first. Health doesn't say whether reading
-    /// was allowed; when it wasn't, there are simply no runs.
+    /// seconds, meters, avgHr }] }, newest first. Health doesn't say whether
+    /// reading was allowed; when it wasn't, there are simply no runs.
     @objc func recentRuns(_ call: CAPPluginCall) {
         guard HKHealthStore.isHealthDataAvailable() else {
             call.resolve(["runs": [[String: Any]]()])
@@ -100,11 +100,17 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
             let runs = (samples as? [HKWorkout] ?? []).map(Self.describe)
             call.resolve(["runs": runs])
         }
-        health.execute(query)
+        Task {
+            // Heart rate was added after runners first said yes. iOS shows
+            // its sheet only for what it hasn't asked about, so this asks
+            // once for heart rate and is silent after that.
+            try? await self.health.requestAuthorization(toShare: [], read: Self.readTypes)
+            self.health.execute(query)
+        }
     }
 
     private static var readTypes: Set<HKObjectType> {
-        [HKObjectType.workoutType(), HKQuantityType(.distanceWalkingRunning)]
+        [HKObjectType.workoutType(), HKQuantityType(.distanceWalkingRunning), HKQuantityType(.heartRate)]
     }
 
     private func currentStatus() async -> [String: Any] {
@@ -130,6 +136,9 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
         if let meters = distance(of: workout) {
             run["meters"] = meters
         }
+        if let bpm = averageHeartRate(of: workout) {
+            run["avgHr"] = bpm
+        }
         return run
     }
 
@@ -138,6 +147,12 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
             return workout.statistics(for: HKQuantityType(.distanceWalkingRunning))?.sumQuantity()?.doubleValue(for: .meter())
         }
         return workout.totalDistance?.doubleValue(for: .meter())
+    }
+
+    private static func averageHeartRate(of workout: HKWorkout) -> Double? {
+        guard #available(iOS 16.0, *) else { return nil }
+        let perMinute = HKUnit.count().unitDivided(by: .minute())
+        return workout.statistics(for: HKQuantityType(.heartRate))?.averageQuantity()?.doubleValue(for: perMinute)
     }
 }
 

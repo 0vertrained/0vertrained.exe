@@ -150,14 +150,17 @@ function FirstWeekCard({ settings, entries, program, ouraConnected, setTab, show
   );
 }
 
-// Miles, time and pace for one run. Pace fills itself from the other two (see
-// the effect in TodayTab), so it is offered last.
+// Miles, time, pace and average heart rate for one run. Pace fills itself
+// from miles and time (see the effect in TodayTab), and Apple Health fills
+// all four in the iPhone app (src/watch/healthRuns.js). Two to a row, so
+// every field has room on a phone.
 function RunFields({ logged = {}, planned = null, onChange }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
       <label className="field"><span className="lbl">Miles</span><input className="input n" type="number" inputMode="decimal" autoComplete="off" placeholder={String(planned?.miles || "")} value={logged.miles || ""} onChange={(e) => onChange("miles", e.target.value)} /></label>
       <label className="field"><span className="lbl">Time</span><input className="input n" type="text" inputMode="numeric" autoComplete="off" placeholder="mm:ss" value={logged.time || ""} onChange={(e) => onChange("time", e.target.value)} /></label>
       <label className="field"><span className="lbl">Pace</span><input className="input n" type="text" autoComplete="off" placeholder="/mi" value={logged.pace || ""} onChange={(e) => onChange("pace", e.target.value)} /></label>
+      <label className="field"><span className="lbl">Avg heart rate</span><input className="input n" type="number" inputMode="numeric" autoComplete="off" placeholder="bpm" value={logged.hr || ""} onChange={(e) => onChange("hr", e.target.value)} /></label>
     </div>
   );
 }
@@ -534,7 +537,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   // Tomorrow, read from the plan itself rather than today's adjusted copy.
   const tomorrow = tomorrowSummary(baseProgram || activeProgram, todayKey);
 
-  // One planned cardio block: what is planned, the runner, and the three fields.
+  // One planned cardio block: what is planned, the runner, and the run fields.
   const cardioBlock = ({ cardio, logged, path, onStart, startLabel }) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0 8px" }}>
       <div className="row">
