@@ -6,16 +6,16 @@
          failure that modern iOS Safari ignores anyway, so it only ever blocked
          pinch-zoom on Android. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <!-- V13.2 · theme-color updated from the retired terminal palette to the
-         Whitepaper stocks (paper / dark stock). Browsers without media-query
-         support on theme-color fall back to the first tag. -->
+    <!-- theme-color matches the page colour of the light and dark themes
+         (--bg in src/ledger.css). Browsers without media-query support on
+         theme-color fall back to the first tag. -->
     <meta name="theme-color" content="#FAF9F6" />
-    <meta name="theme-color" content="#141311" media="(prefers-color-scheme: dark)" />
-    <!-- V13.2 · Landing/SEO meta. The description mirrors the on-page Abstract. -->
-    <meta name="description" content="0VERTRAINED is a private training ledger for hybrid athletes: log or import training, recovery, and nutrition data, and get one evidence-based verdict on how hard to train today." />
+    <meta name="theme-color" content="#141412" media="(prefers-color-scheme: dark)" />
+    <!-- Landing/SEO meta. The description mirrors the home page. -->
+    <meta name="description" content="0VERTRAINED is a private training ledger for people who lift and run. Log or import your training, recovery and food, and get one evidence-based answer each morning: how hard should today be?" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="0VERTRAINED — Train hard. Recover honestly." />
-    <meta property="og:description" content="A private training ledger for hybrid athletes. Log or import training, recovery, and nutrition, and get one verdict on how hard to train today." />
+    <meta property="og:title" content="0VERTRAINED: how hard should today be?" />
+    <meta property="og:description" content="A private training ledger for people who lift and run. Log or import your training, recovery and food, and get one evidence-based answer each morning." />
     <!-- CSP is managed in netlify.toml headers. Do not duplicate it here; browsers enforce all CSP policies, so stale meta CSP can block Cloud Run/media even when Netlify headers are correct. -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -45,9 +45,9 @@
            so the app description and the privacy-policy link stay reachable
            here. React replaces this on mount. -->
       <noscript>
-        <div style="max-width: 640px; margin: 48px auto; padding: 0 20px; font-family: Georgia, 'Times New Roman', serif; color: #1A1A1A; line-height: 1.6;">
-          <h1 style="font-family: 'Courier New', monospace; font-size: 20px; letter-spacing: -0.01em;">0VERTRAINED</h1>
-          <p>0VERTRAINED is a private training ledger for hybrid athletes. You log strength, cardio, nutrition, body metrics, and daily recovery check-ins — or import them from a wearable — and the app reconciles training load against sleep, HRV, and fueling to answer one question each morning: how hard should today be?</p>
+        <div style="max-width: 640px; margin: 48px auto; padding: 0 20px; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #1A1A1A; line-height: 1.6;">
+          <h1 style="font-size: 22px; letter-spacing: .05em;">0VERTRAINED</h1>
+          <p>0VERTRAINED is a private training ledger for people who lift and run. You log or import your training, recovery and food, and each morning the app answers one question: how hard should today be?</p>
           <p>With your permission, optional integrations (Oura, Whoop, Strava) import health and activity data used only to power the recovery, readiness, and training features you see in the app.</p>
           <p>JavaScript is required to use the app. <a href="/legal/privacy-policy.html">Privacy policy</a> · <a href="/legal/terms-of-service.html">Terms of service</a></p>
         </div>
