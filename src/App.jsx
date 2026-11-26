@@ -61,7 +61,7 @@ const DayZeroSpecimen = lazy(() => import("./DayZeroSpecimen").then(m => ({ defa
 const Coach = lazy(() => import("./Coach").then(m => ({ default: m.Coach })));
 
 function AppInner({ onThemeChange }) {
-  const { C, themeId } = useTheme();
+  const { themeId } = useTheme();
   const demoMode = isDemoMode();
   const isDesktop = useIsDesktop();
   // A screen one level down names itself and its Back here (see ui/shell).
@@ -201,18 +201,6 @@ function AppInner({ onThemeChange }) {
   // the load effect can reset it.
   const pendingFlushedRef = useRef(null);
 
-  // Keep the keyboard focus-ring colour in step with the active theme's ink,
-  // and sync the document background/colour so the gutters outside the
-  // content width (and overscroll) match the theme. Without this, index.css's
-  // static paper values framed the dark themes with light margins — visible
-  // on desktop and, because the logged-out theme follows prefers-color-scheme,
-  // on the landing page too.
-  useEffect(() => {
-    document.documentElement.style.setProperty("--ovt-focus", C.text);
-    document.documentElement.style.background = C.bg;
-    document.body.style.background = C.bg;
-    document.body.style.color = C.text;
-  }, [C.text, C.bg]);
 
 
   // Demo page is a hash route (#/demo) so it's shareable and works logged-out.
@@ -1308,7 +1296,7 @@ function ExportModal({ modal, onClose, showToast }) {
         <div className="main" style={{ gap: 12 }}>
           <p className="t-b">Copy it and keep it anywhere.{/\.json$/i.test(modal.filename || "") ? " Restore it later from Profile, under Your data." : ""}</p>
           {modal.note && <p className="banner" role="status">{modal.note}</p>}
-          <textarea ref={taRef} className="input area" readOnly rows={12} value={modal.text} aria-label={`${modal.label} text`} onFocus={(e) => e.target.select()} style={{ fontFamily: "var(--mono, monospace)", fontSize: 13 }} />
+          <textarea ref={taRef} className="input area n" readOnly rows={12} value={modal.text} aria-label={`${modal.label} text`} onFocus={(e) => e.target.select()} style={{ fontSize: 14 }} />
         </div>
         <div className="foot"><button type="button" className="btn btn-p btn-b" onClick={copyAll}>Copy all</button></div>
       </div>

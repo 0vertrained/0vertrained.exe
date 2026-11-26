@@ -502,13 +502,13 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     expect((await screen.findByTestId("integrations-notice", {}, WAIT)).textContent).toMatch(/^Oura didn't connect/);
     expect(window.location.pathname + window.location.search).toBe("/");
     expect(dataLayer.loadSettingsChecked).toHaveBeenCalled();
-    await waitFor(() => expect(screen.queryByText(/Refreshing latest data in background/)).toBeNull(), WAIT);
+    await waitFor(() => expect(screen.queryByText(/Refreshing your latest data/)).toBeNull(), WAIT);
   }, 20000);
 
   it("switches back to the server's theme when the cached paint went the other way", async () => {
     // Phone light, cache dark, server light (changed on another device).
-    expect(THEMES.whitepaperLight.text).not.toBe(THEMES.whitepaperDark.text);
-    const ink = () => document.documentElement.style.getPropertyValue("--ovt-focus");
+    expect(THEMES.whitepaperLight.mode).not.toBe(THEMES.whitepaperDark.mode);
+    const ink = () => document.documentElement.getAttribute("data-theme");
     seedCache({ ...PROFILE, theme: "whitepaperDark" });
     h.store.settings = { ...PROFILE, theme: "whitepaperLight" };
     authLayer.ensureProfileExists.mockImplementationOnce(async () => {
@@ -517,9 +517,9 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     });
     render(<App />);
 
-    await waitFor(() => expect(ink()).toBe(THEMES.whitepaperDark.text), WAIT); // the cached paint
+    await waitFor(() => expect(ink()).toBe(THEMES.whitepaperDark.mode), WAIT); // the cached paint
     await waitFor(() => expect(dataLayer.loadSettingsChecked).toHaveBeenCalled(), WAIT);
-    await waitFor(() => expect(ink()).toBe(THEMES.whitepaperLight.text), WAIT); // the server's answer wins
+    await waitFor(() => expect(ink()).toBe(THEMES.whitepaperLight.mode), WAIT); // the server's answer wins
   }, 20000);
 
   it("an export that couldn't reach the server says so on the export screen", async () => {

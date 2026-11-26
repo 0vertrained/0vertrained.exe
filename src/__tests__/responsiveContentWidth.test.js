@@ -28,11 +28,12 @@ describe("responsive content-width contract", () => {
     expect(css).toContain("--ovt-shell-width: min(1856px, calc(100vw - 48px))");
     // Fixed surfaces keep the reading-column contract: content-width has NO 1440 override.
     expect(css).not.toMatch(/1440px[^}]*--ovt-content-width/s);
-    const theme = readFileSync(resolve(root, "src/theme.jsx"), "utf8");
-    // The app shell consumes the shell var (with the content var as fallback)…
-    expect(theme).toContain('maxWidth: "var(--ovt-shell-width, var(--ovt-content-width))"');
-    // …while sheets and nav stay on the content var.
-    expect(theme.match(/maxWidth: "var\(--ovt-content-width\)"/g)?.length).toBeGreaterThanOrEqual(2);
+    const ledger = readFileSync(resolve(root, "src/ledger.css"), "utf8");
+    // A tab screen consumes the shell var (with the content var as fallback)…
+    expect(ledger).toMatch(/\.tab-screen \{[^}]*max-width: var\(--ovt-shell-width, var\(--ovt-content-width\)\)/);
+    // …while sheets and the tab bar stay on the content var.
+    expect(ledger).toMatch(/\.sheet \{[^}]*max-width: var\(--ovt-content-width\)/);
+    expect(ledger).toMatch(/\.tabbar \{[^}]*max-width: var\(--ovt-content-width\)/);
     expect(css).toContain("@media (min-width: 1024px)");
     expect(css).toContain(":root { --ovt-content-width: 760px; }");
     expect(css).not.toContain("max-width: 960px !important");
@@ -40,14 +41,11 @@ describe("responsive content-width contract", () => {
   });
 
   test("shares the contract between shell, bottom dock, and quick-log sheet", () => {
-    const theme = read("src/theme.jsx");
-    const uses = theme.match(/var\(--ovt-content-width\)/g) || [];
-
-    expect(uses).toHaveLength(3);
-    expect(theme).toContain('app: { background: C.bg, minHeight: "100dvh"');
-    expect(theme).toContain('nav: { position: "fixed"');
-    expect(theme).toContain('sheet: { position: "fixed"');
-    expect(theme).not.toMatch(/(?:app|nav|sheet):[^\n]*maxWidth: 480/);
+    const css = read("src/ledger.css");
+    expect(css).toMatch(/\.shell \{[^}]*max-width: var\(--ovt-content-width\)/);
+    expect(css).toMatch(/\.tabbar \{[^}]*max-width: var\(--ovt-content-width\)/);
+    expect(css).toMatch(/\.sheet \{[^}]*max-width: var\(--ovt-content-width\)/);
+    expect(css).not.toMatch(/\.(?:shell|tabbar|sheet) \{[^}]*max-width: 480px/);
   });
 
   test("keeps centered page-relative overlays and fixed action bars aligned to the shell", () => {
