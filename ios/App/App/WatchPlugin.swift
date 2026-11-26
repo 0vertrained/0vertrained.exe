@@ -1,8 +1,8 @@
 import Foundation
 import Capacitor
 
-/// The page's side of the watch connection: send today's plan, read the sets
-/// logged on the watch, and confirm them once they're in the log. A
+/// The page's side of the watch connection: send the week's plans, read the
+/// sets logged on the watch, and confirm them once they're in the log. A
 /// "watchEvent" goes to the page whenever new ones arrive.
 @objc(WatchPlugin)
 public class WatchPlugin: CAPPlugin, CAPBridgedPlugin {

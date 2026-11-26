@@ -25,6 +25,19 @@ struct WatchPlan: Codable, Equatable {
     }
 }
 
+/// What the phone sends: today's plan and the next six days', so the watch
+/// has the day's lifts and runs even when the iPhone app isn't opened. (The
+/// same JSON also carries today's plan at the top level, for watch apps
+/// built before weeks.)
+struct WatchWeek: Codable, Equatable {
+    /// Which version of the week this is.
+    var week: Int?
+    var sentAt: String?
+    /// Ids of watch events the phone has dealt with.
+    var seen: [String]?
+    var days: [WatchPlan]
+}
+
 struct PlanSession: Codable, Equatable, Identifiable {
     var id: String
     var title: String

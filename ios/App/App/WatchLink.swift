@@ -6,15 +6,16 @@ import WatchConnectivity
 /// It starts at launch, before the page loads, so sets logged on the watch
 /// are kept even when they arrive with the app in the background. They wait
 /// in UserDefaults until the page has written them into the log and confirms
-/// them (src/watch/useWatchBridge.js). The plan goes the other way as the
-/// application context, which holds only the latest copy.
+/// them (src/watch/useWatchBridge.js). The week's plans go the other way as
+/// the application context, which holds only the latest copy, compressed so
+/// a full week fits.
 final class WatchLink: NSObject {
     static let shared = WatchLink()
     static let inboxChanged = Notification.Name("ovt.watchInboxChanged")
 
     private let inboxKey = "ovt.watch.inbox"
     private let queue = DispatchQueue(label: "ovt.watch.link")
-    /// The newest plan, until the watch can take it.
+    /// The newest week of plans, until the watch can take it.
     private var unsentPlan: String?
 
     func activate() {
@@ -64,8 +65,12 @@ final class WatchLink: NSObject {
         guard let json = unsentPlan, WCSession.isSupported() else { return }
         let session = WCSession.default
         guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
+        guard let week = Self.pack(json) else {
+            unsentPlan = nil
+            return
+        }
         do {
-            try session.updateApplicationContext(["plan": json])
+            try session.updateApplicationContext(["week": week])
             unsentPlan = nil
         } catch {
             // Kept, and tried again when the watch's state changes or the
@@ -79,6 +84,12 @@ final class WatchLink: NSObject {
 
     private func writeInbox(_ inbox: [String]) {
         UserDefaults.standard.set(inbox, forKey: inboxKey)
+    }
+
+    /// The week's JSON, zlib-compressed: the watch unpacks it the same way.
+    private static func pack(_ json: String) -> Data? {
+        guard let compressed = try? (Data(json.utf8) as NSData).compressed(using: .zlib) else { return nil }
+        return compressed as Data
     }
 
     private static func eventId(_ json: String) -> String? {

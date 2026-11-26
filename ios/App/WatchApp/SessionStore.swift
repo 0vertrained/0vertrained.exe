@@ -2,8 +2,9 @@ import Foundation
 import WatchConnectivity
 import WatchKit
 
-/// Today's plan from the phone, the sets logged here that the phone hasn't
-/// confirmed yet, and the rest timer.
+/// The week's plans from the phone, the sets logged here that the phone
+/// hasn't confirmed yet, and the rest timer. Today's plan is the one for the
+/// watch's date, so a new day starts at midnight without the phone.
 ///
 /// Sets go to the phone with transferUserInfo, which the system queues and
 /// delivers when it can, so logging works with the phone out of reach or the
@@ -12,7 +13,9 @@ import WatchKit
 final class SessionStore: NSObject, ObservableObject {
     static let shared = SessionStore()
 
-    @Published private(set) var plan: WatchPlan?
+    @Published private(set) var week: WatchWeek?
+    /// The date today's plan is for; moves on at midnight.
+    @Published private(set) var dayKey = SessionStore.dateKey(Date())
     @Published private(set) var pending: [PendingSet] = []
     @Published private(set) var rest: Rest?
 
@@ -24,6 +27,8 @@ final class SessionStore: NSObject, ObservableObject {
     }
 
     private enum Key {
+        static let week = "ovt.week"
+        /// A single day's plan, as saved before weeks.
         static let plan = "ovt.plan"
         static let pending = "ovt.pending"
         static let outbox = "ovt.outbox"
@@ -46,14 +51,28 @@ final class SessionStore: NSObject, ObservableObject {
             WCSession.default.delegate = self
             WCSession.default.activate()
         }
+        NotificationCenter.default.addObserver(self, selector: #selector(calendarDayChanged), name: .NSCalendarDayChanged, object: nil)
+    }
+
+    @objc private func calendarDayChanged() {
+        DispatchQueue.main.async { self.refreshDay() }
+    }
+
+    /// Moves to the new day's plan once the date changes. Called at midnight
+    /// and whenever the app comes to the front.
+    func refreshDay() {
+        let key = Self.dateKey(Date())
+        guard key != dayKey else { return }
+        dayKey = key
+        prunePending()
     }
 
     // MARK: - Reading the plan
 
-    /// The plan, if it is for today.
+    /// Today's plan, if the phone has sent one.
     var today: WatchPlan? {
-        guard let plan, plan.date == Self.dateKey(Date()) else { return nil }
-        return plan
+        let key = Self.dateKey(Date())
+        return week?.days.first { $0.date == key }
     }
 
     /// The local calendar day, written as the phone writes it: 2026-11-26.
@@ -190,35 +209,65 @@ final class SessionStore: NSObject, ObservableObject {
     // MARK: - Storage
 
     private func receive(_ context: [String: Any]) {
-        guard let json = context["plan"] as? String,
-              let data = json.data(using: .utf8),
-              let incoming = try? JSONDecoder().decode(WatchPlan.self, from: data) else { return }
-        if let current = plan {
-            if incoming.date < current.date { return }
-            if incoming.date == current.date, let had = current.sentAt, let got = incoming.sentAt, got < had { return }
+        let incoming: WatchWeek
+        if let packed = context["week"] as? Data,
+           let json = Self.unpack(packed),
+           let decoded = try? JSONDecoder().decode(WatchWeek.self, from: json) {
+            incoming = decoded
+        } else if let json = context["plan"] as? String, let data = json.data(using: .utf8) {
+            // An iPhone app from before compression sends plain JSON: a week,
+            // or from before weeks, one day.
+            if let decoded = try? JSONDecoder().decode(WatchWeek.self, from: data), !decoded.days.isEmpty {
+                incoming = decoded
+            } else if let plan = try? JSONDecoder().decode(WatchPlan.self, from: data) {
+                incoming = Self.singleDay(plan)
+            } else {
+                return
+            }
+        } else {
+            return
         }
-        plan = incoming
-        defaults.set(json, forKey: Key.plan)
+        if let had = week?.sentAt, let got = incoming.sentAt, got < had { return }
+        week = incoming
+        if let data = try? JSONEncoder().encode(incoming) {
+            defaults.set(data, forKey: Key.week)
+        }
         prunePending()
     }
 
-    /// Drops what the phone has dealt with: sets its plan shows done, events
-    /// it lists as seen (including any it set aside), and other days.
+    private static func singleDay(_ plan: WatchPlan) -> WatchWeek {
+        WatchWeek(week: nil, sentAt: plan.sentAt, seen: plan.seen, days: [plan])
+    }
+
+    /// The phone compresses the week (ios/App/App/WatchLink.swift).
+    private static func unpack(_ data: Data) -> Data? {
+        guard let raw = try? (data as NSData).decompressed(using: .zlib) else { return nil }
+        return raw as Data
+    }
+
+    /// Drops what the phone has dealt with: sets its plans show done, events
+    /// it lists as seen (including any it set aside), and days before its week.
     private func prunePending() {
-        guard let plan else { return }
-        let seen = Set(plan.seen ?? [])
+        guard let week else { return }
+        let seen = Set(week.seen ?? [])
+        let earliest = week.days.map(\.date).min() ?? dayKey
         let before = pending.count
         pending.removeAll { item in
-            if item.date != plan.date || seen.contains(item.id) { return true }
-            guard let exercise = plan.exercise(ExerciseKey(session: item.session, name: item.exercise)) else { return false }
+            if seen.contains(item.id) || item.date < earliest { return true }
+            guard let day = week.days.first(where: { $0.date == item.date }),
+                  let exercise = day.exercise(ExerciseKey(session: item.session, name: item.exercise)) else { return false }
             return item.setIndex < exercise.sets.count && exercise.sets[item.setIndex].done
         }
         if pending.count != before { savePending() }
     }
 
     private func restore() {
-        if let json = defaults.string(forKey: Key.plan), let data = json.data(using: .utf8) {
-            plan = try? JSONDecoder().decode(WatchPlan.self, from: data)
+        if let data = defaults.data(forKey: Key.week) {
+            week = try? JSONDecoder().decode(WatchWeek.self, from: data)
+        } else if let json = defaults.string(forKey: Key.plan),
+                  let data = json.data(using: .utf8),
+                  let plan = try? JSONDecoder().decode(WatchPlan.self, from: data) {
+            week = Self.singleDay(plan)
         }
         if let data = defaults.data(forKey: Key.pending) {
             pending = (try? JSONDecoder().decode([PendingSet].self, from: data)) ?? []
