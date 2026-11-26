@@ -31,6 +31,7 @@ import {
 import { RaceBlockSection } from "./RaceBlockSection";
 import { FoldRow, Icon, Seg } from "./ui/ledger";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
+import { selectionHaptic } from "./native";
 
 const NBSP = "\u00a0";
 const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
@@ -51,9 +52,9 @@ function Count({ label, value, min, max, less, more, onChange }) {
     <div className="field">
       <span className="lbl">{label}</span>
       <div className="step" role="group" aria-label={`${label}, ${min} to ${max}`} style={{ gridTemplateColumns: "48px minmax(0, 1fr) 48px", gap: 4 }}>
-        <button type="button" aria-label={less} aria-disabled={value <= min || undefined} onClick={() => value > min && onChange(value - 1)} style={{ height: 48 }}><Icon name="minus" /></button>
+        <button type="button" aria-label={less} aria-disabled={value <= min || undefined} onClick={() => { if (value <= min) return; selectionHaptic(); onChange(value - 1); }} style={{ height: 48 }}><Icon name="minus" /></button>
         <span className="stepv"><span className="n" aria-live="polite">{value}</span></span>
-        <button type="button" aria-label={more} aria-disabled={value >= max || undefined} onClick={() => value < max && onChange(value + 1)} style={{ height: 48 }}><Icon name="plus" /></button>
+        <button type="button" aria-label={more} aria-disabled={value >= max || undefined} onClick={() => { if (value >= max) return; selectionHaptic(); onChange(value + 1); }} style={{ height: 48 }}><Icon name="plus" /></button>
       </div>
     </div>
   );

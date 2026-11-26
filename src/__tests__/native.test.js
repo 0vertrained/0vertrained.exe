@@ -14,7 +14,9 @@ import {
   nativeKeepAwake,
   hideRestTimer,
   scheduleRestAlert,
+  selectionHaptic,
   setNativeBarStyle,
+  setUiHaptics,
   showRestTimer,
 } from "../native";
 import { triggerHaptic } from "../sessionDevice";
@@ -51,6 +53,7 @@ describe("in a browser", () => {
     expect(setNativeBarStyle("dark")).toBe(false);
     expect(showRestTimer(90, "Set 2")).toBe(false);
     expect(hideRestTimer()).toBe(false);
+    expect(selectionHaptic()).toBe(false);
   });
 
   it("still vibrates where the browser can", () => {
@@ -97,6 +100,16 @@ describe("in the iPhone app", () => {
     expect(plugins.OTRestAlert.schedule).toHaveBeenCalledWith({ seconds: 90, title: "Rest over", body: "Next: set 2 of 3" });
     scheduleRestAlert(0.2);
     expect(plugins.OTRestAlert.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives a light tap when a control changes, unless the runner's haptics are off", () => {
+    const plugins = installApp();
+    expect(selectionHaptic()).toBe(true);
+    expect(plugins.OTDevice.haptic).toHaveBeenCalledWith({ kind: "select" });
+    setUiHaptics(false);
+    expect(selectionHaptic()).toBe(false);
+    setUiHaptics(true);
+    expect(plugins.OTDevice.haptic).toHaveBeenCalledTimes(1);
   });
 
   it("puts the rest on the Lock Screen in whole seconds, and takes it off", () => {

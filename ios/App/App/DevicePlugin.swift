@@ -14,7 +14,7 @@ public class DevicePlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     /// kind: "tap" for a logged set, "done" for the end of a rest,
-    /// "error" when a set can't be logged.
+    /// "error" when a set can't be logged, "select" when a control changes.
     @objc func haptic(_ call: CAPPluginCall) {
         let kind = call.getString("kind") ?? "tap"
         DispatchQueue.main.async {
@@ -23,6 +23,9 @@ public class DevicePlugin: CAPPlugin, CAPBridgedPlugin {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             case "error":
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
+            case "select":
+                // A control changed: the light tick iOS gives pickers.
+                UISelectionFeedbackGenerator().selectionChanged()
             default:
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }

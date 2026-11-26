@@ -41,6 +41,21 @@ export function nativeHaptic(pattern) {
   return call("OTDevice", "haptic", { kind: hapticKind(pattern) });
 }
 
+// A light tap when a control changes: a tab, a switch, a segment, a step of
+// a number. It follows the runner's haptics setting (setUiHaptics), and does
+// nothing outside the app. A build without the "select" kind gives its
+// usual tap instead.
+let uiHaptics = true;
+
+export function setUiHaptics(on) {
+  uiHaptics = on !== false;
+}
+
+export function selectionHaptic() {
+  if (!uiHaptics) return false;
+  return call("OTDevice", "haptic", { kind: "select" });
+}
+
 export function nativeKeepAwake(on) {
   return call("OTDevice", "keepAwake", { on: Boolean(on) });
 }

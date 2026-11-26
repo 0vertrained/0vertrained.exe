@@ -5,6 +5,7 @@
 // knows what things look like.
 import { useEffect, useId, useRef, useState } from "react";
 import { useSheetDrag } from "./sheetDrag";
+import { selectionHaptic } from "../native";
 
 // Icons sit on a 24 grid with a 1.75 stroke, round joins and no fills. They are
 // decoration: the control that holds one always carries the words.
@@ -89,7 +90,7 @@ export const TAB_ICONS = { Today: "today", Train: "train", Fuel: "fuel", Progres
 export function TabBar({ tabs, current, onChange, onLog }) {
   const mid = Math.ceil(tabs.length / 2);
   const tab = (t) => (
-    <button key={t} type="button" className="tab" id={`tab-${t}`} aria-current={current === t ? "page" : undefined} onClick={() => onChange(t)}>
+    <button key={t} type="button" className="tab" id={`tab-${t}`} aria-current={current === t ? "page" : undefined} onClick={() => { if (current !== t) selectionHaptic(); onChange(t); }}>
       <Icon name={TAB_ICONS[t]} />{t}
     </button>
   );
@@ -233,7 +234,7 @@ export function Seg({ label, options, value, onChange, labelledBy, chips = false
       {options.map((o, i) => {
         const on = o.value === value;
         return (
-          <button key={String(o.value)} type="button" className={chips ? "chip" : undefined} role="radio" aria-checked={on} tabIndex={on || (!hasValue && i === 0) ? 0 : -1} onClick={() => onChange(o.value)}>
+          <button key={String(o.value)} type="button" className={chips ? "chip" : undefined} role="radio" aria-checked={on} tabIndex={on || (!hasValue && i === 0) ? 0 : -1} onClick={() => { if (!on) selectionHaptic(); onChange(o.value); }}>
             {o.label}
           </button>
         );
@@ -282,7 +283,7 @@ export function RadioRows({ id, label, labelledBy, options, value, onChange }) {
 
 export function Switch({ checked, onChange, labelledBy, label, disabled = false }) {
   return (
-    <button type="button" className="sw" role="switch" aria-checked={checked} aria-labelledby={labelledBy} aria-label={labelledBy ? undefined : label} aria-disabled={disabled || undefined} onClick={() => !disabled && onChange(!checked)}>
+    <button type="button" className="sw" role="switch" aria-checked={checked} aria-labelledby={labelledBy} aria-label={labelledBy ? undefined : label} aria-disabled={disabled || undefined} onClick={() => { if (disabled) return; selectionHaptic(); onChange(!checked); }}>
       <i />
     </button>
   );

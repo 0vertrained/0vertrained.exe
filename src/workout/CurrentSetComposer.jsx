@@ -9,6 +9,7 @@ import { CascadeSet } from "../CascadeSet";
 import { Icon, Seg, Switch } from "../ui/ledger";
 import { defaultWeightIncrement, displaySet } from "../workoutLogging";
 import { proposeSet, setFields } from "./setFill";
+import { selectionHaptic } from "../native";
 
 const SET_TYPES = [
   ["straight", "Straight"],
@@ -32,7 +33,10 @@ const numeric = (value) => {
 // a field, so 187.5 can be typed.
 function Stepper({ field, value, step, onChange }) {
   const text = String(value ?? "");
-  const nudge = (delta) => onChange(String(Math.max(0, Math.round((numeric(value) + delta) * 100) / 100)));
+  const nudge = (delta) => {
+    selectionHaptic();
+    onChange(String(Math.max(0, Math.round((numeric(value) + delta) * 100) / 100)));
+  };
   return (
     <div className="step step-xl" role="group" aria-label={field.label}>
       <button type="button" aria-label={field.less} onClick={() => nudge(-step)}><Icon name="minus" /></button>

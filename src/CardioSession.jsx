@@ -11,6 +11,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Flow, Icon, TopBar } from "./ui/ledger";
 import { CARDIO_PRESETS, normalizePlan, buildSegments, totalPlannedSeconds, fmtSeconds, suggestPlanFromNotes, suggestPlanFromSteps } from "./cardioSession";
 import { triggerHaptic, useScreenWakeLock } from "./sessionDevice";
+import { selectionHaptic } from "./native";
 
 const NBSP = "\u00a0";
 const KIND = { work: "Work", rest: "Rest", warmup: "Warm-up" };
@@ -20,9 +21,9 @@ function Stepper({ label, value, display, onChange, step, min, max }) {
     <div className="row" style={{ minHeight: 64 }}>
       <span className="t-bs grow">{label}</span>
       <div className="step" role="group" aria-label={label} style={{ width: 216 }}>
-        <button type="button" aria-label={`Less ${label.toLowerCase()}`} onClick={() => onChange(Math.max(min, value - step))}><Icon name="minus" /></button>
+        <button type="button" aria-label={`Less ${label.toLowerCase()}`} onClick={() => { selectionHaptic(); onChange(Math.max(min, value - step)); }}><Icon name="minus" /></button>
         <span className="stepv"><span className="n-md">{display}</span></span>
-        <button type="button" aria-label={`More ${label.toLowerCase()}`} onClick={() => onChange(Math.min(max, value + step))}><Icon name="plus" /></button>
+        <button type="button" aria-label={`More ${label.toLowerCase()}`} onClick={() => { selectionHaptic(); onChange(Math.min(max, value + step)); }}><Icon name="plus" /></button>
       </div>
     </div>
   );
