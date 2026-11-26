@@ -16,6 +16,8 @@ import { copyToClipboard } from "./clipboard";
 import { APP_VERSION, SUPPORT_EMAIL, buildSupportMailto } from "./appMeta";
 import { nativePlugin } from "./native";
 import { AppleWatchCard } from "./sections/AppleWatchCard";
+import { useNavTransition } from "./ui/navTransition";
+import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 
 const GOAL_LABELS = Object.fromEntries(ONBOARDING_GOALS.map(g => [g.id, g.label]));
 const DATA_MODE_LABELS = Object.fromEntries(ONBOARDING_DATA_MODES.map(m => [m.id, m.label]));
@@ -110,6 +112,7 @@ const NBSP = "\u00a0";
 // quietly, without the full Save path's close + toast.
 export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange, currentTheme, initialSection = null, notice = null, onPatch = null, loggedDays = 0, currentTab = "Settings", backLabel = null }) {
   const { confirm, confirmDialog } = useConfirm();
+  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
   // Runs on the Apple Watch: only in an iPhone app build that has them.
   const watchRuns = Boolean(nativePlugin("OTRuns"));
   const [goals, setGoals]     = useState({ ...settings.goals });
@@ -118,6 +121,15 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   const [dietary, setDietary] = useState([...(settings.dietaryRestrictions || [])]);
   const [trainingCues, setTrainingCues] = useState({ haptics: true, restAudio: false, ...(settings.trainingCues || {}) });
   const [section, setSection] = useState(() => (SETTINGS_PAGES.includes(initialSection) ? initialSection : "home"));
+  // Settings' own pages move like the app's screens: one in from the right,
+  // Settings home back in from the left. Settings itself slides in when it
+  // opens from a screen with Back, and rises when it opens with Close.
+  const pageRef = useNavTransition({
+    key: section,
+    depth: section === "home" ? 0 : 1,
+    enabled: !isBroadsheet,
+    initial: backLabel ? "push" : "rise",
+  });
   // A new screen starts at its top, with focus on its way back.
   const shellRef = useRef(null);
   const shownSection = useRef(section);
@@ -682,7 +694,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
         {page === "home"
           ? <TopBar title="Settings" close={backLabel ? null : "Close"} onClose={onClose} back={backLabel || null} onBack={onClose} />
           : <TopBar title={titles[page]} back="Settings" onBack={goHome} />}
-        <div className="main" style={{ gap: 16 }}>
+        <div ref={pageRef} className="main" style={{ gap: 16 }}>
           {body}
         </div>
         {drafts && foot}

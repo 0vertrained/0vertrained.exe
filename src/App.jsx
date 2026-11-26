@@ -32,6 +32,7 @@ import { DEMO_USER, DEMO_SETTINGS, buildDemoEntries, buildDemoOuraData, getDemoW
 import { Header } from "./AppHeader";
 import { BottomNav, QuickActionSheet, QUICK_ACTIONS, COACH_ACTION, TABS_ORDER } from "./AppBottomNav";
 import { Flow, Icon, Toast, TopBar } from "./ui/ledger";
+import { NavMain } from "./ui/navTransition";
 import { ShellProvider, useShellBar } from "./ui/shell";
 import { LoadingShell, RefreshingBar } from "./ui/primitives";
 import { getSkeletonPlan, resolveLoadState } from "./uiStability";
@@ -61,6 +62,15 @@ const SettingsScreen = lazy(() => import("./SettingsScreen").then(m => ({ defaul
 const Tutorial = lazy(() => import("./Tutorial").then(m => ({ default: m.Tutorial })));
 const DayZeroSpecimen = lazy(() => import("./DayZeroSpecimen").then(m => ({ default: m.DayZeroSpecimen })));
 const Coach = lazy(() => import("./Coach").then(m => ({ default: m.Coach })));
+
+// The app's <main>. How deep the screen is decides how it moves in: tabs at
+// the top, a screen with Back one level down, Profile's own pages one below
+// Profile, which itself opens with Close.
+function AppMain({ overlay, tab, profilePage, title, back, ...rest }) {
+  const depth = overlay === "profile" ? (profilePage ? 2 : 1) : (overlay || back) ? 1 : 0;
+  const modal = overlay === "profile" && !profilePage;
+  return <NavMain navKey={`${overlay || tab}|${profilePage || ""}|${title}`} depth={depth} modal={modal} {...rest} />;
+}
 
 function AppInner({ onThemeChange }) {
   const { themeId } = useTheme();
@@ -1111,7 +1121,7 @@ function AppInner({ onThemeChange }) {
       <Header title={bar.title} sub={bar.sub} back={bar.back} onBack={bar.onBack} close={bar.close} onClose={bar.onClose} saving={saving} demoMode={demoMode} onOpenProfile={overlay === "profile" && !isDesktop ? undefined : openProfile} isOnline={isOnline} pendingSaves={pendingSaves} currentTab={overlay === "profile" ? null : tab} onTabChange={changeTab} onQuickAction={() => setSheetOpen(true)} onOpenPalette={() => setPaletteOpen(true)} tabsOrder={TABS_ORDER} />
       {appLoadState.showRefreshing && <RefreshingBar label="Refreshing your latest data in the background" />}
 
-      <main id="main" tabIndex={-1} style={{ outline: "none", display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
+      <AppMain overlay={overlay} tab={tab} profilePage={overlay === "profile" && PROFILE_TITLES[profileView] ? profileView : null} title={bar.title} back={bar.back} enabled={!isDesktop} id="main" tabIndex={-1} style={{ outline: "none", display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
         {isDesktop && <ScreenTitle bar={bar} />}
 
         {/* Profile: account, settings and data, behind the top bar on every screen. */}
@@ -1193,7 +1203,7 @@ function AppInner({ onThemeChange }) {
           </Suspense>
           </ErrorBoundary>
         )}
-      </main>
+      </AppMain>
 
       <BottomNav currentTab={overlay === "profile" ? null : tab} onTabChange={changeTab} tabsOrder={TABS_ORDER} onQuickAction={() => setSheetOpen(true)} />
 
