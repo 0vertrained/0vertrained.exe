@@ -16,7 +16,8 @@ function shift(dateKey, days) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function cardioPart(cardio) {
+/** "Easy run, 45 min" for a planned cardio block. */
+export function cardioPart(cardio) {
   const minutes = Number(cardio?.minutes);
   const miles = Number(cardio?.miles);
   const amount = minutes > 0 ? `${Math.round(minutes)} min` : miles > 0 ? `${Math.round(miles * 10) / 10} mi` : "";

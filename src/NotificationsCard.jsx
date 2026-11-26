@@ -8,7 +8,8 @@
 
 import { useEffect, useState } from "react";
 import { pushSupportState, getExistingSubscription, enablePush, disablePush, setPushPrefs } from "./push";
-import { LOCAL_REMINDERS, applyReminderPrefs, hasLocalReminders, readReminderPrefs, writeReminderPrefs } from "./reminders/localReminders";
+import { LOCAL_REMINDERS, applyReminderPrefs, hasLocalReminders, readReminderPrefs, reminderNote, writeReminderPrefs } from "./reminders/localReminders";
+import { timeLabel } from "./reminders/morningPlan";
 import { Switch } from "./ui/ledger";
 
 const KINDS = [
@@ -21,6 +22,12 @@ const sentence = (text) => (text ? `${text.charAt(0).toUpperCase()}${text.slice(
 export function NotificationsCard({ showToast }) {
   return hasLocalReminders() ? <LocalReminders showToast={showToast} /> : <WebPush showToast={showToast} />;
 }
+
+// Morning times in quarter hours, 4:30 to 11 am.
+const MORNING_TIMES = Array.from({ length: 27 }, (_, index) => {
+  const minutes = 4 * 60 + 30 + index * 15;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+});
 
 const DENIED = "Notifications are off for 0VERTRAINED. Turn them on in the iPhone’s Settings app, then try again.";
 
@@ -54,6 +61,24 @@ function LocalReminders({ showToast }) {
     }
   };
 
+  // The morning reminder's time. The phone gets the new time straight away.
+  const changeTime = async (value) => {
+    if (busy || !value || value === prefs.morningTime) return;
+    const next = { ...prefs, morningTime: value };
+    setBusy(true);
+    setError("");
+    setPrefs(next);
+    try {
+      await applyReminderPrefs(next);
+      writeReminderPrefs(next);
+    } catch {
+      setPrefs(prefs);
+      setError("Couldn’t change the time. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <section aria-labelledby="notifications-title" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -64,9 +89,19 @@ function LocalReminders({ showToast }) {
       <div data-testid="local-reminders" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <div className="rows">
           {LOCAL_REMINDERS.map((reminder) => (
-            <div key={reminder.id} className="row" style={{ alignItems: "flex-start", padding: "8px 0" }}>
-              <span className="kv grow"><span id={`remind-${reminder.id}`} className="t-bs">{reminder.label}</span><span className="t-s c2">{reminder.note}</span></span>
-              <Switch checked={prefs[reminder.id]} onChange={() => toggle(reminder)} labelledBy={`remind-${reminder.id}`} disabled={busy} />
+            <div key={reminder.id} style={{ display: "flex", flexDirection: "column" }}>
+              <div className="row" style={{ alignItems: "flex-start", padding: "8px 0" }}>
+                <span className="kv grow"><span id={`remind-${reminder.id}`} className="t-bs">{reminder.label}</span><span className="t-s c2">{reminderNote(reminder, prefs)}</span></span>
+                <Switch checked={prefs[reminder.id]} onChange={() => toggle(reminder)} labelledBy={`remind-${reminder.id}`} disabled={busy} />
+              </div>
+              {reminder.plan && prefs[reminder.id] && (
+                <label className="row" style={{ padding: "0 0 8px" }}>
+                  <span className="t-s c2 grow">Time</span>
+                  <select className="input n" value={prefs.morningTime} onChange={(event) => changeTime(event.target.value)} disabled={busy} style={{ width: "auto" }}>
+                    {MORNING_TIMES.map((time) => <option key={time} value={time}>{timeLabel(time)}</option>)}
+                  </select>
+                </label>
+              )}
             </div>
           ))}
         </div>

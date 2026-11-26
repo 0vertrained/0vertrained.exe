@@ -36,6 +36,7 @@ import { NavMain } from "./ui/navTransition";
 import { setUiHaptics } from "./native";
 import { useHealthDaily } from "./health/useHealthDaily";
 import { useWidgetCards } from "./widgets/useWidgetCards";
+import { useMorningPlan } from "./reminders/useMorningPlan";
 import { ShellProvider, useShellBar } from "./ui/shell";
 import { LoadingShell, RefreshingBar } from "./ui/primitives";
 import { getSkeletonPlan, resolveLoadState } from "./uiStability";
@@ -726,6 +727,7 @@ function AppInner({ onThemeChange }) {
   useWatchRuns({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, updateEntryAtDate, showToast });
   useHealthDaily({ ready: accountReady && !demoMode && Boolean(user?.id), data, wearables: Boolean(settings?.ouraConnected || settings?.whoopConnected), updateEntryAtDate });
   useWidgetCards({ ready: accountReady && !demoMode && Boolean(user?.id), data, program });
+  useMorningPlan({ ready: accountReady && !demoMode && Boolean(user?.id), program });
   // The app's light taps on controls follow the runner's haptics setting.
   const uiHapticsOn = settings?.trainingCues?.haptics !== false;
   useEffect(() => { setUiHaptics(uiHapticsOn); }, [uiHapticsOn]);
