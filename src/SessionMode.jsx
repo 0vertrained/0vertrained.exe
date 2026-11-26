@@ -16,6 +16,7 @@ import { Flow, Icon, Seg, Sheet, Switch, TopBar } from "./ui/ledger";
 import { CascadeSet } from "./CascadeSet";
 import { CurrentSetComposer, LoggedSets } from "./workout/CurrentSetComposer";
 import { proposeSet } from "./workout/setFill";
+import { completeSet } from "./workout/completeSet";
 import { lastSessionSets, buildNextGlance } from "./setGhosts";
 import { getLastPerformance, calcPlateMath, suggestRestSeconds, buildWarmupRamp, priorBestWeight } from "./sessionIntelligence";
 import { getRankedSubstitutions } from "./exerciseSubstitutions";
@@ -357,20 +358,11 @@ export function SessionMode({
       return;
     }
 
-    const completed = { ...current, done: true, completedAt: new Date().toISOString() };
-    const nextSets = sets.map((set, index) => index === setIndex ? completed : set);
-    const progressionDecision = exData.progressionDecision || buildProgressionDecision(prescription, completed);
-    const exerciseComplete = nextSets.every((set) => set.done && validateSet(set, exercise).valid);
-    const generatedNext = exerciseComplete
-      ? buildExercisePrescription({ data: allData, exercise: progressionExercise, todayKey, currentSession: { date: todayKey, sets: nextSets, performedName } })
-      : undefined;
-    saveExercise({
-      ...exData,
-      sets: nextSets,
-      skipped: undefined,
-      progressionDecision,
-      ...(generatedNext ? { nextPrescription: generatedNext } : {}),
+    const { completed, nextSets, exerciseComplete, exData: logged } = completeSet({
+      exData, sets, setIndex, set: current, exercise, progressionExercise, prescription,
+      data: allData, todayKey, performedName,
     });
+    saveExercise(logged);
     setValidationError("");
     setChoice(null);
     triggerHaptic(10, hapticsEnabled);
