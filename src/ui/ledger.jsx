@@ -70,7 +70,7 @@ export function TopBar({ title, sub = "", back, onBack, close, onClose, status, 
   return (
     <header className="top">
       {isRoot && <Mark />}
-      {back && <button type="button" className="back" onClick={onBack}><Icon name="back" size="s" />{back}</button>}
+      {back && <button type="button" className="back" data-nav="back" onClick={onBack}><Icon name="back" size="s" />{back}</button>}
       {close && <button type="button" className="back" style={{ gap: 4 }} onClick={onClose}><Icon name="close" size="s" />{close}</button>}
       <h1 className="t-bs grow clip" tabIndex={-1}>{title}{sub && <span className="c2" style={{ fontWeight: 400 }}>{sub}</span>}</h1>
       {children}

@@ -6,6 +6,7 @@ import "./index.css";
 import "./ledger.css";
 import { initErrorReporting } from "./errorReporting";
 import { registerAppServiceWorker } from "./pwa";
+import { startNativeShell } from "./nativeShell";
 
 
 // Focused number inputs should not mutate when the desktop page is scrolled.
@@ -17,6 +18,10 @@ document.addEventListener("wheel", (event) => {
 // Wire global error capture before the app mounts so even render-time
 // failures on first paint are reported.
 initErrorReporting();
+
+// Inside the iPhone app: mark the page and add the edge swipe back before the
+// first paint. Nothing in a browser.
+startNativeShell();
 
 // Form Check is gone; clear the summaries it kept on this device.
 try {
