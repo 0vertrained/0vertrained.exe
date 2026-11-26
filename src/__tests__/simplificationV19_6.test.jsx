@@ -136,7 +136,7 @@ describe("Settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy beta feedback note" }));
     await screen.findByText(/Copied/);
     const text = writeText.mock.calls[0][0];
-    expect(text).toMatch(/^0vertrained beta feedback — V19\./);
+    expect(text).toMatch(/^0vertrained beta feedback — V\d+\.\d+\.\d+/);
     expect(text).toContain("Current tab: Progress");
     expect(text).toContain("Logged days: 12");
     expect(text).toContain("The Recovery tab was long.");

@@ -3,6 +3,16 @@
 One entry per release, newest first, from the first beta builds to the current version. The detailed notes each
 release shipped with are in the repository's history, before the notes were folded into this file.
 
+## 20.0.0 — Ledger
+
+Every screen is rebuilt in Ledger, one design system for the whole app: IBM Plex Sans for the interface, Newsreader for the voice and IBM Plex Mono for data, one ink on paper or on dark, and colour spent only on status and earned moments. Primary controls and everything in the session runner are at least 44 px, text is never under 12 px, inputs are 16 px, and motion follows the system's reduce-motion setting.
+
+The app has four tabs, Today, Train, Fuel and Progress, with Log in the middle. Recovery is the detail behind Today's call. Train holds the week, the program, the builder, the race plan, the Block and History. Profile holds Settings, notifications, the coach's settings and your data. Today and Recovery show one call, the more cautious of their two reads, named the same way everywhere: Push, Train, Train — capped, Easy and Recover.
+
+Signed out, there is a home page, Sign in, Create an account (with a suggested recovery phrase) and Reset password, each at its own address, and the demo runs the real engine. Onboarding is a four-card tour and five one-question steps. The coach is a sheet on a phone and a side panel on a wide screen, where ⌘K also opens Shortcuts.
+
+The old whitepaper primitives, the unused Whoop cards, the style builder in theme.jsx and the global CSS the kit now owns are gone.
+
 ## 19.9.0 — Google Health retired
 
 The Google Health/Fitbit integration, which never left its feature flag, is gone: client, server functions, Settings card, landing-page disclosure, Search Console tag and policy text. The CSP no longer allows Google's domains. Run `supabase/migration_v35_drop_google_health.sql` with this deploy.
