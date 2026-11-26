@@ -169,28 +169,20 @@ export function CallCard({ ops, decision, recommendation, call: sharedCall = nul
   );
 }
 
-// What is still needed today, and the next planned meal when there is one.
+// Fuel on Today: only a planned meal still to log. Protein and calories
+// themselves are in Day progress, once.
 export function FuelSnapshot({ ops, onOpenFuel }) {
-  const { targets, protein, calories, nextMeal } = ops;
-  const proteinLeft = Math.max(0, Math.round(targets.protein - protein));
-  const caloriesLeft = Math.max(0, Math.round(targets.calories - calories));
+  const { nextMeal } = ops;
+  if (!nextMeal) return null;
   return (
-    <>
-      <button type="button" onClick={onOpenFuel} aria-label={`Fuel. ${fmt(proteinLeft)} grams of protein and ${fmt(caloriesLeft)} calories left today. Open Fuel.`} style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, textAlign: "left" }}>
-        <span className="kv"><span className="t-c c2">Protein left</span><span><span className="n">{fmt(proteinLeft)}</span> <span className="t-s c2">of {fmt(targets.protein)}{NBSP}g</span></span><span className="bar"><i style={{ width: `${pct(protein, targets.protein)}%` }} /></span></span>
-        <span className="kv"><span className="t-c c2">Calories left</span><span><span className="n">{fmt(caloriesLeft)}</span> <span className="t-s c2">of {fmt(targets.calories)}{NBSP}kcal</span></span><span className="bar"><i style={{ width: `${pct(calories, targets.calories)}%` }} /></span></span>
+    <div className="row" style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>
+      <button type="button" className="kv grow" onClick={onOpenFuel} style={{ textAlign: "left" }}>
+        <span className="t-c c2">Next meal · {nextMeal.label}</span>
+        <span className="t-bs clip">{nextMeal.name}</span>
+        <span className="n-s c2">{Number.isFinite(nextMeal.calories) ? `${fmt(nextMeal.calories)}${NBSP}kcal · ${nextMeal.protein}${NBSP}g protein` : "Check the tray label in Fuel"}</span>
       </button>
-      {nextMeal && (
-        <div className="row" style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>
-          <button type="button" className="kv grow" onClick={onOpenFuel} style={{ textAlign: "left" }}>
-            <span className="t-c c2">Next meal · {nextMeal.label}</span>
-            <span className="t-bs clip">{nextMeal.name}</span>
-            <span className="n-s c2">{Number.isFinite(nextMeal.calories) ? `${fmt(nextMeal.calories)}${NBSP}kcal · ${nextMeal.protein}${NBSP}g protein` : "Check the tray label in Fuel"}</span>
-          </button>
-          <button type="button" className="btn btn-s btn-sm" onClick={() => ops.toggleFactorMeal(nextMeal)}>Log it</button>
-        </div>
-      )}
-    </>
+      <button type="button" className="btn btn-s btn-sm" onClick={() => ops.toggleFactorMeal(nextMeal)}>Log it</button>
+    </div>
   );
 }
 
