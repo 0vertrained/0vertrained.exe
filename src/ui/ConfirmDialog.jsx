@@ -1,18 +1,16 @@
 // src/ui/ConfirmDialog.jsx
 // Styled confirmation dialog — replaces the browser-native window.confirm() for
 // destructive / consequential actions (disconnect wearable, overwrite program,
-// switch preset). Keeps the whitepaper/ledger identity: a hairline-bordered
-// panel over a dimmed backdrop, a mono uppercase eyebrow label, a serif message,
-// and two ruled buttons (Cancel + Confirm). The `destructive` flag tints the
-// confirm button with the theme's one reserved signal ink for irreversible acts.
+// switch preset): a titled panel over the dimmed screen with Cancel and the
+// confirm action side by side. `destructive` turns the confirm button red,
+// the colour kept for acts that can't be undone.
 //
 // `useConfirm()` wraps this in a promise-based API so an existing
 //   if (!window.confirm(msg)) return;
 // becomes
 //   if (!(await confirm({ message, confirmLabel, destructive }))) return;
 // with no other restructuring of the caller's async handler.
-import { useState, useCallback, useRef, useEffect } from "react";
-import { useTheme } from "../theme";
+import { useState, useCallback, useRef, useEffect, useId } from "react";
 
 export function ConfirmDialog({
   message,
@@ -23,91 +21,67 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }) {
-  const { C, S } = useTheme();
+  const id = useId();
   const confirmRef = useRef(null);
+  const cancelRef = useRef(null);
   const returnFocusRef = useRef(typeof document !== "undefined" ? document.activeElement : null);
   const onConfirmRef = useRef(onConfirm);
   const onCancelRef = useRef(onCancel);
   useEffect(() => { onConfirmRef.current = onConfirm; }, [onConfirm]);
   useEffect(() => { onCancelRef.current = onCancel; }, [onCancel]);
-
   useEffect(() => {
-    // Focus the confirm action so keyboard users land inside the dialog, and
-    // wire Escape → cancel / Enter → confirm for the two obvious shortcuts.
+    // Focus lands on the confirm action. Escape cancels; Enter does what the
+    // focused button says (so Enter on Cancel never confirms); Tab stays
+    // between the two buttons. Focus goes back where it was on close.
+    const opener = returnFocusRef.current;
     confirmRef.current?.focus();
     const onKey = (e) => {
-      if (e.key === "Escape") { e.preventDefault(); onCancelRef.current?.(); }
-      else if (e.key === "Enter") { e.preventDefault(); onConfirmRef.current?.(); }
+      if (e.key === "Escape") { e.preventDefault(); onCancelRef.current?.(); return; }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (document.activeElement === cancelRef.current) onCancelRef.current?.();
+        else onConfirmRef.current?.();
+        return;
+      }
+      if (e.key === "Tab") {
+        e.preventDefault();
+        const next = document.activeElement === confirmRef.current ? cancelRef.current : confirmRef.current;
+        next?.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      const target = returnFocusRef.current;
-      requestAnimationFrame(() => target?.isConnected && target.focus?.());
+      requestAnimationFrame(() => opener?.isConnected && opener.focus?.());
     };
   }, []);
 
-  const confirmInk = destructive ? (C.red || C.signal) : C.text;
-
   return (
-    <div
-      role="presentation"
-      onClick={onCancel}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(20,19,17,0.55)",
-        zIndex: 400,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      }}
-    >
+    <>
+      <div className="scrim mo-scrim" aria-hidden="true" />
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: 340,
-          background: C.panel,
-          border: `1px solid ${C.line}`,
-          borderRadius: C.cardRadius,
-          padding: "18px 18px 16px",
-          boxShadow: "0 18px 40px -16px rgba(0,0,0,0.45)",
-        }}
+        role="presentation"
+        onClick={onCancel}
+        style={{ position: "fixed", inset: 0, zIndex: "var(--z-sheet)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
       >
-        <div style={S.blockTitle}>{title}</div>
         <div
-          style={{
-            fontFamily: S.fontSerif,
-            fontSize: 16,
-            lineHeight: 1.42,
-            color: C.text,
-            letterSpacing: "-0.01em",
-            marginTop: 10,
-            marginBottom: 18,
-          }}
+          className="dialog mo-rise"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`${id}-t`}
+          aria-describedby={`${id}-m`}
+          onClick={(e) => e.stopPropagation()}
+          style={{ width: "100%", maxWidth: 400 }}
         >
-          {message}
-        </div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button type="button" onClick={onCancel} style={{ ...S.smallBtn, padding: "9px 15px" }}>
-            {cancelLabel}
-          </button>
-          <button
-            ref={confirmRef}
-            type="button"
-            onClick={onConfirm}
-            style={{ ...S.smallBtn, padding: "9px 15px", borderColor: confirmInk, color: confirmInk, fontWeight: 600 }}
-          >
-            {confirmLabel}
-          </button>
+          <h2 id={`${id}-t`} className="t-h">{title}</h2>
+          <p id={`${id}-m`} className="t-b">{message}</p>
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <button ref={cancelRef} type="button" className="btn btn-s" onClick={onCancel} style={{ flex: "1 1 0", minWidth: 0 }}>{cancelLabel}</button>
+            <button ref={confirmRef} type="button" className={destructive ? "btn btn-d" : "btn btn-p"} onClick={onConfirm} style={{ flex: "1 1 0", minWidth: 0 }}>{confirmLabel}</button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

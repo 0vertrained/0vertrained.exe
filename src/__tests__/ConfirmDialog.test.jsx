@@ -4,7 +4,7 @@
 // keyboard paths, the destructive tint, and the promise-based useConfirm bridge.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
-import { ThemeProvider, THEMES } from "../theme";
+import { ThemeProvider } from "../theme";
 import { ConfirmDialog, useConfirm } from "../ui/ConfirmDialog";
 
 afterEach(cleanup);
@@ -61,21 +61,27 @@ describe("ConfirmDialog", () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it("tints the confirm button with the signal ink only when destructive", () => {
+  it("makes the confirm button red only when the act can't be undone", () => {
     const { rerender } = wrap(
       <ConfirmDialog message="Sure?" confirmLabel="Go" destructive onConfirm={() => {}} onCancel={() => {}} />
     );
-    const destructiveColor = screen.getByRole("button", { name: "Go" }).style.color;
+    expect(screen.getByRole("button", { name: "Go" }).className).toBe("btn btn-d");
     rerender(
       <ThemeProvider>
         <ConfirmDialog message="Sure?" confirmLabel="Go" onConfirm={() => {}} onCancel={() => {}} />
       </ThemeProvider>
     );
-    const neutralColor = screen.getByRole("button", { name: "Go" }).style.color;
-    expect(destructiveColor).not.toBe(neutralColor);
-    // Destructive resolves to the theme's reserved red/signal ink.
-    const C = THEMES.whitepaperLight;
-    expect([C.red, "rgb(179, 38, 30)"]).toContain(destructiveColor);
+    expect(screen.getByRole("button", { name: "Go" }).className).toBe("btn btn-p");
+  });
+
+  it("never confirms from Enter while Cancel has focus", () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    wrap(<ConfirmDialog message="Delete?" confirmLabel="Delete" destructive onConfirm={onConfirm} onCancel={onCancel} />);
+    screen.getByRole("button", { name: "Cancel" }).focus();
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });
 
