@@ -84,7 +84,7 @@ describe("race plan panel", () => {
     const onSave = vi.fn().mockResolvedValue(true);
     wrap(<RacePlanPanel program={DEFAULT_PROGRAM} todayKey="2026-10-22" onSave={onSave} onCancel={() => {}} />);
     // Default program: Lower A (squats) on Tuesday is the heaviest leg day away from Saturday.
-    expect(screen.getByRole("radio", { name: "Tue", checked: true })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Tuesday", checked: true })).toBeTruthy();
     expect(screen.getByText("Pick a race date.")).toBeTruthy();
     const start = screen.getByRole("button", { name: /Start plan/ });
     expect(start.getAttribute("aria-disabled")).toBe("true");
@@ -93,7 +93,7 @@ describe("race plan panel", () => {
     expect(screen.getByText("Week 1 — Base")).toBeTruthy();
     expect(screen.getByText("Week 12 — Race week")).toBeTruthy();
     expect(screen.getByText(/Saturday has heavy leg work on your long-run day/)).toBeTruthy();
-    expect(start.getAttribute("aria-disabled")).toBe("false");
+    expect(start.getAttribute("aria-disabled")).toBeNull();
   });
 
   it("shows paces from a result and flags times it can't read", () => {

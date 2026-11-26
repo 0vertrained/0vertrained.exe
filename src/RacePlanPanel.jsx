@@ -2,10 +2,10 @@
 // Race plan — product-facing panel
 //
 // Set a race and the app builds the weeks between now and race day around
-// your lifting. Same whitepaper/ruled layout as ProgramBuilderPanel: inputs,
+// your lifting. Inputs,
 // then a live preview of exactly what Save will store. It NEVER persists on
 // its own — onSave(spec) / onEnd() are explicit user actions wired in
-// MoreTab, which writes the spec into the program's `__raceBuild` marker.
+// Train, which writes the spec into the program's `__raceBuild` marker.
 //
 // Props:
 //   program   the athlete's raw program (lifting drives the leg-day hints)
@@ -13,7 +13,7 @@
 //   onSave(spec) → Promise<boolean>   onEnd() → Promise<boolean>   onCancel()
 
 import { useMemo, useState } from "react";
-import { useTheme } from "./theme";
+import { Icon, Seg } from "./ui/ledger";
 import { DAYS } from "./constants";
 import { useConfirm } from "./ui/ConfirmDialog";
 import { RACE_DISTANCES, buildPaceZones, formatDuration, formatPace, parseDuration } from "./runPaces";
@@ -85,24 +85,35 @@ export function draftToSpec(draft) {
   });
 }
 
-export function RacePlanPanel({ program, todayKey, onSave, onEnd, onCancel }) {
-  const { C } = useTheme();
-  const mono = C.fontFamily;
-  const serif = C.serifFamily || mono;
+const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
+const dayLabel = (d) => <><span aria-hidden="true">{d.charAt(0)}</span><span className="sr">{d}</span></>;
+const distanceLabel = (id) => (RACE_DISTANCES[id].label === "Half marathon" ? "Half" : RACE_DISTANCES[id].label);
+
+function Choice({ id, label, children, hint = null }) {
+  return (
+    <div style={column(6)}>
+      <span id={id} className="lbl">{label}</span>
+      {children}
+      {hint && <div className="t-s c2">{hint}</div>}
+    </div>
+  );
+}
+
+// Train › Race plan. Answers on one page, the plan previewed under them, and
+// an explicit Start (or Update) to save. Train's Back leaves without saving.
+export function RacePlanPanel({ program, todayKey, onSave, onEnd }) {
   const { confirm, confirmDialog } = useConfirm();
   const hasPlan = isRunPlanSpec(program?.__raceBuild);
   const [draft, setDraft] = useState(() => initialDraft(program, todayKey));
   const [busy, setBusy] = useState(false);
-  const set = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
 
+  const set = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
   const setLongRunDay = (day) => setDraft((d) => ({
     ...d,
     longRunDay: day,
     qualityDay: d.qualityDay === day ? suggestQualityDay(program, day) : d.qualityDay,
   }));
 
-  // Everything below derives from the normalized spec, so the preview is
-  // exactly what Save stores.
   const view = useMemo(() => {
     const spec = draftToSpec(draft);
     const check = validateRunPlanSpec(spec);
@@ -125,229 +136,131 @@ export function RacePlanPanel({ program, todayKey, onSave, onEnd, onCancel }) {
   }, [draft, program]);
 
   const canSave = view.check.valid && !view.timeError && !busy;
-
   const save = async () => {
     if (!canSave) return;
     setBusy(true);
     try { await onSave?.(view.spec); } finally { setBusy(false); }
   };
-
   const end = async () => {
+    if (busy) return;
     if (!(await confirm({ message: "End this race plan? Your runs go back to what your program says. Your lifting isn't affected.", confirmLabel: "End plan", destructive: true }))) return;
     setBusy(true);
     try { await onEnd?.(); } finally { setBusy(false); }
   };
 
-  // ── styles (ProgramBuilderPanel's) ──
-  const label = { fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textDim, marginBottom: 8, fontWeight: 600 };
-  const sectionWrap = { padding: "14px 16px", borderBottom: `1px solid ${C.line}` };
-  const help = { fontSize: 11, color: C.textFaint, lineHeight: 1.6, marginTop: 8 };
-  const input = { background: C.bg, border: `1px solid ${C.lineBright}`, color: C.text, fontFamily: mono, padding: "9px 10px", width: "100%", outline: "none", boxSizing: "border-box" };
   const zones = view.zones;
   const raceLabel = RACE_DISTANCES[draft.distance].label;
+  const lengthMin = 20;
+  const lengthMax = 120;
 
   return (
-    <div style={{ fontFamily: mono, color: C.text }}>
+    <div className="shell" data-screen="train-race">
       {confirmDialog}
-      {/* Header */}
-      <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.line}`, background: C.panel, position: "sticky", top: 0, zIndex: 5 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: C.textFaint, marginBottom: 4 }}>Race plan</div>
-            <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 500, color: C.text, letterSpacing: "-0.01em" }}>{hasPlan ? "Your race plan" : "Train for a race"}</div>
+      <div className="main" style={{ gap: 20 }}>
+        <h2 className="t-xl">{hasPlan ? "Your race plan" : "Train for a race"}</h2>
+
+        <section aria-labelledby="race-race" style={column(12)}>
+          <h3 id="race-race" className="t-h">The race</h3>
+          <Choice id="race-distance" label="Distance">
+            <Seg labelledBy="race-distance" options={PLAN_DISTANCE_IDS.map((id) => ({ value: id, label: distanceLabel(id) }))} value={draft.distance} onChange={(v) => set("distance", v)} />
+          </Choice>
+          <label className="field"><span className="lbl">Race name</span><input className="input" value={draft.raceName} maxLength={60} placeholder={`e.g. Chilly Willy ${raceLabel}`} onChange={(e) => set("raceName", e.target.value)} /></label>
+          <label className="field"><span className="lbl">Race date</span><input className="input" type="date" value={draft.raceDate} min={todayKey} onChange={(e) => set("raceDate", e.target.value)} /></label>
+          <div className="field">
+            <label className="lbl" htmlFor="race-start">Start date</label>
+            <input id="race-start" className="input" type="date" value={draft.startDate || ""} aria-label="Plan start date" aria-describedby="race-start-hint" onChange={(e) => set("startDate", e.target.value)} />
+            <span id="race-start-hint" className="hint">{view.spec.startDate ? `Plans start on a Monday: ${formatPlanDate(view.spec.startDate)}.` : "Pick a start date."}</span>
           </div>
-          <button type="button" onClick={onCancel} disabled={busy} aria-label="Close without saving"
-            style={{ background: "none", border: `1px solid ${C.lineBright}`, color: C.textDim, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", cursor: busy ? "not-allowed" : "pointer", fontFamily: mono, padding: "6px 11px" }}>
-            Cancel
-          </button>
-        </div>
-      </div>
+        </section>
 
-      {/* Race */}
-      <div style={sectionWrap}>
-        <div style={label}>Race</div>
-        <Pills C={C} mono={mono} ariaLabel="Race distance"
-          options={PLAN_DISTANCE_IDS.map((id) => ({ id, label: RACE_DISTANCES[id].label === "Half marathon" ? "Half" : RACE_DISTANCES[id].label }))}
-          value={draft.distance} onChange={(v) => set("distance", v)} />
-        <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
-          <label style={{ display: "block" }}>
-            <span style={{ ...help, display: "block", marginTop: 0, marginBottom: 4 }}>Race name</span>
-            <input style={input} value={draft.raceName} maxLength={60} placeholder={`e.g. Chilly Willy ${raceLabel}`} onChange={(e) => set("raceName", e.target.value)} />
-          </label>
-          <label style={{ display: "block" }}>
-            <span style={{ ...help, display: "block", marginTop: 0, marginBottom: 4 }}>Race date</span>
-            <input style={input} type="date" value={draft.raceDate} min={todayKey} onChange={(e) => set("raceDate", e.target.value)} />
-          </label>
-        </div>
-      </div>
+        <hr className="hr" />
+        <section aria-labelledby="race-week" style={column(12)}>
+          <h3 id="race-week" className="t-h">Your week</h3>
+          <Choice id="race-runs" label="Runs per week">
+            <Seg labelledBy="race-runs" options={RUNS_PER_WEEK_OPTIONS.map((n) => ({ value: n, label: String(n) }))} value={draft.runsPerWeek} onChange={(v) => set("runsPerWeek", v)} />
+          </Choice>
+          <Choice id="race-long" label="Long run day">
+            <Seg labelledBy="race-long" options={DAYS.map((d) => ({ value: d, label: dayLabel(d) }))} value={draft.longRunDay} onChange={setLongRunDay} />
+          </Choice>
+          <Choice
+            id="race-hard"
+            label="Hard run day"
+            hint={view.suggestedQuality === view.spec.qualityDay
+              ? "Your heaviest leg day, if you have one. Hard days hard, easy days easy."
+              : <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>We suggest {view.suggestedQuality}: your heaviest leg day, so your easy days stay easy.<button type="button" className="btn btn-s btn-sm" onClick={() => set("qualityDay", view.suggestedQuality)}>Use {view.suggestedQuality}</button></span>}
+          >
+            <Seg labelledBy="race-hard" options={DAYS.filter((d) => d !== draft.longRunDay).map((d) => ({ value: d, label: dayLabel(d) }))} value={view.spec.qualityDay} onChange={(v) => set("qualityDay", v)} />
+          </Choice>
+          <Choice id="race-walk" label="Cross-training walk" hint="An easy incline walk the day after your hard run. It builds aerobic base without extra impact.">
+            <Seg labelledBy="race-walk" options={CROSS_TRAINING_OPTIONS.map((o) => ({ value: o.id, label: o.label }))} value={draft.crossTraining} onChange={(v) => set("crossTraining", v)} />
+          </Choice>
+        </section>
 
-      {/* Schedule */}
-      <div style={sectionWrap}>
-        <div style={label}>Runs per week</div>
-        <Pills C={C} mono={mono} ariaLabel="Runs per week"
-          options={RUNS_PER_WEEK_OPTIONS.map((n) => ({ id: n, label: String(n) }))}
-          value={draft.runsPerWeek} onChange={(v) => set("runsPerWeek", v)} />
-      </div>
-      <div style={sectionWrap}>
-        <div style={label}>Long run day</div>
-        <Pills C={C} mono={mono} ariaLabel="Long run day"
-          options={DAYS.map((d) => ({ id: d, label: d.slice(0, 3) }))}
-          value={draft.longRunDay} onChange={setLongRunDay} />
-      </div>
-      <div style={sectionWrap}>
-        <div style={label}>Hard run day</div>
-        <Pills C={C} mono={mono} ariaLabel="Hard run day"
-          options={DAYS.filter((d) => d !== draft.longRunDay).map((d) => ({ id: d, label: d.slice(0, 3) }))}
-          value={view.spec.qualityDay} onChange={(v) => set("qualityDay", v)} />
-        <div style={help}>
-          {view.suggestedQuality === view.spec.qualityDay
-            ? "Your heaviest leg day, if you have one. Hard days hard, easy days easy."
-            : <>We'd suggest {view.suggestedQuality}: your heaviest leg day, so your easy days stay easy.{" "}
-                <button type="button" onClick={() => set("qualityDay", view.suggestedQuality)} style={{ background: "none", border: "none", padding: 0, color: C.text, textDecoration: "underline", fontFamily: mono, fontSize: 11, cursor: "pointer" }}>Use {view.suggestedQuality.slice(0, 3)}</button></>}
-        </div>
-      </div>
-      <div style={sectionWrap}>
-        <div style={label}>Cross-training walk</div>
-        <Pills C={C} mono={mono} ariaLabel="Cross-training walk"
-          options={CROSS_TRAINING_OPTIONS.map((o) => ({ id: o.id, label: o.label }))}
-          value={draft.crossTraining} onChange={(v) => set("crossTraining", v)} />
-        <div style={help}>An easy incline walk the day after your hard run. Builds aerobic base without extra impact.</div>
-      </div>
-      <div style={sectionWrap}>
-        <div style={label}>Start</div>
-        <input style={input} type="date" value={draft.startDate || ""} aria-label="Plan start date" onChange={(e) => set("startDate", e.target.value)} />
-        <div style={help}>{view.spec.startDate ? `Plans start on a Monday: ${formatPlanDate(view.spec.startDate)}.` : "Pick a start date."}</div>
-      </div>
-
-      {/* Where you are now */}
-      <div style={sectionWrap}>
-        <div style={label}>Longest comfortable run today</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <StepButton C={C} mono={mono} label="−" aria="Decrease starting long run" onClick={() => set("startLongRunMin", Math.max(20, draft.startLongRunMin - 5))} />
-          <span style={{ fontFamily: serif, fontSize: 20, minWidth: 80, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{draft.startLongRunMin} min</span>
-          <StepButton C={C} mono={mono} label="+" aria="Increase starting long run" onClick={() => set("startLongRunMin", Math.min(120, draft.startLongRunMin + 5))} />
-        </div>
-        <div style={help}>The longest run you could finish today without stopping. Walk breaks count. Week 1 starts here.</div>
-      </div>
-      <div style={sectionWrap}>
-        <div style={label}>Recent race or time trial <span style={{ color: C.textFaint, fontWeight: 400 }}>(optional)</span></div>
-        <Pills C={C} mono={mono} ariaLabel="Result distance"
-          options={RESULT_DISTANCE_IDS.map((id) => ({ id, label: id === "half" ? "Half" : RACE_DISTANCES[id].label }))}
-          value={draft.resultDistance} onChange={(v) => set("resultDistance", v)} />
-        <input style={{ ...input, marginTop: 10 }} inputMode="numeric" placeholder="Time, e.g. 27:30" aria-label="Result time" value={draft.resultTime} onChange={(e) => set("resultTime", e.target.value)} />
-        {view.timeError && <div style={{ ...help, color: C.red }}>{view.timeError}</div>}
-        {zones ? (
-          <div style={{ marginTop: 10, borderTop: `1px solid ${C.line}` }}>
-            <PaceRow C={C} mono={mono} name="Easy" value={`${formatPace(zones.easy.fast)}–${formatPace(zones.easy.slow)}/mi`} />
-            <PaceRow C={C} mono={mono} name="Threshold" value={`${formatPace(zones.threshold)}/mi`} />
-            <PaceRow C={C} mono={mono} name={`${raceLabel} pace`} value={`${formatPace(zones.race[draft.distance])}/mi`} />
-            <PaceRow C={C} mono={mono} name={`${raceLabel} prediction`} value={formatDuration(zones.predictions[draft.distance])} />
-          </div>
-        ) : !view.timeError && (
-          <div style={help}>No result yet? Leave it blank. Runs go by effort (talk test) until your first 5K test sets your paces.</div>
-        )}
-      </div>
-      <div style={sectionWrap}>
-        <div style={label}>5K test</div>
-        <Pills C={C} mono={mono} ariaLabel="5K test"
-          options={[{ id: "auto", label: "Start of build" }, { id: "date", label: "On a date" }, { id: "none", label: "None" }]}
-          value={draft.testMode} onChange={(v) => set("testMode", v)} />
-        {draft.testMode === "date" && (
-          <input style={{ ...input, marginTop: 10 }} type="date" aria-label="5K test date" value={draft.testDate} onChange={(e) => set("testDate", e.target.value)} />
-        )}
-        <div style={help}>A Turkey Trot or a solo time trial. Enter the time here afterwards and every remaining pace updates.</div>
-      </div>
-
-      {/* ── Preview ── */}
-      <div style={{ padding: "16px 16px 6px" }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ fontFamily: serif, fontSize: 17, fontWeight: 500, color: C.text }}>Plan preview</div>
-          {view.plan && <div style={{ fontSize: 10.5, color: C.textDim, letterSpacing: "0.06em" }}>{view.plan.totalWeeks} weeks · race {formatPlanDate(view.plan.raceDate)}</div>}
-        </div>
-      </div>
-      {view.check.errors.length > 0 && (
-        <div style={{ ...sectionWrap, borderTop: `1px solid ${C.line}` }}>
-          {view.check.errors.map((e) => <div key={e} style={{ fontSize: 12, color: C.textDim, lineHeight: 1.6 }}>{e}</div>)}
-        </div>
-      )}
-      {view.plan && (
-        <div style={{ borderTop: `1px solid ${C.line}` }}>
-          {view.rows.map((row) => (
-            <div key={row.n} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, padding: "8px 16px", borderBottom: `1px solid ${C.line}`, background: row.cutback ? C.bg : C.block }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, color: C.text, fontWeight: 500 }}>{row.label}</div>
-                <div style={{ fontSize: 10.5, color: C.textDim, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{[row.quality, row.longMinutes ? `long ${row.longMinutes} min` : null].filter(Boolean).join(" · ")}</div>
-              </div>
-              <span style={{ fontSize: 11, color: C.textDim, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{row.totalRunMinutes} min</span>
+        <hr className="hr" />
+        <section aria-labelledby="race-fitness" style={column(12)}>
+          <h3 id="race-fitness" className="t-h">Your fitness</h3>
+          <div className="field">
+            <span id="race-longest" className="lbl">Longest comfortable run today</span>
+            <div className="step" role="group" aria-labelledby="race-longest" style={{ gridTemplateColumns: "48px minmax(0, 1fr) 48px", gap: 4 }}>
+              <button type="button" aria-label="Decrease starting long run" aria-disabled={draft.startLongRunMin <= lengthMin || undefined} onClick={() => set("startLongRunMin", Math.max(lengthMin, draft.startLongRunMin - 5))} style={{ height: 48 }}><Icon name="minus" /></button>
+              <span className="stepv"><span className="n" aria-live="polite">{draft.startLongRunMin}{"\u00a0"}min</span></span>
+              <button type="button" aria-label="Increase starting long run" aria-disabled={draft.startLongRunMin >= lengthMax || undefined} onClick={() => set("startLongRunMin", Math.min(lengthMax, draft.startLongRunMin + 5))} style={{ height: 48 }}><Icon name="plus" /></button>
             </div>
-          ))}
-        </div>
-      )}
-      {view.warnings.length > 0 && (
-        <div style={sectionWrap}>
-          <div style={label}>Heads up</div>
-          <ul style={{ margin: 0, paddingLeft: 16, display: "flex", flexDirection: "column", gap: 5 }}>
-            {view.warnings.map((w) => <li key={w} style={{ fontSize: 11.5, color: C.textDim, lineHeight: 1.55 }}>{w}</li>)}
-          </ul>
-        </div>
-      )}
-      <div style={{ ...sectionWrap, borderBottom: "none" }}>
-        <div style={help}>The plan sets your runs on Today each week and replaces your program's own runs while it's active. Your lifting stays exactly as written; walks stay too.</div>
+            <span className="hint">The longest run you could finish today without stopping. Walk breaks count. Week 1 starts here.</span>
+          </div>
+          <Choice id="race-result" label="A recent race or time trial (optional)">
+            <Seg labelledBy="race-result" options={RESULT_DISTANCE_IDS.map((id) => ({ value: id, label: distanceLabel(id) }))} value={draft.resultDistance} onChange={(v) => set("resultDistance", v)} />
+            <input className="input n" inputMode="numeric" placeholder="Time, e.g. 27:30" aria-label="Result time" aria-invalid={view.timeError ? true : undefined} value={draft.resultTime} onChange={(e) => set("resultTime", e.target.value)} />
+            {view.timeError && <p className="err" role="alert"><span>{view.timeError}</span></p>}
+            {zones ? (
+              <dl style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "4px 16px" }}>
+                {[["Easy", `${formatPace(zones.easy.fast)}–${formatPace(zones.easy.slow)}/mi`], ["Threshold", `${formatPace(zones.threshold)}/mi`], [`${raceLabel} pace`, `${formatPace(zones.race[draft.distance])}/mi`], [`${raceLabel} prediction`, formatDuration(zones.predictions[draft.distance])]].map(([name, value]) => (
+                  <div key={name} style={{ display: "contents" }}><dt className="t-s">{name}</dt><dd className="n-s">{value}</dd></div>
+                ))}
+              </dl>
+            ) : !view.timeError && <p className="t-s c2">No result yet? Leave it blank. Runs go by effort (the talk test) until your first 5K test sets your paces.</p>}
+          </Choice>
+          <Choice id="race-test" label="5K test" hint="A Turkey Trot or a solo time trial. Enter the time here afterwards and every remaining pace updates.">
+            <Seg labelledBy="race-test" options={[{ value: "auto", label: "Start of build" }, { value: "date", label: "On a date" }, { value: "none", label: "None" }]} value={draft.testMode} onChange={(v) => set("testMode", v)} />
+            {draft.testMode === "date" && <input className="input" type="date" aria-label="5K test date" value={draft.testDate} onChange={(e) => set("testDate", e.target.value)} />}
+          </Choice>
+        </section>
+
+        <hr className="hr" />
+        <section aria-labelledby="race-preview" style={column(8)}>
+          <div className="sec">
+            <h3 id="race-preview" className="t-h">Plan preview</h3>
+            {view.plan && <span className="t-s c2">{view.plan.totalWeeks} weeks · race {formatPlanDate(view.plan.raceDate)}</span>}
+          </div>
+          {view.check.errors.length > 0 && (
+            <div style={column(4)}>{view.check.errors.map((e) => <p key={e} className="t-s caution">{e}</p>)}</div>
+          )}
+          {view.plan && (
+            <ol className="rows">
+              {view.rows.map((row) => (
+                <li key={row.n} className="row" style={{ minHeight: 52 }}>
+                  <span className="kv grow">
+                    <span className="t-bs">{row.label}</span>
+                    {(row.quality || row.longMinutes) && <span className="t-s c2">{[row.quality, row.longMinutes ? `long ${row.longMinutes} min` : null].filter(Boolean).join(" · ")}</span>}
+                  </span>
+                  <span className="n-s c2">{row.totalRunMinutes}{"\u00a0"}min</span>
+                </li>
+              ))}
+            </ol>
+          )}
+          {view.warnings.length > 0 && (
+            <div className="banner" style={{ flexDirection: "column", gap: 4 }}>
+              <p className="t-ss">Heads up</p>
+              <ul className="lst">{view.warnings.map((w) => <li key={w} className="t-s">{w}</li>)}</ul>
+            </div>
+          )}
+          <p className="t-s c2">The plan sets your runs on Today each week and replaces your program's own runs while it's active. Your lifting stays exactly as written; walks stay too.</p>
+        </section>
       </div>
-
-      {/* Footer — explicit Save / End / Cancel */}
-      <div style={{ padding: "12px 16px calc(16px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${C.lineBright}`, background: C.panel, position: "sticky", bottom: 0, display: "flex", gap: 8 }}>
-        {hasPlan ? (
-          <button type="button" onClick={end} disabled={busy}
-            style={{ flex: 1, background: "none", border: `1px solid ${C.lineBright}`, color: C.textDim, padding: "13px", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono, cursor: busy ? "not-allowed" : "pointer" }}>
-            End plan
-          </button>
-        ) : (
-          <button type="button" onClick={onCancel} disabled={busy}
-            style={{ flex: 1, background: "none", border: `1px solid ${C.lineBright}`, color: C.textDim, padding: "13px", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: mono, cursor: busy ? "not-allowed" : "pointer" }}>
-            Cancel
-          </button>
-        )}
-        <button type="button" onClick={save} disabled={!canSave} aria-disabled={!canSave}
-          style={{ flex: 2, background: C.bg, border: `1px solid ${canSave ? C.text : C.lineBright}`, color: canSave ? C.text : C.textFaint, padding: "13px", fontSize: 11.5, letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: mono, fontWeight: 600, cursor: canSave ? "pointer" : "not-allowed" }}>
-          {busy ? "Saving…" : hasPlan ? "Update plan →" : "Start plan →"}
-        </button>
+      <div className="foot foot-tab" style={{ flexDirection: "row", gap: 8 }}>
+        {hasPlan && <button type="button" className="btn btn-s" aria-disabled={busy || undefined} onClick={end} style={{ flex: "1 1 0", minWidth: 0 }}>End plan</button>}
+        <button type="button" className="btn btn-p" aria-disabled={!canSave || undefined} onClick={save} style={{ flex: "2 1 0", minWidth: 0 }}>{busy ? "Saving…" : hasPlan ? "Update plan" : "Start plan"}</button>
       </div>
-    </div>
-  );
-}
-
-function PaceRow({ C, mono, name, value }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "6px 0", borderBottom: `1px solid ${C.line}` }}>
-      <span style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textDim }}>{name}</span>
-      <span style={{ fontFamily: mono, fontSize: 13, color: C.text, fontVariantNumeric: "tabular-nums" }}>{value}</span>
-    </div>
-  );
-}
-
-function StepButton({ C, mono, label, aria, onClick }) {
-  return (
-    <button type="button" aria-label={aria} onClick={onClick}
-      style={{ width: 44, height: 44, background: "none", border: `1px solid ${C.lineBright}`, color: C.text, fontFamily: mono, fontSize: 16, cursor: "pointer" }}>
-      {label}
-    </button>
-  );
-}
-
-// ── Segmented pills (single-select) — same look as the Program Builder's ──
-function Pills({ C, mono, options, value, onChange, ariaLabel }) {
-  return (
-    <div role="radiogroup" aria-label={ariaLabel} style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-      {options.map((o) => {
-        const on = value === o.id;
-        return (
-          <button key={o.id} type="button" role="radio" aria-checked={on} onClick={() => onChange(o.id)}
-            style={{ padding: "9px 14px", border: `1px solid ${on ? C.text : C.lineBright}`, background: on ? C.text : "transparent", color: on ? C.bg : C.textDim, fontFamily: mono, fontSize: 11.5, letterSpacing: "0.06em", cursor: "pointer", fontWeight: on ? 600 : 500, minWidth: 44 }}>
-            {o.label}
-          </button>
-        );
-      })}
     </div>
   );
 }
