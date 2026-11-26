@@ -1,8 +1,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* Page colours come from ledger.css, keyed by data-theme on <html>. */
 html, body {
-  background: #FAF9F6;
-  color: #1A1A1A;
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
@@ -25,13 +24,12 @@ button {
 
 /*
    Focus visibility (accessibility)
-   Pointer/touch interactions stay ring-free, but KEYBOARD focus shows a clear,
-   theme-aware ring. --ovt-focus is set per theme from the ThemeProvider; it
-   falls back to currentColor. !important is required because many interactive
-   elements set `outline: none` inline — keyboard accessibility overrides that.
+   Pointer/touch interactions stay ring-free, but KEYBOARD focus shows a clear
+   ring in the theme's ink. !important is required because some interactive
+   elements set `outline: none` inline; keyboard accessibility overrides that.
    ────────────────────────────────────────────────────────────────────────── */
 :where(button, a, input, textarea, select, [role="button"], [role="tab"], [role="link"], [tabindex]):focus-visible {
-  outline: 2px solid var(--ovt-focus, currentColor) !important;
+  outline: 2px solid var(--ink, currentColor) !important;
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -48,69 +46,17 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 input[type="number"] { -moz-appearance: textfield; }
 
-/* iOS: prevent zoom on input focus by keeping font-size >= 16px where it matters */
-::placeholder { color: #7e8a82; }
+/* Placeholder text in the third ink. */
+::placeholder { color: var(--ink-3); }
 
 ::-webkit-scrollbar { width: 0; background: transparent; }
-
-/* Visually-hidden helper for screen-reader-only text */
-.sr-only {
-  position: absolute !important;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0,0,0,0);
-  white-space: nowrap; border: 0;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-
-/* Session completion overlay animations */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(32px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes ringExpand {
-  0%   { transform: scale(0.4); opacity: 0.8; }
-  100% { transform: scale(2.6); opacity: 0; }
-}
-@keyframes dialFill {
-  from { stroke-dashoffset: 220; }
-  to   { stroke-dashoffset: 0; }
-}
-@keyframes popIn {
-  0%   { transform: scale(0.7); opacity: 0; }
-  60%  { transform: scale(1.08); }
-  100% { transform: scale(1);   opacity: 1; }
-}
-@keyframes shimmer {
-  0%, 100% { opacity: 0.5; }
-  50%       { opacity: 1; }
-}
 
 /* Keep fixed bottom navigation from covering the last form rows on mobile. */
 #root { padding-bottom: env(safe-area-inset-bottom); }
 .app-shell, main { scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 
-/*
-   Reduced motion (accessibility / vestibular safety)
-   Honor the OS-level "reduce motion" preference: neutralize animations and
-   transitions, and freeze keyframe-driven effects on their final frame.
-   ────────────────────────────────────────────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
-}
+/* Reduced motion is designed in ledger.css: with the OS setting on, nothing
+   moves; things that appear fade in quickly, in place. */
 
 /* ── Responsive content-width contract ───────────────────────────────────────
    The app shell and every centered, page-relative fixed surface share one
@@ -139,12 +85,4 @@ input[type="number"] { -moz-appearance: textfield; }
     --ovt-rail-s: 440px;
     --ovt-rail-m: 480px;
   }
-}
-
-/* ── Interactive surface press feedback ───────────────────────────────────────
-   Instant opacity dip on press for tactile feel. :where() keeps specificity at
-   zero so no inline style is overridden.
-   ────────────────────────────────────────────────────────────────────────── */
-:where(button):active:not([disabled]) {
-  opacity: 0.75;
 }
