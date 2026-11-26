@@ -6,22 +6,10 @@
 // a deliberate act in Settings, not something this block does silently.
 
 import { useMemo, useState } from "react";
-import { Icon } from "./ui/ledger";
+import { Icon, Method } from "./ui/ledger";
 import { computeAdaptiveTDEE, buildEnergyTargets, buildDriftCheck, readGoalRate, writeGoalRate, GOAL_RATES } from "./adaptiveTDEE";
 
 const NBSP = " ";
-
-// How a figure was worked out: one line, with the longer account on request.
-function Method({ testId, method, detail }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div data-testid={testId} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <p className="t-s c2">{method}</p>
-      <button type="button" className="btn btn-g btn-sm" aria-expanded={open} onClick={() => setOpen((value) => !value)} style={{ alignSelf: "flex-start", paddingLeft: 0 }}>{open ? "Hide how this is measured" : "How this is measured"}</button>
-      {open && <p className="t-s">{detail}</p>}
-    </div>
-  );
-}
 
 export function EnergyIntelligence({ data, settings }) {
   const [goalRate, setGoalRate] = useState(() => readGoalRate());
