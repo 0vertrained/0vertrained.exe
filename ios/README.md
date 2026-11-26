@@ -5,15 +5,20 @@ A private build for your own phone and watch.
 - `App/` is the iPhone app: a web view that opens the site, plus the native
   pieces a web page can't do: haptics, a rest-over notification when the phone
   is locked, keeping the screen on during a session, the link to the watch,
-  planned runs scheduled in the watch's Workout app, recorded runs read back
-  from Apple Health, and the evening check-in and Sunday Edition reminders.
+  planned runs scheduled in the watch's Workout app, recorded runs and the
+  day's steps, weight and sleep read from Apple Health, barcode scanning for
+  the food log, and the evening check-in and Sunday Edition reminders.
 - `RestActivity/` draws the rest timer on the Lock Screen and in the Dynamic
-  Island (a widget extension the app embeds).
+  Island, and the Today widget for the Home and Lock Screen (a widget
+  extension the app embeds).
 - `WatchApp/` is the Apple Watch app, written in SwiftUI: the day's lifts, one
   set at a time, a tap on the wrist when the rest is over, the workout
   tracked in Health, and the day's runs, which open in the Workout app.
+- `WatchWidgets/` is the Today complication for the watch face (a widget
+  extension the watch app embeds).
 - `Shared/` is code more than one of them builds: a planned run as a
-  WorkoutKit workout, and the rest timer's data.
+  WorkoutKit workout, the rest timer's data, and the day cards the widgets
+  show.
 
 The project opens in Xcode as it is. You don't need Node or the command line.
 
@@ -29,7 +34,11 @@ The project opens in Xcode as it is. You don't need Node or the command line.
 4. Add your Apple ID: Xcode > Settings > Accounts > + > Apple ID.
 5. In the left sidebar, select the blue App project. Under Targets, select
    App, open Signing & Capabilities, and set Team to your name. Do the same for
-   the WatchApp and RestActivity targets.
+   the WatchApp, RestActivity and WatchWidgets targets.
+   - The app and its widgets share an app group, `group.` followed by the
+     app's bundle identifier. Xcode registers it when it signs. If a target
+     shows a red App Groups error, open that target's Signing &
+     Capabilities, find App Groups, and tick the group (or press Try Again).
    - If Xcode says the bundle identifier isn't available, select the App
      project (not a target), open Build Settings, search for `APP_BUNDLE_ID`,
      and change it, for example to `com.yourname.overtrained`. The watch's
@@ -89,6 +98,20 @@ TestFlight instead, where a build lasts 90 days and installs over the air.
 - If the rest runs out with the phone locked, it turns to "Rest over".
 - To switch it off: iPhone Settings > 0VERTRAINED > Live Activities.
 
+## Apple Health, barcodes and widgets
+
+- Settings > Integrations > Apple Health fills in each day's steps and
+  weight, and sleep, resting heart rate and HRV when Oura and Whoop aren't
+  connected. Only empty fields are filled; numbers you type stay. Turning it
+  on asks iOS to read them.
+- Fuel > Log food > Scan a barcode reads a packaged food's barcode with the
+  camera and looks it up in Open Food Facts, then the USDA database. The
+  first scan asks for the camera.
+- Long-press the Home Screen or Lock Screen, tap +, and pick 0VERTRAINED for
+  the Today widget. On the watch, edit a watch face and pick 0VERTRAINED's
+  Today complication. Both move on at midnight; the iPhone one updates when
+  the app opens, the watch one when the phone sends the week.
+
 ## Reminders
 
 - In the iPhone app, Profile > Notifications has the evening check-in (7:30
@@ -123,4 +146,4 @@ when the connection comes back.
 ## Not in this build
 
 - Push notifications: the Morning Edition and state changes (see Reminders).
-- Widgets and Siri.
+- Siri.
