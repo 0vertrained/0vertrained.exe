@@ -1,9 +1,10 @@
 import Foundation
 
-/// Today's lifting as the phone sends it (src/watch/watchPlan.js builds it).
-/// The phone works out every number: what each open set is filled from, how
-/// long to rest, how far the crown moves each field. The watch shows the plan
-/// and logs sets against it.
+/// Today's lifting and runs as the phone sends them (src/watch/watchPlan.js
+/// builds the plan). The phone works out every number: what each open set is
+/// filled from, how long to rest, how far the crown moves each field. The
+/// watch shows the plan and logs sets against it; runs open in the Workout
+/// app.
 struct WatchPlan: Codable, Equatable {
     var v: Int
     var date: String
@@ -12,6 +13,8 @@ struct WatchPlan: Codable, Equatable {
     var sessions: [PlanSession]
     /// Ids of watch events the phone has dealt with.
     var seen: [String]?
+    /// Today's planned runs. Missing from plans sent before runs existed.
+    var runs: [RunSpec]?
 
     func exercise(_ key: ExerciseKey) -> PlanExercise? {
         sessions.first { $0.id == key.session }?.exercises.first { $0.name == key.name }

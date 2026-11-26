@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Today's lifts from the phone, the workout's clock and heart rate while it
-/// runs, and the way into each exercise.
+/// runs, and the way into each exercise. A planned run opens in the Workout
+/// app, which runs it with its own screens and alerts.
 struct TodayView: View {
     @EnvironmentObject private var store: SessionStore
     @EnvironmentObject private var workout: WorkoutManager
@@ -10,11 +11,11 @@ struct TodayView: View {
     var body: some View {
         Group {
             if let plan = store.today {
-                if plan.sessions.isEmpty {
+                if plan.sessions.isEmpty && (plan.runs ?? []).isEmpty {
                     EmptyStateView(
                         symbol: "moon.zzz",
-                        title: "No lifting today",
-                        detail: "Today's plan on your iPhone has no lifts."
+                        title: "Nothing planned today",
+                        detail: "Today's plan on your iPhone has no lifts or runs."
                     )
                 } else {
                     list(plan)
@@ -46,8 +47,19 @@ struct TodayView: View {
 
     private func list(_ plan: WatchPlan) -> some View {
         List {
-            Section {
-                workoutRow
+            if let runs = plan.runs, !runs.isEmpty {
+                Section {
+                    ForEach(runs) { run in
+                        RunRow(run: run, lifting: workout.phase != .idle)
+                    }
+                } header: {
+                    Text(runs.count == 1 ? "Run" : "Runs")
+                }
+            }
+            if !plan.sessions.isEmpty {
+                Section {
+                    workoutRow
+                }
             }
             ForEach(plan.sessions) { session in
                 Section {
@@ -168,6 +180,61 @@ struct ExerciseRow: View {
 }
 
 /// A screen with nothing to log yet, saying what to do about it.
+/// A planned run: what it is, and the button that opens it in the Workout
+/// app with its steps and pace or heart-rate alerts.
+struct RunRow: View {
+    let run: RunSpec
+    /// A lifting workout is going here; one workout at a time.
+    let lifting: Bool
+    @State private var opening = false
+    @State private var problem: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(run.name)
+                .font(.headline)
+                .foregroundStyle(Ledger.ink)
+            if let summary = run.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.footnote)
+                    .foregroundStyle(Ledger.ink2)
+            }
+            Button { open() } label: {
+                Label("Start in Workout", systemImage: "figure.run")
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(opening || lifting)
+            if lifting {
+                Text("End the lifting workout first.")
+                    .font(.footnote)
+                    .foregroundStyle(Ledger.ink2)
+            } else if let problem {
+                Text(problem)
+                    .font(.footnote)
+                    .foregroundStyle(Ledger.ink2)
+            }
+        }
+        .listRowBackground(Color.clear)
+    }
+
+    private func open() {
+        guard let plan = RunWorkout.plan(for: run) else {
+            problem = "This run couldn't be set up. Start it from the Workout app."
+            return
+        }
+        opening = true
+        problem = nil
+        Task {
+            do {
+                try await plan.openInWorkoutApp()
+            } catch {
+                problem = "The Workout app didn't open. Try again."
+            }
+            opening = false
+        }
+    }
+}
+
 struct EmptyStateView: View {
     let symbol: String
     let title: String
