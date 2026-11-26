@@ -98,8 +98,9 @@ function CheckinBanner({ checkin, todayBody, onOpenCheckin }) {
 
 // The call: one word, an effort level, the score, one sentence and the state
 // of the last few days. Until the check-in is done it says so; it never waits.
-function Call({ verdict, recovery, trend, checkin, todayKey, firstSync }) {
-  const call = describeCall(verdict.call);
+// It is the app's one call (sharedCall.js), so it matches Today's.
+function Call({ verdict, shared = null, recovery, trend, checkin, todayKey, firstSync }) {
+  const call = shared || describeCall(verdict.call);
   const stateName = trend?.state?.name || null;
   const calibrating = trend?.state?.key === "calibrating";
   const provisional = Boolean(todayKey) && !checkin.complete;
@@ -118,7 +119,7 @@ function Call({ verdict, recovery, trend, checkin, todayKey, firstSync }) {
         <span className="stamp grow">{call.stamp}</span>
         <span className="n-lg">{score ?? "—"}</span><span className="t-s c2">/100</span>
       </div>
-      <h2 id="rec-call" className="t-hl">{verdict.headline}</h2>
+      <h2 id="rec-call" className="t-hl">{shared ? shared.headline : verdict.headline}</h2>
       {state && <p className={provisional || calibrating ? "t-ss c2" : "t-ss"}>{state}</p>}
       {recovery?.band === "insufficient_data" && (
         <p className="t-s c2">{firstSync
@@ -129,7 +130,14 @@ function Call({ verdict, recovery, trend, checkin, todayKey, firstSync }) {
   );
 }
 
-function Why({ verdict, trend, checkin, recovery, data, todayKey, todayPlan, changeSummary, provenance }) {
+// Today's reason, when Today's engine made the call more cautious than
+// recovery alone would: the first one that is not the score itself.
+function todayReason(todayCall) {
+  const reasons = Array.isArray(todayCall?.reasons) ? todayCall.reasons : [];
+  return reasons.find((line) => line && !/^Recovery \d+\/100/.test(line)) || todayCall?.subtitle || null;
+}
+
+function Why({ verdict, shared = null, todayCall = null, trend, checkin, recovery, data, todayKey, todayPlan, changeSummary, provenance }) {
   const [explaining, setExplaining] = useState(false);
   const evidenceLines = [
     ...(trend?.evidence || []).slice(0, 2),
@@ -150,6 +158,12 @@ function Why({ verdict, trend, checkin, recovery, data, todayKey, todayPlan, cha
   return (
     <section aria-labelledby="rec-why" style={column(8)}>
       <h2 id="rec-why" className="t-h">Why this call</h2>
+      {shared?.source === "today" && (
+        <p className="banner" data-testid="today-caution">
+          <Icon name="warn" size="s" />
+          <span><b>Today’s read is more cautious, so the call follows it.</b>{todayReason(todayCall) ? ` ${todayReason(todayCall)}` : ""}</span>
+        </p>
+      )}
       {limiter && (
         <p className="banner">
           <Icon name="warn" size="s" />
@@ -504,7 +518,7 @@ export function RecoveryManual({ view }) {
 }
 
 export function RecoveryConnected({ view }) {
-  const { verdict, recovery, trend, checkin, todayBody, todayKey, todayPlan, data, changeSummary, provenance, alerts, conflicts, recoveryHistory, trainingLoad, externalCardio, unloggedFlags, coachInterp, edition, isBroadsheet, onOpenCheckin, onOpenIntegrations } = view;
+  const { verdict, sharedCall, todayCall, recovery, trend, checkin, todayBody, todayKey, todayPlan, data, changeSummary, provenance, alerts, conflicts, recoveryHistory, trainingLoad, externalCardio, unloggedFlags, coachInterp, edition, isBroadsheet, onOpenCheckin, onOpenIntegrations } = view;
   const score = Number.isFinite(Number(recovery?.score)) ? Math.round(Number(recovery.score)) : null;
   const head = (
     <>
@@ -521,9 +535,9 @@ export function RecoveryConnected({ view }) {
           <Icon name="next" size="s" className="c2" />
         </button>
       )}
-      {verdict && <Call verdict={verdict} recovery={recovery} trend={trend} checkin={checkin} todayKey={todayKey} firstSync={view.firstSync} />}
+      {verdict && <Call verdict={verdict} shared={sharedCall} recovery={recovery} trend={trend} checkin={checkin} todayKey={todayKey} firstSync={view.firstSync} />}
       <Alerts alerts={alerts} conflicts={conflicts} />
-      {verdict && <Why verdict={verdict} trend={trend} checkin={checkin} recovery={recovery} data={data} todayKey={todayKey} todayPlan={todayPlan} changeSummary={changeSummary} provenance={provenance} />}
+      {verdict && <Why verdict={verdict} shared={sharedCall} todayCall={todayCall} trend={trend} checkin={checkin} recovery={recovery} data={data} todayKey={todayKey} todayPlan={todayPlan} changeSummary={changeSummary} provenance={provenance} />}
       {todayKey && <CheckinBanner checkin={checkin} todayBody={todayBody} onOpenCheckin={onOpenCheckin} />}
     </>
   );

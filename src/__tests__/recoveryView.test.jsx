@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, within } from "@testing-library/react";
 import { ThemeProvider } from "../theme";
 import { RecoveryConnected, RecoveryManual, RecoveryLoading } from "../RecoveryView";
+import { resolveSharedCall } from "../sharedCall";
 import { buildRecoveryVerdict } from "../recovery/verdictResolver";
 import { readCheckin } from "../checkinMorning";
 
@@ -71,6 +72,24 @@ describe("Recovery, connected", () => {
     expect(call.getByText("76")).toBeTruthy();
     // No check-in yet: the call says so and stands anyway.
     expect(call.getByText("Fresh · score down 10 on the last 3 days · before check-in")).toBeTruthy();
+  });
+
+  it("shows the app's one call when Today's read is more cautious, and says so first", () => {
+    const sharedCall = resolveSharedCall({ todayCall: "modify", recoveryVerdict: { call: "train" }, score: 76 });
+    const todayCall = { call: "modify", reasons: ["Recovery 76/100 via Oura", "High soreness (8/10) — pulling the call back."] };
+    const { ui, container } = mount({ sharedCall, todayCall });
+    expect(container.querySelector(".stamp").textContent).toBe("Easy");
+    expect(ui.getByRole("img", { name: "Effort level 2 of 5" })).toBeTruthy();
+    const call = within(ui.getByRole("heading", { level: 2, name: sharedCall.headline }).closest("section"));
+    expect(call.getByText("76")).toBeTruthy();
+    expect(ui.getByTestId("today-caution").textContent).toBe("Today’s read is more cautious, so the call follows it. High soreness (8/10) — pulling the call back.");
+  });
+
+  it("names no other read when the call is Recovery's own", () => {
+    const sharedCall = resolveSharedCall({ todayCall: "maintain", recoveryVerdict: { call: "train" }, score: 76 });
+    const { ui } = mount({ sharedCall, todayCall: { call: "maintain", reasons: [] } });
+    expect(sharedCall.source).toBe("both");
+    expect(ui.queryByTestId("today-caution")).toBeNull();
   });
 
   it("gives its reasons as sentences, with the limiter first and last night's flags marked", () => {

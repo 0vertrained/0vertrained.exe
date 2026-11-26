@@ -29,7 +29,8 @@ describe("V16.8 Morning Edition — dashboard anatomy (source guards)", () => {
   const view = read("src/RecoveryView.jsx");
 
   it("the call leads with its sentence and the state of the last days; the check-in follows the reasons", () => {
-    const headlineAt = view.indexOf("{verdict.headline}");
+    // The headline is the app's one call when there is one (sharedCall.js).
+    const headlineAt = view.indexOf("{shared ? shared.headline : verdict.headline}");
     const stateAt = view.indexOf("{state && <p");
     expect(headlineAt).toBeGreaterThan(-1);
     expect(stateAt).toBeGreaterThan(headlineAt);
@@ -65,7 +66,9 @@ describe("V16.8 Morning Edition — dashboard anatomy (source guards)", () => {
   });
 
   it("the check-in caution feeds the resolver; the score object is passed through untouched", () => {
-    expect(src).toContain("checkin: checkinCaution");
+    // Recovery and Today read the verdict through one function.
+    expect(read("src/sharedCall.js")).toContain("checkin: checkinCaution");
+    expect(src).toContain("} = deriveRecoveryVerdict({");
     expect(src).not.toMatch(/recovery\.score\s*[+-]=/);
   });
 

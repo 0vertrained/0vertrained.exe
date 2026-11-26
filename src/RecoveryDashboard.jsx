@@ -6,13 +6,9 @@ import { summarizeManualRecovery, getManualRecoveryCompleteness } from "./manual
 import { isDemoMode } from "./demoData";
 import { loadStravaActivities } from "./strava/dataLoading"; // display context
 import { buildRecoveryChangeSummary, buildRecoveryCoachInterpretation, buildRecoveryHeroMeta } from "./recoverySummary";
-import { buildRecoveryVerdict } from "./recovery/verdictResolver";
-import { readCheckin, checkinSeverity } from "./checkinMorning";
 import { logFunnelEvent } from "./funnel";
 import { editionWindow } from "./sundayEdition";
 import { SundayEdition } from "./SundayEdition";
-import { resolveRecoveryContext } from "./recovery/wearableSourceResolver";
-import { buildConservativeBlendContext, applyWearableConfidenceAdjustment, buildBlendExplanation } from "./recovery/conservativeBlending";
 import { buildAggregatedRecoveryContext, buildConfidenceExplanation } from "./recovery/aggregationModel";
 import { buildWearableReadinessQA } from "./recovery/wearableReadinessQA";
 import {
@@ -23,6 +19,7 @@ import {
 } from "./whoop";
 import { RecoveryLoading, RecoveryManual, RecoveryConnected } from "./RecoveryView";
 import { loadRecoveryData } from "./recoveryLoad";
+import { deriveRecoveryVerdict, resolveSharedCall } from "./sharedCall";
 import { readRecoveryDashboardCache } from "./recoveryDashboardSessionCache";
 import { readWearableSnapshot, describeSnapshotAge } from "./wearableSnapshotCache";
 import { perfStart, perfMark } from "./perf";
@@ -304,38 +301,23 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   const heroMeta = buildRecoveryHeroMeta({ connected, confidence, quality, tokenStatus });
   const changeSummary = buildRecoveryChangeSummary({ hrv, rhr, sleep, temp, sleepDebt, trainingLoad, alerts, quality });
 
-  // When both wearables are connected, resolve per-metric sources and
-  // surface conflicts + a source disclosure. This is display-only: the recovery
-  // score above is unchanged, Whoop cards stay display-only, and sources are
-  // never averaged. Falls back to null (no extra UI) when Whoop is absent.
-  const resolvedContext = (whoopConnected && ouraGrouped)
-    ? resolveRecoveryContext({ ouraData: ouraGrouped, whoopData: whoopGrouped, manualData: manualBody, settings })
-    : null;
-  const wearableConflicts = resolvedContext?.conflicts || [];
-  const blendContext = resolvedContext
-    ? buildConservativeBlendContext({ resolvedContext, recovery, trainingLoad, recommendation })
-    : null;
-  const blendedRecommendation = blendContext?.applicable
-    ? applyWearableConfidenceAdjustment({ recommendation, resolvedContext, blendContext })
-    : recommendation;
-  const blendExplanation = buildBlendExplanation(blendContext);
-
-  // Slice C — resolve readiness + limiters into EXACTLY ONE top-level
-  // instruction before anything reaches the screen. The resolver runs on the
-  // post-blend recommendation, and every downstream echo (coach interpretation
-  // guidance, readiness-hero caption, readiness row) reads the RESOLVED
-  // recommendation, so no surface can contradict the verdict. Raw values,
-  // sources, and confidence labels are untouched below.
-  // The check-in is entered on Today; Recovery reads it off today's entry
-  // body and shows it above the verdict.
+  // One verdict, read the same way Today reads it (sharedCall.js): the two
+  // wearables blended when both are connected, the morning check-in as a
+  // caution-only limiter, then one top-level instruction. Raw values,
+  // sources and confidence stay visible in their own sections below. The
+  // check-in is entered on Today; Recovery reads it off today's entry.
   const todayBody = (todayKey && data?.[todayKey]?.body) || {};
-  const checkin = readCheckin(todayBody);
-  const checkinCaution = { severity: checkinSeverity(checkin), flags: checkin.flags };
-
-  const verdict = recovery
-    ? buildRecoveryVerdict({ recommendation: blendedRecommendation, recovery, sleepDebt, alerts, trainingLoad, confidence, checkin: checkinCaution })
+  const {
+    verdict, checkin, wearableConflicts, blendedRecommendation, blendExplanation, resolvedRecommendation,
+  } = deriveRecoveryVerdict({
+    recovery, sleepDebt, alerts, trainingLoad, confidence, recommendation,
+    ouraGrouped, whoopGrouped, whoopConnected, manualBody, todayBody, settings,
+  });
+  // The call on screen is the more cautious of this verdict and Today's, so
+  // the two screens always agree.
+  const sharedCall = verdict
+    ? resolveSharedCall({ todayCall: todayCall?.call || null, recoveryVerdict: verdict, score: recovery?.score })
     : null;
-  const resolvedRecommendation = verdict ? verdict.recommendation : blendedRecommendation;
   const coachInterp = buildRecoveryCoachInterpretation({
     recovery, recommendation: resolvedRecommendation, insights, sleepDebt, trainingLoad, alerts,
     confidence, quality, connected, subjectiveRecovery, manualCompleteness,
@@ -366,7 +348,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
         view={{
           ...shared,
           data, todayKey, todayName, todayPlan, todayBody, checkin,
-          verdict, recovery, trend, provenance, changeSummary, coachInterp,
+          verdict, sharedCall, todayCall, recovery, trend, provenance, changeSummary, coachInterp,
           alerts, conflicts: wearableConflicts,
           recoveryHistory, hrv, rhr, sleep, temp, rawMetrics, sources, baselines, sleepDebt,
           trainingLoad, externalCardio, unloggedFlags,

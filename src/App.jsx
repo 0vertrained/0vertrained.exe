@@ -186,6 +186,10 @@ function AppInner({ onThemeChange }) {
   const [isOnline, setIsOnline] = useState(true);
   const [pendingSaves, setPendingSaves] = useState({});
   const [ouraRecovery, setOuraRecovery] = useState(null); // biometric recovery score (Oura), if connected
+  // One call across the app (sharedCall.js): Recovery's latest data load and
+  // Today's own read, each tagged with the account it belongs to.
+  const [recoveryLoad, setRecoveryLoad] = useState(null);
+  const [todayCall, setTodayCall] = useState(null);
   const [showDemo, setShowDemo] = useState(() => typeof window !== "undefined" && /#\/?demo\b/.test(window.location.hash || ""));
   const [, setCacheStatus] = useState({ cached: false }); // track cache status for potential UI feedback
   const fileRef    = useRef();
@@ -269,6 +273,26 @@ function AppInner({ onThemeChange }) {
     })();
     return () => { cancelled = true; };
   }, [user?.id, demoMode, settings]);
+
+  // Recovery's data, loaded once when the account is ready, so Today shows
+  // Recovery's verdict before Recovery is opened. Recovery hands back every
+  // load it makes after that. The module loads with this, not with the app.
+  const recoveryInputs = useRef({ data, settings });
+  useEffect(() => { recoveryInputs.current = { data, settings }; });
+  useEffect(() => {
+    if (!loaded || accountUnavailable) return undefined;
+    if (!demoMode && !user?.id) return undefined;
+    let alive = true;
+    const owner = user?.id ?? null;
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const yesterday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    import("./recoveryLoad")
+      .then(({ loadRecoveryData }) => loadRecoveryData({ ...recoveryInputs.current, yesterdayKey: yesterday, userId: owner ?? undefined }))
+      .then((out) => { if (alive) setRecoveryLoad({ ...out, owner }); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [loaded, accountUnavailable, demoMode, user?.id]);
 
   // Auth bootstrap — wait for INITIAL_SESSION before doing anything else.
   // onAuthStateChange fires synchronously with the current session on subscribe,
@@ -1132,7 +1156,7 @@ function AppInner({ onThemeChange }) {
             <Suspense fallback={null}>
             {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /> : loaded && dayZero.recovery.isZero
               ? <DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} />
-              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} todayPlan={liveProgram?.[todayName]?.type || null} onOpenIntegrations={() => openSettings("integrations")} openEdition={editionAsked} onEditionClosed={() => setEditionAsked(false)} /></>}
+              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} todayPlan={liveProgram?.[todayName]?.type || null} onOpenIntegrations={() => openSettings("integrations")} openEdition={editionAsked} onEditionClosed={() => setEditionAsked(false)} onLoaded={(out) => setRecoveryLoad({ ...out, owner: user?.id ?? null })} todayCall={todayCall && todayCall.owner === (user?.id ?? null) && todayCall.dateKey === getTodayKey() ? todayCall : null} /></>}
             </Suspense>
             </ErrorBoundary>
           </div>
@@ -1148,7 +1172,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.today.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.today.isZero
               ? <DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />
-              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} />}
+              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={recoveryLoad && recoveryLoad.owner === (user?.id ?? null) ? recoveryLoad : null} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
             </div>
           )}
           {tab === "Train" && (

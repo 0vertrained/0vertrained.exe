@@ -115,9 +115,11 @@ export function useDayOps({
 // The call: a five-bar effort meter, one word, the recovery score, one
 // sentence. Until the check-in is answered it sits in pencil; answering inks
 // it in. Below the rule, what today holds and its one primary action.
-export function CallCard({ ops, decision, recommendation, sessionTitle, exerciseCount = 0, primary = null, isRest = false, finished = null, onOpenRecovery }) {
-  const call = describeTodayCall(decision?.call);
-  const score = finite(recommendation?.readinessIndex);
+export function CallCard({ ops, decision, recommendation, call: sharedCall = null, sessionTitle, exerciseCount = 0, primary = null, isRest = false, finished = null, onOpenRecovery }) {
+  // The app's one call (sharedCall.js), the same as Recovery's, with the
+  // recovery score Recovery shows. A past day keeps its own engine's call.
+  const call = sharedCall || describeTodayCall(decision?.call);
+  const score = finite(sharedCall ? sharedCall.score : recommendation?.readinessIndex);
   const inked = ops.checkin.complete;
   return (
     <section className={`card ${inked ? "is-ink" : "pencil"}`} aria-labelledby="call" data-section="physique-os" data-ui="today-command-center" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 16px 8px" }}>

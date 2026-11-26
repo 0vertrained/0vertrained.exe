@@ -24,6 +24,7 @@ import { suggestWorkoutAdjustments } from "./adaptiveTraining";
 import { computeStillNeeded } from "./fuelNeeds";
 import { MorningCheckin } from "./MorningCheckin";
 import { buildTodayDecision, buildDecisionResponseEntry } from "./todayDecision";
+import { recoveryVerdictFromLoad, resolveSharedCall } from "./sharedCall";
 import { getDecisionFeedbackBrief } from "./decisionFeedback";
 import { SessionComplete } from "./SessionComplete";
 import { LoadingShell, AdvisoryNote } from "./ui/primitives";
@@ -183,7 +184,7 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR }) {
   );
 }
 
-export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null }) {
+export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
   // Broadsheet: below 1440px every wrapper is display:contents and
   // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -320,6 +321,13 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
         recovery, trainingLoad, settings, recommendation: dailyRecommendation,
       })
     : null;
+  // Recovery's verdict for today, read from the recovery data the app loads
+  // at start (and refreshes whenever Recovery is open). Today's call never
+  // runs less cautious than it, so the two screens show the same call.
+  const isRealToday = todayKey === realToday;
+  const recoveryVerdict = isRealToday
+    ? recoveryVerdictFromLoad(recoveryLoad, { data: allData || {}, todayKey: realToday, yesterdayKey, settings })
+    : null;
   const todayDecision = buildTodayDecision({
     recommendation: dailyRecommendation,
     recovery,
@@ -332,7 +340,25 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
     adaptiveSuggestion,
     conflicts: aggregatedContext?.conflicts || null,
     aggregatedConfidence: aggregatedContext?.aggregatedConfidence || null,
+    recoveryVerdict,
   });
+  // The one call both screens show, with the recovery score Recovery shows.
+  const sharedCall = isRealToday
+    ? resolveSharedCall({
+        todayCall: todayDecision.engineCall || todayDecision.call,
+        recoveryVerdict,
+        score: recoveryVerdict ? recoveryLoad?.snapshot?.recovery?.score : recovery?.score,
+      })
+    : null;
+  // Today's own read goes to the app, so Recovery can show the same call.
+  const callForApp = isRealToday
+    ? JSON.stringify({ dateKey: realToday, call: todayDecision.engineCall || todayDecision.call, subtitle: todayDecision.engineNote || null, reasons: todayDecision.reasons || [] })
+    : "";
+  const onCallRef = useRef(onCall);
+  useEffect(() => { onCallRef.current = onCall; });
+  useEffect(() => {
+    if (callForApp) onCallRef.current?.(JSON.parse(callForApp));
+  }, [callForApp]);
   const acceptedTrainingSuggestion = todayData.intelligence?.acceptedTrainingSuggestion;
   const keptOriginalTrainingPlan = todayData.intelligence?.keptOriginalTrainingPlan;
   const decisionResponse = todayData.intelligence?.todayDecisionResponse?.response || null;
@@ -587,7 +613,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           {typeof onOpenEdition === "function" && (
             <LinkRow label="The Sunday Edition is out" sub="Your week, ending on one change" onClick={onOpenEdition} style={{ borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }} />
           )}
-          <CallCard ops={ops} decision={todayDecision} recommendation={dailyRecommendation} sessionTitle={sessionTitle} exerciseCount={totalExercises} primary={primary} isRest={todayPlan.isRest} finished={finished} onOpenRecovery={() => setTab?.("Recovery")} />
+          <CallCard ops={ops} decision={todayDecision} recommendation={dailyRecommendation} call={sharedCall} sessionTitle={sessionTitle} exerciseCount={totalExercises} primary={primary} isRest={todayPlan.isRest} finished={finished} onOpenRecovery={() => setTab?.("Recovery")} />
           <FuelSnapshot ops={ops} onOpenFuel={() => setTab?.("Fuel")} />
         </>
       )}
