@@ -1,5 +1,4 @@
 import { Fragment } from "react";
-import { useTheme } from "./theme";
 
 const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
@@ -64,37 +63,16 @@ function splitInlineMarkdown(text) {
   return tokens;
 }
 
-export function renderInlineMarkdown(text, C, S) {
+export function renderInlineMarkdown(text) {
   return splitInlineMarkdown(text).map((token, idx) => {
-    if (token.type === "bold") return <strong key={idx} style={{ color: C.text, fontWeight: 700 }}>{token.text}</strong>;
+    if (token.type === "bold") return <strong key={idx}>{token.text}</strong>;
     if (token.type === "italic") return <em key={idx}>{token.text}</em>;
     if (token.type === "code") {
-      return (
-        <code key={idx} style={{
-          fontFamily: C.monoFamily || S.fontMono || C.fontFamily,
-          fontSize: "0.92em",
-          padding: "1px 4px",
-          border: `1px solid ${C.line}`,
-          background: C.bg,
-          color: C.text,
-        }}>
-          {token.text}
-        </code>
-      );
+      return <code key={idx} className="n" style={{ fontSize: "0.92em", padding: "0 4px", borderRadius: 4, background: "var(--sunk)" }}>{token.text}</code>;
     }
     if (token.type === "link") {
       if (!isSafeHref(token.href)) return <Fragment key={idx}>{token.text}</Fragment>;
-      return (
-        <a
-          key={idx}
-          href={token.href.trim()}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: C.text, textDecoration: "underline", textUnderlineOffset: 3 }}
-        >
-          {token.text}
-        </a>
-      );
+      return <a key={idx} className="u" href={token.href.trim()} target="_blank" rel="noopener noreferrer">{token.text}</a>;
     }
     return <Fragment key={idx}>{token.text}</Fragment>;
   });
@@ -182,78 +160,39 @@ function parseMarkdownBlocks(markdown) {
   return blocks;
 }
 
+// Headings stay bold lines, not page headings, so a reply never adds to the
+// screen's outline.
 export function MarkdownMessage({ text }) {
-  const { C, S } = useTheme();
   const blocks = parseMarkdownBlocks(text);
   if (!blocks.length) return null;
-
-  const paragraphStyle = { margin: "0 0 8px", lineHeight: 1.55 };
-  const listStyle = { margin: "0 0 9px 16px", padding: 0, lineHeight: 1.55 };
-
   return (
-    <div style={{ whiteSpace: "normal" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
       {blocks.map((block, idx) => {
         if (block.type === "heading") {
-          const size = block.level === 1 ? 14 : block.level === 2 ? 13 : 12;
-          return (
-            <div key={idx} style={{
-              margin: idx === 0 ? "0 0 7px" : "12px 0 7px",
-              fontFamily: S.fontSerif || C.serifFamily || C.fontFamily,
-              fontSize: size,
-              fontWeight: 600,
-              lineHeight: 1.25,
-              color: C.text,
-            }}>
-              {renderInlineMarkdown(block.text, C, S)}
-            </div>
-          );
+          return <p key={idx} className={block.level === 1 ? "t-h" : "t-bs"}>{renderInlineMarkdown(block.text)}</p>;
         }
         if (block.type === "list") {
-          const Tag = block.kind;
-          return (
-            <Tag key={idx} style={listStyle}>
-              {block.items.map((item, itemIdx) => (
-                <li key={itemIdx} style={{ marginBottom: 4, paddingLeft: 2 }}>
-                  {renderInlineMarkdown(item, C, S)}
-                </li>
-              ))}
-            </Tag>
+          return block.kind === "ol" ? (
+            <ol key={idx} className="t-b" style={{ margin: 0, paddingLeft: 22, display: "flex", flexDirection: "column", gap: 4 }}>
+              {block.items.map((item, itemIdx) => <li key={itemIdx}>{renderInlineMarkdown(item)}</li>)}
+            </ol>
+          ) : (
+            <ul key={idx} className="lst lst-b" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+              {block.items.map((item, itemIdx) => <li key={itemIdx}>{renderInlineMarkdown(item)}</li>)}
+            </ul>
           );
         }
         if (block.type === "quote") {
-          return (
-            <blockquote key={idx} style={{
-              margin: "0 0 9px",
-              padding: "0 0 0 10px",
-              borderLeft: `2px solid ${C.lineBright}`,
-              color: C.textDim,
-              lineHeight: 1.55,
-            }}>
-              {renderInlineMarkdown(block.text, C, S)}
-            </blockquote>
-          );
+          return <blockquote key={idx} className="t-b c2" style={{ margin: 0, paddingLeft: 12, borderLeft: "2px solid var(--edge)" }}>{renderInlineMarkdown(block.text)}</blockquote>;
         }
         if (block.type === "codeBlock") {
           return (
-            <pre key={idx} style={{
-              margin: "0 0 9px",
-              padding: "8px 9px",
-              overflowX: "auto",
-              border: `1px solid ${C.line}`,
-              background: C.bg,
-              color: C.text,
-              fontFamily: C.monoFamily || S.fontMono || C.fontFamily,
-              fontSize: 13,
-              lineHeight: 1.45,
-              whiteSpace: "pre-wrap",
-            }}><code>{block.text.join("\n")}</code></pre>
+            <pre key={idx} className="n" style={{ margin: 0, padding: "8px 10px", overflowX: "auto", border: "1px solid var(--line)", borderRadius: 8, background: "var(--sunk)", fontSize: 14, lineHeight: "20px", whiteSpace: "pre-wrap" }}>
+              <code>{block.text.join("\n")}</code>
+            </pre>
           );
         }
-        return (
-          <p key={idx} style={idx === blocks.length - 1 ? { ...paragraphStyle, marginBottom: 0 } : paragraphStyle}>
-            {renderInlineMarkdown(block.text, C, S)}
-          </p>
-        );
+        return <p key={idx} className="t-b">{renderInlineMarkdown(block.text)}</p>;
       })}
     </div>
   );

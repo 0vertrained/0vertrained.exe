@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
-import { useTheme } from "./theme";
 import { supabase } from "./supabaseClient";
 import { calcWeeklyReview, calcRecoveryScore } from "./recovery";
 import { loadOuraData, isOuraConnected } from "./oura";
@@ -9,6 +8,7 @@ import { buildCoachContext } from "./coachContextBuilder";
 import { buildDailyLoads, computeRollingLoads } from "./loadModel";
 import { buildDecisionContext, getDailyRecommendation, summarizeRecommendationForCoach } from "./decisionEngine";
 import { MarkdownMessage } from "./MarkdownMessage";
+import { Icon } from "./ui/ledger";
 import { buildCoachEvidencePacket } from "./coachEvidence";
 
 //  Coach — embedded AI assistant (mobile-first floating button + slide-up sheet)
@@ -200,21 +200,40 @@ function buildSuggestions({ data, settings, program, todayKey, todayName }) {
 }
 
 export function Coach({ data, settings, program, todayKey, todayName, userId, open, onClose }) {
-  const { C } = useTheme();
-  const mono = C.fontFamily;
   const [input, setInput]     = useState("");
   const [msgs, setMsgs]       = useState([]);   // { role:'user'|'coach'|'error', text }
   const [busy, setBusy]       = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY); // slide-over
-  // Escape closes the slide-over at the tier — parity with the
-  // palette's keyboard model.
+  const panelRef = useRef(null);
+  const inputRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  // A dialog at every size: focus starts in the question field, Tab stays
+  // inside, Escape closes, and focus goes back to what opened it.
   useEffect(() => {
-    if (!open || !isBroadsheet) return;
-    const h = (e) => { if (e.key === "Escape") onClose?.(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [open, isBroadsheet, onClose]);
+    if (!open) return undefined;
+    const opener = document.activeElement;
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") { onCloseRef.current?.(); return; }
+      if (e.key !== "Tab" || !panelRef.current) return;
+      const items = panelRef.current.querySelectorAll("button:not([disabled]), [href], input:not([disabled]), summary, [tabindex]:not([tabindex='-1'])");
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKeyDown);
+      requestAnimationFrame(() => opener?.isConnected && opener.focus?.());
+    };
+  }, [open]);
+
   const scrollRef = useRef(null);
 
   // Visibility gate — render nothing unless this is the allowed coach user.
@@ -337,151 +356,89 @@ export function Coach({ data, settings, program, todayKey, todayName, userId, op
     } catch { /* feedback is best-effort */ }
   }, [msgs]);
 
-  if (!enabled) return null;
-
+  if (!enabled || !open) return null;
+  // Phone: a sheet from the bottom. Wide screens: a panel down the right side.
+  const panelStyle = {
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    ...(isBroadsheet
+      ? { width: 480, maxWidth: "40vw", top: 0, bottom: 0, left: "auto", right: 0, margin: 0, height: "100dvh", maxHeight: "none", borderRadius: 0, borderLeft: "1px solid var(--line)" }
+      : { maxWidth: "var(--ovt-content-width)", height: "calc(100dvh - 48px)" }),
+  };
   return (
     <>
-      {/* Slide-up sheet */}
-      {open && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 400,
-          display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "flex-end",
-          background: "rgba(0,0,0,0.5)",
-        }} onClick={() => onClose?.()}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Coach"
-            style={{
-              // At the tier the sheet becomes a right slide-over so
-              // Today stays legible behind the scrim.
-              ...(isBroadsheet
-                ? { width: 480, maxWidth: "40vw", height: "100dvh", alignSelf: "flex-end", marginLeft: "auto" }
-                : { width: "100%", maxWidth: "var(--ovt-content-width)", height: "85dvh" }),
-              background: C.panel, borderTop: `1px solid ${C.line}`,
-              borderTopLeftRadius: C.cardRadius ? 16 : 0, borderTopRightRadius: C.cardRadius ? 16 : 0,
-              display: "flex", flexDirection: "column",
-              animation: "coachUp 0.25s ease",
-            }}
-          >
-            {/* Header */}
-            <div style={{
-              padding: "14px 16px", borderBottom: `1px solid ${C.line}`,
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-            }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontFamily: C.serifFamily || mono, fontStyle: "italic", color: C.text, fontSize: 18 }} aria-hidden="true">&theta;</span>
-                <span style={{ fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", color: C.text, fontFamily: mono, fontWeight: 600 }}>Coach</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                {msgs.length > 0 && (
-                  <button type="button" onClick={clearThread} aria-label="Clear conversation" style={{
-                    background: "none", border: `1px solid ${C.lineBright}`, color: C.textDim,
-                    fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer",
-                    fontFamily: mono, padding: "4px 9px",
-                  }}>Clear</button>
-                )}
-                <button type="button" onClick={() => onClose?.()} aria-label="Close Coach" style={{
-                  background: "none", border: "none", color: C.textDim, fontSize: 18, cursor: "pointer", fontFamily: mono,
-                }}><span aria-hidden="true">&times;</span></button>
-              </div>
-            </div>
-
-            {/* Messages */}
-            <div ref={scrollRef} role="log" aria-live="polite" aria-label="Conversation" style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
-              {msgs.length === 0 && (
-                <div style={{ color: C.textFaint, fontSize: 13, lineHeight: 1.7, fontFamily: mono }}>
-                  <div style={{ color: C.textDim, marginBottom: 10, letterSpacing: "0.05em" }}>Ask about today, your training, nutrition, recovery, or longer-term progress.</div>
-                  {suggestions.map((ex) => (
-                    <button
-                      type="button"
-                      key={ex}
-                      onClick={() => send(ex)}
-                      style={{
-                        display: "block", textAlign: "left", width: "100%",
-                        padding: "8px 11px", marginBottom: 6, border: `1px solid ${C.lineBright}`,
-                        borderRadius: 0, color: C.textDim, cursor: "pointer", background: C.bg,
-                        fontFamily: mono, fontSize: 13, lineHeight: 1.5,
-                      }}
-                    >{ex}</button>
-                  ))}
-                  {/* Honest data-boundary note */}
-                  <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.line}`, fontSize: 11, lineHeight: 1.6, color: C.textFaint, letterSpacing: "0.02em" }}>
-                    Privacy: the coach receives a question-specific evidence packet plus a bounded recent conversation — no account credentials, no other users' data, and no raw wearable payloads. The API key stays server-side.
-                  </div>
-                </div>
-              )}
-              {msgs.map((m, i) => (
-                <div key={i} style={{ marginBottom: 12, display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                  <div style={{
-                    maxWidth: "85%", padding: "9px 12px", borderRadius: 0,
-                    fontSize: 14, lineHeight: 1.55, fontFamily: mono,
-                    whiteSpace: m.role === "coach" ? "normal" : "pre-wrap",
-                    background: m.role === "user" ? C.bg : (m.role === "error" ? (C.mono ? "#1f0d0d" : "#fef2f2") : C.cell),
-                    border: `1px solid ${m.role === "user" ? C.text : (m.role === "error" ? C.red : C.lineBright)}`,
-                    color: m.role === "user" ? C.text : (m.role === "error" ? C.red : C.text),
-                  }}>
-                    {m.role === "coach" ? <>
-                      <MarkdownMessage text={m.text} />
-                      {Array.isArray(m.meta?.evidenceUsed) && m.meta.evidenceUsed.length > 0 && (
-                        <details style={{ marginTop: 9, paddingTop: 7, borderTop: `1px solid ${C.line}`, color: C.textDim }}>
-                          <summary style={{ cursor: "pointer", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                            Evidence · {m.meta.evidenceUsed.length}
-                          </summary>
-                          <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
-                            {m.meta.evidenceUsed.map((item) => (
-                              <div key={item.id} style={{ fontSize: 10.5, lineHeight: 1.45, color: C.textFaint }}>
-                                <span style={{ color: C.textDim }}>{item.id}</span> · {item.label}{item.dateRange ? ` · ${item.dateRange}` : ""}
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                      {m.runId && (
-                        <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
-                          <span style={{ color: C.textFaint, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase" }}>Useful?</span>
-                          <button type="button" onClick={() => submitFeedback(i, 1)} aria-label="Mark coach response helpful" style={{ border: `1px solid ${m.feedback === 1 ? C.text : C.line}`, background: "none", color: m.feedback === 1 ? C.text : C.textFaint, fontFamily: mono, fontSize: 9.5, padding: "3px 7px", cursor: "pointer" }}>Yes</button>
-                          <button type="button" onClick={() => submitFeedback(i, -1)} aria-label="Mark coach response unhelpful" style={{ border: `1px solid ${m.feedback === -1 ? C.red : C.line}`, background: "none", color: m.feedback === -1 ? C.red : C.textFaint, fontFamily: mono, fontSize: 9.5, padding: "3px 7px", cursor: "pointer" }}>No</button>
-                          {m.meta?.fallbackUsed && <span style={{ color: C.textFaint, fontSize: 9.5 }}>fallback used</span>}
-                        </div>
-                      )}
-                    </> : m.text}
-                  </div>
-                </div>
-              ))}
-              {busy && (
-                <div style={{ color: C.textFaint, fontSize: 13, fontFamily: mono, letterSpacing: "0.1em" }} aria-live="polite">coach is thinking&hellip;</div>
-              )}
-            </div>
-
-            {/* Input */}
-            <div style={{ padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: `1px solid ${C.line}`, display: "flex", gap: 8 }}>
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-                placeholder="Ask your coach&hellip;"
-                aria-label="Ask your coach a question"
-                style={{
-                  flex: 1, background: C.inputBg, border: `1px solid ${C.lineBright}`,
-                  borderRadius: 0, padding: "11px 12px", fontSize: 16,
-                  color: C.text, fontFamily: mono, outline: "none",
-                }}
-              />
-              <button type="button" onClick={() => send()} disabled={busy || !input.trim()} aria-label="Send message" style={{
-                background: C.bg, border: `1px solid ${C.line}`, borderRadius: 0,
-                padding: "0 16px", color: C.text, fontSize: 11.5, letterSpacing: "0.12em",
-                textTransform: "uppercase", fontFamily: mono, cursor: busy ? "default" : "pointer",
-                opacity: (busy || !input.trim()) ? 0.5 : 1,
-              }}>Send</button>
-            </div>
-          </div>
+      <div className="scrim mo-scrim" aria-hidden="true" onClick={() => onClose?.()} />
+      <section ref={panelRef} className="sheet mo-rise" role="dialog" aria-modal="true" aria-labelledby="coach-title" data-screen="coach" style={panelStyle}>
+        {!isBroadsheet && <span className="grab" aria-hidden="true" />}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h2 id="coach-title" className="t-h grow">Coach</h2>
+          {msgs.length > 0 && <button type="button" className="btn btn-g btn-sm" onClick={clearThread}>Clear</button>}
+          <button type="button" className="ibtn" aria-label="Close" onClick={() => onClose?.()}><Icon name="close" /></button>
         </div>
-      )}
 
-      <style>{`@keyframes coachUp { from { transform: translateY(100%); } to { transform: translateY(0); } }`}</style>
+        <div ref={scrollRef} role="log" aria-label="Conversation" style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16, paddingBottom: 4 }}>
+          {msgs.length === 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <p className="t-b c2">Ask about today, your training, food, recovery or longer-term progress.</p>
+              <ul className="rows" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                {suggestions.map((ex) => (
+                  <li key={ex}>
+                    <button type="button" className="row" onClick={() => send(ex)}>
+                      <span className="t-b grow" style={{ textAlign: "left" }}>{ex}</span>
+                      <Icon name="next" size="s" className="c2" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="t-s c2">For each question the coach gets the numbers that answer it and the last few messages. Never your password, anyone else's data or raw wearable data, and the AI key stays on the server.</p>
+            </div>
+          )}
+          {msgs.map((m, i) => {
+            if (m.role === "user") {
+              return <p key={i} className="t-b" style={{ alignSelf: "flex-end", maxWidth: "85%", padding: "8px 12px", borderRadius: 12, background: "var(--sunk)", overflowWrap: "anywhere" }}><span className="sr">You: </span>{m.text}</p>;
+            }
+            if (m.role === "error") {
+              return <p key={i} className="err" role="alert"><Icon name="warn" size="s" /><span>{m.text}</span></p>;
+            }
+            const evidence = Array.isArray(m.meta?.evidenceUsed) ? m.meta.evidenceUsed : [];
+            return (
+              <article key={i} style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+                <p className="t-c c2">Coach</p>
+                <MarkdownMessage text={m.text} />
+                {evidence.length > 0 && (
+                  <details className="banner" style={{ flexDirection: "column", gap: 4 }}>
+                    <summary className="t-ss" style={{ minHeight: 24, cursor: "pointer" }}>From your data, {evidence.length} {evidence.length === 1 ? "item" : "items"}</summary>
+                    <ul className="lst" style={{ margin: "4px 0 0", padding: 0, listStyle: "none" }}>
+                      {evidence.map((item) => (
+                        <li key={item.id}><span className="n-s c2">{item.id}</span> {item.label}{item.dateRange ? `, ${item.dateRange}` : ""}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                {m.runId && (
+                  <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <span className="t-s c2 grow">Was this useful?</span>
+                    <button type="button" className="btn btn-s btn-sm" aria-pressed={m.feedback === 1} onClick={() => submitFeedback(i, 1)}>Helpful</button>
+                    <button type="button" className="btn btn-s btn-sm" aria-pressed={m.feedback === -1} onClick={() => submitFeedback(i, -1)}>Not helpful</button>
+                  </div>
+                )}
+                {m.meta?.fallbackUsed && <p className="t-s c2">Answered by the backup model.</p>}
+              </article>
+            );
+          })}
+          {busy && <p className="t-s c2" role="status">The coach is thinking…</p>}
+        </div>
+
+        <p className="t-s c2">The coach can't change your plan or targets.</p>
+        <form onSubmit={(e) => { e.preventDefault(); send(); }} style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+          <label className="field grow">
+            <span className="lbl">Ask the coach</span>
+            <input ref={inputRef} className="input" autoComplete="off" enterKeyHint="send" value={input} onChange={(e) => setInput(e.target.value)} />
+          </label>
+          <button type="submit" className="btn btn-p" aria-disabled={busy || !input.trim() || undefined}>Send</button>
+        </form>
+      </section>
     </>
   );
 }
