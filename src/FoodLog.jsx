@@ -216,3 +216,39 @@ export function YourFoods({ saved, recent, onAdd, onToggleSave }) {
     </>
   );
 }
+
+/** A scanned food, with its servings chosen before it goes on today. */
+export function ScannedFoodSheet({ food, onAdd, onClose }) {
+  const [qty, setQty] = useState(1);
+  const [shown, setShown] = useState(food);
+  // A new scan starts again at one serving.
+  if (food !== shown) {
+    setShown(food);
+    setQty(1);
+  }
+  const step = (delta) => {
+    const next = Math.min(MAX_SERVINGS, Math.max(SERVING_STEP, qty + delta));
+    if (next === qty) return;
+    selectionHaptic();
+    setQty(next);
+  };
+  return (
+    <Sheet open={Boolean(food)} title={food?.name || "Scanned food"} onClose={onClose}>
+      {food && (
+        <>
+          <p className="t-s c2">One serving is {food.serving}.</p>
+          <div className="row" style={{ minHeight: 64 }}>
+            <span className="t-bs grow">Servings</span>
+            <div className="step" role="group" aria-label="Servings" style={{ width: 216 }}>
+              <button type="button" aria-label="Fewer servings" aria-disabled={qty <= SERVING_STEP || undefined} onClick={() => step(-SERVING_STEP)}><Icon name="minus" /></button>
+              <span className="stepv"><span className="n-md" aria-live="polite">{qty}</span></span>
+              <button type="button" aria-label="More servings" aria-disabled={qty >= MAX_SERVINGS || undefined} onClick={() => step(SERVING_STEP)}><Icon name="plus" /></button>
+            </div>
+          </div>
+          <p className="n-s c2">{foodMeta(itemTotals({ ...food, qty }), { full: true })}</p>
+          <button type="button" className="btn btn-p btn-b" onClick={() => onAdd(food, qty)}>Add to today</button>
+        </>
+      )}
+    </Sheet>
+  );
+}

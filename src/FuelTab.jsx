@@ -17,12 +17,13 @@ import { generateMealPlans, SLOTS, planMacros, SLOT_LABELS, swapCandidates, repl
 import { buildNutritionRecommendation } from "./nutritionCoach";
 import { computeStillNeeded } from "./fuelNeeds";
 import { buildFuelHero, buildFuelRecoveryInsight, buildMealPlanProgress, buildNextMealPreview } from "./fuelSummary";
-import { FoodSearch } from "./FoodSearch";
+import { FoodSearch, fetchUsdaBarcode } from "./FoodSearch";
 import { LoadingShell } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
 import { EnergyIntelligence } from "./EnergyIntelligence";
 import { addFoodToDay, dayFoods, makeFoodItem, recentFoods, removeFoodFromDay, savedFoods, setFoodServings, toggleSavedFood } from "./foodLog";
-import { FoodEditSheet, SaveMealSheet, TodayFoods, YourFoods } from "./FoodLog";
+import { FoodEditSheet, SaveMealSheet, ScannedFoodSheet, TodayFoods, YourFoods } from "./FoodLog";
+import { barcodeScanner, scanFood } from "./barcode";
 
 const NBSP = " ";
 const num = (value) => Number.parseFloat(value) || 0;
@@ -81,6 +82,18 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
   // The logged food whose sheet is open, and whether the save-a-meal sheet is.
   const [editingId, setEditingId]   = useState(null);
   const [saveMealOpen, setSaveMealOpen] = useState(false);
+  // Barcode scanning, in app builds that have it: whether this phone can,
+  // the food a scan found, and what to say when it found nothing.
+  const [canScan, setCanScan] = useState(false);
+  const [scanned, setScanned] = useState(null);
+  const [scanNote, setScanNote] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve(barcodeScanner()?.status?.())
+      .then((status) => { if (!cancelled) setCanScan(Boolean(status?.supported)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // A screen opened from Fuel starts at its top, not wherever Fuel was scrolled.
   const firstView = useRef(true);
@@ -143,6 +156,14 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
     });
   };
   const logFood = (food) => logItem(makeFoodItem(food, { source: food.source || "search" }));
+  const scan = async () => {
+    setScanNote("");
+    const result = await scanFood({ usdaLookup: fetchUsdaBarcode });
+    if (result.food) setScanned(result.food);
+    else if (result.error === "camera") setScanNote("Allow 0VERTRAINED to use the camera in the iPhone’s Settings app, then scan again.");
+    else if (result.notFound) setScanNote(result.offline ? "Couldn’t look that barcode up without a connection. Search for the food by name instead." : "That barcode isn’t in Open Food Facts or the USDA database yet. Search for the food by name instead.");
+    else if (result.error) setScanNote("Couldn’t open the scanner. Search for the food by name instead.");
+  };
 
   // Saved foods and meals live in settings; recent ones come from the log.
   const saved = savedFoods(settings);
@@ -233,6 +254,12 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
   // right at the desktop tier.
   const logPanel = (
     <>
+      {canScan && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <button type="button" className="btn btn-s btn-b" onClick={scan}>Scan a barcode</button>
+          {scanNote && <p className="t-s c2" role="status">{scanNote}</p>}
+        </div>
+      )}
       <FoodSearch onAdd={logFood} />
       <YourFoods
         saved={saved}
@@ -397,11 +424,12 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
         onToggleSave={onPatchSettings ? toggleSave : null}
       />
       {onPatchSettings && <SaveMealSheet open={saveMealOpen} nutrition={nut} onClose={() => setSaveMealOpen(false)} onSave={saveMeal} />}
+      <ScannedFoodSheet food={scanned} onClose={() => setScanned(null)} onAdd={(food, qty) => { setScanned(null); logItem(makeFoodItem(food, { qty, source: "scan" })); }} />
     </>
   );
 
   if (fuelView === "log" && !isBroadsheet) {
-    return <div className="shell" data-screen="fuel-log"><div className="main">{logPanel}</div></div>;
+    return <div className="shell" data-screen="fuel-log"><div className="main">{logPanel}{sheets}</div></div>;
   }
 
   return (

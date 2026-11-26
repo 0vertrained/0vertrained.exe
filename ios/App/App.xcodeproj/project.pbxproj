@@ -40,6 +40,7 @@
 		4AD6C3E5C481CF73A0C2C41A /* RestActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6666C1E2C15995D857490A0F /* RestActivityWidget.swift */; };
 		D0D575D3BCD95695BB5BD5E5 /* RestActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D29DCFA400B75CBDC65B8EF4 /* RestActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E233F4A1D1AD582ED027E896 /* HealthDailyPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB98C39ECD0FDBC356304F13 /* HealthDailyPlugin.swift */; };
+		B9192DDD082CC473DB2925E2 /* BarcodePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E0FBB92F9188757DAEEB6E /* BarcodePlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -122,6 +123,7 @@
 		D7CB2D2005C11CF8565A96AD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D29DCFA400B75CBDC65B8EF4 /* RestActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RestActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB98C39ECD0FDBC356304F13 /* HealthDailyPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDailyPlugin.swift; sourceTree = "<group>"; };
+		62E0FBB92F9188757DAEEB6E /* BarcodePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodePlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -194,6 +196,7 @@
 				0D29241F9B5F62D439F87F16 /* RemindersPlugin.swift */,
 				928997AD756BEB39DCD549AC /* RestActivityController.swift */,
 				EB98C39ECD0FDBC356304F13 /* HealthDailyPlugin.swift */,
+				62E0FBB92F9188757DAEEB6E /* BarcodePlugin.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -388,6 +391,7 @@
 				3FD49D64B4380268CA2337C8 /* RestActivityController.swift in Sources */,
 				FD79FEAE77134C454FA1A913 /* RestActivity.swift in Sources */,
 				E233F4A1D1AD582ED027E896 /* HealthDailyPlugin.swift in Sources */,
+				B9192DDD082CC473DB2925E2 /* BarcodePlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

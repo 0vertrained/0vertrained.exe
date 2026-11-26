@@ -138,6 +138,26 @@ export async function fetchUsda(query, attempt = 0) {
   return results;
 }
 
+// A packaged food by its barcode, from the USDA's branded foods, for a scan
+// Open Food Facts doesn't know. Branded values there are per 100 g.
+export async function fetchUsdaBarcode(code) {
+  const digits = String(code || "").replace(/\D/g, "");
+  if (!USDA_KEY || digits.length < 6) return null;
+  const res = await fetch(`${USDA_BASE}/foods/search?api_key=${USDA_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: digits, dataType: ["Branded"], pageSize: 5 }),
+  });
+  if (!res.ok) return null;
+  const json = await res.json();
+  const bare = (value) => String(value || "").replace(/\D/g, "").replace(/^0+/, "");
+  const item = (json.foods || []).find((food) => bare(food.gtinUpc) === bare(digits));
+  if (!item) return null;
+  const parsed = parseUsdaItem(item);
+  if (!(parsed.calories > 0)) return null;
+  return { ...parsed, name: parsed.name.replace(/\s*\([^)]*\)$/, ""), serving: "100 g", source: "scan" };
+}
+
 export function FoodSearch({ onAdd }) {
   const id = useId();
   const [query, setQuery]           = useState("");
