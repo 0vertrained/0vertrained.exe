@@ -11,6 +11,7 @@
 import { DEFAULT_PROGRAM, defaultDay, getDayName } from "../constants";
 import { applyRaceBuild } from "../raceBuild";
 import { getProgramSessions } from "../programSessions";
+import { withAdded } from "../addedExercises";
 import { buildExercisePrescription } from "../progressionEngine";
 import { lastSessionSets } from "../setGhosts";
 import { suggestRestSeconds } from "../sessionIntelligence";
@@ -53,11 +54,12 @@ function setIn(object, [key, ...rest], value) {
   return { ...base, [key]: rest.length ? setIn(base[key], rest, value) : value };
 }
 
-// The day's lifting sessions, from the program as Today shows it.
-export function liftingSessionsFor(program, dateKey) {
+// The day's lifting sessions, from the program as Today shows it, with any
+// exercises added to that day (`workout` is the day's logged workout).
+export function liftingSessionsFor(program, dateKey, workout = null) {
   const dayName = getDayName(new Date(`${dateKey}T12:00:00`));
   const live = applyRaceBuild(program, dateKey) || DEFAULT_PROGRAM;
-  const day = live[dayName] || DEFAULT_PROGRAM[dayName];
+  const day = withAdded(live[dayName] || DEFAULT_PROGRAM[dayName], workout);
   const sessions = getProgramSessions(day)
     .filter((session) => (session.lifting || []).length > 0)
     .map((session) => ({ ...session, id: session.id || "main" }));
@@ -107,7 +109,7 @@ function planExercise({ data, exercise, exData, dateKey }) {
 // `seen` is the ids of watch events the phone has dealt with, so the watch
 // can stop showing them as its own.
 export function buildWatchPlan({ data = {}, program = null, dateKey, sentAt = new Date().toISOString(), seen = [] } = {}) {
-  const { dayName, sessions } = liftingSessionsFor(program, dateKey);
+  const { dayName, sessions } = liftingSessionsFor(program, dateKey, data[dateKey]?.workout);
   const exercises = (data[dateKey] || defaultDay()).workout?.exercises || {};
   return {
     v: WATCH_PLAN_VERSION,
@@ -185,7 +187,7 @@ export function applyWatchEvents({ data = {}, program = null, events = [] } = {}
   };
 
   const applySet = (event) => {
-    const { sessions } = liftingSessionsFor(program, event.date);
+    const { sessions } = liftingSessionsFor(program, event.date, working[event.date]?.workout);
     const exercise = sessions.flatMap((session) => session.lifting).find((item) => item.name === event.exercise);
     if (!exercise) return false;
     const day = working[event.date] || defaultDay();
@@ -219,7 +221,7 @@ export function applyWatchEvents({ data = {}, program = null, events = [] } = {}
   // The watch's End marks each of the day's sessions finished whose every
   // exercise is logged or skipped, as Finish does in the runner.
   const applyFinish = (event) => {
-    const { sessions } = liftingSessionsFor(program, event.date);
+    const { sessions } = liftingSessionsFor(program, event.date, working[event.date]?.workout);
     const at = typeof event.at === "string" && !Number.isNaN(Date.parse(event.at)) ? event.at : new Date().toISOString();
     let changed = false;
     for (const session of sessions) {

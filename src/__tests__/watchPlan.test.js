@@ -77,6 +77,17 @@ describe("buildWatchPlan", () => {
     ]);
   });
 
+  it("carries an exercise added for the day, and takes its sets back", () => {
+    const data = { [DAY]: { workout: { exercises: {}, added: [{ name: "Cable Fly", sets: 2, reps: 12, session: "main" }] } } };
+    const plan = buildWatchPlan({ data, program, dateKey: DAY });
+    expect(plan.sessions[0].exercises.map((exercise) => exercise.name)).toEqual(["Bench Press", "Plank", "Cable Fly"]);
+
+    const event = JSON.stringify({ v: 1, type: "set", id: "fly-0", date: DAY, session: "main", exercise: "Cable Fly", setIndex: 0, values: { weight: 30, reps: 12 }, at: "2026-11-26T15:10:00.000Z" });
+    const result = applyWatchEvents({ data, program, events: [event] });
+    expect(result.applied).toBe(1);
+    expect(program.Thursday.lifting).toHaveLength(2);
+  });
+
   it("has no sessions on a day with no lifting", () => {
     const plan = buildWatchPlan({ data: {}, program, dateKey: "2026-11-27" });
     expect(plan.sessions).toEqual([]);

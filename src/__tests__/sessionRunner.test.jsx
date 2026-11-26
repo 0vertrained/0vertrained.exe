@@ -103,4 +103,18 @@ describe("the session runner", () => {
     expect(ui.queryByText("Stop here.")).toBeNull();
     expect(ui.getByRole("button", { name: "Log set" })).toBeTruthy();
   });
+
+  it("adds an exercise for today from the queue, without changing the program", () => {
+    const { view, ui, updates } = mountRunner();
+    fireEvent.click(ui.getByRole("button", { name: /^Queue/ }));
+    const queue = within(view.baseElement).getByRole("dialog", { name: "Queue" });
+    fireEvent.click(within(queue).getByRole("button", { name: "Add an exercise" }));
+    const sheet = within(view.baseElement).getByRole("dialog", { name: "Add an exercise" });
+    fireEvent.change(within(sheet).getByLabelText("Exercise"), { target: { value: "Sled Push" } });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Add “Sled Push”" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Add to today" }));
+    expect(updates).toHaveBeenCalledWith("workout.added", [{ name: "Sled Push", sets: 3, reps: 10, session: "main" }]);
+    // Back to the queue, where it joins the end.
+    expect(within(view.baseElement).getByRole("dialog", { name: "Queue" })).toBeTruthy();
+  });
 });

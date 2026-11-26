@@ -36,6 +36,8 @@ import { lastSessionSets, firstEmptyIndex, ghostForSet } from "./setGhosts";
 import { buildBoxScore } from "./boxScore";
 import { buildAggregatedRecoveryContext } from "./recovery/aggregationModel";
 import { flattenProgramLifting, getProgramSessions, usesProgramSessions } from "./programSessions";
+import { addToDay, removeFromDay, withAdded } from "./addedExercises";
+import { AddExerciseSheet } from "./AddExercise";
 import { buildWearableLoadRows } from "./wearableWorkoutLoad";
 import { TRACKING_MODES, completedSetCount, isCompletedSet, isExerciseHandled, reconcileExerciseSets, resolveTrackingMode, validateSet } from "./workoutLogging";
 import { isFirstWeekUser, countLoggedDays, buildFirstWeekChecklist, summarizeChecklist, buildFirstWeekCoachCopy, buildBetaFeedbackText, resolveDataMode } from "./firstWeekJourney";
@@ -182,17 +184,21 @@ function PaceCheck({ cardio, logged }) {
 
 // Quick edit: every exercise of a session with its sets, for correcting a log
 // without opening the runner. Same write path as the runner.
-function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR }) {
+function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR, onAddExercise = null }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", paddingBottom: 8 }}>
       <ul className="rows" style={{ paddingBottom: 8 }}>
         {lifting.map((exercise, index) => {
           const exerciseData = workout.exercises[exercise.name] || {};
           const handled = isExerciseHandled(exercise, exerciseData);
+          const logged = completedSetCount(exercise, exerciseData);
           return (
             <li key={`${exercise.name}-queue-${index}`} className="row" style={{ minHeight: 36 }}>
-              <span className={`t-s grow clip${handled ? " c2" : ""}`}>{exerciseData.performedName || exercise.name}</span>
-              <span className="n-s c2">{exerciseData.skipped ? "Skipped" : `${completedSetCount(exercise, exerciseData)}/${exercise.sets}`}</span>
+              <span className={`t-s grow clip${handled ? " c2" : ""}`}>{exerciseData.performedName || exercise.name}{exercise.added && <span className="c2"> · added today</span>}</span>
+              {exercise.added && logged === 0 && !exerciseData.skipped && (
+                <button type="button" className="btn btn-g btn-sm" onClick={() => updateToday("workout.added", removeFromDay(workout, exercise.name))} aria-label={`Remove ${exercise.name} from today`}>Remove</button>
+              )}
+              <span className="n-s c2">{exerciseData.skipped ? "Skipped" : `${logged}/${exercise.sets}`}</span>
             </li>
           );
         })}
@@ -200,6 +206,9 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR }) {
       {lifting.map((ex, i) => (
         <ExerciseLogger key={ex.name + i} exercise={ex} data={workout.exercises[ex.name] || {}} lastSets={lastSessionSets(allData, ex.name, todayKey)} onChange={(v) => updateToday(`workout.exercises.${ex.name}`, v)} onPR={onPR} />
       ))}
+      {onAddExercise && (
+        <button type="button" className="btn btn-s btn-b" onClick={onAddExercise} style={{ marginTop: 8 }}><Icon name="plus" size="s" />Add an exercise</button>
+      )}
     </div>
   );
 }
@@ -210,12 +219,13 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
   const prevReadinessRef = useRef(null); // remembers last band so readiness doesn't flicker (hysteresis)
   const activeProgram = program || DEFAULT_PROGRAM;
-  const p   = activeProgram[todayName] || DEFAULT_PROGRAM[todayName];
+  const wo  = todayData.workout;
+  // The day's plan, with any exercises added for this day alone.
+  const p   = withAdded(activeProgram[todayName] || DEFAULT_PROGRAM[todayName], wo);
   const programSessions = getProgramSessions(p);
   const sessionAwareProgram = usesProgramSessions(p);
   const plannedLifting = flattenProgramLifting(p);
   const hasPlannedCardio = programSessions.some((s) => !!s.cardio);
-  const wo  = todayData.workout;
   const nut = todayData.nutrition;
   const bod = todayData.body;
   const realToday = getTodayKey();
@@ -445,6 +455,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
     isRest: todayPlan.isRest,
   });
   const [sessionModeOpen, setSessionModeOpen] = useState(false); // focused workout runner
+  const [addFor, setAddFor] = useState(null); // session an exercise is being added to
   const [activeLiftingSessionId, setActiveLiftingSessionId] = useState(null);
   const [cardioSessionOpen, setCardioSessionOpen] = useState(false); // interval runner
   const [activeCardioSessionId, setActiveCardioSessionId] = useState(null);
@@ -723,7 +734,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
                 </div>
               )}
               {session.emphasis && <p className="t-s c2" style={{ paddingBottom: 4 }}>{session.emphasis}</p>}
-              {open && <QuickEdit lifting={lifts} workout={wo} allData={allData} todayKey={todayKey} updateToday={updateToday} onPR={checkPR} />}
+              {open && <QuickEdit lifting={lifts} workout={wo} allData={allData} todayKey={todayKey} updateToday={updateToday} onPR={checkPR} onAddExercise={() => setAddFor(session.id)} />}
               {session.cardio && cardioBlock({
                 cardio: session.cardio,
                 logged: wo.cardioSessions?.[session.id] || {},
@@ -739,10 +750,10 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           <div>
             <div className="row">
               <Icon name="train" />
-              <span className="kv grow"><span className="t-bs clip">{p.type || "Lifting"}</span><span className="t-s c2">Lifting · {doneExercises - skippedExercises} of {plannedLifting.length}{"\u00a0"}exercises done{skippedExercises ? `, ${skippedExercises} skipped` : ""}</span></span>
+              <span className="kv grow"><span className="t-bs clip">{plannedLifting.every((exercise) => exercise.added) ? "Added today" : p.type || "Lifting"}</span><span className="t-s c2">Lifting · {doneExercises - skippedExercises} of {plannedLifting.length}{"\u00a0"}exercises done{skippedExercises ? `, ${skippedExercises} skipped` : ""}</span></span>
               <button type="button" className="btn btn-s btn-sm" aria-expanded={Boolean(quickEditOpen.main)} onClick={() => setQuickEditOpen((current) => ({ ...current, main: !current.main }))}>{quickEditOpen.main ? "Hide" : "Quick edit"}</button>
             </div>
-            {quickEditOpen.main && <QuickEdit lifting={plannedLifting} workout={wo} allData={allData} todayKey={todayKey} updateToday={updateToday} onPR={checkPR} />}
+            {quickEditOpen.main && <QuickEdit lifting={plannedLifting} workout={wo} allData={allData} todayKey={todayKey} updateToday={updateToday} onPR={checkPR} onAddExercise={() => setAddFor("main")} />}
           </div>
         )}
 
@@ -753,6 +764,15 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           onStart: () => setCardioSessionOpen(true),
           startLabel: isRunCardio(p.cardio) ? "Start run" : "Start cardio",
         })}
+
+        {/* No lifting planned: an exercise can still be added for this day. */}
+        {plannedLifting.length === 0 && (
+          <div className="row">
+            <Icon name="train" />
+            <span className="kv grow"><span className="t-bs">Lifting</span><span className="t-s c2">None planned. Add an exercise for this day only.</span></span>
+            <button type="button" className="btn btn-s btn-sm" onClick={() => setAddFor(sessionAwareProgram ? programSessions[0]?.id || "main" : "main")}>Add</button>
+          </div>
+        )}
 
         {/* A run nobody planned still gets logged: the same three fields, on any day. */}
         {!hasPlainCardio && (
@@ -918,6 +938,21 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           />
         </Suspense>
       )}
+
+      <AddExerciseSheet
+        open={addFor !== null}
+        onClose={() => setAddFor(null)}
+        allData={allData}
+        todayKey={todayKey}
+        existing={plannedLifting.map((exercise) => exercise.name)}
+        onAdd={(item) => {
+          const session = addFor;
+          updateToday("workout.added", addToDay(wo, { ...item, session }));
+          setAddFor(null);
+          setQuickEditOpen((current) => ({ ...current, [session]: true }));
+          showToast?.(`${item.name} added for ${isLoggingPast ? "this day" : "today"}`);
+        }}
+      />
 
       {/* Session Mode overlay (lazy-loaded, only fetched on open) */}
       {sessionModeOpen && (

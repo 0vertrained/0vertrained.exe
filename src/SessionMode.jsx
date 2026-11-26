@@ -26,6 +26,8 @@ import { buildSessionArbitration, buildSessionVolumeProjection } from "./trainin
 import { readExerciseNote, writeExerciseNote, readSupersetPref, writeSupersetPref } from "./liftLogPrefs";
 import { playRestChirp, triggerHaptic, useScreenWakeLock } from "./sessionDevice";
 import { cancelRestAlert, hideRestTimer, scheduleRestAlert, showRestTimer } from "./native";
+import { AddExerciseSheet } from "./AddExercise";
+import { addToDay } from "./addedExercises";
 import {
   completedSetCount,
   firstIncompleteExerciseIndex,
@@ -610,6 +612,7 @@ export function SessionMode({
             <aside data-section="session-queue" aria-label="Session queue" style={{ borderRight: "1px solid var(--line)", padding: "16px 24px", display: "flex", flexDirection: "column", gap: 8 }}>
               <div className="sec"><h2 className="t-title">Queue</h2><span className="t-s c2">{handledExercises} of {lifting.length} done</span></div>
               <Queue lifting={lifting} workoutData={workoutData} current={idx} onGo={(index) => { setRest(null); goToExercise(index); }} />
+              <button type="button" className="btn btn-s btn-b" onClick={() => setSheet("add")}><Icon name="plus" size="s" />Add an exercise</button>
             </aside>
           )}
 
@@ -822,9 +825,23 @@ export function SessionMode({
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <p className="t-s c2">{handledExercises} of {lifting.length} exercises done. Choose one to go to it.</p>
           <Queue lifting={lifting} workoutData={workoutData} current={idx} onGo={(index) => { setSheet(null); setRest(null); goToExercise(index); }} />
+          <button type="button" className="btn btn-s btn-b" onClick={() => setSheet("add")}><Icon name="plus" size="s" />Add an exercise</button>
           <VolumeAfter projection={volumeProjection} />
         </div>
       </Sheet>
+
+      {/* For today only; it joins the end of the queue. */}
+      <AddExerciseSheet
+        open={sheet === "add"}
+        onClose={() => setSheet(isBroadsheet ? null : "queue")}
+        allData={allData}
+        todayKey={todayKey}
+        existing={lifting.map((item) => item.name)}
+        onAdd={(item) => {
+          onUpdate("workout.added", addToDay(workoutData, { ...item, session: sessionId }));
+          setSheet(isBroadsheet ? null : "queue");
+        }}
+      />
     </Flow>
   );
 }

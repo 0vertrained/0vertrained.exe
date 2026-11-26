@@ -5,6 +5,7 @@
 // card says how far the day has got.
 import { DEFAULT_PROGRAM, getDayName } from "../constants";
 import { getProgramSessions } from "../programSessions";
+import { withAdded } from "../addedExercises";
 import { applyRaceBuild } from "../raceBuild";
 import { isExerciseHandled } from "../workoutLogging";
 
@@ -28,7 +29,8 @@ export function cardioPart(cardio) {
 export function dayCard(program, dateKey, logged = null) {
   const dayName = getDayName(new Date(`${dateKey}T12:00:00`));
   const live = applyRaceBuild(program || DEFAULT_PROGRAM, dateKey) || DEFAULT_PROGRAM;
-  const day = live[dayName] || DEFAULT_PROGRAM[dayName] || {};
+  // Exercises added to the day count, as they do on Today.
+  const day = withAdded(live[dayName] || DEFAULT_PROGRAM[dayName] || {}, logged?.workout);
   const sessions = getProgramSessions(day);
   const lifting = sessions.flatMap((session) => session.lifting || []);
   const runs = sessions.map((session) => session.cardio).filter(Boolean);
