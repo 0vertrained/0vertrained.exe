@@ -1,11 +1,12 @@
 // src/watch/watchPlan.js
 // What the Apple Watch gets from the phone, and what the phone does with what
-// comes back. The plan is a day's lifting with every number the runner would
-// show already worked out: what each open set is filled from and says so, how
-// long to rest, how far one step of the crown moves each field. The watch
-// logs sets against it and sends them back as events, which are written the
-// way the runner writes them (completeSet), so the phone stays the only
-// writer of the log. Nothing here talks to the watch; useWatchBridge does.
+// comes back. The plan is a day's runs (./runWorkouts) and its lifting, with
+// every number the runner would show already worked out: what each open set
+// is filled from and says so, how long to rest, how far one step of the crown
+// moves each field. The watch logs sets against it and sends them back as
+// events, which are written the way the runner writes them (completeSet), so
+// the phone stays the only writer of the log. Nothing here talks to the
+// watch; useWatchBridge does.
 
 import { DEFAULT_PROGRAM, defaultDay, getDayName } from "../constants";
 import { applyRaceBuild } from "../raceBuild";
@@ -16,6 +17,7 @@ import { suggestRestSeconds } from "../sessionIntelligence";
 import { proposeSet, setFields } from "../workout/setFill";
 import { completeSet } from "../workout/completeSet";
 import { defaultWeightIncrement, isSessionHandled, reconcileExerciseSets, validateSet } from "../workoutLogging";
+import { runWorkoutsFor } from "./runWorkouts";
 
 export const WATCH_PLAN_VERSION = 1;
 
@@ -116,6 +118,8 @@ export function buildWatchPlan({ data = {}, program = null, dateKey, sentAt = ne
         data, exercise, exData: exercises[exercise.name] || {}, dateKey,
       })),
     })),
+    // Today's runs, which the watch opens in its Workout app.
+    runs: runWorkoutsFor(program, dateKey),
   };
 }
 
