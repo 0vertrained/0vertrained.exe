@@ -33,8 +33,8 @@ import { Header } from "./AppHeader";
 import { BottomNav, QuickActionSheet, QUICK_ACTIONS, COACH_ACTION, TABS_ORDER } from "./AppBottomNav";
 import { Flow, Icon, Toast, TopBar } from "./ui/ledger";
 import { ShellProvider, useShellBar } from "./ui/shell";
-import { RefreshingBar } from "./ui/primitives";
-import { resolveLoadState } from "./uiStability";
+import { LoadingShell, RefreshingBar } from "./ui/primitives";
+import { getSkeletonPlan, resolveLoadState } from "./uiStability";
 import { isFirstWeekUser, buildNewUserEmptyState, countLoggedDays } from "./firstWeekJourney";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TodayTab } from "./TodayTab";
@@ -1118,7 +1118,7 @@ function AppInner({ onThemeChange }) {
             {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} onLogout={handleLogout} /> : !loaded ? <AccountLoading /> : (<>
             <BaselineBanner tab="More" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} />
             <ErrorBoundary label="Profile">
-            <Suspense fallback={null}>
+            <Suspense fallback={<LoadingShell plan={getSkeletonPlan("Profile")} />}>
             <ProfileScreen
               view={profileView} onView={setProfileView}
               username={myUsername} demoMode={demoMode}
@@ -1142,7 +1142,7 @@ function AppInner({ onThemeChange }) {
         {overlay === "recovery" && (
           <div className={!accountUnavailable && loaded && !dayZero.recovery.isZero ? "tab-screen" : "legacy-screen"}>
             <ErrorBoundary label="Recovery">
-            <Suspense fallback={null}>
+            <Suspense fallback={<LoadingShell plan={getSkeletonPlan("Recovery")} />}>
             {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /> : loaded && dayZero.recovery.isZero
               ? <DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} />
               : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} todayPlan={liveProgram?.[todayName]?.type || null} onOpenIntegrations={() => openSettings("integrations", null, "Recovery")} openEdition={editionAsked} onEditionClosed={() => setEditionAsked(false)} onLoaded={(out) => setRecoveryLoad({ ...out, owner: user?.id ?? null })} todayCall={todayCall && todayCall.owner === (user?.id ?? null) && todayCall.dateKey === getTodayKey() ? todayCall : null} /></>}
@@ -1155,7 +1155,7 @@ function AppInner({ onThemeChange }) {
           /* key={tab} resets the boundary on tab switch, so a crash in one tab
              never leaves another tab stuck on the fallback. */
           <ErrorBoundary key={tab} label={`${tab} tab`}>
-          <Suspense fallback={null}>
+          <Suspense fallback={<LoadingShell plan={getSkeletonPlan(tab)} />}>
           {accountUnavailable ? <div className="legacy-screen"><AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /></div> : (<>
           {tab === "Today" && (
             <div className={loaded && !dayZero.today.isZero ? "tab-screen" : "legacy-screen"}>
