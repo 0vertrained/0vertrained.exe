@@ -39,6 +39,7 @@ import { isFirstWeekUser, buildNewUserEmptyState, countLoggedDays } from "./firs
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TodayTab } from "./TodayTab";
 import { useWatchBridge } from "./watch/useWatchBridge";
+import { useWatchRuns } from "./watch/useWatchRuns";
 
 // Lazy chunks — DemoPage only loads on the #demo route.
 // Everything not needed for first paint is now lazy. TodayTab stays
@@ -709,6 +710,7 @@ function AppInner({ onThemeChange }) {
   // In the iPhone app: today's lifting to the watch, and the sets logged on
   // the watch into the log. Nothing in a browser.
   useWatchBridge({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, updateEntryAtDate });
+  useWatchRuns({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, updateEntryAtDate, showToast });
 
   // Save user settings to Supabase — merge with existing state so onboarded/theme are never wiped
   const handleSaveSettings = async (newSettings) => {
