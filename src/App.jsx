@@ -31,7 +31,7 @@ import { isCoachEnabled } from "./coachEnabled";
 import { DEMO_USER, DEMO_SETTINGS, buildDemoEntries, buildDemoOuraData, getDemoWhoopData, isDemoMode } from "./demoData";
 import { Header } from "./AppHeader";
 import { BottomNav, QuickActionSheet, QUICK_ACTIONS, COACH_ACTION, TABS_ORDER } from "./AppBottomNav";
-import { Icon, Toast } from "./ui/ledger";
+import { Flow, Icon, Toast, TopBar } from "./ui/ledger";
 import { ShellProvider, useShellBar } from "./ui/shell";
 import { RefreshingBar } from "./ui/primitives";
 import { resolveLoadState } from "./uiStability";
@@ -1302,52 +1302,46 @@ function BaselineBanner({ tab, firstWeek, settings, entries, program, ouraConnec
   );
 }
 
-// First-week setup card
-// Compact "Baseline week" card shown near the top of Today for new beta users.
-// One-line explanation, checklist progress (n/6), the next step + CTA, a subtle
-// expand/collapse for the full checklist, and a privacy-safe beta feedback note.
-// CTAs navigate existing tabs via setTab — no new nav structure. Whitepaper
-// aesthetic throughout: soft C.line hairlines, mono labels, serif is avoided
-// here to keep the card quiet.
-function ExportModal({  modal, onClose, showToast }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
+// A backup to copy, shown after an export: the share sheet or download may
+// not be available, and the text is always here to copy by hand.
+function ExportModal({ modal, onClose, showToast }) {
   const taRef = useRef();
   const copyAll = async () => {
     try { await navigator.clipboard.writeText(modal.text); showToast("Copied to clipboard"); }
     catch { if (taRef.current) { taRef.current.focus(); taRef.current.select(); } showToast("Select all + copy"); }
   };
   return (
-    <div style={{ position:"fixed", inset:0, background:C.bg, zIndex:1000, display:"flex", flexDirection:"column", padding:16, maxWidth:"var(--ovt-content-width)", margin:"0 auto" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-        <span style={{ fontSize:13, letterSpacing:"0.2em", color:C.text, textTransform:"uppercase" }}>{"> "}{modal.label}</span>
-        <button style={S.smallBtn} onClick={onClose}>✕ Close</button>
+    <Flow label={modal.label} onClose={onClose}>
+      <div className="shell" style={{ maxWidth: "var(--ovt-content-width)" }}>
+        <TopBar title={modal.label} close="Close" onClose={onClose} />
+        <div className="main" style={{ gap: 12 }}>
+          <p className="t-b">Copy it and keep it anywhere.{/\.json$/i.test(modal.filename || "") ? " Restore it later from Profile, under Your data." : ""}</p>
+          {modal.note && <p className="banner" role="status">{modal.note}</p>}
+          <textarea ref={taRef} className="input area" readOnly rows={12} value={modal.text} aria-label={`${modal.label} text`} onFocus={(e) => e.target.select()} style={{ fontFamily: "var(--mono, monospace)", fontSize: 13 }} />
+        </div>
+        <div className="foot"><button type="button" className="btn btn-p btn-b" onClick={copyAll}>Copy all</button></div>
       </div>
-      <div style={{ fontSize:11, color:C.textDim, marginBottom:8, lineHeight:1.6 }}>Copy and save this anywhere. Restore it later via Import.</div>
-      {modal.note && <div role="status" style={{ fontSize:11, color:C.red, marginBottom:8, lineHeight:1.6 }}>{modal.note}</div>}
-      <textarea ref={taRef} readOnly value={modal.text} onFocus={e => e.target.select()} style={{ flex:1, background:C.cell, border:`1px solid ${C.lineBright}`, color:C.text, fontFamily:mono, fontSize:11.5, padding:10, resize:"none", outline:"none", width:"100%", boxSizing:"border-box" }} />
-      <button style={{ ...S.foodBtn, marginTop:10 }} onClick={copyAll}>Copy All to Clipboard</button>
-    </div>
+    </Flow>
   );
 }
 
-function ImportModal({  onImport, onClose }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
+// Paste a backup's JSON and import it.
+function ImportModal({ onImport, onClose }) {
   const [text, setText] = useState("");
+  const empty = !text.trim();
   return (
-    <div style={{ position:"fixed", inset:0, background:C.bg, zIndex:1000, display:"flex", flexDirection:"column", padding:16, maxWidth:"var(--ovt-content-width)", margin:"0 auto" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-        <span style={{ fontSize:13, letterSpacing:"0.2em", color:C.text, textTransform:"uppercase" }}>{"> "}Paste Backup</span>
-        <button style={S.smallBtn} onClick={onClose}>✕ Close</button>
+    <Flow label="Import from pasted text" onClose={onClose}>
+      <div className="shell" style={{ maxWidth: "var(--ovt-content-width)" }}>
+        <TopBar title="Import from pasted text" close="Close" onClose={onClose} />
+        <div className="main" style={{ gap: 12 }}>
+          <p className="t-b">Paste the text of an exported backup (JSON), then import it.</p>
+          <label className="field"><span className="lbl">Backup</span><textarea className="input area" rows={10} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} /></label>
+        </div>
+        <div className="foot"><button type="button" className="btn btn-p btn-b" aria-disabled={empty || undefined} onClick={() => !empty && onImport(text)}>Import backup</button></div>
       </div>
-      <div style={{ fontSize:11, color:C.textDim, marginBottom:8, lineHeight:1.6 }}>Paste exported JSON, then restore.</div>
-      <textarea value={text} onChange={e => setText(e.target.value)} placeholder="paste JSON here..." style={{ flex:1, background:C.cell, border:`1px solid ${C.lineBright}`, color:C.text, fontFamily:mono, fontSize:11.5, padding:10, resize:"none", outline:"none", width:"100%", boxSizing:"border-box" }} />
-      <button style={{ ...S.foodBtn, marginTop:10 }} onClick={() => onImport(text)}>Restore From Pasted Data</button>
-    </div>
+    </Flow>
   );
 }
-
 export default function App() {
   // Logged-out first paint (landing/auth) follows the OS colour
   // scheme, matching the static /legal pages. Once a session loads, the

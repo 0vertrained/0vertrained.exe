@@ -449,11 +449,11 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
     fireEvent.click(await screen.findByRole("button", { name: /^Your data/ }, WAIT));
     fireEvent.click(await screen.findByRole("button", { name: /Import from pasted text/ }, WAIT));
-    await screen.findByText(/Paste Backup/, {}, WAIT);
+    await screen.findByRole("dialog", { name: "Import from pasted text" }, WAIT);
     await act(async () => { h.authCb("SIGNED_OUT", null); });
     await act(async () => { h.authCb("SIGNED_IN", { user: h.user, access_token: "t5" }); });
     await liveToday();
-    expect(screen.queryByText(/Paste Backup/)).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Import from pasted text" })).toBeNull();
   }, 20000);
 
   it("a failed program read with nothing cached shows the panel, not the default program", async () => {
