@@ -7,6 +7,7 @@
 // source transparency badges, and explicit risk while preserving every v1
 // field (call, title, subtitle, trainingAction, fuelAction, reasons, risk,
 // confidence, programLabel) so existing UI and tests keep working.
+import { SHARED_TO_TODAY } from "./sharedCall";
 import { summarizeProgramDay } from "./programSummary";
 
 // Call ranking, most-conservative first. Used to "cap" a call so a manual
@@ -92,6 +93,9 @@ export function buildTodayDecision({
   adaptiveSuggestion = null,
   conflicts = null,
   aggregatedConfidence = null,
+  // Recovery's verdict for today ({ call, limiter }), when it is known. It can
+  // only make today's call more cautious, so Today and Recovery agree.
+  recoveryVerdict = null,
 } = {}) {
   const programSummary = summarizeProgramDay(todayProgram);
   const programLabel = todayProgram ? programSummary.label : null;
@@ -217,6 +221,23 @@ export function buildTodayDecision({
     }
   }
 
+  // ── One call across the app. Recovery's verdict reads the wearable score
+  //    with its own limiters (sleep debt, alerts, load, the check-in). It
+  //    caps today's call and never raises it. Today's own call is kept as
+  //    engineCall, so Recovery can tell whose read is the cautious one. ─────
+  const engineCall = call;
+  const engineNote = overrideNote;
+  const recoveryCap = SHARED_TO_TODAY[recoveryVerdict?.call] || null;
+  if (recoveryCap) {
+    const capped = capCall(call, recoveryCap);
+    if (capped !== call) {
+      call = capped;
+      risk = raiseRisk(risk, call === "recover" ? "High" : "Medium");
+      const why = recoveryVerdict?.limiter?.detail ? ` ${recoveryVerdict.limiter.detail}` : "";
+      overrideNote = `Recovery's read is more cautious today, so the call follows it.${why}`;
+    }
+  }
+
   // ── Do / Avoid / Watch guidance ────────────────────────────────────────────
   const doList = [];
   const avoidList = [];
@@ -306,6 +327,8 @@ export function buildTodayDecision({
   return {
     version: 2,
     call,
+    engineCall,
+    engineNote,
     title: isRestDay && call === "maintain" ? "Recovery day" : TITLE[call] || TITLE.maintain,
     subtitle,
     primaryAction: isRestDay && call === "maintain" ? "Keep the rest day — mobility, walking, or full rest." : PRIMARY[call] || PRIMARY.maintain,
