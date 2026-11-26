@@ -44,6 +44,7 @@ import { RaceWeekLine } from "./RaceWeekLine";
 import { isRunCardio } from "./raceBuild";
 import { paceCheck, paceCheckText } from "./runPaceCheck";
 import { tomorrowSummary } from "./tomorrowLine";
+import { watchLiftLine, watchLiftSummary } from "./watch/liftSummary";
 
 // SessionMode is lazy — it only loads when a session actually starts,
 // keeping it out of the initial bundle.
@@ -536,6 +537,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
 
   // Tomorrow, read from the plan itself rather than today's adjusted copy.
   const tomorrow = tomorrowSummary(baseProgram || activeProgram, todayKey);
+  const watchLine = watchLiftLine(watchLiftSummary(todayData));
 
   // One planned cardio block: what is planned, the runner, and the run fields.
   const cardioBlock = ({ cardio, logged, path, onStart, startLabel }) => (
@@ -708,6 +710,9 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           <div className="row"><Icon name="done" className="good" /><span className="kv grow"><span className="t-bs">Rest day</span><span className="t-s c2">No training was planned.</span></span></div>
         )}
         </div>
+
+        {/* Time, heart rate and calories from the watch, once it has tracked a lift. */}
+        {watchLine && <p className="t-s c2" style={{ paddingTop: 4 }}>On your watch: {watchLine}.</p>}
 
         {/* What tomorrow holds, so there's time to get ready. */}
         {!isLoggingPast && tomorrow && <p className="t-s c2" style={{ paddingTop: 4 }}>{tomorrow}</p>}

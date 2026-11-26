@@ -18,6 +18,7 @@ import { proposeSet, setFields } from "../workout/setFill";
 import { completeSet } from "../workout/completeSet";
 import { defaultWeightIncrement, isSessionHandled, reconcileExerciseSets, validateSet } from "../workoutLogging";
 import { runWorkoutsFor } from "./runWorkouts";
+import { WATCH_WORKOUTS_PER_DAY, watchWorkoutRecord } from "./liftSummary";
 
 export const WATCH_PLAN_VERSION = 1;
 // What the phone sends: today's plan with the week's day plans, today first.
@@ -232,11 +233,29 @@ export function applyWatchEvents({ data = {}, program = null, events = [] } = {}
     return changed;
   };
 
+  // What the watch measured over its workout (time, heart rate, calories) is
+  // kept on the day once per workout, whether or not a session finished.
+  const keepWorkout = (event) => {
+    const record = watchWorkoutRecord(event);
+    if (!record) return false;
+    const workout = (working[event.date] || defaultDay()).workout || {};
+    const kept = Array.isArray(workout.watchWorkouts) ? workout.watchWorkouts : [];
+    if (kept.some((item) => item?.id === record.id)) return false;
+    write(event.date, ["workout", "watchWorkouts"], [...kept, record].slice(-WATCH_WORKOUTS_PER_DAY));
+    return true;
+  };
+
   for (const raw of events) {
     const event = parseWatchEvent(raw);
     if (!event) continue;
     processed.push(event.id);
-    const done = event.type === "set" ? applySet(event) : applyFinish(event);
+    let done;
+    if (event.type === "set") done = applySet(event);
+    else {
+      const finished = applyFinish(event);
+      const kept = keepWorkout(event);
+      done = finished || kept;
+    }
     if (done) applied += 1;
   }
 

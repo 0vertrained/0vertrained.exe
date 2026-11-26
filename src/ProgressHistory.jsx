@@ -10,6 +10,7 @@ import { buildAthleteTimeline, filterTimelineEvents, groupTimelineByDate, summar
 import { displaySet } from "./workoutLogging";
 import { Icon, Seg } from "./ui/ledger";
 import { dayDate } from "./sections/charts";
+import { watchLiftLine, watchLiftSummary } from "./watch/liftSummary";
 
 const NBSP = "\u00a0";
 const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
@@ -52,6 +53,7 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
   const planned = program?.[dayName] || DEFAULT_PROGRAM[dayName];
   const exercises = Object.entries(day.workout?.exercises || {});
   const shown = allLifts ? exercises : exercises.slice(0, 3);
+  const watchLine = watchLiftLine(watchLiftSummary(day));
   const cardio = day.workout?.cardio || {};
   const nutrition = day.nutrition || {};
   const body = day.body || {};
@@ -76,6 +78,7 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
       {exercises.length > 0 && (
         <section aria-label="Lifting" style={column(8)}>
           <div className="sec"><h3 className="t-h">{planned?.type || "Lifting"}</h3><span className="t-s c2">{liftedSets(day)} sets</span></div>
+          {watchLine && <p className="t-s c2">On your watch: {watchLine}.</p>}
           <dl style={column(10)}>
             {shown.map(([name, exercise]) => (
               <div key={name} className="kv">

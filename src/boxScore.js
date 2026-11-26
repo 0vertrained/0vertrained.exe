@@ -16,6 +16,7 @@
 import { effectiveE1RM } from "./sessionIntelligence";
 import { buildE1RMSeries } from "./e1rmTrend";
 import { mapExerciseToMuscles, buildVolumeReport } from "./muscleVolume";
+import { watchLiftSummary } from "./watch/liftSummary";
 
 const numOr = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 
@@ -153,6 +154,8 @@ export function buildBoxScore({ data = {}, todayKey, todayName = null } = {}) {
       : null,
     prs, arrows, banked, skips,
     lifts, liftsDone,
+    // Time, heart rate and calories, when the watch tracked the workout.
+    watch: watchLiftSummary(today),
     method: priorSameDayKey
       ? `Compared with your last ${todayName || "same-day"} session. Estimated one-rep max uses straight sets only. Sets for a secondary muscle count half.`
       : "Estimated one-rep max uses straight sets only. Sets for a secondary muscle count half.",

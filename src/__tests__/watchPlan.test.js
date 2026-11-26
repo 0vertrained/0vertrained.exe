@@ -142,6 +142,33 @@ describe("applyWatchEvents", () => {
   });
 });
 
+describe("the watch's workout numbers", () => {
+  const finish = (id, extra = {}) => JSON.stringify({
+    v: 1, type: "finish", id, date: DAY, at: "2026-11-26T17:00:00.000Z",
+    startedAt: "2026-11-26T16:05:00.000Z", durationSeconds: 3300, averageHeartRate: 127.6, activeEnergy: 412.4, ...extra,
+  });
+
+  it("keeps the time, heart rate and calories on the day once per workout", () => {
+    const first = applyWatchEvents({ data: {}, program, events: [finish("w1")] });
+    const kept = first.writes.find((write) => write.path === "workout.watchWorkouts");
+    expect(kept.value).toEqual([{
+      id: "w1", startedAt: "2026-11-26T16:05:00.000Z", endedAt: "2026-11-26T17:00:00.000Z", seconds: 3300, avgHr: 128, kcal: 412,
+    }]);
+    expect(first.applied).toBe(1);
+
+    const again = applyWatchEvents({ data: first.days, program, events: [finish("w1")] });
+    expect(again.writes).toEqual([]);
+    const second = applyWatchEvents({ data: first.days, program, events: [finish("w2", { averageHeartRate: null })] });
+    expect(second.writes[0].value.map((workout) => workout.id)).toEqual(["w1", "w2"]);
+    expect(second.writes[0].value[1]).toMatchObject({ avgHr: null, kcal: 412 });
+  });
+
+  it("keeps nothing from an older watch build that sends no duration", () => {
+    const result = applyWatchEvents({ data: {}, program, events: [finish("w1", { durationSeconds: undefined })] });
+    expect(result.writes.some((write) => write.path === "workout.watchWorkouts")).toBe(false);
+  });
+});
+
 describe("parseWatchEvent", () => {
   it("accepts sets and finishes for a real date only", () => {
     expect(parseWatchEvent(setEvent("a", 0, {}))).toMatchObject({ id: "a", type: "set" });

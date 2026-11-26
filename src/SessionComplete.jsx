@@ -12,6 +12,7 @@
 // there. Brass marks a record and nothing else.
 
 import { Flow, Icon, TopBar } from "./ui/ledger";
+import { watchLiftLine } from "./watch/liftSummary";
 
 const NBSP = " ";
 const fmt = (value) => Math.round(value).toLocaleString("en-US");
@@ -82,6 +83,7 @@ export function SessionComplete({ boxScore, finisher, onDismiss, dateKey = "", s
               {(dateKey || sessionName) && <p className="t-s c2">{[dayLabel(dateKey), sessionName].filter(Boolean).join(" · ")}</p>}
               <h2 className="t-xl">{b.headline || "Session logged."}</h2>
               {lifts.length > 0 && <p className="t-s c2">{b.liftsDone} of {lifts.length}{NBSP}exercises done.</p>}
+              {b.watch && <p className="t-s c2" data-testid="box-watch">On your watch: {watchLiftLine(b.watch)}.</p>}
             </header>
 
             {(b.prs || []).map((pr, index) => (
