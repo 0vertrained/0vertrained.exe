@@ -103,3 +103,37 @@ describe("V19.4 Integrations landing", () => {
     expect(screen.queryByTestId("integrations-notice")).toBeNull();
   });
 });
+
+// Inside the iPhone app, Apple Watch runs lead the page, but only in a build
+// of the app that has them; an older build doesn't show a card it can't use.
+describe("Apple Watch on Integrations", () => {
+  afterEach(() => { delete window.Capacitor; });
+
+  const openIntegrations = () => {
+    renderSettings();
+    fireEvent.click(screen.getByRole("button", { name: /^Integrations/ }));
+  };
+  const appleWatch = () => screen.queryByRole("heading", { level: 2, name: "Apple Watch" });
+
+  it("isn't there in a browser", () => {
+    openIntegrations();
+    expect(appleWatch()).toBeNull();
+  });
+
+  it("isn't there in an app build without runs", () => {
+    window.Capacitor = { isNativePlatform: () => true, Plugins: {} };
+    openIntegrations();
+    expect(appleWatch()).toBeNull();
+  });
+
+  it("comes first in an app build with runs", async () => {
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      Plugins: { OTRuns: { status: vi.fn(async () => ({ supported: true, scheduling: "notDetermined", health: true })) } },
+    };
+    openIntegrations();
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
+    expect(headings[0]).toBe("Apple Watch");
+    expect(await screen.findByRole("button", { name: "Turn on" })).toBeTruthy();
+  });
+});

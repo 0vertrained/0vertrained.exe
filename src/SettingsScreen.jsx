@@ -14,7 +14,7 @@ import { suggestRecoveryPhrase } from "./recoveryPhraseSuggest";
 import { buildBetaFeedbackText } from "./firstWeekJourney";
 import { copyToClipboard } from "./clipboard";
 import { APP_VERSION, SUPPORT_EMAIL, buildSupportMailto } from "./appMeta";
-import { isNativeApp } from "./native";
+import { nativePlugin } from "./native";
 import { AppleWatchCard } from "./sections/AppleWatchCard";
 
 const GOAL_LABELS = Object.fromEntries(ONBOARDING_GOALS.map(g => [g.id, g.label]));
@@ -110,6 +110,8 @@ const NBSP = "\u00a0";
 // quietly, without the full Save path's close + toast.
 export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange, currentTheme, initialSection = null, notice = null, onPatch = null, loggedDays = 0, currentTab = "Settings", backLabel = null }) {
   const { confirm, confirmDialog } = useConfirm();
+  // Runs on the Apple Watch: only in an iPhone app build that has them.
+  const watchRuns = Boolean(nativePlugin("OTRuns"));
   const [goals, setGoals]     = useState({ ...settings.goals });
   const [supps, setSupps]     = useState([...settings.supplements]);
   const [newSupp, setNewSupp] = useState("");
@@ -513,7 +515,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
       <ul className="rows" style={{ borderTop: "1px solid var(--line)" }}>
         <li><LinkRow label="Supplements" sub={supps.length ? supps.join(", ") : "None yet"} onClick={() => setSection("supps")} /></li>
         <li><LinkRow label="Dietary restrictions" sub={dietary.length ? DIETARY_TAGS.filter((tag) => dietary.includes(tag.key)).map((tag) => tag.label).join(", ") : "None"} onClick={() => setSection("diet")} /></li>
-        <li><LinkRow label="Integrations" sub={isNativeApp() ? "Apple Watch, Oura, Whoop and Strava" : "Oura, Whoop and Strava"} onClick={() => setSection("integrations")} /></li>
+        <li><LinkRow label="Integrations" sub={watchRuns ? "Apple Watch, Oura, Whoop and Strava" : "Oura, Whoop and Strava"} onClick={() => setSection("integrations")} /></li>
         <li><LinkRow label="Account" sub="Change your recovery phrase" onClick={() => setSection("account")} /></li>
         <li><LinkRow label="Help and about" sub="Version, support and beta feedback" onClick={() => setSection("about")} /></li>
       </ul>
@@ -564,7 +566,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
       {notice?.text && (
         <p role="status" data-testid="integrations-notice" className={notice.tone === "error" ? "banner caution" : "banner"}>{notice.text}</p>
       )}
-      {isNativeApp() && <AppleWatchCard />}
+      {watchRuns && <AppleWatchCard />}
       <ProviderCard onSync={onSync} {...{
         id: "oura", name: "Oura", on: ouraOn, status: ouraStatus, lastSynced: ouraStatus?.lastSynced || ouraCounts?.lastSynced,
         about: "HRV-based recovery, sleep, resting heart rate and body temperature.",
