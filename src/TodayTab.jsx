@@ -42,6 +42,7 @@ import { isFirstWeekUser, countLoggedDays, buildFirstWeekChecklist, summarizeChe
 import { useDayOps, CallCard, FuelSnapshot, DayProgress, CallSheets } from "./TodayCall";
 import { RaceWeekLine } from "./RaceWeekLine";
 import { isRunCardio } from "./raceBuild";
+import { paceCheck, paceCheckText } from "./runPaceCheck";
 
 // SessionMode is lazy — it only loads when a session actually starts,
 // keeping it out of the initial bundle.
@@ -158,6 +159,14 @@ function RunFields({ logged = {}, planned = null, onChange }) {
       <label className="field"><span className="lbl">Pace</span><input className="input n" type="text" autoComplete="off" placeholder="/mi" value={logged.pace || ""} onChange={(e) => onChange("pace", e.target.value)} /></label>
     </div>
   );
+}
+
+// Once a planned easy run is logged: how its pace sat against the plan's
+// easy range. Nothing for runs without a range or with faster parts.
+function PaceCheck({ cardio, logged }) {
+  const check = paceCheck(cardio, logged);
+  if (!check) return null;
+  return <p className={`t-s ${check.status === "on" ? "good" : "c2"}`}>{paceCheckText(check)}</p>;
 }
 
 // Quick edit: every exercise of a session with its sets, for correcting a log
@@ -531,6 +540,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       </div>
       {cardio.notes && <CardioNotes notes={cardio.notes} />}
       <RunFields logged={logged} planned={cardio} onChange={(field, value) => updateToday(`${path}.${field}`, value)} />
+      <PaceCheck cardio={cardio} logged={logged} />
     </div>
   );
 
