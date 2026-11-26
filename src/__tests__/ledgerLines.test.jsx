@@ -1,12 +1,11 @@
 // src/__tests__/ledgerLines.test.jsx
 // @vitest-environment jsdom
 // Ledger Lines — every number defends itself. Pins:
-//   (1) the MethodLine primitive (method renders always; detail hidden until
-//       the summary is toggled; no-detail variant renders as a plain line);
+//   (1) the kit's Method (the method line always shows; the detail stays
+//       hidden until its button is pressed; no detail, no button);
 //   (2) the sweep — TDEE, Training Load (ACWR), and muscle-volume landmarks
 //       each carry a MethodLine, with jargon confined to expandables;
-//   (3) the three disclosure registers coexist (MethodNote, ⓘ toggle,
-//       MethodLine) — no rival primitives;
+//   (3) one disclosure register on the rebuilt screens: the kit's Method;
 //   (4) the Session Mode offline stamp appears exactly when connectivity
 //       drops and clears on return;
 //   (5) scope decisions on record: undo toasts were dropped because the app
@@ -17,7 +16,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, fireEvent, act } from "@testing-library/react";
 import { useState, useEffect } from "react";
 import { ThemeProvider } from "../theme";
-import { MethodLine } from "../whitepaper";
+import { Method } from "../ui/ledger";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,26 +27,24 @@ const read = (p) => readFileSync(resolve(root, p), "utf8");
 afterEach(cleanup);
 const wrap = (ui) => render(<ThemeProvider>{ui}</ThemeProvider>);
 
-describe("V17.1 MethodLine primitive (mounted)", () => {
-  it("renders the method line always; detail stays hidden until toggled", () => {
-    const { getByText, getByTestId, queryByText } = wrap(
-      <MethodLine method="vs your 28-day norm" detail={<span>The long plain-language story.</span>} />
+describe("The kit's Method (mounted)", () => {
+  it("shows the method line always; the detail opens from its button", () => {
+    const { getByText, getByRole, queryByText } = wrap(
+      <Method testId="method-x" method="vs your 28-day norm" detail={<span>The long plain-language story.</span>} />
     );
     expect(getByText("vs your 28-day norm")).toBeTruthy();
-    const details = getByTestId("method-line");
-    expect(details.tagName.toLowerCase()).toBe("details");
-    expect(details.open).toBe(false);
-    // jsdom doesn't auto-toggle <details>; assert the mechanism + content wiring.
-    fireEvent.click(details.querySelector("summary"));
-    details.open = true;
+    const toggle = getByRole("button", { name: "How this is measured" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(queryByText("The long plain-language story.")).toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(queryByText("The long plain-language story.")).toBeTruthy();
   });
 
-  it("no detail → a plain line, not an expandable; no method → renders nothing", () => {
-    const { getByTestId, rerender, container } = wrap(<MethodLine method="just the line" />);
-    expect(getByTestId("method-line").tagName.toLowerCase()).toBe("div");
-    rerender(<ThemeProvider><MethodLine method={null} detail={<span>x</span>} /></ThemeProvider>);
-    expect(container.textContent).toBe("");
+  it("without detail it is a plain line with no button", () => {
+    const { getByTestId, container } = wrap(<Method testId="method-y" method="just the line" />);
+    expect(getByTestId("method-y").textContent).toBe("just the line");
+    expect(container.querySelector("button")).toBeNull();
   });
 });
 

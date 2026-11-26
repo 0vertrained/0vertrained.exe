@@ -3,7 +3,7 @@
 // Morning Edition surface. The dashboard's ten-required-props mount is
 // a fixture project (per the V16.2 precedent, noted honestly) — the wiring and
 // reading-order anatomy are pinned as source guards, and the pieces that mount
-// cleanly (Sparkline overlay) are mounted for real. The engine behavior behind
+// cleanly (the trend chart's running average) are mounted for real. The engine behavior behind
 // this surface is fully mounted in recoveryTrend.test.js / checkinMorning.test.js.
 //
 // The anatomy being protected (the UX contract):
@@ -13,8 +13,7 @@
 //   the check-in completes; calibration never fakes a verdict.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
-import { ThemeProvider } from "../theme";
-import { Sparkline } from "../whitepaper";
+import { LineChart } from "../sections/charts";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -94,44 +93,26 @@ describe("V16.8 Morning Edition — dashboard anatomy (source guards)", () => {
   });
 });
 
-describe("V16.8 Morning Edition — sparkline overlay (mounted)", () => {
-  const points = [
-    { date: "2026-07-08", value: 82 }, { date: "2026-07-09", value: 77 },
-    { date: "2026-07-10", value: 88 }, { date: "2026-07-11", value: 80 },
-    { date: "2026-07-12", value: 88 }, { date: "2026-07-13", value: 77 },
-    { date: "2026-07-14", value: 81 },
-  ];
-  const rolling = points.map((p, i, arr) => {
+describe("V16.8 Morning Edition — trend with its running average (mounted)", () => {
+  const daily = [82, 77, 88, 80, 88, 77, 81];
+  const points = daily.map((value, i, arr) => {
     const win = arr.slice(Math.max(0, i - 2), i + 1);
-    return { date: p.date, value: win.reduce((a, x) => a + x.value, 0) / win.length };
+    return { date: `2026-07-${String(8 + i).padStart(2, "0")}`, value, also: win.reduce((a, x) => a + x, 0) / win.length };
+  });
+  const yValues = (line) => line.getAttribute("points").split(" ").map((pair) => Number(pair.split(",")[1]));
+
+  it("draws the running average as a dashed second line behind the days", () => {
+    const { container } = render(<LineChart label="Recovery, last 7 days" points={points} second />);
+    const lines = container.querySelectorAll("polyline");
+    expect(lines.length).toBe(2);
+    expect(lines[0].getAttribute("class")).toBe("ln2");
+    expect(lines[1].getAttribute("class")).toBe("ln");
   });
 
-  it("draws two paths when overlayPoints are provided — trend behind daily", () => {
-    const { container } = render(
-      <ThemeProvider><Sparkline points={points} overlayPoints={rolling} width={260} height={44} label="7-day trend" /></ThemeProvider>
-    );
-    const paths = container.querySelectorAll("path");
-    expect(paths.length).toBe(2);
-    // Overlay is the FIRST path (painted behind) and dashed.
-    expect(paths[0].getAttribute("stroke-dasharray")).toBeTruthy();
-    expect(paths[1].getAttribute("stroke-dasharray")).toBeFalsy();
-  });
-
-  it("shares one min/max scale across both series (lines are honestly comparable)", () => {
-    // With a shared scale, the daily min (77) must touch lower than the
-    // rolling min (~79.3): compare max Y coordinates of the two paths.
-    const { container } = render(
-      <ThemeProvider><Sparkline points={points} overlayPoints={rolling} width={260} height={44} /></ThemeProvider>
-    );
-    const yMax = (d) => Math.max(...[...d.matchAll(/[ML] [\d.]+ ([\d.]+)/g)].map((m) => Number(m[1])));
-    const [overlay, daily] = [...container.querySelectorAll("path")].map((p) => p.getAttribute("d"));
-    expect(yMax(daily)).toBeGreaterThan(yMax(overlay));
-  });
-
-  it("renders single-series unchanged when no overlay is passed", () => {
-    const { container } = render(
-      <ThemeProvider><Sparkline points={points} width={260} height={44} /></ThemeProvider>
-    );
-    expect(container.querySelectorAll("path").length).toBe(1);
+  it("shares one scale across both lines, so they are honestly comparable", () => {
+    const { container } = render(<LineChart label="Recovery, last 7 days" points={points} second />);
+    const [average, days] = container.querySelectorAll("polyline");
+    // The daily low (77) sits lower on the chart than the average's low.
+    expect(Math.max(...yValues(days))).toBeGreaterThan(Math.max(...yValues(average)));
   });
 });
