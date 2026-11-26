@@ -904,7 +904,7 @@ function AppInner({ onThemeChange }) {
   };
 
   // Save updated program to Supabase + local state
-  const handleSaveProgram = async (newProgram) => {
+  const handleSaveProgram = async (newProgram, { savedMessage = "Program saved" } = {}) => {
     setSaving(true);
     if (demoMode) {
       setProgram(newProgram);
@@ -925,8 +925,13 @@ function AppInner({ onThemeChange }) {
         myUsername,
       });
     }
-    showToast("Program saved");
+    showToast(savedMessage);
     return true;
+  };
+  // A race result's paces, written into the race plan.
+  const applyRaceToPaces = (benchmark) => {
+    if (!program?.__raceBuild || !benchmark) return Promise.resolve(false);
+    return handleSaveProgram({ ...program, __raceBuild: { ...program.__raceBuild, benchmark } }, { savedMessage: "Training paces updated" });
   };
 
   // Apply a Program Builder V2 generated plan. Explicit user action from
@@ -1177,7 +1182,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.today.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.today.isZero
               ? <DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />
-              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={recoveryLoad && recoveryLoad.owner === (user?.id ?? null) ? recoveryLoad : null} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
+              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={recoveryLoad && recoveryLoad.owner === (user?.id ?? null) ? recoveryLoad : null} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
             </div>
           )}
           {tab === "Train" && (

@@ -45,6 +45,10 @@ import { isRunCardio } from "./raceBuild";
 import { paceCheck, paceCheckText } from "./runPaceCheck";
 import { tomorrowSummary } from "./tomorrowLine";
 import { watchLiftLine, watchLiftSummary } from "./watch/liftSummary";
+import { RaceLine, RaceSheet, likelyRaceDistance } from "./RaceResult";
+import { normalizeRace, personalBests, raceLabel, raceMiles, racePace, raceResults } from "./raceResults";
+import { formatDuration, formatPace } from "./runPaces";
+import { isRunPlanSpec } from "./runPlanGenerator";
 
 // SessionMode is lazy — it only loads when a session actually starts,
 // keeping it out of the initial bundle.
@@ -169,6 +173,7 @@ function RunFields({ logged = {}, planned = null, onChange }) {
 // Once a planned easy run is logged: how its pace sat against the plan's
 // easy range. Nothing for runs without a range or with faster parts.
 function PaceCheck({ cardio, logged }) {
+  if (normalizeRace(logged?.race)) return null;
   const check = paceCheck(cardio, logged);
   if (!check) return null;
   return <p className={`t-s ${check.status === "on" ? "good" : "c2"}`}>{paceCheckText(check)}</p>;
@@ -198,7 +203,7 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR }) {
   );
 }
 
-export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
+export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
   // Broadsheet: below 1440px every wrapper is display:contents and
   // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -451,6 +456,8 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   const hasPlainCardio = !sessionAwareProgram && Boolean(p.cardio);
   const unplannedRunLogged = !hasPlainCardio && ((parseFloat(wo.cardio?.miles) || 0) > 0 || String(wo.cardio?.time || "").trim() !== "");
   const [runOpen, setRunOpen] = useState(false);
+  // The run whose race sheet is open: { path, race, defaultDistance }.
+  const [raceSheet, setRaceSheet] = useState(null);
 
   // Targets, day mode, closeout and the sheets behind the call.
   const ops = useDayOps({
@@ -539,6 +546,46 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   const tomorrow = tomorrowSummary(baseProgram || activeProgram, todayKey);
   const watchLine = watchLiftLine(watchLiftSummary(todayData));
 
+  // Races: a logged run can be marked as one. The plan's own race and test
+  // runs offer it before anything is logged; any other run once it is.
+  const raceSpec = isRunPlanSpec((baseProgram || activeProgram)?.__raceBuild) ? (baseProgram || activeProgram).__raceBuild : null;
+  const bests = personalBests(raceResults(allData || {}));
+  const blockAt = (path) => path.split(".").reduce((node, key) => node?.[key], todayData) || {};
+  const raceLine = (path, logged, planned = null) => {
+    const race = normalizeRace(logged?.race);
+    const loggedRun = Number.parseFloat(logged?.miles) > 0 || String(logged?.time || "").trim() !== "";
+    const planRace = planned?.planRole === "race" || planned?.planRole === "benchmark";
+    if (!race && !loggedRun && !planRace) return null;
+    const best = race ? bests[race.distance] : null;
+    return (
+      <RaceLine
+        race={race}
+        isBest={Boolean(best && best.dateKey === todayKey && best.seconds === race.seconds)}
+        onOpen={() => setRaceSheet({ path, race, defaultDistance: likelyRaceDistance({ planned, spec: raceSpec, miles: logged?.miles }) })}
+      />
+    );
+  };
+  const saveRace = (result) => {
+    const path = raceSheet?.path;
+    if (!path) return;
+    if (!result) {
+      updateToday(`${path}.race`, null);
+      showToast?.("This run is no longer marked as a race");
+      return;
+    }
+    const logged = blockAt(path);
+    const others = { ...(allData || {}) };
+    delete others[todayKey];
+    const before = personalBests(raceResults(others))[result.distance];
+    updateToday(`${path}.race`, result);
+    if (!(Number.parseFloat(logged.miles) > 0)) updateToday(`${path}.miles`, String(raceMiles(result.distance)));
+    if (!String(logged.time || "").trim()) updateToday(`${path}.time`, formatDuration(result.seconds));
+    if (!String(logged.pace || "").trim()) updateToday(`${path}.pace`, formatPace(racePace(result)));
+    showToast?.(before && result.seconds < before.seconds
+      ? `New ${raceLabel(result.distance)} PR: ${formatDuration(result.seconds)}, ${formatDuration(before.seconds - result.seconds)} faster`
+      : "Race saved");
+  };
+
   // One planned cardio block: what is planned, the runner, and the run fields.
   const cardioBlock = ({ cardio, logged, path, onStart, startLabel }) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0 8px" }}>
@@ -550,11 +597,22 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       {cardio.notes && <CardioNotes notes={cardio.notes} />}
       <RunFields logged={logged} planned={cardio} onChange={(field, value) => updateToday(`${path}.${field}`, value)} />
       <PaceCheck cardio={cardio} logged={logged} />
+      {isRunCardio(cardio) && raceLine(path, logged, cardio)}
     </div>
   );
 
   return (
     <div className="shell" data-screen="today">
+      <RaceSheet
+        open={Boolean(raceSheet)}
+        race={raceSheet?.race || null}
+        defaultDistance={raceSheet?.defaultDistance || "5k"}
+        dateKey={todayKey}
+        spec={raceSpec}
+        onSave={saveRace}
+        onUsePaces={onUseRaceForPaces}
+        onClose={() => setRaceSheet(null)}
+      />
       {/* The Box Score, built at the moment of completion from the data
           already in hand; the finisher writes to the active session's cardio
           slot (or the plain slot on single-session days). */}
@@ -702,7 +760,12 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
               <span className="kv grow"><span className="t-bs">{hasPlannedCardio ? "Another run" : "Run"}</span><span className="t-s c2">{unplannedRunLogged ? `${wo.cardio.miles || "—"}${"\u00a0"}mi · ${wo.cardio.time || "no time"}` : "Not logged"}</span></span>
               <button type="button" className="btn btn-s btn-sm" aria-expanded={runOpen || unplannedRunLogged} onClick={() => setRunOpen((open) => !open)}>{runOpen ? "Hide" : unplannedRunLogged ? "Edit" : "Log run"}</button>
             </div>
-            {runOpen && <div style={{ paddingBottom: 8 }}><RunFields logged={wo.cardio || {}} onChange={(field, value) => updateToday(`workout.cardio.${field}`, value)} /></div>}
+            {runOpen && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingBottom: 8 }}>
+                <RunFields logged={wo.cardio || {}} onChange={(field, value) => updateToday(`workout.cardio.${field}`, value)} />
+                {raceLine("workout.cardio", wo.cardio || {})}
+              </div>
+            )}
           </div>
         )}
 
