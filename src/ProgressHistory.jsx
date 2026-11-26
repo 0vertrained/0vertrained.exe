@@ -11,6 +11,7 @@ import { displaySet } from "./workoutLogging";
 import { Icon, Seg } from "./ui/ledger";
 import { dayDate } from "./sections/charts";
 import { watchLiftLine, watchLiftSummary } from "./watch/liftSummary";
+import { dayFoods, itemTotals, servingsLabel } from "./foodLog";
 
 const NBSP = "\u00a0";
 const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
@@ -57,7 +58,8 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
   const cardio = day.workout?.cardio || {};
   const nutrition = day.nutrition || {};
   const body = day.body || {};
-  const fuelLogged = Number.parseFloat(nutrition.calories) > 0 || Number.parseFloat(nutrition.protein) > 0 || Number.parseFloat(nutrition.water) > 0;
+  const foods = dayFoods(nutrition);
+  const fuelLogged = foods.length > 0 || Number.parseFloat(nutrition.calories) > 0 || Number.parseFloat(nutrition.protein) > 0 || Number.parseFloat(nutrition.water) > 0;
   const bodyRows = [["Weight", body.weight, "lb"], ["Sleep", body.sleep, "h"], ["Energy", body.energy, "of 10"], ["Soreness", body.soreness, "of 10"], ["Waist", body.waist, "in"]].filter(([, value]) => value);
   const against = (goal, unit) => (Number.parseFloat(goal) > 0 ? `of ${Number(goal).toLocaleString("en-US")}${NBSP}${unit}` : unit);
   const figure = (label, value, unit) => (
@@ -118,6 +120,18 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
             {figure("Carbs · Fat", `${nutrition.carbs || "—"} · ${nutrition.fats || "—"}`, "g")}
             {figure("Water", nutrition.water || 0, against(goals.water, "oz"))}
           </div>
+          {foods.length > 0 && (
+            <ul className="rows" aria-label="Foods logged">
+              {foods.map((item) => (
+                <li key={item.id} className="row" style={{ minHeight: 48 }}>
+                  <span className="kv grow">
+                    <span className="t-bs clip">{item.name}</span>
+                    <span className="n-s c2">{[servingsLabel(item.qty), `${itemTotals(item).calories.toLocaleString("en-US")}${NBSP}kcal`, `${Math.round(itemTotals(item).protein)}${NBSP}g protein`].filter(Boolean).join(" · ")}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
