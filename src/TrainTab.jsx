@@ -20,6 +20,8 @@ import { ProgramBuilderPanel } from "./ProgramBuilderPanel";
 import { RacePlanPanel } from "./RacePlanPanel";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { dayDate } from "./sections/charts";
+import { movedFrom, resetWeek, swapDays, weekMovesFor } from "./weekMoves";
+import { MoveDaySheet } from "./MoveDay";
 
 // The block brings the planner and the decision engine with it, so it loads
 // when it is opened.
@@ -60,7 +62,8 @@ export function buildTrainWeek({ program, entries, todayKey }) {
     const isRest = lifting.length === 0 && !hasCardio;
     const done = !isRest && doneLifts === lifting.length && (!hasCardio || cardioLogged);
     const when = dateKey === todayKey ? "today" : dateKey < todayKey ? "past" : "ahead";
-    const parts = [];
+    const from = movedFrom(program, dateKey);
+    const parts = from ? [`From ${from}`] : [];
     if (lifting.length) parts.push(done ? "Lifting" : when === "ahead" ? `${lifting.length}${NBSP}exercises` : `${doneLifts} of ${lifting.length}${NBSP}exercises`);
     if (hasCardio) parts.push(summary.cardioLabel || "Cardio");
     if (done) parts.push("done");
@@ -69,7 +72,7 @@ export function buildTrainWeek({ program, entries, todayKey }) {
       started: doneLifts > 0 || cardioLogged,
       label: `${dayName.slice(0, 3)}${NBSP}${date.getDate()}`,
       title: isRest ? "Rest day" : (summary.label || dayName),
-      detail: isRest ? "No training planned" : parts.join(" · "),
+      detail: isRest ? [...parts, "No training planned"].join(" · ") : parts.join(" · "),
       liftCount: lifting.length,
     };
   });
@@ -80,6 +83,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
   const [view, setView] = useState(initialView === "block" ? "block" : "home");
   const [editDay, setEditDay] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
+  const [moveOpen, setMoveOpen] = useState(false);
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
   // The editor's check before Back drops unsaved changes.
   const leaveGuard = useRef(null);
@@ -97,6 +101,10 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
   const planSummary = summarizeProgramForHub(program);
   const hasRacePlan = isRunPlanSpec(program?.__raceBuild);
   const raceCopy = hasRacePlan ? raceWeekCopy(describeBuildWeek(program, todayKey)) : null;
+  // This week's moved days, kept on the program for this week only.
+  const weekMoved = Boolean(weekMovesFor(program, todayKey));
+  const swapThisWeek = (first, second) => onSaveProgram(swapDays(program || DEFAULT_PROGRAM, todayKey, first, second), { savedMessage: `${first} and ${second} swapped for this week` });
+  const resetThisWeek = () => onSaveProgram(resetWeek(program || DEFAULT_PROGRAM, todayKey), { savedMessage: "This week is back as planned" });
 
   const dayOpen = view === "history" && Boolean(selectedDay) && !isBroadsheet;
   useTopBar(view === "home" ? null : dayOpen
@@ -189,6 +197,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
             <h2 id="train-week" className="t-h">This week</h2>
             <span className="t-s c2">{shortDate(week[0].dateKey, { month: "short", day: "numeric" })} to {shortDate(week[6].dateKey, { month: "short", day: "numeric" })}</span>
           </div>
+          <MoveDaySheet open={moveOpen} week={week} onSwap={swapThisWeek} onReset={weekMoved ? resetThisWeek : null} onClose={() => setMoveOpen(false)} />
           <ol className="rows">
             {week.map((d) => {
               const body = (
@@ -211,6 +220,9 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
               );
             })}
           </ol>
+          <button type="button" className="btn btn-g btn-sm" onClick={() => setMoveOpen(true)} style={{ alignSelf: "flex-start", paddingLeft: 0 }}>
+            {weekMoved ? "Move another day" : "Move a day this week"}
+          </button>
         </section>
 
         <section aria-labelledby="train-plan" style={{ display: "flex", flexDirection: "column", gap: 4 }}>

@@ -49,6 +49,7 @@ import { RaceLine, RaceSheet, likelyRaceDistance } from "./RaceResult";
 import { normalizeRace, personalBests, raceLabel, raceMiles, racePace, raceResults } from "./raceResults";
 import { formatDuration, formatPace } from "./runPaces";
 import { isRunPlanSpec } from "./runPlanGenerator";
+import { movedFrom } from "./weekMoves";
 
 // SessionMode is lazy — it only loads when a session actually starts,
 // keeping it out of the initial bundle.
@@ -701,6 +702,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
 
         {/* Race plan line: week of the plan, phase, countdown. Renders nothing without a plan. */}
         <RaceWeekLine program={activeProgram} dateKey={todayKey} />
+        {movedFrom(baseProgram || activeProgram, todayKey) && <p className="t-s c2">Moved here from {movedFrom(baseProgram || activeProgram, todayKey)} this week.</p>}
 
         <div className="rows">
         {sessionAwareProgram && programSessions.map((session) => {

@@ -20,6 +20,7 @@
 // registry-string path (the 50K) is unchanged.
 
 import { generateRunPlan, isRunPlanSpec } from "./runPlanGenerator";
+import { applyWeekMoves } from "./weekMoves";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -292,10 +293,15 @@ function applyPlanPatch(day, patch) {
   return relabel({ ...original, cardio: placed ? { ...placed } : current });
 }
 
-// Returns the program with the current build week's patches applied, or the
-// exact same reference when there is nothing to do (no marker, unknown id,
-// not started, race complete) so React consumers don't re-render for nothing.
+// Returns the program as the week holding todayKey has it: the build week's
+// patches, then any days moved that week (./weekMoves). The exact same
+// reference when there is nothing to do (no marker or moves, unknown id, not
+// started, race complete) so React consumers don't re-render for nothing.
 export function applyRaceBuild(program, todayKey) {
+  return applyWeekMoves(applyBuildWeek(program, todayKey), todayKey);
+}
+
+function applyBuildWeek(program, todayKey) {
   const config = resolveRaceBuildConfig(program?.__raceBuild);
   if (!config) return program;
   const resolved = resolveBuildWeek(config, todayKey);
