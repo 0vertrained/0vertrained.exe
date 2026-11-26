@@ -144,6 +144,7 @@ html, body { background: var(--bg); color: var(--ink); }
 .ibtn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 8px; flex: none; }
 .ibtn-o { border: 1px solid var(--edge); background: var(--surface); }
 .ibtn-o[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn-s[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .ibtn-o[aria-pressed="false"] .i { color: var(--ink-3); }
 
 /* Hover is for pointers only, so a tap never leaves a hover state stuck on a phone */
