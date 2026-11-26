@@ -15,7 +15,7 @@
 //   initialGoal     optional builder-goal id to preselect
 
 import { useMemo, useState } from "react";
-import { Seg } from "./ui/ledger";
+import { RadioRows, Seg } from "./ui/ledger";
 import {
   PROGRAM_BUILDER_GOALS,
   PROGRAM_BUILDER_GOAL_IDS,
@@ -53,33 +53,6 @@ function initialDraft(settings, initialGoal) {
     sessionLength: saved.sessionLength || 60,
     cardioPreference: saved.cardioPreference || recommendCardioPreference(goal),
   };
-}
-
-// One choice of several, each with a line of explanation. One Tab stop;
-// the arrow keys move the choice.
-function Options({ id, label, options, value, onChange }) {
-  const onKeyDown = (event) => {
-    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[event.key];
-    if (!step) return;
-    event.preventDefault();
-    const index = Math.max(0, options.findIndex((o) => o.id === value));
-    const next = options[(index + step + options.length) % options.length];
-    onChange(next.id);
-    event.currentTarget.querySelector(`[data-id="${next.id}"]`)?.focus();
-  };
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span id={id} className="lbl">{label}</span>
-      <div role="radiogroup" aria-labelledby={id} onKeyDown={onKeyDown} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {options.map((o) => (
-          <button key={o.id} data-id={o.id} type="button" className="opt" role="radio" aria-checked={value === o.id} tabIndex={value === o.id ? 0 : -1} onClick={() => onChange(o.id)}>
-            <span className="rad" aria-hidden="true" />
-            <span className="kv grow"><span className="t-bs">{o.label}</span>{o.desc && <span className="t-s c2">{o.desc}</span>}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 const STEPS = ["Goal and time", "Your week", "Cardio and preview"];
@@ -151,13 +124,13 @@ export function ProgramBuilderPanel({ settings, onApply, initialGoal }) {
 
         {step === 0 && (
           <>
-            <Options id="pb-goal" label="What are you training for?" options={PROGRAM_BUILDER_GOALS} value={draft.goal} onChange={setGoal} />
+            <RadioRows id="pb-goal" label="What are you training for?" options={PROGRAM_BUILDER_GOALS} value={draft.goal} onChange={setGoal} />
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span id="pb-days" className="lbl">Training days per week</span>
               <Seg labelledBy="pb-days" options={TRAINING_DAY_OPTIONS.map((n) => ({ value: n, label: String(n) }))} value={draft.trainingDaysPerWeek} onChange={(v) => set("trainingDaysPerWeek", v)} />
               <p className="t-s c2">{restDays} rest day{restDays === 1 ? "" : "s"} a week.</p>
             </div>
-            <Options id="pb-exp" label="Experience" options={EXPERIENCE_LEVELS} value={draft.experience} onChange={(v) => set("experience", v)} />
+            <RadioRows id="pb-exp" label="Experience" options={EXPERIENCE_LEVELS} value={draft.experience} onChange={(v) => set("experience", v)} />
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span id="pb-len" className="lbl">Session length (min)</span>
               <Seg labelledBy="pb-len" options={SESSION_LENGTH_OPTIONS.map((n) => ({ value: n, label: String(n) }))} value={draft.sessionLength} onChange={(v) => set("sessionLength", v)} />
@@ -183,13 +156,13 @@ export function ProgramBuilderPanel({ settings, onApply, initialGoal }) {
                 <p className="t-s c2">{norm.longRunDay}. Heavy lower-body work is kept away from it.</p>
               </div>
             )}
-            <Options id="pb-equip" label="Equipment" options={EQUIPMENT_OPTIONS} value={draft.equipment} onChange={(v) => set("equipment", v)} />
+            <RadioRows id="pb-equip" label="Equipment" options={EQUIPMENT_OPTIONS} value={draft.equipment} onChange={(v) => set("equipment", v)} />
           </>
         )}
 
         {step === 2 && (
           <>
-            <Options id="pb-cardio" label="Cardio" options={CARDIO_PREFERENCES} value={draft.cardioPreference} onChange={(v) => set("cardioPreference", v)} />
+            <RadioRows id="pb-cardio" label="Cardio" options={CARDIO_PREFERENCES} value={draft.cardioPreference} onChange={(v) => set("cardioPreference", v)} />
             <section aria-labelledby="pb-preview" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <div className="sec"><h2 id="pb-preview" className="t-h">Your week</h2></div>
               <p className="t-s c2">{summary.headline}</p>

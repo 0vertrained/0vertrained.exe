@@ -240,6 +240,44 @@ export function Seg({ label, options, value, onChange, labelledBy, chips = false
   );
 }
 
+// Radio rows: one choice from a short list, each with a name and an optional
+// line under it. The name is the radio's name and the line its description.
+// Arrow keys move the choice, as in Seg. Label the group with `label`, or with
+// `labelledBy` when the question is a heading on the screen.
+export function RadioRows({ id, label, labelledBy, options, value, onChange }) {
+  const ref = useRef(null);
+  const onKeyDown = (event) => {
+    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[event.key];
+    if (!step) return;
+    event.preventDefault();
+    const index = Math.max(0, options.findIndex((o) => o.id === value));
+    const next = options[(index + step + options.length) % options.length];
+    onChange(next.id);
+    requestAnimationFrame(() => ref.current?.querySelector('[aria-checked="true"]')?.focus());
+  };
+  const hasValue = options.some((o) => o.id === value);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {label && <span id={id} className="lbl">{label}</span>}
+      <div ref={ref} role="radiogroup" aria-labelledby={labelledBy || id} onKeyDown={onKeyDown} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {options.map((o, i) => {
+          const key = `${id}-${String(o.id).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+          const on = o.id === value;
+          return (
+            <button key={String(o.id)} type="button" className="opt" role="radio" aria-checked={on} tabIndex={on || (!hasValue && i === 0) ? 0 : -1} aria-labelledby={`${key}-l`} aria-describedby={o.desc || o.meta ? `${key}-d` : undefined} onClick={() => onChange(o.id)}>
+              <span className="rad" aria-hidden="true" />
+              <span className="kv grow">
+                <span id={`${key}-l`} className="t-bs">{o.label}</span>
+                {(o.desc || o.meta) && <span id={`${key}-d`} className="t-s c2">{[o.desc, o.meta].filter(Boolean).join(" ")}</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function Switch({ checked, onChange, labelledBy, label, disabled = false }) {
   return (
     <button type="button" className="sw" role="switch" aria-checked={checked} aria-labelledby={labelledBy} aria-label={labelledBy ? undefined : label} aria-disabled={disabled || undefined} onClick={() => !disabled && onChange(!checked)}>
