@@ -1,7 +1,7 @@
 // src/__tests__/landingCompliance.test.jsx
-// Locks the public homepage's basics: the functionality description
-// (Abstract), the privacy/terms links in both the masthead and the colophon,
-// and index.html's description and no-JS fallback. Google Health was retired
+// Locks the public homepage's basics: the description of what the app does,
+// the privacy/terms links in the privacy section and the footer, and
+// index.html's description and no-JS fallback. Google Health was retired
 // in 19.9.0, so the Google data-use disclosure and its verification tag are
 // gone and must stay gone while nothing reads Google data.
 
@@ -20,12 +20,12 @@ const wrap = (ui) => render(<ThemeProvider>{ui}</ThemeProvider>);
 const read = (rel) => fs.readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
 describe("LandingPage — public homepage", () => {
-  it("describes the app's functionality via the Abstract", () => {
+  it("describes what the app does", () => {
     const { container } = wrap(<LandingPage />);
     expect(container.textContent).toContain(ABSTRACT_TEXT);
   });
 
-  it("links the privacy policy and terms in both the masthead and the colophon", () => {
+  it("links the privacy policy and terms in the privacy section and the footer", () => {
     const { container } = wrap(<LandingPage />);
     const hrefs = (sel) => container.querySelectorAll(`a[href="${sel}"]`).length;
     expect(hrefs("/legal/privacy-policy.html")).toBeGreaterThanOrEqual(2);
@@ -35,7 +35,7 @@ describe("LandingPage — public homepage", () => {
   it("lists only the data sources the app reads", () => {
     const { container } = wrap(<LandingPage />);
     const text = container.textContent;
-    for (const source of ["Manual", "Oura + Whoop", "Strava"]) expect(text).toContain(source);
+    for (const source of ["Typed in", "Oura and Whoop", "Strava"]) expect(text).toContain(source);
     expect(text).not.toMatch(/Fitbit|Google/);
   });
 });

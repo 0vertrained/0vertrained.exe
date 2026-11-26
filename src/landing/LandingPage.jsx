@@ -1,174 +1,91 @@
 // src/landing/LandingPage.jsx
-// The logged-out landing as the paper's front matter: masthead, title
-// block + Abstract, Fig. 1 live specimen, Fig. 2 method, Fig. 3 data sources,
-// colophon. It is the app's public homepage, so it stays visible without
-// login, describes what the app does (the Abstract), and links the privacy
-// policy and terms in both the masthead and the colophon.
+// The public home page: what the app is, a sample of the daily call, what it
+// does, where its numbers come from and how private it is. The privacy policy
+// and terms are linked from the privacy section and from the footer.
 // src/__tests__/landingCompliance.test.jsx locks these in.
-import { useTheme } from "../theme";
+import { Wordmark } from "../ui/ledger";
 import { SampleMornings } from "./ReadinessSpecimen";
+import { PRIVACY_HREF, PublicFooter, TERMS_HREF } from "./PublicFooter";
 
-// ── Compliance copy (exported so the test suite can lock the exact strings) ──
 export const ABSTRACT_TEXT =
-  "0VERTRAINED is a private training ledger for hybrid athletes. You log strength, cardio, nutrition, body metrics, and daily recovery check-ins — or import them from a wearable — and the app reconciles training load against sleep, HRV, and fueling to answer one question each morning: how hard should today be? An optional AI Coach gives feedback on request; it is opt-in and off by default.";
+  "A private training ledger for people who lift and run. Log or import your training, recovery and food, and get one evidence-based answer each morning.";
 
-// Centralized so the public colophon, beta dead ends, About screen, and error
-// reports all use the same support address.
-import { SUPPORT_EMAIL } from "../appMeta";
-
-const METHOD_STEPS = [
-  ["01 · Log", "Strength, cardio, nutrition, body metrics, and daily recovery check-ins — typed in, or imported from a source you connect."],
-  ["02 · Reconcile", "Training load is compared against sleep, HRV, fueling, and your own rolling baselines — not population averages."],
-  ["03 · Decide", "One verdict each morning — push, hold, or back off — with the limiter that set it printed right on the call."],
+const FEATURES = [
+  ["Today", "One call each morning, with the evidence behind it."],
+  ["Train", "A lifting week, and a race plan for a 5K, 10K or half marathon, in one place."],
+  ["Fuel", "Protein and calories left today, and the next meal that closes the gap."],
+  ["Progress", "Strength, running and body trends over weeks and months."],
+  ["Coach", "An AI coach that answers questions about your own training. During the beta it is by invitation."],
 ];
 
-const SOURCE_ROWS = [
-  ["Manual", "First-class logging with nothing connected. The app is fully functional on manual entry alone."],
-  ["Oura + Whoop", "Sleep, recovery, HRV, strain, and readiness context."],
-  ["Strava", "Runs, rides, GPS sessions, distance, pace, and elevation."],
+const SOURCES = [
+  ["Typed in", "Everything works with nothing connected."],
+  ["Oura and Whoop", "Sleep, HRV, resting heart rate, strain and readiness, if you connect them."],
+  ["Strava", "Runs and rides with distance, pace and elevation, if you connect it."],
 ];
 
-export function Wordmark({ size = 20, compact = false }) {
-  const { S } = useTheme();
-  return (
-    <span style={{ ...S.wordmark, fontSize: size, gap: compact ? 0 : 1 }}>
-      <span style={{ ...S.wordmarkTheta, fontSize: size * 1.08 }}>θ</span>
-      <span>VERTRAINED</span>
-    </span>
-  );
-}
-
-function FigHead({ title, stat }) {
-  const { S } = useTheme();
-  return (
-    <div style={{ ...S.blockHead, marginBottom: 10 }}>
-      <span style={S.blockTitle}>{title}</span>
-      {stat && <span style={S.blockStat}>{stat}</span>}
-    </div>
-  );
-}
+const PRIVACY = [
+  "No feed, no leaderboards, no ads.",
+  "No email needed: a username, a password and a recovery phrase.",
+  "Wearable tokens stay on the server and are deleted when you disconnect.",
+  "Export everything at any time.",
+];
 
 export default function LandingPage() {
-  const { C, S } = useTheme();
-  const mono = C.monoFamily;
-  const serif = C.serifFamily;
-  const rule = `1px solid ${C.line}`;
-
-  const navLinkStyle = {
-    fontFamily: mono,
-    fontSize: 10.5,
-    letterSpacing: "0.12em",
-    textTransform: "uppercase",
-    color: C.textDim,
-    textDecoration: "none",
-    padding: "8px 0",
-  };
-
-  const primaryCta = {
-    fontFamily: mono,
-    fontSize: 11,
-    letterSpacing: "0.14em",
-    textTransform: "uppercase",
-    color: C.bg,
-    background: C.text,
-    textDecoration: "none",
-    padding: "12px 15px",
-    border: `1px solid ${C.text}`,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 42,
-  };
-
-  const secondaryCta = {
-    ...primaryCta,
-    color: C.text,
-    background: "transparent",
-    border: `1px solid ${C.lineBright}`,
-  };
-
-  const footLink = { fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textDim, textDecoration: "none" };
-
   return (
-    <section aria-label="About 0VERTRAINED" style={{ display: "flex", flexDirection: "column", gap: 26, minWidth: 0 }}>
-      {/* ── Masthead ── */}
-      <nav aria-label="Public links" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, borderTop: rule, borderBottom: rule, padding: "10px 0" }}>
-        <Wordmark size={18} compact />
-        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "10px 18px" }}>
-          <a href="#/demo" style={navLinkStyle}>Demo</a>
-          <a href="/legal/privacy-policy.html" style={navLinkStyle}>Privacy</a>
-          <a href="/legal/terms-of-service.html" style={navLinkStyle}>Terms</a>
-          <a href="#signin" style={{ ...navLinkStyle, color: C.text }}>Sign in ↓</a>
-        </div>
-      </nav>
-
-      {/* ── Title block + Abstract ── */}
-      <div style={{ borderBottom: rule, paddingBottom: 26 }}>
-        <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: C.textFaint, marginBottom: 18 }}>
-          Public beta · A training ledger for hybrid athletes
-        </div>
-        <h1 style={{ fontFamily: serif, fontWeight: 500, letterSpacing: "-0.058em", lineHeight: 0.92, fontSize: "clamp(50px, 8.5vw, 104px)", color: C.text, margin: 0 }}>
-          Train hard.<br />Recover honestly.
-        </h1>
-        <div style={{ ...S.blockTitle, marginTop: 24, paddingTop: 12, borderTop: rule, maxWidth: 690 }}>Abstract</div>
-        <p style={{ fontFamily: serif, fontStyle: "italic", fontSize: "clamp(15.5px, 1.7vw, 17.5px)", lineHeight: 1.55, color: C.textDim, maxWidth: 690, margin: "10px 0 0" }}>
-          {ABSTRACT_TEXT}
-        </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 24 }}>
-          <a href="#/demo" style={primaryCta}>View live demo</a>
-          <a href="#signin" style={secondaryCta}>Sign in / create account</a>
-        </div>
-      </div>
-
-      {/* ── Fig. 1 · The daily verdict (live specimen) ── */}
-      <section aria-label="The daily verdict — live specimen">
-        <FigHead title="Fig. 1 · The daily verdict" stat="live engine · specimen" />
-        <SampleMornings />
-        <div style={S.figureCaption}>The same call the app makes each morning, on four sample mornings.</div>
-      </section>
-
-      {/* ── Fig. 2 · Method ── */}
-      <section aria-label="Method">
-        <FigHead title="Fig. 2 · Method" />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", borderTop: rule, borderLeft: rule }}>
-          {METHOD_STEPS.map(([title, body]) => (
-            <article key={title} style={{ padding: "16px 15px 17px", borderRight: rule, borderBottom: rule }}>
-              <h2 style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: C.text, margin: "0 0 8px", fontWeight: 500 }}>{title}</h2>
-              <p style={{ margin: 0, color: C.textDim, lineHeight: 1.5, fontSize: 13.5 }}>{body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Fig. 3 · Data sources ── */}
-      <section aria-label="Data sources">
-        <FigHead title="Fig. 3 · Data sources" stat="all optional" />
-        <p style={{ margin: "0 0 12px", color: C.textDim, lineHeight: 1.5, fontSize: 13.5, maxWidth: 690 }}>
-          Optional inputs, not requirements. Connect a source when it helps; disconnecting deletes what it imported.
-        </p>
-        <div style={{ borderTop: rule }}>
-          {SOURCE_ROWS.map(([label, body]) => (
-            <div key={label} style={{ display: "grid", gridTemplateColumns: "minmax(120px, 0.34fr) minmax(0, 1fr)", gap: 14, padding: "11px 0", borderBottom: rule, alignItems: "baseline" }}>
-              <span style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: C.text }}>
-                {label}
-              </span>
-              <span style={{ color: C.textDim, lineHeight: 1.45, fontSize: 13.5 }}>{body}</span>
+    <div className="shell">
+      <header className="top">
+        <span className="grow" style={{ display: "flex" }}><Wordmark /></span>
+        <a className="btn btn-s btn-sm" href="#signin">Sign in</a>
+        <span style={{ width: 12, flex: "none" }} />
+      </header>
+      <main className="main" style={{ gap: 40, paddingTop: 24, paddingBottom: 40 }}>
+        <section aria-labelledby="home-title" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 24, alignItems: "start" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <h1 id="home-title" className="t-xl" tabIndex={-1}>How hard should today be?</h1>
+            <p className="t-read">{ABSTRACT_TEXT}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <a className="btn btn-p btn-lg btn-b" href="#/demo">Try the demo</a>
+              <a className="btn btn-s btn-b" href="#signin">Sign in</a>
             </div>
-          ))}
-        </div>
-      </section>
+            <p className="t-s c2">The demo needs no account. Places in the beta are limited.</p>
+          </div>
+          <SampleMornings />
+        </section>
 
-      {/* ── Colophon ── */}
-      <footer aria-label="Colophon" style={{ borderTop: rule, paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "8px 18px" }}>
-        <span style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", alignItems: "baseline" }}>
-          <a href="/legal/privacy-policy.html" style={footLink}>Privacy</a>
-          <a href="/legal/terms-of-service.html" style={footLink}>Terms</a>
-          {SUPPORT_EMAIL && <a href={`mailto:${SUPPORT_EMAIL}`} style={footLink}>{SUPPORT_EMAIL}</a>}
-        </span>
-        <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textFaint }}>
-          Not medical advice · © 2026 0VERTRAINED
-        </span>
-      </footer>
-    </section>
+        <section aria-labelledby="home-what" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <h2 id="home-what" className="t-title">What it does</h2>
+          <dl className="rows" style={{ margin: 0 }}>
+            {FEATURES.map(([name, text]) => (
+              <div key={name} className="kv" style={{ padding: "4px 0" }}>
+                <dt className="t-bs">{name}</dt>
+                <dd className="t-b c2" style={{ margin: 0 }}>{text}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        <section aria-labelledby="home-sources" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <h2 id="home-sources" className="t-title">Where the numbers come from</h2>
+          <ul className="rows" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+            {SOURCES.map(([name, text]) => (
+              <li key={name} className="kv" style={{ padding: "4px 0" }}>
+                <span className="t-bs">{name}</span>
+                <span className="t-b c2">{text}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section aria-labelledby="home-private" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <h2 id="home-private" className="t-title">Private by design</h2>
+          <ul className="lst lst-b" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+            {PRIVACY.map((line) => <li key={line}>{line}</li>)}
+          </ul>
+          <p className="t-b">Read the <a className="u" href={PRIVACY_HREF}>privacy policy</a> and the <a className="u" href={TERMS_HREF}>terms</a>.</p>
+        </section>
+      </main>
+      <PublicFooter />
+    </div>
   );
 }
