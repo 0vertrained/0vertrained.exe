@@ -1,55 +1,102 @@
 // src/ui/CommandPalette.jsx
-// ⌘K command palette. Desktop-native "one
-// tap from anywhere": the same QUICK_ACTIONS the mobile FAB serves, plus
-// jump-to targets for the four tabs. Number keys fire actions, T/R/F/P jump
-// tabs, Escape closes. Broadsheet-tier only — mounted and unmounted by App.
+// Shortcuts, the ⌘K palette on wide screens: the quick actions the Log
+// button offers, and the four tabs. Number keys fire an action, each tab's
+// letter jumps to it, Escape closes, and Tab stays inside. Mounted only at
+// the wide tier, by App.
 import { useEffect, useRef } from "react";
-import { useTheme } from "../theme";
+
+const kbd = { minWidth: 24, padding: "0 6px", border: "1px solid var(--edge)", borderRadius: 4, textAlign: "center", flex: "none" };
+
+// One letter per tab: its first letter, or the next one in its name that no
+// earlier tab took (Today T, Train R, Fuel F, Progress P).
+export function tabKeys(tabs) {
+  const used = new Set();
+  return tabs.map((tab) => {
+    const letter = [...tab.toLowerCase()].find((ch) => /[a-z]/.test(ch) && !used.has(ch)) || "";
+    used.add(letter);
+    return letter;
+  });
+}
 
 export function CommandPalette({ open, onClose, actions = [], tabs = [], onAction, onNavigate }) {
-  const { C } = useTheme();
-  const mono = C.fontFamily;
   const ref = useRef(null);
-  useEffect(() => { if (open) ref.current?.focus(); }, [open]);
+
   useEffect(() => {
-    if (!open) return;
-    const h = (e) => {
-      if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
-      const n = parseInt(e.key, 10);
-      if (n >= 1 && n <= actions.length) { e.preventDefault(); onAction(actions[n - 1].key); return; }
-      const t = tabs.find(tb => tb[0].toLowerCase() === e.key.toLowerCase());
-      if (t) { e.preventDefault(); onNavigate(t); }
+    if (!open) return undefined;
+    const opener = document.activeElement;
+    // Focus starts on the first action, so the keyboard is already in the list.
+    (ref.current?.querySelector("button") || ref.current)?.focus();
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
+      if (event.key === "Tab" && ref.current) {
+        const items = ref.current.querySelectorAll("button");
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        const active = document.activeElement;
+        if (event.shiftKey && (active === first || active === ref.current)) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const n = parseInt(event.key, 10);
+      if (n >= 1 && n <= actions.length) { event.preventDefault(); onAction(actions[n - 1].key); return; }
+      const index = tabKeys(tabs).indexOf(String(event.key).toLowerCase());
+      if (index >= 0) { event.preventDefault(); onNavigate(tabs[index]); }
     };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      requestAnimationFrame(() => opener?.isConnected && opener.focus?.());
+    };
   }, [open, actions, tabs, onAction, onNavigate, onClose]);
+
   if (!open) return null;
+  const keys = tabKeys(tabs);
   return (
-    <div role="dialog" aria-modal="true" aria-label="Command palette" onClick={onClose}
-      style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(26,26,26,0.32)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "18vh" }}>
-      <div ref={ref} tabIndex={-1} onClick={(e) => e.stopPropagation()} data-section="command-palette"
-        style={{ width: 560, maxWidth: "92vw", background: C.bg, border: `1px solid ${C.text}`, outline: "none", fontFamily: mono }}>
-        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.line}`, display: "flex", justifyContent: "space-between", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textDim }}>
-          <span>Quick log</span><span>esc to close</span>
-        </div>
-        {actions.map((a, i) => (
-          <button key={a.key} type="button" onClick={() => onAction(a.key)}
-            style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", width: "100%", padding: "12px 14px", background: "none", border: "none", borderBottom: `1px solid ${C.line}`, color: C.text, fontFamily: mono, cursor: "pointer", textAlign: "left" }}>
-            <span style={{ fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase" }}>{a.label}
-              <span style={{ marginLeft: 10, fontSize: 10, color: C.textFaint, textTransform: "none", letterSpacing: 0 }}>{a.sub}</span>
-            </span>
-            <span style={{ fontSize: 10, color: C.textFaint }}>{i + 1}</span>
-          </button>
-        ))}
-        <div style={{ display: "flex", gap: 0 }}>
-          {tabs.map((t) => (
-            <button key={t} type="button" onClick={() => onNavigate(t)}
-              style={{ flex: 1, padding: "10px 8px", background: "none", border: "none", borderRight: `1px solid ${C.line}`, color: C.textDim, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: mono, cursor: "pointer" }}>
-              <span style={{ color: C.text }}>{t[0]}</span>{t.slice(1)}
-            </button>
-          ))}
-        </div>
+    <>
+      <div className="scrim mo-scrim" aria-hidden="true" />
+      <div role="presentation" onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: "var(--z-sheet)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "12vh 24px 24px" }}>
+        <section
+          ref={ref}
+          tabIndex={-1}
+          className="dialog mo-rise"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="palette-title"
+          data-section="command-palette"
+          onClick={(event) => event.stopPropagation()}
+          style={{ width: "100%", maxWidth: 480, outline: "none" }}
+        >
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <h2 id="palette-title" className="t-h grow">Shortcuts</h2>
+            <span className="t-s c2">Esc closes</span>
+          </div>
+          <h3 className="t-ss">Log</h3>
+          <ul className="rows" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+            {actions.map((action, i) => (
+              <li key={action.key}>
+                <button type="button" className="row" onClick={() => onAction(action.key)} aria-keyshortcuts={String(i + 1)}>
+                  <span className="kv grow">
+                    <span className="t-bs">{action.label}</span>
+                    {action.sub && <span className="t-s c2">{action.sub}</span>}
+                  </span>
+                  <kbd className="n-s c2" aria-hidden="true" style={kbd}>{i + 1}</kbd>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <h3 className="t-ss">Go to</h3>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {tabs.map((tab, i) => (
+              <button key={tab} type="button" className="btn btn-s btn-sm" onClick={() => onNavigate(tab)} aria-keyshortcuts={keys[i].toUpperCase()} style={{ gap: 8 }}>
+                {tab}
+                <kbd className="n-s c2" aria-hidden="true" style={kbd}>{keys[i].toUpperCase()}</kbd>
+              </button>
+            ))}
+          </div>
+        </section>
       </div>
-    </div>
+    </>
   );
 }

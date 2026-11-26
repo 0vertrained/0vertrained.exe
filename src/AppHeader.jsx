@@ -73,7 +73,7 @@ export function Header({ title, sub, back, onBack, close, onClose, saving, demoM
         <button type="button" className="btn btn-s btn-sm" aria-haspopup="dialog" onClick={onQuickAction} style={{ borderWidth: 2, borderColor: "var(--ink)" }}><Icon name="plus" size="s" />Log</button>
       )}
       {isBroadsheet && typeof onOpenPalette === "function" && (
-        <button type="button" className="btn btn-s btn-sm" aria-haspopup="dialog" onClick={onOpenPalette}><span className="kbd" aria-hidden="true">⌘K</span>Search and commands</button>
+        <button type="button" className="btn btn-s btn-sm" aria-haspopup="dialog" onClick={onOpenPalette}><span className="kbd" aria-hidden="true">⌘K</span>Shortcuts</button>
       )}
       <SyncStatus status={status} className="t-s c2" style={{ margin: "0 8px" }} />
       {typeof onOpenProfile === "function" && (

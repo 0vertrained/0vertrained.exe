@@ -41,7 +41,7 @@ describe("broadsheet header (mounted)", () => {
     expect(onTab).toHaveBeenCalledWith("Fuel");
     expect(screen.getByRole("img", { name: "0VERTRAINED" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Log" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Search and commands/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Shortcuts/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Profile and settings" })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toContain("Saved");
     // The screen's h1 lives in the page at this size, not in the bar.

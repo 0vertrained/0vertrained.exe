@@ -25,16 +25,20 @@ function forceMatchMedia(matches) {
 describe("V16.2 surfaces (mounted)", () => {
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-  it("palette: number keys fire actions, Escape closes", () => {
+  it("palette: number keys fire actions, each tab has its own letter, Escape closes", () => {
     forceMatchMedia(true);
-    const onAction = vi.fn(); const onClose = vi.fn();
+    const onAction = vi.fn(); const onClose = vi.fn(); const onNavigate = vi.fn();
     render(
       <ThemeProvider>
-        <CommandPalette open actions={[{ key: "workout", label: "Log workout", sub: "" }]} tabs={["Today"]} onAction={onAction} onClose={onClose} onNavigate={() => {}} />
+        <CommandPalette open actions={[{ key: "workout", label: "Log workout", sub: "" }]} tabs={["Today", "Train", "Fuel", "Progress"]} onAction={onAction} onClose={onClose} onNavigate={onNavigate} />
       </ThemeProvider>
     );
     fireEvent.keyDown(window, { key: "1" });
     expect(onAction).toHaveBeenCalledWith("workout");
+    fireEvent.keyDown(window, { key: "r" });
+    expect(onNavigate).toHaveBeenLastCalledWith("Train");
+    fireEvent.keyDown(window, { key: "t" });
+    expect(onNavigate).toHaveBeenLastCalledWith("Today");
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
   });
