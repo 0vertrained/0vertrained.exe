@@ -1,17 +1,14 @@
 // src/MoreTab.jsx
-// Extracted verbatim from App.jsx (no behavior change): the
-// Profile hub (MoreTab) with ProgramTab, ProgramEditor, CoachPreferencesCard,
-// and hub primitives.
-import { useState, useEffect } from "react";
+// Train's program screens: ProgramTab with its editors. The file keeps its
+// old name until those screens are rebuilt; Profile lives in
+// ProfileScreen.jsx.
+import { useState } from "react";
 import { useTheme } from "./theme";
-import { copyToClipboard } from "./clipboard";
 import { DEFAULT_PROGRAM, DAYS, PROGRAM_PRESETS, PRESET_LINEUP, presetProgram, getTodayKey } from "./constants";
 import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
 import { seedSupersetPrefsFromProgram } from "./liftLogPrefs";
 import { buildSplitSessionsFromLegacy, getProgramSessions, usesProgramSessions } from "./programSessions";
-import { DEFAULT_COACH_PREFERENCES, normalizeCoachPreferences, mergeCoachPreferences, buildCoachMemoryExport, summarizeRecentTrend } from "./coachMemory";
 import { ProgramBuilderPanel } from "./ProgramBuilderPanel";
-import { NotificationsCard } from "./NotificationsCard";
 import { useConfirm } from "./ui/ConfirmDialog";
 import { RacePlanPanel } from "./RacePlanPanel";
 import { isRunPlanSpec } from "./runPlanGenerator";
@@ -579,153 +576,3 @@ function SessionProgramEditor({ draft, setDraft, openDay, setOpenDay, onCancel, 
 // `variant` distinguishes primary action cards (Generate / Edit / Form
 // Check) from utility rows (Settings, data). Primary gets a heavier top+left
 // rule and darker ink; utility keeps the quiet hairline. Behaviour unchanged.
-function HubAction({ label, sublabel, cta = "→", onClick, variant = "utility" }) {
-  const { C } = useTheme();
-  const mono = C.fontFamily;
-  const primary = variant === "primary";
-  return (
-    <button onClick={onClick}
-      style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, background: primary ? C.block : C.inputBg, border:`1px solid ${primary ? C.textDim : C.line}`, borderLeft:`${primary ? 3 : 1}px solid ${primary ? C.text : C.line}`, padding: primary ? "14px 13px" : "12px 13px", cursor:"pointer", fontFamily:mono, textAlign:"left", marginTop:8 }}>
-      <span style={{ minWidth:0 }}>
-        <span style={{ display:"block", fontSize: primary ? 12 : 11, fontWeight: primary ? 600 : 400, letterSpacing:"0.06em", color:C.text, textTransform:"uppercase" }}>{label}</span>
-        {sublabel && <span style={{ display:"block", fontSize:11, color:C.textDim, marginTop:3, letterSpacing:"0.03em", lineHeight:1.5 }}>{sublabel}</span>}
-      </span>
-      <span style={{ fontSize: primary ? 15 : 13, color:C.text, flexShrink:0 }}>{cta}</span>
-    </button>
-  );
-}
-
-function CoachPreferencesCard({ settings, allData, onSave, showToast }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-  const prefs = normalizeCoachPreferences(settings?.coachPreferences || DEFAULT_COACH_PREFERENCES);
-  const [draft, setDraft] = useState(prefs);
-  const [fallbackText, setFallbackText] = useState(null);
-  // Collapsed on the hub: a four-select form with a textarea was the
-  // biggest thing on the Profile screen, for an optional preference.
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    setDraft(normalizeCoachPreferences(settings?.coachPreferences || DEFAULT_COACH_PREFERENCES));
-  }, [settings?.coachPreferences]);
-
-  const update = (key, value) => setDraft((d) => mergeCoachPreferences(d, { [key]: value }));
-  const save = () => onSave?.(normalizeCoachPreferences(draft));
-  const reset = () => {
-    const next = { ...DEFAULT_COACH_PREFERENCES };
-    setDraft(next);
-    onSave?.(next);
-  };
-  const copyExport = async () => {
-    const trend = summarizeRecentTrend(allData, Date.now());
-    const text = buildCoachMemoryExport({ preferences: draft, trend });
-    const ok = await copyToClipboard(text);
-    if (ok) { setFallbackText(null); showToast?.("Coach memory copied"); }
-    else { setFallbackText(text); showToast?.("Select all + copy"); }
-  };
-
-  const selectStyle = { background:C.inputBg, border:`1px solid ${C.line}`, color:C.text, fontFamily:mono, fontSize:11.5, padding:"7px 8px", width:"100%" };
-  const labelStyle = { fontSize:10, color:C.textFaint, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:4 };
-  const field = (label, node) => <div><div style={labelStyle}>{label}</div>{node}</div>;
-  const optionList = (vals) => vals.map(v => <option key={v} value={v}>{v}</option>);
-
-  return (
-    <div style={{ marginTop:12, paddingTop:10, borderTop:`1px solid ${C.line}` }}>
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
-        style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, background:"none", border:"none", padding:0, cursor:"pointer", fontFamily:mono, textAlign:"left" }}>
-        <span style={S.blockTitle}>{"> "}Coach Memory</span>
-        <span style={S.blockStat}>{draft.enabled ? "enabled" : "off"} · {open ? "▲ hide" : "▾ edit"}</span>
-      </button>
-      {open && (<>
-      <div style={{ fontSize:11, color:C.textDim, lineHeight:1.6, marginBottom:10, marginTop:8 }}>
-        Optional, local coaching preferences only. Suggest-only: it changes tone/context, not your program, scores, or privacy boundaries.
-      </div>
-      <label style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, fontSize:11.5, color:C.text }}>
-        <input type="checkbox" checked={draft.enabled} onChange={(e) => update("enabled", e.target.checked)} />
-        Use my coach preferences
-      </label>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-        {field("Tone", <select value={draft.tone} onChange={(e)=>update("tone", e.target.value)} style={selectStyle}>{optionList(["balanced","direct","encouraging"])}</select>)}
-        {field("Focus", <select value={draft.focus} onChange={(e)=>update("focus", e.target.value)} style={selectStyle}>{optionList(["hybrid","strength","endurance","physique"])}</select>)}
-        {field("Intensity", <select value={draft.intensity} onChange={(e)=>update("intensity", e.target.value)} style={selectStyle}>{optionList(["conservative","moderate","aggressive"])}</select>)}
-        {field("Rest bias", <select value={draft.restBias} onChange={(e)=>update("restBias", e.target.value)} style={selectStyle}>{optionList(["balanced","more-rest","more-volume"])}</select>)}
-      </div>
-      <textarea
-        value={draft.note}
-        onChange={(e) => update("note", e.target.value)}
-        maxLength={240}
-        rows={2}
-        placeholder="Optional preference note, e.g. knee rehab; keep deloads conservative."
-        style={{ ...S.notesInput, marginTop:8, fontSize:13 }}
-      />
-      <div style={{ display:"flex", gap:8, marginTop:8 }}>
-        <button type="button" onClick={save} style={{ ...S.foodBtn, marginTop:0, flex:1 }}>Save Coach Prefs</button>
-        <button type="button" onClick={copyExport} style={S.smallBtn}>Copy</button>
-        <button type="button" onClick={reset} style={S.smallBtn}>Reset</button>
-      </div>
-      {fallbackText && (
-        <textarea readOnly value={fallbackText} onFocus={(e)=>e.target.select()} rows={7} style={{ ...S.notesInput, marginTop:8, fontSize:11.5, fontFamily:mono }} />
-      )}
-      </>)}
-    </div>
-  );
-}
-
-// Profile: account, data and app settings. The training plan lives in Train.
-export function MoreTab({ exportJSON, exportCSV, fileRef, onPasteImport, onSettings, onLogout, settings, allData, showToast, onSaveCoachPreferences }) {
-  const { C, S } = useTheme();
-  const mono = C.fontFamily;
-
-  // Group note — quiet caption used for privacy / deferred / routing copy.
-  const note = { fontSize:11, color:C.textDim, lineHeight:1.6, marginTop:10, letterSpacing:"0.03em" };
-  const groupDesc = { fontSize:11, color:C.textDim, lineHeight:1.6, marginBottom:2, letterSpacing:"0.03em" };
-
-  // ── Hub landing: grouped management cards ──
-  return (
-    <div>
-      <div style={{ padding:"14px 16px 4px", background:C.bg }}>
-        <div style={{ fontSize:13.5, letterSpacing:"0.16em", textTransform:"uppercase", color:C.text, fontFamily:mono }}>Manage</div>
-        <div style={{ fontSize:11, color:C.textDim, marginTop:3, letterSpacing:"0.04em" }}>Data and app settings. Your training plan is in Train.</div>
-      </div>
-
-      {/* Account + Data */}
-
-      <div style={S.block}>
-        <div style={S.blockHead}><span style={S.blockTitle}>{"> "}Account + Data</span></div>
-        <div style={groupDesc}>Settings, integrations, and local backups.</div>
-        <HubAction label="Settings" sublabel="Macro targets · supplements · theme" onClick={onSettings} />
-        <div style={note}>Wearable connections are managed in Settings.</div>
-        <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:12 }}>
-          <div style={{ fontSize:10.5, color:C.textFaint, letterSpacing:"0.12em", textTransform:"uppercase" }}>Data · synced live, export for a local backup</div>
-          <button style={{ ...S.foodBtn, marginTop:0 }} onClick={exportJSON}>Export Full Backup [JSON]</button>
-          <button style={{ ...S.foodBtn, marginTop:0 }} onClick={exportCSV}>Export Stats [CSV]</button>
-          <button style={{ ...S.foodBtn, marginTop:0 }} onClick={() => fileRef.current?.click()}>Import From File [JSON]</button>
-          <button style={{ ...S.foodBtn, marginTop:0 }} onClick={onPasteImport}>Import From Pasted Text</button>
-        </div>
-        <div style={note}>Erase-my-data controls are not included in this beta. Export a local backup before deleting app data.</div>
-
-        {/* Logout lives here now — a once-a-quarter action belongs in
-            Account + Data, not in the always-visible masthead. */}
-        {typeof onLogout === "function" && (
-          <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
-            <HubAction label="Log out" sublabel="End this session on this device — your data stays synced" onClick={onLogout} />
-          </div>
-        )}
-
-      </div>
-
-      {/* App */}
-      <div style={S.block}>
-        <div style={S.blockHead}>
-          <span style={S.blockTitle}>{"> "}App</span>
-          <span style={S.blockStat}>Beta build</span>
-        </div>
-        <div style={groupDesc}>Notifications and coach memory. Theme lives in Settings.</div>
-        <NotificationsCard showToast={showToast} />
-        <CoachPreferencesCard settings={settings} allData={allData} onSave={onSaveCoachPreferences} showToast={showToast} />
-        <div style={note}>Something confusing? Settings → About has a privacy-safe beta feedback note.</div>
-      </div>
-    </div>
-  );
-}
-

@@ -50,7 +50,9 @@ import { TodayTab } from "./TodayTab";
 const DemoPage = lazy(() => import("./DemoPage"));
 const ProgressTab = lazy(() => import("./ProgressTab").then(m => ({ default: m.ProgressTab })));
 const FuelTab = lazy(() => import("./FuelTab").then(m => ({ default: m.FuelTab })));
-const MoreTab = lazy(() => import("./MoreTab").then(m => ({ default: m.MoreTab })));
+const ProfileScreen = lazy(() => import("./ProfileScreen").then(m => ({ default: m.ProfileScreen })));
+// Profile's own screens, by the title each shows in the top bar.
+const PROFILE_TITLES = { notifications: "Notifications", coach: "Coach", data: "Your data" };
 const TrainTab = lazy(() => import("./TrainTab").then(m => ({ default: m.TrainTab })));
 const RecoveryDashboard = lazy(() => import("./RecoveryDashboard").then(m => ({ default: m.RecoveryDashboard })));
 const SettingsScreen = lazy(() => import("./SettingsScreen").then(m => ({ default: m.SettingsScreen })));
@@ -71,6 +73,9 @@ function AppInner({ onThemeChange }) {
   // A screen shown in place of the tab: "profile" (account, settings, data)
   // or "recovery" (the detail behind the call). null means the tab shows.
   const [overlay, setOverlay]     = useState(null); // null | "profile" | "recovery"
+  // Which of Profile's own screens is showing: home | notifications | coach | data.
+  const [profileView, setProfileView] = useState("home");
+  const openProfile = () => { setProfileView("home"); setOverlay("profile"); };
   const [sheetOpen, setSheetOpen] = useState(false); // the Log sheet
   // What Today should do when it next shows: start the session or open the
   // run log. The nonce makes the same request twice still count twice.
@@ -88,7 +93,7 @@ function AppInner({ onThemeChange }) {
   // tabs land where those now live: Profile, and the detail behind the call.
   const navigateTo = (t) => {
     setSheetOpen(false);
-    if (t === "More") { setOverlay("profile"); return; }
+    if (t === "More") { openProfile(); return; }
     if (t === "Recovery") {
       tabScrollPositions.current[tab] = window.scrollY;
       setOverlay("recovery");
@@ -1062,7 +1067,8 @@ function AppInner({ onThemeChange }) {
   };
   // What the top bar shows: the screen's own request first, then the overlay,
   // then the tab.
-  const tabBar = overlay === "profile" ? { title: "Profile", close: "Close", onClose: closeOverlay }
+  const tabBar = overlay === "profile" && PROFILE_TITLES[profileView] ? { title: PROFILE_TITLES[profileView], back: "Profile", onBack: () => setProfileView("home") }
+    : overlay === "profile" ? { title: "Profile", close: "Close", onClose: closeOverlay }
     : overlay === "recovery" ? { title: "Recovery", back: tab, onBack: closeOverlay }
     : tab === "Today" && isPastDay ? { title: shortDay(new Date(`${logDate}T12:00:00`)), sub: " · past day" }
     : { title: tab, sub: tab === "Today" || tab === "Fuel" ? ` · ${shortDay(new Date())}` : "" };
@@ -1087,7 +1093,7 @@ function AppInner({ onThemeChange }) {
           />
         </Suspense>
       )}
-      <Header title={bar.title} sub={bar.sub} back={bar.back} onBack={bar.onBack} close={bar.close} onClose={bar.onClose} saving={saving} demoMode={demoMode} onOpenProfile={() => setOverlay("profile")} isOnline={isOnline} pendingSaves={pendingSaves} currentTab={overlay === "profile" ? null : tab} onTabChange={changeTab} onQuickAction={() => setSheetOpen(true)} onOpenPalette={() => setPaletteOpen(true)} tabsOrder={TABS_ORDER} />
+      <Header title={bar.title} sub={bar.sub} back={bar.back} onBack={bar.onBack} close={bar.close} onClose={bar.onClose} saving={saving} demoMode={demoMode} onOpenProfile={overlay === "profile" && !isDesktop ? undefined : openProfile} isOnline={isOnline} pendingSaves={pendingSaves} currentTab={overlay === "profile" ? null : tab} onTabChange={changeTab} onQuickAction={() => setSheetOpen(true)} onOpenPalette={() => setPaletteOpen(true)} tabsOrder={TABS_ORDER} />
       {appLoadState.showRefreshing && <RefreshingBar label="Refreshing latest data in background…" />}
 
       <main id="main" tabIndex={-1} style={{ outline: "none", display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
@@ -1095,20 +1101,23 @@ function AppInner({ onThemeChange }) {
 
         {/* Profile: account, settings and data, behind the top bar on every screen. */}
         {overlay === "profile" && (
-          <div className="legacy-screen" style={isBroadsheet ? { maxWidth: "var(--ovt-content-width)" } : undefined}>
+          <div className={!accountUnavailable && loaded ? "tab-screen" : "legacy-screen"} style={isBroadsheet ? { maxWidth: "var(--ovt-content-width)" } : undefined}>
             {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} onLogout={handleLogout} /> : !loaded ? <AccountLoading /> : (<>
             <BaselineBanner tab="More" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} />
             <ErrorBoundary label="Profile">
             <Suspense fallback={null}>
-            <MoreTab
+            <ProfileScreen
+              view={profileView} onView={setProfileView}
+              username={myUsername} demoMode={demoMode}
               exportJSON={exportJSON} exportCSV={exportCSV} fileRef={fileRef}
               onPasteImport={() => setImportOpen(true)}
-              onSettings={() => { openSettings(); setOverlay(null); }}
+              onSettings={(section) => { openSettings(section || null); setOverlay(null); }}
               onLogout={handleLogout}
               settings={settings}
               allData={data}
               showToast={showToast}
               onSaveCoachPreferences={handleSaveCoachPreferences}
+              onSaveCoachingSettings={handleSaveCoachingSystemSettings}
             />
             </Suspense>
             </ErrorBoundary>

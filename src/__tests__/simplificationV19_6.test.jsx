@@ -46,11 +46,10 @@ vi.mock("../whoop", () => ({
 import { ThemeProvider } from "../theme";
 import { DEFAULT_SETTINGS } from "../data";
 import { SettingsScreen } from "../SettingsScreen";
-import { MoreTab } from "../MoreTab";
+import { ProfileScreen } from "../ProfileScreen";
 import { FuelTab } from "../FuelTab";
 import { CARDIO_PRESETS } from "../cardioSession";
 import { PERIODIZATION_GOAL_PRESETS, normalizePeriodizationSettings } from "../periodizationSettings";
-import { DEFAULT_PROGRAM } from "../constants";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (p) => readFileSync(resolve(root, p), "utf8");
@@ -145,8 +144,8 @@ describe("Settings", () => {
 });
 
 describe("Profile hub", () => {
-  const mount = () => wrap(
-    <MoreTab program={DEFAULT_PROGRAM} onSaveProgram={vi.fn()} onApplyGeneratedProgram={vi.fn()} settings={{}} allData={{}} showToast={vi.fn()} onSettings={vi.fn()} onLogout={vi.fn()} exportJSON={vi.fn()} exportCSV={vi.fn()} fileRef={{ current: null }} onPasteImport={vi.fn()} onSaveCoachPreferences={vi.fn()} />,
+  const mount = (view = "home") => wrap(
+    <ProfileScreen view={view} onView={vi.fn()} settings={{}} allData={{}} showToast={vi.fn()} onSettings={vi.fn()} onLogout={vi.fn()} exportJSON={vi.fn()} exportCSV={vi.fn()} fileRef={{ current: null }} onPasteImport={vi.fn()} onSaveCoachPreferences={vi.fn()} onSaveCoachingSettings={vi.fn()} />,
   );
 
   it("lost the duplicate Theme row, the feedback form and the demo link", () => {
@@ -159,12 +158,14 @@ describe("Profile hub", () => {
     expect(screen.queryByText("Social boards")).toBeNull();
   });
 
-  it("Coach memory is collapsed until opened", () => {
+  it("keeps the coach's form off the hub, on its own screen", () => {
     mount();
-    expect(screen.queryByRole("button", { name: "Save Coach Prefs" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Coach Memory/ }));
-    expect(screen.getByRole("button", { name: "Save Coach Prefs" })).toBeTruthy();
-    expect(screen.getAllByRole("combobox")).toHaveLength(4);
+    expect(screen.queryByRole("button", { name: "Save coach preferences" })).toBeNull();
+    expect(screen.queryAllByRole("radiogroup")).toHaveLength(0);
+    cleanup();
+    mount("coach");
+    expect(screen.getByRole("button", { name: "Save coach preferences" })).toBeTruthy();
+    expect(screen.getAllByRole("radiogroup")).toHaveLength(4);
   });
 });
 

@@ -147,7 +147,7 @@ describe("broadsheet shell (V15.0)", () => {
     const src = read("src/App.jsx");
     // Screens that compose their own spread take the shell width; Profile
     // has none and keeps the reading column.
-    expect(src).toContain('<div className="legacy-screen" style={isBroadsheet ? { maxWidth: "var(--ovt-content-width)" } : undefined}>');
+    expect(src).toContain('<div className={!accountUnavailable && loaded ? "tab-screen" : "legacy-screen"} style={isBroadsheet ? { maxWidth: "var(--ovt-content-width)" } : undefined}>');
     expect(read("src/ledger.css")).toMatch(/\.legacy-screen \{[^}]*max-width: var\(--ovt-shell-width, var\(--ovt-content-width\)\)/);
   });
 });

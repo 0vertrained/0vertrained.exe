@@ -434,7 +434,8 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     render(<App />);
     await liveToday();
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /Export Full Backup/ }, WAIT));
+    fireEvent.click(await screen.findByRole("button", { name: /^Your data/ }, WAIT));
+    fireEvent.click(await screen.findByRole("button", { name: /Export full backup/ }, WAIT));
     await screen.findByText(/JSON Backup/, {}, WAIT);
     expect(document.body.textContent).toMatch(/201\.5/);
 
@@ -446,7 +447,8 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     expect(document.body.textContent).not.toMatch(/201\.5/);
 
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /Import From Pasted Text/ }, WAIT));
+    fireEvent.click(await screen.findByRole("button", { name: /^Your data/ }, WAIT));
+    fireEvent.click(await screen.findByRole("button", { name: /Import from pasted text/ }, WAIT));
     await screen.findByText(/Paste Backup/, {}, WAIT);
     await act(async () => { h.authCb("SIGNED_OUT", null); });
     await act(async () => { h.authCb("SIGNED_IN", { user: h.user, access_token: "t5" }); });
@@ -527,7 +529,8 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     await liveToday();
 
     fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /Export Full Backup/ }, WAIT));
+    fireEvent.click(await screen.findByRole("button", { name: /^Your data/ }, WAIT));
+    fireEvent.click(await screen.findByRole("button", { name: /Export full backup/ }, WAIT));
     expect(await screen.findByText("The server couldn't be reached, so this has only what's on this device.", {}, WAIT)).toBeTruthy();
   }, 20000);
 });
