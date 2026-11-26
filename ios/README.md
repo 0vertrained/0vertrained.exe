@@ -61,6 +61,9 @@ TestFlight instead, where a build lasts 90 days and installs over the air.
 `server.url` in `capacitor.config.json` at the repository root says which
 address the app loads. While this branch is being tested it is the `ios`
 branch's Netlify deploy, so the app gets the code that talks to the watch.
+Netlify builds that address only because `ios` is listed under Project
+configuration > Continuous deployment > Branches and deploy contexts >
+Branch deploys. A branch added there is built on its next push.
 Once that code is on the production branch, point it at the production
 address, then run `npx cap copy ios` to update `App/App/capacitor.config.json`
 (or edit that file the same way).
