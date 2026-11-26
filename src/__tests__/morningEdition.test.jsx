@@ -69,9 +69,13 @@ describe("V16.8 Morning Edition — dashboard anatomy (source guards)", () => {
     expect(src).not.toMatch(/recovery\.score\s*[+-]=/);
   });
 
-  it("trend state is computed in the data effect and restored from the session cache", () => {
-    expect(src).toContain("classifyRecoveryState({");
-    expect(src).toContain("trend: trendState,");
+  it("trend state is computed in the data load and restored from the session cache", () => {
+    // The load is its own module now, run by Recovery and once at app start.
+    const load = read("src/recoveryLoad.js");
+    expect(load).toContain("classifyRecoveryState({");
+    expect(load).toContain("trend: trendState,");
+    expect(src).toContain("const out = await loadRecoveryData(");
+    expect(src).toContain("setTrend(out.snapshot?.trend ?? null);");
     expect(src).toContain("initialCache?.trend");
   });
 
@@ -81,7 +85,7 @@ describe("V16.8 Morning Edition — dashboard anatomy (source guards)", () => {
   });
 
   it("the 35-day window feeds the chronic baseline while scoring pools stay at 15", () => {
-    expect(src).toContain("loadOuraData(35)");
+    expect(read("src/recoveryLoad.js")).toContain("loadOuraData(35)");
     const engine = read("src/wearables/recoveryEngine.js");
     expect(engine).toContain(".slice(0, 15)");
   });

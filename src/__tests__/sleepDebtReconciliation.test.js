@@ -45,7 +45,8 @@ describe("V16.9 sleep debt — the repro and the fix", () => {
   });
 
   it("the dashboard never sums the tonight-specific need components again", () => {
-    const src = read("src/RecoveryDashboard.jsx");
+    // Recovery's data load lives in its own module, shared with the app start.
+    const src = read("src/recoveryLoad.js");
     expect(src).not.toContain("need_from_sleep_debt_milli");
     expect(src).not.toContain("need_from_recent_strain_milli");
     expect(src).toContain("baseline_milli");
