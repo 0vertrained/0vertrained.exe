@@ -5,6 +5,8 @@ import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { useState } from "react";
 import { ThemeProvider } from "../theme";
 import { ProfileScreen } from "../ProfileScreen";
+import { ProgressTab } from "../ProgressTab";
+import { ShellProvider } from "../ui/shell";
 import { APP_VERSION } from "../appMeta";
 
 afterEach(cleanup);
@@ -103,6 +105,13 @@ describe("Profile › Coach", () => {
     expect(onSaveCoachingSettings).toHaveBeenCalledTimes(1);
     expect(onSaveCoachingSettings.mock.calls[0][0].coachingSystem.clinicianGuardrails).toMatchObject({ enabled: true, stopRules: "Stop on chest pain" });
     expect(showToast).toHaveBeenCalledWith("Clinician guardrails saved");
+  });
+
+  it("left Progress: the weekly review no longer carries the guardrails", () => {
+    const view = render(<ThemeProvider><ShellProvider><ProgressTab data={{}} settings={{}} program={{}} loaded updateEntryAtDate={vi.fn()} showToast={vi.fn()} /></ShellProvider></ThemeProvider>);
+    const ui = within(view.container);
+    fireEvent.click(ui.getByRole("button", { name: /weekly review/i }));
+    expect(ui.queryByText("Clinician guardrails")).toBeNull();
   });
 });
 

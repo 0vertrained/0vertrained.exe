@@ -13,7 +13,6 @@ import { calcWeeklyReview } from "./recovery";
 import { buildWeeklyCoachReview } from "./weeklyCoachReview";
 import { buildCoachingCalibrationProfile } from "./coachingCalibration";
 import { WeeklyCoachingReview, weekInNumbers, ON_TARGET_NOTE } from "./WeeklyCoachingReview";
-import { ClinicianGuardrailsCard } from "./ClinicianGuardrailsCard";
 import { isOuraConnected, loadOuraData } from "./oura";
 import { isWhoopConnected, loadWhoopData } from "./whoop";
 import { buildDecisionFeedbackWeekly } from "./decisionFeedback";
@@ -59,7 +58,7 @@ function secondsToPace(secs) {
 }
 
 // Progress tab
-export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, onSaveCoachingSettings, initialSubView = null, onOpenDay, onExit, onOpenEdition = null, onOpenBlock = null }) {
+export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, initialSubView = null, onOpenDay, onExit, onOpenEdition = null, onOpenBlock = null }) {
   // Train links straight to the block ("program") and to history; Back from
   // either returns there.
   // home | strength | running | body | recovery | review | history
@@ -404,7 +403,6 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
         <Icon name="next" size="s" className="c2" />
       </button>
 
-      <ClinicianGuardrailsCard settings={settings} onSaveCoachingSettings={onSaveCoachingSettings} showToast={showToast} />
     </Fragment>,
   ];
 
