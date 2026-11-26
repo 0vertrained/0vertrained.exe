@@ -6,7 +6,7 @@
 // policy and terms in both the masthead and the colophon.
 // src/__tests__/landingCompliance.test.jsx locks these in.
 import { useTheme } from "../theme";
-import { ReadinessSpecimen } from "./ReadinessSpecimen";
+import { SampleMornings } from "./ReadinessSpecimen";
 
 // ── Compliance copy (exported so the test suite can lock the exact strings) ──
 export const ABSTRACT_TEXT =
@@ -123,8 +123,8 @@ export default function LandingPage() {
       {/* ── Fig. 1 · The daily verdict (live specimen) ── */}
       <section aria-label="The daily verdict — live specimen">
         <FigHead title="Fig. 1 · The daily verdict" stat="live engine · specimen" />
-        <ReadinessSpecimen C={C} />
-        <div style={S.figureCaption}>The same readiness call the app makes each morning, cycling four real scenarios.</div>
+        <SampleMornings />
+        <div style={S.figureCaption}>The same call the app makes each morning, on four sample mornings.</div>
       </section>
 
       {/* ── Fig. 2 · Method ── */}

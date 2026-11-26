@@ -1057,7 +1057,7 @@ function AppInner({ onThemeChange }) {
       <p className="t-s c2" role="status">Loading…</p>
     </div>
   );
-  if (showDemo) return <Suspense fallback={null}><DemoPage onClose={() => { try { history.replaceState(null, "", window.location.pathname + window.location.search); } catch {} setShowDemo(false); }} /></Suspense>;
+  if (showDemo) return <Suspense fallback={null}><DemoPage signedIn={Boolean(user)} onClose={() => { try { history.replaceState(null, "", window.location.pathname + window.location.search); } catch {} setShowDemo(false); }} /></Suspense>;
   if (!user && !demoMode) return <AuthScreen onAuthed={u => setUser(u)} />;
 
   const yesterdayKey = (() => {
