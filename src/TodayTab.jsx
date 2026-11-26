@@ -43,6 +43,7 @@ import { useDayOps, CallCard, FuelSnapshot, DayProgress, CallSheets } from "./To
 import { RaceWeekLine } from "./RaceWeekLine";
 import { isRunCardio } from "./raceBuild";
 import { paceCheck, paceCheckText } from "./runPaceCheck";
+import { tomorrowSummary } from "./tomorrowLine";
 
 // SessionMode is lazy — it only loads when a session actually starts,
 // keeping it out of the initial bundle.
@@ -193,7 +194,7 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR }) {
   );
 }
 
-export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
+export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
   // Broadsheet: below 1440px every wrapper is display:contents and
   // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -530,6 +531,9 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   } : null;
   const closeIsNext = !isLoggingPast && !primary && Boolean(nextAction) && (nextAction.status === "done" || nextAction.status === "rest");
 
+  // Tomorrow, read from the plan itself rather than today's adjusted copy.
+  const tomorrow = tomorrowSummary(baseProgram || activeProgram, todayKey);
+
   // One planned cardio block: what is planned, the runner, and the three fields.
   const cardioBlock = ({ cardio, logged, path, onStart, startLabel }) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0 8px" }}>
@@ -701,6 +705,9 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           <div className="row"><Icon name="done" className="good" /><span className="kv grow"><span className="t-bs">Rest day</span><span className="t-s c2">No training was planned.</span></span></div>
         )}
         </div>
+
+        {/* What tomorrow holds, so there's time to get ready. */}
+        {!isLoggingPast && tomorrow && <p className="t-s c2" style={{ paddingTop: 4 }}>{tomorrow}</p>}
 
         {/* Strava: appears only when the displayed day has a recorded
             activity and no cardio logged by hand. One tap fills the same
