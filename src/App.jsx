@@ -1,7 +1,7 @@
 // src/App.jsx
 // App shell only: auth/session, data load + cache, save paths,
 // theme, header, nav, overlays, and modals. The four tabs live in their own
-// files (TodayTab/ProgressTab/FuelTab/MoreTab). DemoPage is lazy: it isn't
+// files (TodayTab/ProgressTab/FuelTab/TrainTab). DemoPage is lazy: it isn't
 // needed for first paint, so it loads on demand and stays out of the initial
 // bundle.
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
@@ -80,8 +80,6 @@ function AppInner({ onThemeChange }) {
   // What Today should do when it next shows: start the session or open the
   // run log. The nonce makes the same request twice still count twice.
   const [todayIntent, setTodayIntent] = useState(null);
-  // Which sub-view Progress opens on when Train sends someone there.
-  const [progressLanding, setProgressLanding] = useState(null);
   // Progress can open Train on the block.
   const [trainLanding, setTrainLanding] = useState(null);
   // Today and Progress can ask Recovery to open on the week's edition.
@@ -572,7 +570,7 @@ function AppInner({ onThemeChange }) {
   const todayName = getDayName(logDate ? new Date(logDate + "T12:00:00") : new Date());
   const todayData = data[todayKey] || defaultDay();
   // Race-build overlay: consuming surfaces see the current build week;
-  // MoreTab keeps the raw template so edits target the source of truth.
+  // Train's program screens keep the raw template so edits target the source of truth.
   const liveProgram = useMemo(() => applyRaceBuild(program, todayKey), [program, todayKey]);
 
   // Debounced per-day save with offline retry queue
@@ -1100,7 +1098,7 @@ function AppInner({ onThemeChange }) {
     : { title: tab, sub: tab === "Today" || tab === "Fuel" ? ` · ${shortDay(new Date())}` : "" };
   const bar = (!overlay && screenBar) || tabBar;
   const logActions = coachEnabled ? [...QUICK_ACTIONS, COACH_ACTION] : QUICK_ACTIONS;
-  const changeTab = (t) => { setProgressLanding(null); setTrainLanding(null); navigateTo(t); setSelectedDay(null); };
+  const changeTab = (t) => { setTrainLanding(null); navigateTo(t); setSelectedDay(null); };
   // The Sunday Edition is drawn from wearable mornings, so its doors show only
   // on a connected account, and only while an edition is out.
   const openEdition = ouraConnected && !dayZero.recovery.isZero && editionWindow(new Date()).available
@@ -1184,7 +1182,6 @@ function AppInner({ onThemeChange }) {
               onSaveProgram={handleSaveProgram} onApplyGeneratedProgram={handleApplyGeneratedProgram}
               onStartToday={() => { setLogDate(null); navigateTo("Today"); setTodayIntent({ kind: "workout", nonce: Date.now() }); }}
               onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }}
-              onOpenProgress={(view) => { setProgressLanding(view); navigateTo("Progress"); }}
             />
           )}
           {tab === "Fuel" && (
@@ -1198,7 +1195,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.progress.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.progress.isZero
               ? <DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} />
-              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab key={progressLanding || "overview"} initialSubView={progressLanding} data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onExit={progressLanding ? () => { setProgressLanding(null); setTrainLanding(null); navigateTo("Train"); } : undefined} onOpenEdition={openEdition} onOpenBlock={() => { setTrainLanding("block"); navigateTo("Train"); }} /></>}
+              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onOpenEdition={openEdition} onOpenBlock={() => { setTrainLanding("block"); navigateTo("Train"); }} /></>}
             </div>
           )}
           </>)}

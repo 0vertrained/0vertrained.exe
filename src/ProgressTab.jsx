@@ -58,12 +58,11 @@ function secondsToPace(secs) {
 }
 
 // Progress tab
-export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, initialSubView = null, onOpenDay, onExit, onOpenEdition = null, onOpenBlock = null }) {
+export function ProgressTab({  data, settings, program, loaded, updateEntryAtDate, showToast, onOpenDay, onOpenEdition = null, onOpenBlock = null }) {
   // Train links straight to the block ("program") and to history; Back from
   // either returns there.
   // home | strength | running | body | recovery | review | history
-  const landing = initialSubView === "history" ? "history" : null;
-  const [subView, setSubView] = useState(landing || "home");
+  const [subView, setSubView] = useState("home");
   const [selectedDay, setSelectedDay] = useState(null);
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
   // The saved block settings, read once for the weekly review's block row.
@@ -74,10 +73,9 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   // A screen under Progress: its name in the top bar, and Back to where it
   // came from. A day opened from History on a phone goes back to History.
   const dayOpen = Boolean(selectedDay) && !isBroadsheet && subView === "history";
-  const fromTrain = Boolean(onExit) && subView === landing;
   useTopBar(subView === "home" ? null : dayOpen
     ? { title: dayDate(selectedDay), back: "History", onBack: () => setSelectedDay(null) }
-    : { title: SCREEN_TITLES[subView] || "Progress", back: fromTrain ? "Train" : "Progress", onBack: () => { setSelectedDay(null); if (fromTrain) onExit(); else setSubView("home"); } });
+    : { title: SCREEN_TITLES[subView] || "Progress", back: "Progress", onBack: () => { setSelectedDay(null); setSubView("home"); } });
   // Each screen starts at its top.
   const firstView = useRef(true);
   useEffect(() => {

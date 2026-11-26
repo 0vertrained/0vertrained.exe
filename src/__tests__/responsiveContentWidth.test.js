@@ -54,7 +54,6 @@ describe("responsive content-width contract", () => {
     for (const file of [
       "src/SettingsScreen.jsx",
       "src/App.jsx",
-      "src/MoreTab.jsx",
       "src/Coach.jsx",
       "src/Tutorial.jsx",
     ]) {

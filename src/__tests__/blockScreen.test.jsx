@@ -190,20 +190,18 @@ describe("a block that has ended", () => {
 
 describe("the Block under Train", () => {
   it("opens from Train's plan rows with its own Back, and never leaves Train", async () => {
-    const onOpenProgress = vi.fn();
-    const view = frame(<TrainTab program={DEFAULT_PROGRAM} liveProgram={DEFAULT_PROGRAM} entries={logged()} settings={{}} onSaveProgram={vi.fn()} onApplyGeneratedProgram={vi.fn()} onStartToday={vi.fn()} onOpenDay={vi.fn()} onOpenProgress={onOpenProgress} />);
+    const view = frame(<TrainTab program={DEFAULT_PROGRAM} liveProgram={DEFAULT_PROGRAM} entries={logged()} settings={{}} onSaveProgram={vi.fn()} onApplyGeneratedProgram={vi.fn()} onStartToday={vi.fn()} onOpenDay={vi.fn()} />);
     const ui = within(view.container);
     fireEvent.click(ui.getByRole("button", { name: /^Block/ }));
     expect(await ui.findByRole("heading", { level: 2, name: "Current Block" })).toBeTruthy();
     expect(within(ui.getByTestId("bar")).getByRole("heading", { name: "Block" })).toBeTruthy();
-    expect(onOpenProgress).not.toHaveBeenCalled();
     fireEvent.click(ui.getByRole("button", { name: "Back to Train" }));
     expect(ui.queryByRole("heading", { level: 2, name: "Current Block" })).toBeNull();
     expect(ui.getByRole("button", { name: /^Block/ })).toBeTruthy();
   });
 
   it("can be opened straight on the block, for the row on the weekly review", async () => {
-    const view = frame(<TrainTab initialView="block" program={DEFAULT_PROGRAM} liveProgram={DEFAULT_PROGRAM} entries={logged()} settings={{}} onSaveProgram={vi.fn()} onApplyGeneratedProgram={vi.fn()} onStartToday={vi.fn()} onOpenDay={vi.fn()} onOpenProgress={vi.fn()} />);
+    const view = frame(<TrainTab initialView="block" program={DEFAULT_PROGRAM} liveProgram={DEFAULT_PROGRAM} entries={logged()} settings={{}} onSaveProgram={vi.fn()} onApplyGeneratedProgram={vi.fn()} onStartToday={vi.fn()} onOpenDay={vi.fn()} />);
     expect(await within(view.container).findByRole("heading", { level: 2, name: "Current Block" })).toBeTruthy();
   });
 });

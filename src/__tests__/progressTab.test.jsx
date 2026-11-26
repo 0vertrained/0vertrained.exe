@@ -202,14 +202,6 @@ describe("History", () => {
     expect(ui.getByText("Left knee felt stiff on the warm-up")).toBeTruthy();
   });
 
-  it("goes back to Train when Train opened it", () => {
-    const onExit = vi.fn();
-    const { ui } = mount({ initialSubView: "history", onExit });
-    expect(within(ui.getByTestId("bar")).getByRole("heading").textContent).toBe("History");
-    fireEvent.click(ui.getByRole("button", { name: "Back to Train" }));
-    expect(onExit).toHaveBeenCalledTimes(1);
-  });
-
   it("summarises a day in one line, and says so when there is nothing", () => {
     expect(daySummary(undefined)).toBe("Nothing logged");
     expect(daySummary({ workout: { cardio: { miles: "4.6" } } })).toBe("Run, 4.6\u00a0mi");

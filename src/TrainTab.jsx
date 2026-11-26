@@ -1,25 +1,35 @@
 // src/TrainTab.jsx
 // Train: the plan, in one place. Today's session, the seven days of this
 // week, and the rows that lead to the program, the block, the race plan and
-// history. The block is its own screen here (BlockScreen.jsx). The program
-// screens themselves still come from MoreTab's ProgramTab; they are shown
-// here one level down.
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { DAYS, getTodayKey } from "./constants";
+// history. Each of those is a screen of Train, one level down, with Train's
+// own Back: Program and its editor (ProgramScreen.jsx), the builder, the race
+// plan, the block and history.
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { DAYS, DEFAULT_PROGRAM, getTodayKey } from "./constants";
 import { getProgramSessions, flattenProgramLifting } from "./programSessions";
 import { summarizeProgramDay } from "./programSummary";
 import { isExerciseHandled } from "./workoutLogging";
-import { mondayKeyOf, describeBuildWeek } from "./raceBuild";
+import { mondayKeyOf, describeBuildWeek, keepRacePlan } from "./raceBuild";
 import { isRunPlanSpec } from "./runPlanGenerator";
 import { formatPlanDate, raceWeekCopy } from "./RaceWeekLine";
 import { summarizeProgramForHub } from "./moreHub";
 import { Icon, LinkRow } from "./ui/ledger";
 import { useTopBar } from "./ui/shell";
-import { ProgramTab } from "./MoreTab";
+import { ProgramHome, ProgramEditor } from "./ProgramScreen";
+import { ProgramBuilderPanel } from "./ProgramBuilderPanel";
+import { RacePlanPanel } from "./RacePlanPanel";
+import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
+import { dayDate } from "./sections/charts";
 
 // The block brings the planner and the decision engine with it, so it loads
 // when it is opened.
 const BlockScreen = lazy(() => import("./BlockScreen").then((module) => ({ default: module.BlockScreen })));
+// History is Progress's; it loads when it is opened here too.
+const ProgressHistory = lazy(() => import("./ProgressHistory").then((module) => ({ default: module.ProgressHistory })));
+
+const TITLES = { program: "Program", edit: "Edit the week", build: "Build a program", race: "Race plan", block: "Block", history: "History" };
+const PARENT = { edit: "Program", build: "Program" };
+const loading = (what) => <div className="shell"><div className="main"><p className="t-s c2" role="status">Loading {what}…</p></div></div>;
 
 const NBSP = "\u00a0";
 
@@ -65,9 +75,15 @@ export function buildTrainWeek({ program, entries, todayKey }) {
   });
 }
 
-export function TrainTab({ program, liveProgram, entries, settings, onSaveProgram, onApplyGeneratedProgram, onStartToday, onOpenDay, onOpenProgress, initialView = null }) {
-  // "home", the block, or the program screens opened at one of their actions.
+export function TrainTab({ program, liveProgram, entries, settings, onSaveProgram, onApplyGeneratedProgram, onStartToday, onOpenDay, initialView = null }) {
+  // "home", or one of its screens: program, edit, build, race, block, history.
   const [view, setView] = useState(initialView === "block" ? "block" : "home");
+  const [editDay, setEditDay] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(null);
+  const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
+  // The editor's check before Back drops unsaved changes.
+  const leaveGuard = useRef(null);
+  const setLeaveGuard = useCallback((fn) => { leaveGuard.current = fn; }, []);
   // A screen opened from Train starts at its top, not wherever Train was scrolled.
   const firstView = useRef(true);
   useEffect(() => {
@@ -82,25 +98,73 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
   const hasRacePlan = isRunPlanSpec(program?.__raceBuild);
   const raceCopy = hasRacePlan ? raceWeekCopy(describeBuildWeek(program, todayKey)) : null;
 
-  useTopBar(view === "home" ? null : {
-    title: view === "race" ? "Race plan" : view === "block" ? "Block" : "Program",
-    back: "Train",
-    onBack: () => setView("home"),
-  });
+  const dayOpen = view === "history" && Boolean(selectedDay) && !isBroadsheet;
+  useTopBar(view === "home" ? null : dayOpen
+    ? { title: dayDate(selectedDay), back: "History", onBack: () => setSelectedDay(null) }
+    : {
+      title: TITLES[view] || "Train",
+      back: PARENT[view] || "Train",
+      onBack: async () => {
+        if (view === "edit" && leaveGuard.current && !(await leaveGuard.current())) return;
+        setSelectedDay(null);
+        setView(PARENT[view] ? "program" : "home");
+      },
+    });
 
   if (view === "block") {
     return (
-      <Suspense fallback={<div className="shell"><div className="main"><p className="t-s c2" role="status">Loading the block…</p></div></div>}>
+      <Suspense fallback={loading("the block")}>
         <BlockScreen data={entries} settings={settings} program={shown} onOpenProgram={() => setView("program")} />
       </Suspense>
     );
   }
 
-  if (view !== "home") {
+  if (view === "program") {
+    return <ProgramHome program={program} onSaveProgram={onSaveProgram} onBuild={() => setView("build")} onEdit={(day = null) => { setEditDay(day); setView("edit"); }} />;
+  }
+  if (view === "edit") {
+    return <ProgramEditor program={program} initialDay={editDay} onSaveProgram={onSaveProgram} onDone={() => setView("program")} onGuard={setLeaveGuard} />;
+  }
+  if (view === "build") {
     return (
-      <div className="legacy-screen">
-        <ProgramTab key={view} program={program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={onApplyGeneratedProgram} settings={settings} initialAction={view === "race" ? "race" : null} />
-      </div>
+      <ProgramBuilderPanel
+        settings={settings}
+        initialGoal={settings?.programBuilder?.goal || undefined}
+        onApply={async (payload) => {
+          const ok = await onApplyGeneratedProgram({ ...payload, program: keepRacePlan(program, payload.program) });
+          if (ok !== false) setView("program");
+        }}
+      />
+    );
+  }
+  // Race plan: Save writes the spec into the program's marker; End removes
+  // it. Both go through the normal program save path.
+  if (view === "race") {
+    const base = program || DEFAULT_PROGRAM;
+    return (
+      <RacePlanPanel
+        program={base}
+        todayKey={todayKey}
+        onSave={async (spec) => {
+          const ok = await onSaveProgram({ ...base, __raceBuild: spec });
+          if (ok) setView("home");
+          return ok;
+        }}
+        onEnd={async () => {
+          const next = { ...base };
+          delete next.__raceBuild;
+          const ok = await onSaveProgram(next);
+          if (ok) setView("home");
+          return ok;
+        }}
+      />
+    );
+  }
+  if (view === "history") {
+    return (
+      <Suspense fallback={loading("history")}>
+        <ProgressHistory data={entries} program={shown} goals={settings?.goals} selectedDay={selectedDay} onSelectDay={setSelectedDay} isBroadsheet={isBroadsheet} onOpenDay={onOpenDay} />
+      </Suspense>
     );
   }
 
@@ -155,7 +219,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
             <li><LinkRow label="Program" sub={planSummary.hasProgram ? planSummary.line : "No program yet. Build one or pick a preset."} onClick={() => setView("program")} /></li>
             <li><LinkRow label="Block" sub="Where this week sits in the block" onClick={() => setView("block")} /></li>
             <li><LinkRow label="Race plan" sub={hasRacePlan ? `${program.__raceBuild.raceName} · ${formatPlanDate(program.__raceBuild.raceDate)}${raceCopy ? ` · ${raceCopy.countdown}` : ""}` : "Train for a 5K, 10K or half, built around your lifting"} onClick={() => setView("race")} /></li>
-            <li><LinkRow label="History" sub="Every session and run" onClick={() => onOpenProgress("history")} /></li>
+            <li><LinkRow label="History" sub="Every session and run" onClick={() => setView("history")} /></li>
           </ul>
         </section>
       </div>

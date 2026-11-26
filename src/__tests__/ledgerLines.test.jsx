@@ -131,6 +131,6 @@ describe("V17.1 scope decisions on record", () => {
     for (const f of ["src/TodayTab.jsx", "src/FuelTab.jsx", "src/SessionMode.jsx"]) {
       expect(read(f)).not.toMatch(/deleteEntry|removeMeal|deleteSet\(/);
     }
-    expect(read("src/MoreTab.jsx")).toContain("ConfirmDialog");
+    expect(read("src/ProgramScreen.jsx")).toContain("ConfirmDialog");
   });
 });

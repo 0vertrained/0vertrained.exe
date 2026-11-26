@@ -23,7 +23,7 @@ vi.mock("../supabaseClient", () => {
 });
 
 import { ThemeProvider } from "../theme";
-import { ProgramTab } from "../MoreTab";
+import { ProgramHome, ProgramEditor } from "../ProgramScreen";
 import { DEFAULT_PROGRAM, PROGRAM_PRESETS, PRESET_LINEUP } from "../constants";
 import { readSupersetPref } from "../liftLogPrefs";
 import { flattenProgramLifting } from "../programSessions";
@@ -42,15 +42,15 @@ function openPicker({ program = DEFAULT_PROGRAM } = {}) {
   const onSaveProgram = vi.fn(async () => true);
   render(
     <ThemeProvider>
-      <ProgramTab program={program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={vi.fn()} settings={{}} initialAction="switch" />
+      <ProgramHome program={program} onSaveProgram={onSaveProgram} onEdit={vi.fn()} onBuild={vi.fn()} />
     </ThemeProvider>,
   );
   return { onSaveProgram };
 }
 
 async function switchTo(name) {
-  fireEvent.click(screen.getByText(name).closest("button"));
-  fireEvent.click(screen.getByRole("button", { name: "Switch to This Program" }));
+  fireEvent.click(screen.getByText(name).closest("[role=radio]"));
+  fireEvent.click(screen.getByRole("button", { name: `Load ${name}` }));
   const dialog = await screen.findByRole("dialog");
   fireEvent.click(within(dialog).getByRole("button", { name: "Switch program" }));
   return dialog;
@@ -59,14 +59,15 @@ async function switchTo(name) {
 describe("Switch preset", () => {
   it("lists the five-plan lineup, in order, and nothing else", () => {
     openPicker();
-    const shown = screen.getAllByText((text) => LINEUP_NAMES.includes(text) || UNLISTED_NAMES.includes(text)).map((el) => el.textContent);
+    const shown = screen.getAllByRole("radio").map((radio) => radio.querySelector(".t-bs").textContent);
     expect(shown).toEqual(LINEUP_NAMES);
     for (const name of UNLISTED_NAMES) expect(screen.queryByText(name)).toBeNull();
   });
 
   it("previews a plan's own week, with holds in seconds and lifts in reps", () => {
     openPicker();
-    fireEvent.click(screen.getByText("Calisthenics").closest("button"));
+    fireEvent.click(screen.getByText("Calisthenics").closest("[role=radio]"));
+    fireEvent.click(screen.getByRole("button", { name: /^Calisthenics, day by day/ }));
     expect(screen.getAllByText("Upper A — Pull + Push").length).toBeGreaterThan(0);
     const hold = screen.getByText("Hollow Body Hold").parentElement;
     expect(within(hold).getByText("3×30s")).toBeTruthy();
@@ -76,7 +77,8 @@ describe("Switch preset", () => {
 
   it("previews Hybrid Athlete as its own program, not the default one", () => {
     openPicker();
-    fireEvent.click(screen.getByText("Hybrid Athlete").closest("button"));
+    fireEvent.click(screen.getByText("Hybrid Athlete").closest("[role=radio]"));
+    fireEvent.click(screen.getByRole("button", { name: /^Hybrid Athlete, day by day/ }));
     expect(screen.getAllByText(PROGRAM_PRESETS.hybrid.program.Monday.type).length).toBeGreaterThan(0);
     expect(screen.queryByText(DEFAULT_PROGRAM.Monday.type)).toBeNull();
   });
@@ -115,12 +117,12 @@ describe("Program editor", () => {
     const onSaveProgram = vi.fn(async () => true);
     render(
       <ThemeProvider>
-        <ProgramTab program={PROGRAM_PRESETS.hybrid.program} onSaveProgram={onSaveProgram} onApplyGeneratedProgram={vi.fn()} settings={{}} initialAction="edit" />
+        <ProgramEditor program={PROGRAM_PRESETS.hybrid.program} onSaveProgram={onSaveProgram} onDone={vi.fn()} />
       </ThemeProvider>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Wed" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Wednesday" }));
     change();
-    fireEvent.click(screen.getByRole("button", { name: "Save Program" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save program" }));
     fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(onSaveProgram).toHaveBeenCalledTimes(1));
     return onSaveProgram.mock.calls[0][0].Wednesday.cardio;
@@ -128,7 +130,7 @@ describe("Program editor", () => {
 
   it("rewriting a session's notes drops its timer steps, so the timer reads the new notes", async () => {
     const cardio = await editWednesday(() => {
-      fireEvent.change(screen.getByPlaceholderText("coaching note shown on Today tab"), { target: { value: "8 × 90 s hard w/ 60 s easy jog" } });
+      fireEvent.change(screen.getByLabelText("Notes, shown on Today"), { target: { value: "8 × 90 s hard w/ 60 s easy jog" } });
     });
     expect(cardio.notes).toBe("8 × 90 s hard w/ 60 s easy jog");
     expect(cardio.steps).toBeUndefined();
@@ -137,7 +139,7 @@ describe("Program editor", () => {
 
   it("changing only the miles keeps them", async () => {
     const cardio = await editWednesday(() => {
-      fireEvent.change(screen.getByDisplayValue("5"), { target: { value: "6" } });
+      fireEvent.change(screen.getByLabelText("Target miles"), { target: { value: "6" } });
     });
     expect(cardio.miles).toBe(6);
     expect(cardio.steps).toEqual(PROGRAM_PRESETS.hybrid.program.Wednesday.cardio.steps);
