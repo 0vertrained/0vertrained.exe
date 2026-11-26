@@ -28,6 +28,8 @@
 		CF6923614FD9B2B006C793AD /* SetLoggerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69C96E1CD618FCBAFD2878FC /* SetLoggerView.swift */; };
 		05B735A7766D283AA9783A23 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C86C8E8B50612AEA804D7DF6 /* Assets.xcassets */; };
 		4C6B28BBC80DBF91D65282C0 /* WatchApp.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8BAEAEF91065D80CBCA650A4 /* WatchApp.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		590F95388AC9C227C76786DC /* WatchLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4221B06C2DCB2CF22321BF /* WatchLink.swift */; };
+		3A1971D9450A4097E0147736 /* WatchPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +82,8 @@
 		87D3413D8AC6F5C4C037E040 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1DDBD41B34367BB49A6C50A4 /* WatchApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WatchApp.entitlements; sourceTree = "<group>"; };
 		8BAEAEF91065D80CBCA650A4 /* WatchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WatchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE4221B06C2DCB2CF22321BF /* WatchLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLink.swift; sourceTree = "<group>"; };
+		33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -135,6 +139,8 @@
 				D99BD636D92E6B22A5527555 /* AppViewController.swift */,
 				F96BE0CE0BD54388E58060CD /* DevicePlugin.swift */,
 				EB4495DBD229BCAEA7533599 /* RestAlertPlugin.swift */,
+				CE4221B06C2DCB2CF22321BF /* WatchLink.swift */,
+				33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -273,6 +279,8 @@
 				F60CE0995EE6E7DE533D1325 /* AppViewController.swift in Sources */,
 				ECF5A5356C7B26509D72E684 /* DevicePlugin.swift in Sources */,
 				6E4BDACBA708E39B66331921 /* RestAlertPlugin.swift in Sources */,
+				590F95388AC9C227C76786DC /* WatchLink.swift in Sources */,
+				3A1971D9450A4097E0147736 /* WatchPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

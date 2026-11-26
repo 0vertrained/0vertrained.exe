@@ -8,6 +8,7 @@ class AppViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(DevicePlugin())
         bridge?.registerPluginInstance(RestAlertPlugin())
+        bridge?.registerPluginInstance(WatchPlugin())
 
         // Until the page paints, show the launch colour for the phone's
         // appearance, so a dark launch doesn't flash white.
