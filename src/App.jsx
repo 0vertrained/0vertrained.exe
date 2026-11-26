@@ -115,9 +115,11 @@ function AppInner({ onThemeChange }) {
   const [settingsBusy, setSettingsBusy] = useState(false);
   // Where Settings opens and the one status line it shows there
   // (Recovery's links and the wearable OAuth return land on Integrations).
-  const [settingsLanding, setSettingsLanding] = useState({ section: null, notice: null });
-  const openSettings = (section = null, notice = null) => {
-    setSettingsLanding({ section, notice });
+  // `from` names the screen Settings goes back to (Profile, Recovery), when it
+  // was opened from one; otherwise it closes.
+  const [settingsLanding, setSettingsLanding] = useState({ section: null, notice: null, from: null });
+  const openSettings = (section = null, notice = null, from = null) => {
+    setSettingsLanding({ section, notice, from });
     setSettingsOpen(true);
     setSheetOpen(false);
   };
@@ -1135,7 +1137,7 @@ function AppInner({ onThemeChange }) {
               username={myUsername} demoMode={demoMode}
               exportJSON={exportJSON} exportCSV={exportCSV} fileRef={fileRef}
               onPasteImport={() => setImportOpen(true)}
-              onSettings={(section) => { openSettings(section || null); setOverlay(null); }}
+              onSettings={(section) => openSettings(section || null, null, "Profile")}
               onLogout={handleLogout}
               settings={settings}
               allData={data}
@@ -1156,7 +1158,7 @@ function AppInner({ onThemeChange }) {
             <Suspense fallback={null}>
             {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /> : loaded && dayZero.recovery.isZero
               ? <DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} />
-              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} todayPlan={liveProgram?.[todayName]?.type || null} onOpenIntegrations={() => openSettings("integrations")} openEdition={editionAsked} onEditionClosed={() => setEditionAsked(false)} onLoaded={(out) => setRecoveryLoad({ ...out, owner: user?.id ?? null })} todayCall={todayCall && todayCall.owner === (user?.id ?? null) && todayCall.dateKey === getTodayKey() ? todayCall : null} /></>}
+              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} todayPlan={liveProgram?.[todayName]?.type || null} onOpenIntegrations={() => openSettings("integrations", null, "Recovery")} openEdition={editionAsked} onEditionClosed={() => setEditionAsked(false)} onLoaded={(out) => setRecoveryLoad({ ...out, owner: user?.id ?? null })} todayCall={todayCall && todayCall.owner === (user?.id ?? null) && todayCall.dateKey === getTodayKey() ? todayCall : null} /></>}
             </Suspense>
             </ErrorBoundary>
           </div>
@@ -1232,7 +1234,7 @@ function AppInner({ onThemeChange }) {
       </div>
       <input ref={fileRef} type="file" accept=".json" aria-label="Import data from JSON file" style={{ display:"none" }} onChange={importFile} />
       {exportModal && <ExportModal modal={exportModal} onClose={() => setExportModal(null)} showToast={showToast} />}
-      {settingsOpen && accountReady && <Suspense fallback={null}><SettingsScreen settings={settings} onSave={handleSaveSettings} onPatch={handlePatchSettings} onClose={() => setSettingsOpen(false)} busy={settingsBusy} onThemeChange={handleThemeChange} currentTheme={themeId} initialSection={settingsLanding.section} notice={settingsLanding.notice} loggedDays={countLoggedDays(data)} currentTab={tab} /></Suspense>}
+      {settingsOpen && accountReady && <Suspense fallback={null}><SettingsScreen settings={settings} onSave={handleSaveSettings} onPatch={handlePatchSettings} onClose={() => setSettingsOpen(false)} busy={settingsBusy} onThemeChange={handleThemeChange} currentTheme={themeId} initialSection={settingsLanding.section} notice={settingsLanding.notice} backLabel={settingsLanding.from} loggedDays={countLoggedDays(data)} currentTab={tab} /></Suspense>}
       {importOpen  && <ImportModal onImport={importFromText} onClose={() => setImportOpen(false)} />}
       {/* Coach stays always-mounted (it manages its own open/close animation and
           in-flight request state); lazy just moves its code out of the entry
