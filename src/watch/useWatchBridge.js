@@ -1,5 +1,5 @@
 // src/watch/useWatchBridge.js
-// In the iPhone app: keeps the watch's copy of today's plan current and
+// In the iPhone app: keeps the watch's copy of the week's plans current and
 // writes the sets logged on the watch into the log. In a browser it does
 // nothing, and the plan logic (./watchPlan) is only loaded inside the app.
 //
@@ -88,22 +88,22 @@ export function useWatchBridge({ ready, data, program, updateEntryAtDate }) {
     };
   }, [native, ready]);
 
-  // Send the plan when anything in it changes. A plan the watch already has
+  // Send the week when anything in it changes. A week the watch already has
   // isn't sent again.
   useEffect(() => {
     if (!native || !ready) return undefined;
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const { buildWatchPlan } = await import("./watchPlan");
+        const { buildWatchWeek } = await import("./watchPlan");
         if (cancelled) return;
-        const plan = buildWatchPlan({ data, program, dateKey: todayKey, seen: seen.current });
-        const { sentAt, ...content } = plan;
+        const week = buildWatchWeek({ data, program, todayKey, seen: seen.current });
+        const { sentAt, ...content } = week;
         void sentAt;
         const signature = JSON.stringify(content);
         if (signature === lastSent.current) return;
         lastSent.current = signature;
-        await nativePlugin("OTWatch")?.sendPlan({ plan: JSON.stringify(plan) });
+        await nativePlugin("OTWatch")?.sendPlan({ plan: JSON.stringify(week) });
       } catch {
         lastSent.current = "";
       }

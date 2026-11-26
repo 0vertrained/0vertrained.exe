@@ -20,6 +20,9 @@ import { defaultWeightIncrement, isSessionHandled, reconcileExerciseSets, valida
 import { runWorkoutsFor } from "./runWorkouts";
 
 export const WATCH_PLAN_VERSION = 1;
+// What the phone sends: today's plan with the week's day plans, today first.
+export const WATCH_WEEK_VERSION = 1;
+export const WATCH_WEEK_DAYS = 7;
 
 // How far the crown can take each field.
 const FIELD_MAX = { weight: 1500, reps: 100, duration: 600, distance: 1000, assistance: 300 };
@@ -121,6 +124,36 @@ export function buildWatchPlan({ data = {}, program = null, dateKey, sentAt = ne
     // Today's runs, which the watch opens in its Workout app.
     runs: runWorkoutsFor(program, dateKey),
   };
+}
+
+function addDays(dateKey, days) {
+  const date = new Date(`${dateKey}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Today's plan and the next six days', so the watch has a day's lifts and
+ * runs even when the iPhone app isn't opened that day. Every day is worked
+ * out from the log as it stands; the phone sends the week again whenever
+ * anything in it changes.
+ *
+ * The top level is today's plan as a single-day watch app reads it, so a
+ * watch app built before weeks keeps working until it's rebuilt; `days`
+ * holds the week, and `week` says which version of it this is.
+ */
+export function buildWatchWeek({ data = {}, program = null, todayKey, sentAt = new Date().toISOString(), seen = [], days = WATCH_WEEK_DAYS } = {}) {
+  const today = buildWatchPlan({ data, program, dateKey: todayKey, sentAt, seen });
+  const plans = [];
+  for (let offset = 0; offset < days; offset += 1) {
+    const { sentAt: omitSentAt, seen: omitSeen, ...plan } = offset === 0
+      ? today
+      : buildWatchPlan({ data, program, dateKey: addDays(todayKey, offset), sentAt });
+    void omitSentAt;
+    void omitSeen;
+    plans.push(plan);
+  }
+  return { ...today, week: WATCH_WEEK_VERSION, days: plans };
 }
 
 export function parseWatchEvent(raw) {

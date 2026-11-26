@@ -4,7 +4,7 @@
 // only when valid, and only for an exercise still in that day's program.
 import { describe, expect, it } from "vitest";
 import { DAYS } from "../constants";
-import { applyWatchEvents, buildWatchPlan, parseWatchEvent } from "../watch/watchPlan";
+import { applyWatchEvents, buildWatchPlan, buildWatchWeek, parseWatchEvent } from "../watch/watchPlan";
 import { proposeSet } from "../workout/setFill";
 import { buildExercisePrescription } from "../progressionEngine";
 import { lastSessionSets } from "../setGhosts";
@@ -148,5 +148,37 @@ describe("parseWatchEvent", () => {
     expect(parseWatchEvent({ id: "a", type: "delete", date: DAY })).toBeNull();
     expect(parseWatchEvent({ id: "", type: "set", date: DAY })).toBeNull();
     expect(parseWatchEvent({ id: "a", type: "set", date: "26/11/2026" })).toBeNull();
+  });
+});
+
+describe("buildWatchWeek", () => {
+  it("sends today and the next six days, with what the phone has dealt with once", () => {
+    const week = buildWatchWeek({ data: {}, program, todayKey: DAY, sentAt: "2026-11-26T14:00:00.000Z", seen: ["a"] });
+    expect(week).toMatchObject({ week: 1, sentAt: "2026-11-26T14:00:00.000Z", seen: ["a"] });
+    expect(week.days.map((day) => day.date)).toEqual([
+      "2026-11-26", "2026-11-27", "2026-11-28", "2026-11-29", "2026-11-30", "2026-12-01", "2026-12-02",
+    ]);
+    expect(week.days[0].sessions[0].title).toBe("Upper B");
+    expect(week.days[1].sessions).toEqual([]);
+    for (const day of week.days) {
+      expect(day).not.toHaveProperty("seen");
+      expect(day).not.toHaveProperty("sentAt");
+    }
+  });
+
+  it("is today's plan at the top, for a watch app built before weeks", () => {
+    const week = buildWatchWeek({ data: {}, program, todayKey: DAY, sentAt: "2026-11-26T14:00:00.000Z", seen: ["a"] });
+    const today = buildWatchPlan({ data: {}, program, dateKey: DAY, sentAt: "2026-11-26T14:00:00.000Z", seen: ["a"] });
+    const { days, week: version, ...top } = week;
+    expect(top).toEqual(today);
+    expect(version).toBe(1);
+    expect(days[0]).toEqual(expect.objectContaining({ date: DAY, sessions: today.sessions }));
+  });
+
+  it("works each day out from the log as it stands", () => {
+    const week = buildWatchWeek({ data: {}, program, todayKey: "2026-11-20" });
+    const thursday = week.days.find((day) => day.date === DAY);
+    expect(thursday).toEqual(expect.objectContaining({ title: "Thursday" }));
+    expect(thursday.sessions[0].exercises[0].name).toBe("Bench Press");
   });
 });

@@ -74,10 +74,12 @@ describe("useWatchBridge", () => {
     expect(watch.addListener).toHaveBeenCalledWith("watchEvent", expect.any(Function));
 
     await waitFor(() => {
-      const plans = watch.sendPlan.mock.calls.map(([options]) => JSON.parse(options.plan));
-      const last = plans[plans.length - 1];
+      const weeks = watch.sendPlan.mock.calls.map(([options]) => JSON.parse(options.plan));
+      const last = weeks[weeks.length - 1];
       expect(last.seen).toEqual(["a", "b"]);
-      expect(last.sessions[0].exercises[0].sets.map((set) => set.done)).toEqual([true, true, false]);
+      expect(last.days).toHaveLength(7);
+      expect(last.days[0].date).toBe(today);
+      expect(last.days[0].sessions[0].exercises[0].sets.map((set) => set.done)).toEqual([true, true, false]);
     }, { timeout: 3000 });
   });
 
