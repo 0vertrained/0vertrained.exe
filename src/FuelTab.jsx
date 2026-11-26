@@ -4,10 +4,11 @@
 // Log food (search, quick adds, totals by hand), the meal plan with its
 // recipes, and targets.
 //
-// Every write goes through the paths Fuel has always used: the day's
-// nutrition totals, nutrition.plannedMeals.<slot> for a planned meal, and
-// nutrition.water. A log is confirmed at once and can be undone from the
-// confirmation.
+// Every food logged is kept on the day (nutrition.meals, see ./foodLog) and
+// moves the day's totals by its share, so it can be changed or removed
+// later; a planned meal also marks nutrition.plannedMeals.<slot>. Water and
+// totals typed by hand write the totals directly. A log is confirmed at once
+// and can be undone from the confirmation.
 import { useEffect, useRef, useState } from "react";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { Icon, Seg } from "./ui/ledger";
@@ -20,6 +21,8 @@ import { FoodSearch } from "./FoodSearch";
 import { LoadingShell } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
 import { EnergyIntelligence } from "./EnergyIntelligence";
+import { addFoodToDay, dayFoods, makeFoodItem, recentFoods, removeFoodFromDay, savedFoods, setFoodServings, toggleSavedFood } from "./foodLog";
+import { FoodEditSheet, SaveMealSheet, TodayFoods, YourFoods } from "./FoodLog";
 
 const NBSP = " ";
 const num = (value) => Number.parseFloat(value) || 0;
@@ -52,7 +55,7 @@ function Target({ label, now, goal, unit, compact = false }) {
   );
 }
 
-export function FuelTab({ settings, todayData, updateToday, showToast, todayKey, loaded, data }) {
+export function FuelTab({ settings, todayData, updateToday, showToast, todayKey, loaded, data, onPatchSettings = null }) {
   // today: what is needed · log: search and add · plan: meals and recipes ·
   // targets: what you burn and the calorie target that follows from it.
   const [fuelView, setFuelView] = useState("today");
@@ -75,6 +78,9 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
   const [swapSlot, setSwapSlot]     = useState(null);
   const [swapOffset, setSwapOffset] = useState(0);
   const [handOpen, setHandOpen]     = useState(false);
+  // The logged food whose sheet is open, and whether the save-a-meal sheet is.
+  const [editingId, setEditingId]   = useState(null);
+  const [saveMealOpen, setSaveMealOpen] = useState(false);
 
   // A screen opened from Fuel starts at its top, not wherever Fuel was scrolled.
   const firstView = useRef(true);
@@ -101,42 +107,91 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
       if (!delta[key]) continue;
       next[key] = String(Math.max(0, Math.round(num(current[key]) + sign * delta[key])));
     }
+    nutRef.current = next;
     updateToday("nutrition", next);
   };
   const logged = (name, undo) => showToast?.(`${name} added to today`, { action: "Undo", onAction: undo });
 
-  const addQuick = (add) => {
-    applyNutrition(add);
-    updateToday("intelligence.lastNutritionQuickAdd", { id: add.id, label: add.label, addedAt: new Date().toISOString() });
-    logged(add.label, () => applyNutrition(add, -1));
+  // One write of the day's nutrition, seen at once by the next tap's write.
+  const writeNutrition = (next) => {
+    nutRef.current = next;
+    updateToday("nutrition", next);
   };
-  const logFood = (food) => {
-    applyNutrition(food);
-    logged(food.name, () => applyNutrition(food, -1));
+  // Keep a food on the day; Undo takes that same item off again.
+  const logItem = (item) => {
+    if (!item) return;
+    writeNutrition(addFoodToDay(nutRef.current || {}, item));
+    logged(item.name, () => writeNutrition(removeFoodFromDay(nutRef.current || {}, item.id)));
+  };
+
+  const addQuick = (add) => {
+    updateToday("intelligence.lastNutritionQuickAdd", { id: add.id, label: add.label, addedAt: new Date().toISOString() });
+    const item = makeFoodItem({ name: add.label, calories: add.calories, protein: add.protein, carbs: add.carbs, fats: add.fats }, { source: "quick" });
+    // Water alone isn't a food: it goes straight on the totals.
+    if (!item) {
+      applyNutrition(add);
+      logged(add.label, () => applyNutrition(add, -1));
+      return;
+    }
+    let next = addFoodToDay(nutRef.current || {}, item);
+    if (add.water) next = { ...next, water: String(Math.max(0, Math.round(num(next.water) + add.water))) };
+    writeNutrition(next);
+    logged(add.label, () => {
+      let undone = removeFoodFromDay(nutRef.current || {}, item.id);
+      if (add.water) undone = { ...undone, water: String(Math.max(0, Math.round(num(undone.water) - add.water))) };
+      writeNutrition(undone);
+    });
+  };
+  const logFood = (food) => logItem(makeFoodItem(food, { source: food.source || "search" }));
+
+  // Saved foods and meals live in settings; recent ones come from the log.
+  const saved = savedFoods(settings);
+  const recent = recentFoods(data, { todayKey, exclude: saved });
+  const toggleSave = (food) => {
+    if (!onPatchSettings) return;
+    const next = toggleSavedFood(settings?.savedFoods, food);
+    const nowSaved = next.length > (Array.isArray(settings?.savedFoods) ? settings.savedFoods.length : 0);
+    void onPatchSettings({ savedFoods: next });
+    showToast?.(nowSaved ? `${food.name} saved to your foods` : `${food.name} removed from your foods`);
+  };
+  const saveMeal = (meal) => {
+    if (!onPatchSettings) return;
+    void onPatchSettings({ savedFoods: toggleSavedFood((settings?.savedFoods || []).filter((food) => food?.name !== meal.name), meal) });
+    showToast?.(`${meal.name} saved. It’s under Log food, Saved.`);
+  };
+  const editingItem = editingId ? dayFoods(nut).find((item) => item.id === editingId) || null : null;
+  const changeServings = (id, qty) => writeNutrition(setFoodServings(nutRef.current || {}, id, qty));
+  const removeItem = (id) => {
+    const item = dayFoods(nutRef.current || {}).find((entry) => entry.id === id);
+    setEditingId(null);
+    if (!item) return;
+    writeNutrition(removeFoodFromDay(nutRef.current || {}, id));
+    showToast?.(`${item.name} removed from today`, { action: "Undo", onAction: () => writeNutrition(addFoodToDay(nutRef.current || {}, item)) });
   };
   const addWater = (oz) => updateToday("nutrition.water", String(num(nut.water) + oz));
 
   const plan         = plans[planIdx];
   const checkedMeals = todayData?.nutrition?.plannedMeals || {};
 
-  // Log a planned meal as eaten: its macros go on today's totals.
+  // A planned meal eaten is kept on the day like any food, marked with its
+  // slot; taking it off unmarks the slot. A meal logged before foods were
+  // kept has no item, so its macros come straight off the totals.
   const uncheckMeal = (recipe, slot, quiet = false) => {
     const current = nutRef.current || {};
-    updateToday("nutrition.calories", String(Math.max(0, Math.round(num(current.calories) - recipe.macros.calories))));
-    updateToday("nutrition.protein",  String(Math.max(0, Math.round(num(current.protein)  - recipe.macros.protein))));
-    updateToday("nutrition.carbs",    String(Math.max(0, Math.round(num(current.carbs)    - recipe.macros.carbs))));
-    updateToday("nutrition.fats",     String(Math.max(0, Math.round(num(current.fats)     - recipe.macros.fats))));
-    updateToday(`nutrition.plannedMeals.${slot}`, null);
+    const item = dayFoods(current).find((entry) => entry.source === "plan" && entry.slot === slot);
+    if (item) writeNutrition(removeFoodFromDay(current, item.id));
+    else {
+      const next = { ...current, plannedMeals: { ...(current.plannedMeals || {}), [slot]: null } };
+      for (const key of ["calories", "protein", "carbs", "fats"]) next[key] = String(Math.max(0, Math.round(num(current[key]) - recipe.macros[key])));
+      writeNutrition(next);
+    }
     if (!quiet) showToast?.(`${recipe.name} removed from today`);
   };
   const checkMeal = (recipe, slot) => {
     if (checkedMeals[slot]) return;
-    const current = nutRef.current || {};
-    updateToday("nutrition.calories", String(Math.round(num(current.calories) + recipe.macros.calories)));
-    updateToday("nutrition.protein",  String(Math.round(num(current.protein)  + recipe.macros.protein)));
-    updateToday("nutrition.carbs",    String(Math.round(num(current.carbs)    + recipe.macros.carbs)));
-    updateToday("nutrition.fats",     String(Math.round(num(current.fats)     + recipe.macros.fats)));
-    updateToday(`nutrition.plannedMeals.${slot}`, recipe.id);
+    const item = makeFoodItem({ name: recipe.name, ...recipe.macros }, { source: "plan", slot, planId: recipe.id });
+    if (!item) return;
+    writeNutrition(addFoodToDay(nutRef.current || {}, item));
     logged(recipe.name, () => uncheckMeal(recipe, slot, true));
   };
 
@@ -179,6 +234,12 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
   const logPanel = (
     <>
       <FoodSearch onAdd={logFood} />
+      <YourFoods
+        saved={saved}
+        recent={recent}
+        onAdd={(food) => logItem(makeFoodItem(food, { source: food.source || "saved" }))}
+        onToggleSave={onPatchSettings ? toggleSave : null}
+      />
       {nutritionRecommendation.quickAdds.length > 0 && (
         <section aria-labelledby="fuel-quick" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <h2 id="fuel-quick" className="t-c c2">Quick add</h2>
@@ -324,6 +385,21 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
     );
   }
 
+  // Changing or removing a logged food, and saving several as one meal.
+  const sheets = (
+    <>
+      <FoodEditSheet
+        item={editingItem}
+        saved={saved}
+        onClose={() => setEditingId(null)}
+        onServings={changeServings}
+        onRemove={removeItem}
+        onToggleSave={onPatchSettings ? toggleSave : null}
+      />
+      {onPatchSettings && <SaveMealSheet open={saveMealOpen} nutrition={nut} onClose={() => setSaveMealOpen(false)} onSave={saveMeal} />}
+    </>
+  );
+
   if (fuelView === "log" && !isBroadsheet) {
     return <div className="shell" data-screen="fuel-log"><div className="main">{logPanel}</div></div>;
   }
@@ -347,6 +423,8 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
           </section>
 
           {!isBroadsheet && <button type="button" className="btn btn-p btn-b" onClick={() => setFuelView("log")}>Log food</button>}
+
+          <TodayFoods nutrition={nut} onEdit={setEditingId} onSaveMeal={onPatchSettings ? () => setSaveMealOpen(true) : null} />
 
           <section className="card" aria-labelledby="fuel-next" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <p className="t-c c2">Next fuel action · closes the gap best</p>
@@ -415,6 +493,7 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
             {logPanel}
           </section>
         )}
+        {sheets}
       </div>
     </div>
   );

@@ -1193,7 +1193,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.fuel.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.fuel.isZero
               ? <DayZeroSpecimen tab="Fuel" onAction={() => setShowTutorial(true)} />
-              : <><BaselineBanner tab="Fuel" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><FuelTab settings={settings} todayData={todayData} updateToday={updateToday} showToast={showToast} todayKey={todayKey} loaded={loaded} data={data} /></>}
+              : <><BaselineBanner tab="Fuel" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><FuelTab settings={settings} todayData={todayData} updateToday={updateToday} showToast={showToast} todayKey={todayKey} loaded={loaded} data={data} onPatchSettings={handlePatchSettings} /></>}
             </div>
           )}
           {tab === "Progress" && (
