@@ -57,7 +57,7 @@ describe("V16.2 static pins", () => {
   it("U2–U5: tier fallbacks, sticky masthead, one desktop idiom, keyboard access", () => {
     const fuel = read("src/FuelTab.jsx");
     expect(fuel).toContain('maxWidth: "var(--ovt-content-width)" }');
-    expect(read("src/ui/primitives.jsx")).toContain('...(isBroadsheet ? { maxWidth: "var(--ovt-content-width)"');
+    expect(read("src/ui/primitives.jsx")).toContain('maxWidth: "var(--ovt-content-width)", margin: "0 auto"');
     // The desktop bar stays put while the page scrolls under it.
     expect(read("src/ledger.css")).toMatch(/\.dtop \{[^}]*position: sticky; top: 0;/);
     // Log opens the same sheet at every size; the palette has its own button and ⌘K.

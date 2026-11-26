@@ -1118,7 +1118,7 @@ function AppInner({ onThemeChange }) {
         </Suspense>
       )}
       <Header title={bar.title} sub={bar.sub} back={bar.back} onBack={bar.onBack} close={bar.close} onClose={bar.onClose} saving={saving} demoMode={demoMode} onOpenProfile={overlay === "profile" && !isDesktop ? undefined : openProfile} isOnline={isOnline} pendingSaves={pendingSaves} currentTab={overlay === "profile" ? null : tab} onTabChange={changeTab} onQuickAction={() => setSheetOpen(true)} onOpenPalette={() => setPaletteOpen(true)} tabsOrder={TABS_ORDER} />
-      {appLoadState.showRefreshing && <RefreshingBar label="Refreshing latest data in background…" />}
+      {appLoadState.showRefreshing && <RefreshingBar label="Refreshing your latest data in the background" />}
 
       <main id="main" tabIndex={-1} style={{ outline: "none", display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
         {isDesktop && <ScreenTitle bar={bar} />}
@@ -1254,20 +1254,17 @@ const ACCOUNT_UNAVAILABLE_COPY = {
   cap: { title: "Your account isn't set up yet", body: "The beta is at its user limit, so account setup is paused. Nothing is lost. Try again later." },
 };
 function AccountUnavailable({ reason, onRetry, onLogout }) {
-  const { C, S } = useTheme();
   const copy = ACCOUNT_UNAVAILABLE_COPY[reason] || ACCOUNT_UNAVAILABLE_COPY.unreachable;
   return (
-    <section role="alert" data-testid="account-unavailable" style={S.block}>
-      <div style={{ fontFamily: S.fontSerif, fontSize: 22, color: C.text, lineHeight: 1.2, marginBottom: 8 }}>{copy.title}</div>
-      <p style={{ fontSize: 13, color: C.textDim, lineHeight: 1.6, margin: "0 0 12px" }}>{copy.body}</p>
-      <button type="button" onClick={onRetry} style={{ ...S.foodBtn, marginTop: 0, borderColor: C.text }}>Try again</button>
-      {onLogout && <button type="button" onClick={onLogout} style={{ ...S.foodBtn, background: "none" }}>Log out</button>}
+    <section role="alert" data-testid="account-unavailable" className="card" style={{ display: "flex", flexDirection: "column", gap: 12, margin: "12px 16px" }}>
+      <h2 className="t-title">{copy.title}</h2>
+      <p className="t-b c2">{copy.body}</p>
+      <button type="button" className="btn btn-p btn-b" onClick={onRetry}>Try again</button>
+      {onLogout && <button type="button" className="btn btn-s btn-b" onClick={onLogout}>Log out</button>}
     </section>
   );
 }
 
-// Profile while the account is still loading: its settings aren't
-// known yet, so Settings and the program editors wait.
 // At 1024 px and up the tabs sit in the top bar, so the screen's h1 moves into
 // the page, with Back or Close beside it when the screen is one level down.
 function ScreenTitle({ bar }) {
@@ -1281,24 +1278,22 @@ function ScreenTitle({ bar }) {
   );
 }
 
+// Profile while the account is still loading: its settings aren't
+// known yet, so Settings and the program editors wait.
 function AccountLoading() {
-  const { C, S } = useTheme();
-  return <section role="status" style={S.block}><div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.6 }}>Loading your account…</div></section>;
+  return <p role="status" className="t-b c2" style={{ margin: 0, padding: "24px 16px" }}>Loading your account…</p>;
 }
 
+// The first week, while the app learns your normal range: one line above the
+// tab saying what the tab needs.
 function BaselineBanner({ tab, firstWeek, settings, entries, program, ouraConnected }) {
-  const { C, S } = useTheme();
   if (!firstWeek) return null;
   const es = buildNewUserEmptyState(tab, { settings, entries, program, ouraConnected });
   if (!es) return null;
   return (
-    <section style={{ ...S.block, background: C.block }}>
-      <div style={S.blockHead}>
-        <span style={S.blockTitle}>{es.title}</span>
-        <span style={S.blockStat}>Baseline week</span>
-      </div>
-      <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.5 }}>{es.message}</div>
-    </section>
+    <p className="banner" style={{ margin: "12px 16px 0" }}>
+      <span><b>{es.title}.</b> {es.message}</span>
+    </p>
   );
 }
 

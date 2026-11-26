@@ -27,7 +27,7 @@ import { buildTodayDecision, buildDecisionResponseEntry } from "./todayDecision"
 import { recoveryVerdictFromLoad, resolveSharedCall } from "./sharedCall";
 import { getDecisionFeedbackBrief } from "./decisionFeedback";
 import { SessionComplete } from "./SessionComplete";
-import { LoadingShell, AdvisoryNote } from "./ui/primitives";
+import { LoadingShell } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
 import { buildTodayPlan, buildNextAction } from "./todaySummary";
 import { CascadeSet } from "./CascadeSet";
@@ -754,7 +754,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
                 </div>
                 <p className="t-c c2">Daily load, last 14 days</p>
                 {(() => { const f = (whoopGrouped || stravaByDate) ? findUnloggedLoadDays(bsLoad.daily, whoopGrouped, { window: 14, stravaByDate }) : []; return f.length > 0 ? (
-                  <AdvisoryNote compact>{f.length} unlogged-load day{f.length > 1 ? "s" : ""} — ratio understates load</AdvisoryNote>
+                  <p className="t-s c2" style={{ display: "flex", alignItems: "flex-start", gap: 6 }}><Icon name="warn" size="s" /><span>{f.length === 1 ? "1 day" : `${f.length} days`} of wearable or Strava training {f.length === 1 ? "isn't" : "aren't"} logged here, so the ratio reads low.</span></p>
                 ) : null; })()}
               </>
             ) : (
