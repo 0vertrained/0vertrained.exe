@@ -1,0 +1,251 @@
+import Foundation
+import WatchConnectivity
+import WatchKit
+
+/// Today's plan from the phone, the sets logged here that the phone hasn't
+/// confirmed yet, and the rest timer.
+///
+/// Sets go to the phone with transferUserInfo, which the system queues and
+/// delivers when it can, so logging works with the phone out of reach or the
+/// phone app closed. The phone writes them into the log and sends the plan
+/// back with them done; until then they show here from `pending`.
+final class SessionStore: NSObject, ObservableObject {
+    static let shared = SessionStore()
+
+    @Published private(set) var plan: WatchPlan?
+    @Published private(set) var pending: [PendingSet] = []
+    @Published private(set) var rest: Rest?
+
+    struct Rest: Equatable {
+        var endsAt: Date
+        var seconds: Int
+        /// What comes after the rest, e.g. "Set 3 · 185 × 8".
+        var next: String?
+    }
+
+    private enum Key {
+        static let plan = "ovt.plan"
+        static let pending = "ovt.pending"
+        static let outbox = "ovt.outbox"
+    }
+
+    private let defaults = UserDefaults.standard
+    /// Events not yet handed to WatchConnectivity, kept across launches.
+    private var outbox: [String] = []
+    private var restWork: DispatchWorkItem?
+    private let timestamp: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private override init() {
+        super.init()
+        restore()
+        if WCSession.isSupported() {
+            WCSession.default.delegate = self
+            WCSession.default.activate()
+        }
+    }
+
+    // MARK: - Reading the plan
+
+    /// The plan, if it is for today.
+    var today: WatchPlan? {
+        guard let plan, plan.date == Self.dateKey(Date()) else { return nil }
+        return plan
+    }
+
+    /// The local calendar day, written as the phone writes it: 2026-11-26.
+    static func dateKey(_ date: Date) -> String {
+        dayFormatter.string(from: date)
+    }
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.autoupdatingCurrent
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    func sets(for key: ExerciseKey) -> [SetState] {
+        guard let exercise = today?.exercise(key) else { return [] }
+        var states: [SetState] = []
+        for (index, set) in exercise.sets.enumerated() {
+            if set.done {
+                states.append(SetState(index: index, done: true, values: set.values, sourceLabel: nil))
+            } else if let local = pending.last(where: { $0.session == key.session && $0.exercise == key.name && $0.setIndex == index }) {
+                states.append(SetState(index: index, done: true, values: local.values, sourceLabel: nil))
+            } else if set.source != "target", let previous = states.last, previous.done, !previous.values.isEmpty {
+                // Unless the target fills it, a set follows the one before
+                // it, as on the phone, including a set logged here.
+                states.append(SetState(index: index, done: false, values: previous.values, sourceLabel: "Set \(index)"))
+            } else {
+                states.append(SetState(index: index, done: false, values: set.values, sourceLabel: set.sourceLabel))
+            }
+        }
+        return states
+    }
+
+    func nextOpenSet(for key: ExerciseKey) -> SetState? {
+        sets(for: key).first { !$0.done }
+    }
+
+    /// The next exercise with a set left, in program order, after this one.
+    func nextExercise(after key: ExerciseKey) -> ExerciseKey? {
+        guard let plan = today else { return nil }
+        let keys = plan.keys
+        guard let start = keys.firstIndex(of: key) else { return nil }
+        let ordered = Array(keys[(start + 1)...]) + Array(keys[..<start])
+        return ordered.first { candidate in
+            guard let exercise = plan.exercise(candidate), exercise.skipped != true else { return false }
+            return nextOpenSet(for: candidate) != nil
+        }
+    }
+
+    /// Every exercise is logged or skipped.
+    var allLogged: Bool {
+        guard let plan = today else { return false }
+        return plan.keys.allSatisfy { key in
+            plan.exercise(key)?.skipped == true || nextOpenSet(for: key) == nil
+        }
+    }
+
+    // MARK: - Logging
+
+    func logSet(_ key: ExerciseKey, setIndex: Int, values: [String: Double]) {
+        guard let plan = today else { return }
+        let id = UUID().uuidString
+        let now = Date()
+        pending.append(PendingSet(id: id, date: plan.date, session: key.session, exercise: key.name, setIndex: setIndex, values: values, loggedAt: now))
+        savePending()
+        send(SetEvent(id: id, date: plan.date, session: key.session, exercise: key.name, setIndex: setIndex, values: values, at: timestamp.string(from: now)))
+    }
+
+    func finish(_ summary: WorkoutSummary) {
+        let date = today?.date ?? Self.dateKey(summary.startedAt)
+        send(FinishEvent(
+            id: UUID().uuidString,
+            date: date,
+            at: timestamp.string(from: summary.endedAt),
+            startedAt: timestamp.string(from: summary.startedAt),
+            durationSeconds: max(0, Int(summary.endedAt.timeIntervalSince(summary.startedAt))),
+            averageHeartRate: summary.averageHeartRate,
+            activeEnergy: summary.activeEnergy
+        ))
+    }
+
+    private func send<Event: Encodable>(_ event: Event) {
+        guard let data = try? JSONEncoder().encode(event), let json = String(data: data, encoding: .utf8) else { return }
+        outbox.append(json)
+        defaults.set(outbox, forKey: Key.outbox)
+        flush()
+    }
+
+    private func flush() {
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated, !outbox.isEmpty else { return }
+        for json in outbox {
+            WCSession.default.transferUserInfo(["event": json])
+        }
+        outbox.removeAll()
+        defaults.set(outbox, forKey: Key.outbox)
+    }
+
+    // MARK: - Rest
+
+    func startRest(seconds: Int, next: String?) {
+        rest = Rest(endsAt: Date().addingTimeInterval(TimeInterval(seconds)), seconds: seconds, next: next)
+        scheduleRestEnd()
+    }
+
+    func addRest(_ seconds: Int) {
+        guard var current = rest else { return }
+        current.endsAt.addTimeInterval(TimeInterval(seconds))
+        current.seconds += seconds
+        rest = current
+        scheduleRestEnd()
+    }
+
+    func endRest() {
+        restWork?.cancel()
+        restWork = nil
+        rest = nil
+    }
+
+    /// While a workout is running the app keeps running with the wrist down,
+    /// so this tap lands on time.
+    private func scheduleRestEnd() {
+        restWork?.cancel()
+        guard let rest else { return }
+        let work = DispatchWorkItem { [weak self] in
+            WKInterfaceDevice.current().play(.notification)
+            self?.rest = nil
+        }
+        restWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, rest.endsAt.timeIntervalSinceNow), execute: work)
+    }
+
+    // MARK: - Storage
+
+    private func receive(_ context: [String: Any]) {
+        guard let json = context["plan"] as? String,
+              let data = json.data(using: .utf8),
+              let incoming = try? JSONDecoder().decode(WatchPlan.self, from: data) else { return }
+        if let current = plan {
+            if incoming.date < current.date { return }
+            if incoming.date == current.date, let had = current.sentAt, let got = incoming.sentAt, got < had { return }
+        }
+        plan = incoming
+        defaults.set(json, forKey: Key.plan)
+        prunePending()
+    }
+
+    /// Drops what the phone has dealt with: sets its plan shows done, events
+    /// it lists as seen (including any it set aside), and other days.
+    private func prunePending() {
+        guard let plan else { return }
+        let seen = Set(plan.seen ?? [])
+        let before = pending.count
+        pending.removeAll { item in
+            if item.date != plan.date || seen.contains(item.id) { return true }
+            guard let exercise = plan.exercise(ExerciseKey(session: item.session, name: item.exercise)) else { return false }
+            return item.setIndex < exercise.sets.count && exercise.sets[item.setIndex].done
+        }
+        if pending.count != before { savePending() }
+    }
+
+    private func restore() {
+        if let json = defaults.string(forKey: Key.plan), let data = json.data(using: .utf8) {
+            plan = try? JSONDecoder().decode(WatchPlan.self, from: data)
+        }
+        if let data = defaults.data(forKey: Key.pending) {
+            pending = (try? JSONDecoder().decode([PendingSet].self, from: data)) ?? []
+        }
+        outbox = defaults.stringArray(forKey: Key.outbox) ?? []
+    }
+
+    private func savePending() {
+        if let data = try? JSONEncoder().encode(pending) {
+            defaults.set(data, forKey: Key.pending)
+        }
+    }
+}
+
+extension SessionStore: WCSessionDelegate {
+    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        guard activationState == .activated else { return }
+        let context = session.receivedApplicationContext
+        DispatchQueue.main.async {
+            self.receive(context)
+            self.flush()
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        DispatchQueue.main.async {
+            self.receive(applicationContext)
+        }
+    }
+}
