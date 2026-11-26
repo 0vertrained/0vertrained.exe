@@ -22,13 +22,6 @@ export {
   getWhoopSyncEvents,
 } from "./whoop/auth";
 
-// Display cards — Recovery-tab wearable context. Display only; these
-// components never feed the recovery algorithm.
-export { WhoopRecoveryCard } from "./whoop/WhoopRecoveryCard";
-export { WhoopSleepCard } from "./whoop/WhoopSleepCard";
-export { WhoopStrainCard } from "./whoop/WhoopStrainCard";
-export { WhoopSourceSummary } from "./whoop/WhoopSourceSummary";
-
 // Data Loading
 export {
   loadWhoopData,
