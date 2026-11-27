@@ -97,10 +97,10 @@ describe("program preset resolution", () => {
     expect(PROGRAM_PRESETS.hybrid).toBeTruthy();
   });
 
-  it("maps strength → hybrid and endurance → running", () => {
-    expect(resolveOnboardingProgramPreset("strength")).toBe("hybrid");
+  it("maps strength, muscle and endurance to goal-specific starters", () => {
+    expect(resolveOnboardingProgramPreset("strength")).toBe("barbellStrength");
     expect(resolveOnboardingProgramPreset("endurance")).toBe("running");
-    expect(resolveOnboardingProgramPreset("muscle")).toBe("bodybuilding");
+    expect(resolveOnboardingProgramPreset("muscle")).toBe("upperLowerGrowth");
   });
 });
 

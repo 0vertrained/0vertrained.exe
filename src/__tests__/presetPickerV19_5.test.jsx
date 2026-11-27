@@ -24,7 +24,7 @@ vi.mock("../supabaseClient", () => {
 
 import { ThemeProvider } from "../theme";
 import { ProgramHome, ProgramEditor } from "../ProgramScreen";
-import { DEFAULT_PROGRAM, PROGRAM_PRESETS, PRESET_LINEUP } from "../constants";
+import { DEFAULT_PROGRAM, PROGRAM_PRESETS, ORIGINAL_PRESET_IDS, RESEARCH_PRESET_IDS } from "../constants";
 import { readSupersetPref } from "../liftLogPrefs";
 import { flattenProgramLifting } from "../programSessions";
 
@@ -35,16 +35,17 @@ const SPEC = {
   runsPerWeek: 4, longRunDay: "Saturday", qualityDay: "Tuesday", crossTraining: "vest_walk", startLongRunMin: 35,
   benchmark: null, benchmarkTest: "2026-11-26",
 };
-const LINEUP_NAMES = PRESET_LINEUP.map((id) => PROGRAM_PRESETS[id].name);
+const LINEUP_NAMES = ORIGINAL_PRESET_IDS.map((id) => PROGRAM_PRESETS[id].name);
 const UNLISTED_NAMES = ["raceEdition50k"].map((id) => PROGRAM_PRESETS[id].name);
 
-function openPicker({ program = DEFAULT_PROGRAM } = {}) {
+function openPicker({ program = DEFAULT_PROGRAM, original = true } = {}) {
   const onSaveProgram = vi.fn(async () => true);
   render(
     <ThemeProvider>
       <ProgramHome program={program} onSaveProgram={onSaveProgram} onEdit={vi.fn()} onBuild={vi.fn()} />
     </ThemeProvider>,
   );
+  if (original) fireEvent.change(screen.getByRole("combobox", { name: "Plan collection" }), { target: { value: "original" } });
   return { onSaveProgram };
 }
 
@@ -57,7 +58,26 @@ async function switchTo(name) {
 }
 
 describe("Switch preset", () => {
-  it("lists the five-plan lineup, in order, and nothing else", () => {
+  it("previews and loads a research plan with its guide, sets, effort and timer targets", async () => {
+    const { onSaveProgram } = openPicker({ original: false });
+    expect(screen.getAllByRole("radio")).toHaveLength(RESEARCH_PRESET_IDS.length);
+    fireEvent.click(screen.getByRole("radio", { name: /Barbell Strength/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Barbell Strength, day by day/ }));
+    expect(screen.getAllByText("3×3–5").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /How to train on this plan/ }));
+    expect(screen.getByRole("link", { name: /plan and its research/ }).getAttribute("href")).toBe("/training-guide.html#barbellStrength");
+    await switchTo("Barbell Strength");
+    await waitFor(() => expect(onSaveProgram).toHaveBeenCalledWith(PROGRAM_PRESETS.barbellStrength.program));
+  });
+  it("can restore a preset after the athlete changes the working sets", async () => {
+    const preset = PROGRAM_PRESETS.barbellStrength.program;
+    const changed = structuredClone(preset);
+    changed.Monday.lifting[0].sets += 1;
+    const { onSaveProgram } = openPicker({ program: changed, original: false });
+    await switchTo("Barbell Strength");
+    await waitFor(() => expect(onSaveProgram).toHaveBeenCalledWith(preset));
+  });
+  it("lists the original collection in its established order", () => {
     openPicker();
     const shown = screen.getAllByRole("radio").map((radio) => radio.querySelector(".t-bs").textContent);
     expect(shown).toEqual(LINEUP_NAMES);

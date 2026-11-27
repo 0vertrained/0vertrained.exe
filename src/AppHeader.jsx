@@ -1,5 +1,6 @@
 import { useIsDesktop, useIsBroadsheet } from "./ui/useMediaQuery";
 import { Icon, SyncStatus, TopBar, Wordmark } from "./ui/ledger";
+import { hasLoggedWorkout } from "./loadModel";
 import { useScreenFocus } from "./ui/shell";
 
 // Calculate streak
@@ -15,8 +16,7 @@ export function calcStreak(data) {
     const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     const entry = data[key];
     const hasData = entry && (
-      Object.keys(entry.workout?.exercises || {}).length > 0 ||
-      parseFloat(entry.workout?.cardio?.miles) > 0 ||
+      hasLoggedWorkout(entry) ||
       parseFloat(entry.nutrition?.calories) > 0
     );
     if (hasData) {

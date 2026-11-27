@@ -6,13 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "guide:build": "node scripts/build-training-guide.mjs",
     "preview": "vite preview",
     "test": "node scripts/test-suite.mjs",
     "test:whoop-bluetooth": "sh scripts/test-whoop-bluetooth.sh",
     "quality:gate": "node scripts/quality-gate.mjs",
     "lint": "eslint .",
     "sync:version": "node scripts/sync-version.mjs",
-    "prebuild": "node scripts/sync-version.mjs",
+    "prebuild": "node scripts/sync-version.mjs && node scripts/build-training-guide.mjs --check",
     "replay:algorithms": "node scripts/replay-algorithms.mjs",
     "eval:coach": "node scripts/coach-eval.mjs"
   },

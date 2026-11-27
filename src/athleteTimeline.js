@@ -1,6 +1,10 @@
 // src/athleteTimeline.js
 // Athlete OS Timeline: read-only event synthesis from local entries. No network, no writes.
 
+import { cardioLabel, cardioResultText } from "./cardioLog";
+import { getLoggedCardioBlocks } from "./loadModel";
+import { manualMilesForDay } from "./runningVolume";
+
 const n = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -34,11 +38,12 @@ export function buildAthleteTimeline(entries = {}, { limit = 60 } = {}) {
     const intelligence = entry?.intelligence || {};
 
     const ex = exerciseSummary(workout.exercises || {});
-    const miles = n(workout.cardio?.miles);
-    if (ex.names.length > 0 || miles > 0) {
+    const cardio = getLoggedCardioBlocks(workout);
+    const miles = manualMilesForDay(entry);
+    if (ex.names.length > 0 || cardio.length > 0) {
       const parts = [];
       if (ex.names.length > 0) parts.push(`${ex.names.length} lifts`, `${ex.sets} sets`);
-      if (miles > 0) parts.push(`${miles} mi run`);
+      for (const block of cardio) parts.push(`${cardioLabel(block)}, ${cardioResultText(block)}`);
       events.push(event(date, "training", "Training", parts.join(" · "), { lifts: ex.names.length, sets: ex.sets, miles, volume: ex.volume }, "positive"));
     }
 

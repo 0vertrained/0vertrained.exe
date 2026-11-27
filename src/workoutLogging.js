@@ -43,6 +43,29 @@ export function resolveTrackingMode(exercise = {}) {
   return TRACKING_MODES.LOADED_REPS;
 }
 
+// The plan's prescription stays separate from logged reps and the progression
+// engine's estimate for the next set. Some older templates use text targets.
+export function exerciseTargetSummary(exercise = {}) {
+  const mode = resolveTrackingMode(exercise);
+  const target = String(exercise.reps ?? "").trim();
+  const min = Number(exercise.repMin);
+  const range = min > 0 && min < Number(target) ? `${min}–${target}` : target;
+  let dose = range;
+  if (/^\d+(?:\s*[–-]\s*\d+)?$/.test(range)) {
+    const unit = mode === TRACKING_MODES.TIMED_HOLD ? "s" : mode === TRACKING_MODES.CARRY ? "yd" : range === "1" ? "rep" : "reps";
+    const side = String(exercise.notes || "").match(/\b(?:per|each) (side|leg|arm)\b/i)?.[1];
+    dose = [range, unit, side && `per ${side.toLowerCase()}`].filter(Boolean).join(" ");
+  }
+  const parts = [];
+  if (Number(exercise.sets) > 0) parts.push(dose ? `${exercise.sets} × ${dose}` : `${exercise.sets} sets`);
+  else if (dose) parts.push(dose);
+  if (exercise.rir != null && String(exercise.rir).trim() !== "") {
+    parts.push(`${exercise.rir} ${Number(exercise.rir) === 1 ? "rep" : "reps"} in reserve`);
+  }
+  if (Number(exercise.restSeconds) > 0) parts.push(`${exercise.restSeconds} s rest`);
+  return parts.join(" · ");
+}
+
 export function defaultSetForExercise(exercise = {}) {
   const mode = resolveTrackingMode(exercise);
   // A prescription is guidance, not performed work. Keep logging fields blank

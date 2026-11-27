@@ -166,10 +166,10 @@ function normalizeGoals(input, fallback) {
 // program step; the user can still override. Falls back to "hybrid", the
 // Hybrid Athlete preset.
 const GOAL_TO_PROGRAM_PRESET = {
-  hybrid: "hybrid",
-  muscle: "bodybuilding",
-  strength: "hybrid",
-  fat_loss: "hybrid",
+  hybrid: "balancedHybrid",
+  muscle: "upperLowerGrowth",
+  strength: "barbellStrength",
+  fat_loss: "foundation",
   endurance: "running",
 };
 

@@ -205,7 +205,7 @@ describe("V17.5 mounted surfaces", () => {
     const today = read("src/TodayTab.jsx");
     expect(today).toContain("index === firstEmptyIndex(sets)");
     expect(today).toContain("isExerciseHandled(exercise");
-    expect(today).toContain("workout.cardioSessions.${activeCardioSession.id}.miles");
+    expect(today).toContain("const path = cardioPath(pendingCardio)");
     // The runner's set arrives filled from the target, the set before it or
     // last time, and logs what it shows.
     const composer = read("src/workout/CurrentSetComposer.jsx");

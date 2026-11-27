@@ -8,6 +8,8 @@
 // conservative modifiers to the core score without changing old data behavior.
 
 import { RECOVERY_BANDS, RECOVERY_COLOR, PERSONALIZATION } from "./intelligenceConfig";
+import { manualMilesForDay } from "./runningVolume";
+import { hasLoggedWorkout } from "./loadModel";
 import { calcRecoveryModifiers } from "./manualRecovery";
 
 export function calcRecoveryScore(yesterdayData, allData, refDateKey = null) {
@@ -199,14 +201,11 @@ export function calcWeeklyReview(data, goals) {
   const daysLogged = weekData.length;
 
   // Workouts — count days with any exercises or cardio logged
-  const workoutsDone = weekData.filter(d =>
-    Object.keys(d.workout?.exercises || {}).length > 0 ||
-    parseFloat(d.workout?.cardio?.miles) > 0
-  ).length;
+  const workoutsDone = weekData.filter(hasLoggedWorkout).length;
 
   // Miles
   const totalMiles = weekData.reduce((acc, d) =>
-    acc + (parseFloat(d.workout?.cardio?.miles) || 0), 0);
+    acc + manualMilesForDay(d), 0);
 
   // Avg macros
   const nutritionDays = weekData.filter(d => parseFloat(d.nutrition?.calories) > 0);

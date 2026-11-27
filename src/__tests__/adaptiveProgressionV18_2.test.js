@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { PROGRAM_PRESETS } from "../constants";
+import { suggestRestSeconds } from "../sessionIntelligence";
 import {
   buildExercisePrescription,
   buildProgressionDecision,
@@ -30,6 +32,41 @@ function session(weight, reps, extra = {}) {
 }
 
 describe("V18.2 adaptive progression", () => {
+  it("uses the research plan’s lower rep target and rest timer from the first visit", () => {
+    const lift = PROGRAM_PRESETS.upperLowerGrowth.program.Monday.lifting[0];
+    const out = buildExercisePrescription({ data: {}, exercise: lift, todayKey: "2026-07-20" });
+    expect(out.repRange).toEqual({ min: 6, max: 10 });
+    expect(out.targetReps).toEqual([6, 6, 6]);
+    expect(suggestRestSeconds(lift)).toBe(180);
+  });
+
+  it("requires two clean ceiling visits before a harder bodyweight variation", () => {
+    const lift = PROGRAM_PRESETS.bodyweightStrength.program.Monday.lifting[0];
+    const entry = liftEntry(lift.name, session(0, [15, 15, 15]));
+    const data = { "2026-07-13": entry };
+    const next = () => buildExercisePrescription({ exercise: lift, data, todayKey: "2026-07-20" });
+    expect(next().kind).toBe("hold_for_quality");
+    data["2026-07-10"] = entry;
+    expect(next()).toMatchObject({ kind: "advance_variation", targetWeight: 0, targetReps: [8, 8, 8] });
+    data["2026-07-10"] = liftEntry(lift.name, session(0, [15, 15, 15], { rir: "0" }));
+    expect(next().kind).toBe("hold_for_quality");
+  });
+
+  it("starts an unweighted baseline after switching from weighted pull-ups", () => {
+    const lift = PROGRAM_PRESETS.bodyweightStrength.program.Monday.lifting.find(ex => ex.name === "Pull-Up");
+    const data = { "2026-07-13": liftEntry(lift.name, session(25, [6, 6, 6])) };
+    const next = buildExercisePrescription({ exercise: lift, data, todayKey: "2026-07-20" });
+    expect(next).toMatchObject({ kind: "establish", targetWeight: null, targetReps: [4, 4, 4] });
+  });
+
+  it("compares timed hold ceilings in seconds across visits", () => {
+    const hold = PROGRAM_PRESETS.bodyweightStrength.program.Monday.lifting.find(ex => ex.trackingMode === "timed_hold");
+    const entry = liftEntry(hold.name, [{ duration: 40 }, { duration: 40 }]);
+    const data = { "2026-07-10": entry, "2026-07-13": entry };
+    expect(buildExercisePrescription({ exercise: hold, data, todayKey: "2026-07-20" }))
+      .toMatchObject({ kind: "timed_progress", targetReps: [20, 20], rationale: expect.stringMatching(/next hold variation/) });
+  });
+
   it("parses single and ranged prescriptions", () => {
     expect(parseRepRange("6–10")).toEqual({ min: 6, max: 10 });
     expect(parseRepRange(8)).toEqual({ min: 8, max: 8 });

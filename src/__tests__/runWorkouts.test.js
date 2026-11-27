@@ -5,6 +5,7 @@
 // does.
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROGRAM } from "../constants";
+import { MIXED_PLANS } from "../plans/mixed";
 import { alertFor, runSchedule, runStructure, runSummary, runWorkoutsFor, stableUuid } from "../watch/runWorkouts";
 
 const zones = {
@@ -51,6 +52,20 @@ describe("alertFor", () => {
 });
 
 describe("runStructure", () => {
+  it("exports all and only the prescribed minutes of a time-based run", () => {
+    const cardio = MIXED_PLANS.cardioBase.program.Wednesday.cardio;
+    const plan = runStructure(cardio);
+    expect(plan.warmup.goal.seconds).toBe(600);
+    expect(plan.cooldown.goal.seconds).toBe(300);
+    expect(plan.blocks.map(({ iterations, steps }) => [iterations, steps.map(s => s.goal.seconds)])).toEqual([
+      [3, [240, 180]], [1, [240]],
+    ]);
+    const edited = runStructure({ ...cardio, minutes: 25, notes: "4x4min with 3min rest" });
+    expect(edited.blocks).toEqual([{ iterations: 1, steps: [{ purpose: "work", goal: { kind: "time", seconds: 1500 }, alert: null }] }]);
+    expect(edited.warmup).toBeNull();
+    expect(edited.cooldown).toBeNull();
+  });
+
   it("turns warm-up, repeats and cool-down into the Workout app's shape", () => {
     const structure = runStructure({
       type: "Threshold Run",

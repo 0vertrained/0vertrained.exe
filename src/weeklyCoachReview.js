@@ -7,6 +7,8 @@
  * programs, cardio, or nutrition targets itself.
  */
 
+import { manualMilesForDay } from "./runningVolume";
+import { hasLoggedWorkout } from "./loadModel";
 import { confirmedCalories } from "./adaptiveTDEE";
 import { buildStrengthRetentionAlert } from "./progressionEngine";
 
@@ -40,10 +42,6 @@ function keysForWindow(endKey, count = 7) {
   return Array.from({ length: count }, (_, index) => shiftDate(endKey, index - (count - 1)));
 }
 
-function entryHasWorkout(entry) {
-  return Object.keys(entry?.workout?.exercises || {}).length > 0 || n(entry?.workout?.cardio?.miles) > 0;
-}
-
 function waistValue(entry) {
   return n(entry?.body?.waist ?? entry?.body?.waistInches ?? entry?.measurements?.waist);
 }
@@ -57,8 +55,8 @@ function windowSummary(data, keys, goals, asOf) {
   const energyRows = rows.map(({ entry }) => n(entry?.body?.energy)).filter(Number.isFinite);
   const sorenessRows = rows.map(({ entry }) => n(entry?.body?.soreness)).filter(Number.isFinite);
   const stepRows = rows.map(({ entry }) => n(entry?.activity?.steps)).filter(Number.isFinite);
-  const workoutDays = rows.filter(({ entry }) => entryHasWorkout(entry)).length;
-  const totalMiles = rows.reduce((sum, { entry }) => sum + (n(entry?.workout?.cardio?.miles) || 0), 0);
+  const workoutDays = rows.filter(({ entry }) => hasLoggedWorkout(entry)).length;
+  const totalMiles = rows.reduce((sum, { entry }) => sum + manualMilesForDay(entry), 0);
   const targetCalories = n(goals?.calories) || 0;
   const targetProtein = n(goals?.protein) || 200;
   const targetSteps = n(goals?.steps) || 9000;

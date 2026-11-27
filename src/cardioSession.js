@@ -15,24 +15,29 @@ export const CARDIO_PRESETS = [
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(v) || lo));
 
 export function normalizePlan(raw = {}) {
+  if (raw.kind === "steady") {
+    return { kind: "steady", seconds: clamp(raw.seconds, 1, Number.MAX_SAFE_INTEGER / 1000) };
+  }
   return {
     work:   clamp(raw.work ?? 60, 5, 3600),
     rest:   clamp(raw.rest ?? 60, 0, 3600),
     rounds: clamp(raw.rounds ?? 6, 1, 50),
     warmup: clamp(raw.warmup ?? 0, 0, 1800),
+    ...(raw.cooldown != null && { cooldown: clamp(raw.cooldown, 0, 1800) }),
   };
 }
 
-// Flat, ordered segment list. Rest after the final work round is dropped —
-// the session ends on work, not on standing around.
+// Recovery sits between work rounds. A prescribed cool-down follows the last.
 export function buildSegments(planRaw) {
   const plan = normalizePlan(planRaw);
+  if (plan.kind === "steady") return [{ kind: "steady", seconds: plan.seconds, round: 0 }];
   const segs = [];
   if (plan.warmup > 0) segs.push({ kind: "warmup", seconds: plan.warmup, round: 0 });
   for (let r = 1; r <= plan.rounds; r++) {
     segs.push({ kind: "work", seconds: plan.work, round: r });
     if (plan.rest > 0 && r < plan.rounds) segs.push({ kind: "rest", seconds: plan.rest, round: r });
   }
+  if (plan.cooldown > 0) segs.push({ kind: "cooldown", seconds: plan.cooldown, round: 0 });
   return segs;
 }
 
@@ -48,10 +53,8 @@ export function fmtSeconds(totalSeconds) {
 
 // Structured steps
 // Race-plan runs carry their workout as steps: warmup → repeat { work,
-// recovery } → cooldown. Read the interval block straight from them instead of
-// parsing prose (whose "10 min easy" warm-up the notes parser would mistake
-// for the rest interval). The runner ends on the last rep — the cool-down is
-// run as written in the notes (Phase 2 plays every step).
+// recovery } → cooldown. The legacy race runner reads the interval block
+// and warm-up here. A time-based prescription can also include a cool-down.
 export function suggestPlanFromSteps(steps) {
   if (!Array.isArray(steps)) return null;
   const repeat = steps.find((s) => s?.kind === "repeat");
@@ -98,4 +101,24 @@ export function suggestPlanFromNotes(notes) {
   }
 
   return normalizePlan({ work, rest: rest ?? Math.min(work, 180), rounds, warmup: 300 });
+}
+
+export function timeBasedCardioPlan(cardio) {
+  const minutes = Number(cardio?.minutes);
+  if (!Number.isFinite(minutes) || minutes <= 0 || Number(cardio.miles) > 0) return null;
+
+  const seconds = Math.round(minutes * 60);
+  const intervals = suggestPlanFromSteps(cardio.steps);
+  if (intervals) {
+    const cooldown = cardio.steps.find((step) => step?.kind === "cooldown");
+    const plan = normalizePlan({ ...intervals, cooldown: (Number(cooldown?.minutes) || 0) * 60 });
+    if (totalPlannedSeconds(plan) === seconds) return plan;
+  }
+  // The athlete can replace the duration in the editor. Old interval notes
+  // may still mention the previous prescription after that edit.
+  return normalizePlan({ kind: "steady", seconds });
+}
+
+export function suggestPlanForCardio(cardio) {
+  return timeBasedCardioPlan(cardio) || suggestPlanFromSteps(cardio?.steps) || suggestPlanFromNotes(cardio?.notes);
 }

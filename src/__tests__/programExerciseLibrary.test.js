@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   EXERCISES,
+  EQUIPMENT_LABELS,
+  exercisePrescription,
   EXERCISE_LIBRARY,
   MOVEMENT_PATTERNS,
   CARDIO_SESSIONS,
@@ -17,13 +19,19 @@ describe("exercise catalog shape", () => {
       expect(typeof e.name).toBe("string");
       expect(e.name.length).toBeGreaterThan(0);
       expect(MOVEMENT_PATTERNS).toContain(e.pattern);
-      expect(["barbell", "dumbbell", "machine", "cable", "bodyweight"]).toContain(e.equipment);
+      expect(EQUIPMENT_LABELS[e.equipment]).toBeTruthy();
       expect(["beginner", "intermediate", "advanced"]).toContain(e.difficulty);
       expect(Number.isFinite(e.defaultSets)).toBe(true);
       expect(Number.isFinite(e.defaultReps)).toBe(true);
       expect(typeof e.notes).toBe("string");
       expect(e.notes.length).toBeGreaterThan(0);
       expect(Array.isArray(e.alternatives)).toBe(true);
+    }
+  });
+
+  it("offers named alternatives that can also be selected", () => {
+    for (const exercise of EXERCISES) {
+      for (const name of exercise.alternatives) expect(exercisePrescription(name), exercise.name + " → " + name).toBeTruthy();
     }
   });
 

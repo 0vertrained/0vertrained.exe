@@ -11,17 +11,19 @@
 // note. Cardio sessions live in a separate catalog with intensity + effort so
 // the builder can respect recovery spacing rules.
 
+import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging.js";
+
 // Movement patterns
-export const MOVEMENT_PATTERNS = [
-  "squat", "hinge", "singleLeg",
-  "horizontalPush", "verticalPush",
-  "horizontalPull", "verticalPull",
-  "chestIsolation", "backIsolation",
-  "lateralDelts", "rearDelts",
-  "biceps", "triceps",
-  "quadIso", "hamstringIso",
-  "calves", "core",
-];
+export const MOVEMENT_LABELS = {
+  squat: "Squat", hinge: "Hip hinge", singleLeg: "Single-leg work",
+  horizontalPush: "Horizontal press", verticalPush: "Overhead press",
+  horizontalPull: "Horizontal row", verticalPull: "Vertical pull",
+  chestIsolation: "Chest isolation", backIsolation: "Back accessories",
+  lateralDelts: "Side delts", rearDelts: "Rear delts", biceps: "Biceps", triceps: "Triceps",
+  quadIso: "Quad isolation", hamstringIso: "Hamstring accessories", calves: "Calves", core: "Core",
+  carry: "Loaded carries", conditioning: "Conditioning",
+};
+export const MOVEMENT_PATTERNS = Object.keys(MOVEMENT_LABELS);
 
 // Patterns treated as compound (heavier, anchor lifts) vs. accessory work.
 export const COMPOUND_PATTERNS = [
@@ -37,9 +39,15 @@ export function isCompoundPattern(pattern) {
 // Exercise-level tag → which equipment MODES may use it.
 export const EQUIPMENT_MODES = ["full_gym", "dumbbells", "bodyweight", "mixed"];
 
+export const EQUIPMENT_LABELS = {
+  barbell: "Barbell", dumbbell: "Dumbbell", kettlebell: "Kettlebell", plate: "Added weight",
+  machine: "Machine", selectorized: "Selectorized machine", plate_loaded: "Plate-loaded machine",
+  cable: "Cable", bodyweight: "Calisthenics", sled: "Sled",
+};
+
 const EQUIPMENT_ALLOW = {
-  full_gym:   ["barbell", "dumbbell", "machine", "cable", "bodyweight"],
-  mixed:      ["barbell", "dumbbell", "machine", "cable", "bodyweight"],
+  full_gym: Object.keys(EQUIPMENT_LABELS),
+  mixed: Object.keys(EQUIPMENT_LABELS),
   dumbbells:  ["dumbbell", "bodyweight"],
   bodyweight: ["bodyweight"],
 };
@@ -47,8 +55,8 @@ const EQUIPMENT_ALLOW = {
 const DIFFICULTY_RANK = { beginner: 1, intermediate: 2, advanced: 3 };
 
 // Compact constructor to keep the catalog readable.
-function ex(name, pattern, equipment, difficulty, defaultSets, defaultReps, notes, alternatives = []) {
-  return { name, pattern, equipment, difficulty, defaultSets, defaultReps, notes, alternatives };
+function ex(name, pattern, equipment, difficulty, defaultSets, defaultReps, notes, alternatives = [], trackingMode) {
+  return { name, pattern, equipment, difficulty, defaultSets, defaultReps, notes, alternatives, ...(trackingMode && { trackingMode }) };
 }
 
 // Strength catalog
@@ -57,9 +65,9 @@ export const EXERCISES = [
   ex("Back Squat", "squat", "barbell", "intermediate", 4, 6, "Brace hard, sit between the hips, hit at least parallel. Controlled descent, drive the floor away.", ["Front Squat", "Goblet Squat"]),
   ex("Front Squat", "squat", "barbell", "advanced", 4, 6, "Elbows high, upright torso. More quad and upper-back demand than the back squat.", ["Back Squat", "Goblet Squat"]),
   ex("Goblet Squat", "squat", "dumbbell", "beginner", 3, 10, "Hold one dumbbell at the chest. Elbows track inside the knees, chest tall. Great for learning depth.", ["Bodyweight Squat", "Leg Press"]),
-  ex("Leg Press", "squat", "machine", "beginner", 3, 12, "Shoulder-width feet, full but safe range, no lower-back rounding at the bottom.", ["Goblet Squat", "Hack Squat"]),
+  ex("Leg Press", "squat", "machine", "beginner", 3, 12, "Adjust the seat and foot placement so your hips stay against the pad through each rep.", ["Goblet Squat", "Hack Squat"]),
   ex("Hack Squat", "squat", "machine", "intermediate", 3, 10, "Quad-biased squat with back support. Push through mid-foot, full depth.", ["Leg Press", "Front Squat"]),
-  ex("Bodyweight Squat", "squat", "bodyweight", "beginner", 3, 15, "Feet shoulder-width, sit back and down, chest up. Slow tempo makes it harder.", ["Goblet Squat", "Split Squat"]),
+  ex("Bodyweight Squat", "squat", "bodyweight", "beginner", 3, 15, "Feet shoulder-width, sit back and down, chest up. Slow tempo makes it harder.", ["Goblet Squat", "Bodyweight Split Squat"]),
 
   // ── Hinge pattern ──
   ex("Conventional Deadlift", "hinge", "barbell", "intermediate", 4, 5, "Bar over mid-foot, lats tight, push the floor away. Take warm-up sets seriously.", ["Trap Bar Deadlift", "Romanian Deadlift"]),
@@ -80,7 +88,7 @@ export const EXERCISES = [
   ex("Dumbbell Bench Press", "horizontalPush", "dumbbell", "beginner", 3, 10, "Deeper stretch than the barbell. Lower under control, press without clashing the bells.", ["Barbell Bench Press", "Incline DB Press"]),
   ex("Incline DB Press", "horizontalPush", "dumbbell", "intermediate", 3, 10, "30–45° incline for the upper chest. Deep stretch, don't touch the bells at the top.", ["Dumbbell Bench Press", "Barbell Bench Press"]),
   ex("Push-Up", "horizontalPush", "bodyweight", "beginner", 3, 12, "Rigid plank, elbows ~45°, chest to the floor. Elevate the hands to regress.", ["Weighted Push-Up", "Dumbbell Bench Press"]),
-  ex("Weighted Push-Up", "horizontalPush", "bodyweight", "advanced", 3, 10, "Plate on the upper back or a band for load. Full range, controlled tempo.", ["Push-Up", "Dumbbell Bench Press"]),
+  ex("Weighted Push-Up", "horizontalPush", "plate", "advanced", 3, 10, "Use a fitted weight vest or secured external load. Record the added weight.", ["Push-Up", "Dumbbell Bench Press"], TRACKING_MODES.LOADED_REPS),
 
   // ── Vertical push ──
   ex("Overhead Press", "verticalPush", "barbell", "intermediate", 4, 6, "Standing, brace the trunk, press to a full overhead lockout. Bar path close to the face.", ["Seated DB Press", "Pike Push-Up"]),
@@ -92,12 +100,12 @@ export const EXERCISES = [
   ex("Chest-Supported Row", "horizontalPull", "machine", "beginner", 3, 10, "Chest on the pad removes the low back. Squeeze the shoulder blades at the top.", ["Cable Row", "One-Arm DB Row"]),
   ex("One-Arm DB Row", "horizontalPull", "dumbbell", "beginner", 3, 10, "Brace on a bench, pull the dumbbell to the hip, big stretch at the bottom.", ["Chest-Supported Row", "Cable Row"]),
   ex("Cable Row", "horizontalPull", "cable", "beginner", 3, 12, "Drive the elbows back, slight forward lean at the start for a lat stretch.", ["Chest-Supported Row", "One-Arm DB Row"]),
-  ex("Inverted Row", "horizontalPull", "bodyweight", "beginner", 3, 10, "Under a bar or sturdy table, body rigid, pull the chest to the bar. Angle to scale.", ["One-Arm DB Row", "Cable Row"]),
+  ex("Inverted Row", "horizontalPull", "bodyweight", "beginner", 3, 10, "Use a fixed low bar or anchored rings. Keep the body straight and move your feet to adjust difficulty.", ["One-Arm DB Row", "Cable Row"]),
 
   // ── Vertical pull ──
   ex("Pull-Up", "verticalPull", "bodyweight", "advanced", 3, 8, "Full hang to chin over the bar. Add load once clean, or use a band to assist.", ["Lat Pulldown", "Assisted Pull-Up"]),
   ex("Lat Pulldown", "verticalPull", "cable", "beginner", 3, 12, "Drive the elbows down and back, chest tall, control the return.", ["Pull-Up", "Assisted Pull-Up"]),
-  ex("Assisted Pull-Up", "verticalPull", "machine", "beginner", 3, 10, "Machine or band assistance. Full range, build toward an unassisted rep.", ["Lat Pulldown", "Pull-Up"]),
+  ex("Assisted Pull-Up", "verticalPull", "machine", "beginner", 3, 10, "Set the counterweight so you can complete controlled reps. Record pounds of assistance and reduce it as you progress.", ["Lat Pulldown", "Pull-Up"]),
 
   // ── Chest isolation ──
   ex("Cable Fly", "chestIsolation", "cable", "beginner", 3, 12, "Slight elbow bend, hug the arms together, 1s squeeze. Think chest, not arms.", ["Pec Deck", "DB Fly"]),
@@ -133,7 +141,7 @@ export const EXERCISES = [
   ex("Leg Extension", "quadIso", "machine", "beginner", 3, 15, "Full contraction with a 1s hold at the top, slow negative. Quad isolation.", ["Leg Press"]),
 
   // ── Hamstring isolation ──
-  ex("Lying Leg Curl", "hamstringIso", "machine", "beginner", 3, 12, "Curl all the way, slow negative. Point the toes to bias the hamstrings.", ["Seated Leg Curl", "DB Romanian Deadlift"]),
+  ex("Lying Leg Curl", "hamstringIso", "machine", "beginner", 3, 12, "Align the knee with the pivot and bend it smoothly. Keep the hips against the pad.", ["Seated Leg Curl", "DB Romanian Deadlift"]),
   ex("Seated Leg Curl", "hamstringIso", "machine", "beginner", 3, 12, "Deeper hamstring stretch than lying. Controlled tempo, full range.", ["Lying Leg Curl", "DB Romanian Deadlift"]),
 
   // ── Calves ──
@@ -152,7 +160,61 @@ export const EXERCISES = [
   ex("Pallof Press", "core", "cable", "beginner", 3, 12, "Anti-rotation — resist the cable pulling you round. Press out and hold.", ["Dead Bug", "Plank"]),
   ex("Cable Crunch", "core", "cable", "beginner", 3, 15, "Round the spine down toward the knees, crunch with the abs, not the hips.", ["Hanging Leg Raise", "Plank"]),
   ex("Hanging Leg Raise", "core", "bodyweight", "intermediate", 3, 12, "Full hang, raise legs to parallel or above, no swinging. Control the descent.", ["Cable Crunch", "Dead Bug"]),
+  // Free weights and loaded conditioning
+  ex("Landmine Press", "verticalPush", "barbell", "beginner", 3, 10, "Secure the bar in its pivot. Press one end forward and up, keeping the ribs stacked.", ["Seated DB Press", "Machine Shoulder Press"]),
+  ex("Dumbbell Curl", "biceps", "dumbbell", "beginner", 3, 10, "Turn the palm up as you curl and lower through a comfortable range.", ["Cable Curl", "Hammer Curl"]),
+  ex("Kettlebell Deadlift", "hinge", "kettlebell", "beginner", 3, 10, "Stand over the bell, hinge to the handle and stand tall. Lower it between your feet.", ["Trap Bar Deadlift", "DB Romanian Deadlift"]),
+  ex("Kettlebell Swing", "conditioning", "kettlebell", "intermediate", 3, 12, "Hinge to drive the bell forward. End the set when hip speed or technique drops.", ["Kettlebell Deadlift"]),
+  ex("Farmer Carry", "carry", "dumbbell", "beginner", 3, 30, "Walk tall with a weight in each hand. Record the total external load and yards traveled.", ["Suitcase Carry"]),
+  ex("Suitcase Carry", "carry", "kettlebell", "beginner", 3, 25, "Carry one weight at your side with a level trunk. Match the distance on each side.", ["Farmer Carry"]),
+  ex("Sled Push", "conditioning", "sled", "beginner", 3, 20, "Use short driving steps. Record the same sled’s training load and the distance in yards.", ["Farmer Carry"], TRACKING_MODES.CARRY),
+  ex("Backward Sled Drag", "conditioning", "sled", "beginner", 3, 20, "Face the sled with the straps taut. Walk backward on a clear lane and log load and yards.", ["Sled Push"], TRACKING_MODES.CARRY),
+
+  // Selectorized and plate-loaded stations
+  ex("Machine Chest Press", "horizontalPush", "selectorized", "beginner", 3, 10, "Set the seat so the handles meet mid-chest. Keep the same seat setting between sessions.", ["Dumbbell Bench Press", "Plate-Loaded Incline Press"]),
+  ex("Plate-Loaded Incline Press", "horizontalPush", "plate_loaded", "beginner", 3, 10, "Set the seat to press up and forward. Log plate weight using the same convention each time.", ["Incline DB Press", "Machine Chest Press"]),
+  ex("Machine Shoulder Press", "verticalPush", "selectorized", "beginner", 3, 10, "Set the handles around shoulder height and press through a comfortable arc.", ["Seated DB Press", "Landmine Press"]),
+  ex("Plate-Loaded High Row", "horizontalPull", "plate_loaded", "beginner", 3, 10, "Set the chest pad, then draw the handles toward your ribs without lifting off the pad.", ["Cable Row", "Chest-Supported Row"]),
+  ex("Belt Squat", "squat", "plate_loaded", "intermediate", 3, 10, "Center the belt over the loading point and use the handles for balance.", ["Hack Squat", "Leg Press"]),
+  ex("Machine Hip Thrust", "hinge", "plate_loaded", "beginner", 3, 10, "Position the pad across the hips. Extend until the torso and thighs line up.", ["Barbell Hip Thrust", "Glute Bridge"]),
+  ex("Machine Lateral Raise", "lateralDelts", "selectorized", "beginner", 3, 12, "Adjust the pads against the upper arms. Raise both elbows evenly.", ["Lateral Raise", "Cable Lateral Raise"]),
+  ex("Assisted Dip", "triceps", "selectorized", "beginner", 3, 8, "Use the assistance pad to control the descent. Record the counterweight for each set.", ["Parallel Bar Dip", "Triceps Pushdown"]),
+  ex("Machine Preacher Curl", "biceps", "selectorized", "beginner", 3, 12, "Keep the upper arms supported and aligned with the machine’s pivot.", ["Dumbbell Curl", "Cable Curl"]),
+  ex("Single-Arm Lat Pulldown", "verticalPull", "cable", "beginner", 3, 10, "Brace the torso and draw one elbow toward the hip. Repeat with the other arm.", ["Lat Pulldown", "Assisted Pull-Up"]),
+  ex("Overhead Cable Triceps Extension", "triceps", "cable", "intermediate", 3, 12, "Use a rope and face away from the pulley. Keep the upper arms steady.", ["Overhead Triceps Extension", "Triceps Pushdown"]),
+
+  // Bodyweight regressions, progressions and unilateral work
+  ex("Incline Push-Up", "horizontalPush", "bodyweight", "beginner", 3, 10, "Use a fixed rail or bench. Lower the support height as the sets get easier.", ["Push-Up", "Machine Chest Press"]),
+  ex("Decline Push-Up", "horizontalPush", "bodyweight", "intermediate", 3, 8, "Elevate the feet on a stable platform and maintain a straight trunk.", ["Push-Up", "Pike Push-Up"]),
+  ex("Chin-Up", "verticalPull", "bodyweight", "intermediate", 3, 6, "Use a fixed bar and a comfortable underhand grip. Lower with control.", ["Pull-Up", "Assisted Pull-Up"]),
+  ex("Scapular Pull-Up", "verticalPull", "bodyweight", "beginner", 2, 8, "Hang from a bar with straight elbows. Draw the shoulders down and release slowly.", ["Inverted Row", "Chin-Up"]),
+  ex("Parallel Bar Dip", "horizontalPush", "bodyweight", "intermediate", 3, 6, "Support yourself on fixed bars. Lower to a repeatable comfortable depth and press back up.", ["Assisted Dip", "Push-Up"]),
+  ex("Bodyweight Split Squat", "singleLeg", "bodyweight", "beginner", 3, 10, "Stagger the feet and lower the rear knee. Use a rail for balance and match reps per leg.", ["Reverse Lunge", "Bodyweight Squat"]),
+  ex("Sliding Leg Curl", "hamstringIso", "bodyweight", "intermediate", 3, 8, "Lie on your back with heels on sliders. Bridge the hips and bend the knees to pull the heels in.", ["Glute Bridge", "Seated Leg Curl"]),
+  ex("Nordic Hamstring Curl", "hamstringIso", "bodyweight", "advanced", 2, 5, "Secure the ankles on a Nordic bench. Lower through the range you control and use your hands on the return.", ["Sliding Leg Curl", "Lying Leg Curl"]),
+  ex("Single-Leg Calf Raise", "calves", "bodyweight", "beginner", 3, 12, "Balance with a fingertip support. Pause at the top and lower under control on each side.", ["Bodyweight Calf Raise", "DB Calf Raise"]),
+  ex("Hollow Body Hold", "core", "bodyweight", "intermediate", 3, 20, "Keep the lower back in contact with the floor. Shorten the lever by bending the knees.", ["Dead Bug", "Plank"]),
+  ex("Side Plank", "core", "bodyweight", "beginner", 3, 25, "Stack the elbow below the shoulder and hold the hips level. Match seconds per side.", ["Plank", "Dead Bug"]),
+
 ];
+
+const exercisesByName = new Map(EXERCISES.map(exercise => [exercise.name.toLowerCase(), exercise]));
+
+// Resolve a catalog name to the fields the program editor and set logger use.
+export function findLibraryExercise(name) {
+  const key = String(name || "").trim().toLowerCase();
+  return exercisesByName.get(key) || null;
+}
+
+export function exercisePrescription(name) {
+  const exercise = findLibraryExercise(name);
+  if (!exercise) return null;
+  const mode = resolveTrackingMode(exercise);
+  const trackingMode = exercise.trackingMode ||
+    (exercise.equipment === "bodyweight" && mode === TRACKING_MODES.LOADED_REPS ? TRACKING_MODES.BODYWEIGHT_REPS : undefined);
+  return { name: exercise.name, sets: exercise.defaultSets, reps: exercise.defaultReps, notes: exercise.notes,
+    ...(trackingMode && { trackingMode }) };
+}
 
 // Cardio catalog
 // intensity buckets drive the builder's recovery-spacing rules.
@@ -167,19 +229,42 @@ export const CARDIO_SESSIONS = {
   hill_repeats: { type: "Hill Repeats",   intensity: "hard",     equipment: "run",       defaultMiles: 4,   effort: "High",       notes: "Warm up, then 6–8 uphill efforts of ~45–60s, jog down to recover. Strength + speed." },
   recovery_walk:{ type: "Recovery Walk",  intensity: "recovery", equipment: "walk",      defaultMiles: 2,   effort: "Very Light", notes: "Optional easy movement to promote blood flow. Keep it genuinely easy." },
   incline_walk: { type: "Incline Walk",   intensity: "easy",     equipment: "treadmill", defaultMiles: 2.5, effort: "Light",      notes: "Treadmill at a brisk incline. Low-impact aerobic work, easy on the joints." },
-  bike_zone2:   { type: "Bike Zone 2",    intensity: "easy",     equipment: "bike",      defaultMiles: 0,   effort: "Zone 2",     notes: "Low-impact aerobic cross-training, ~30–45 min steady. Great when legs are beat up." },
-  row_intervals:{ type: "Row Erg Intervals", intensity: "hard",  equipment: "rower",     defaultMiles: 0,   effort: "High",       notes: "Warm up, then intervals (e.g. 6×250m or 4×2 min) with rest. Full-body, low-impact." },
+  bike_zone2:   { type: "Bike Zone 2",    intensity: "easy",     equipment: "bike",      defaultMiles: 0, defaultMinutes: 30,   effort: "Zone 2",     notes: "Low-impact aerobic cross-training, ~30–45 min steady. Great when legs are beat up." },
+  row_intervals:{ type: "Row Erg Intervals", intensity: "hard",  equipment: "rower",     defaultMiles: 0, defaultMinutes: 25, effort: "High", notes: "Five minutes easy, 4 × 2 minutes brisk with 2 minutes easy between efforts, then six minutes easy." },
+  steady_row: { type: "Steady Row", intensity: "easy", equipment: "rower", defaultMiles: 0, defaultMinutes: 25, effort: "Conversational", notes: "Choose a stroke rate that lets you speak in full sentences. Ease in and out over the first and last few minutes." },
+  elliptical: { type: "Elliptical", intensity: "easy", equipment: "elliptical", defaultMiles: 0, defaultMinutes: 30, effort: "Conversational", notes: "Adjust resistance and stride rate until breathing is steady. Keep the same settings to compare sessions." },
+  stair_climb: { type: "Stair Climber", intensity: "moderate", equipment: "stairs", defaultMiles: 0, defaultMinutes: 20, effort: "Steady", notes: "Choose a sustainable step rate and use the rails lightly for balance." },
+  ski_erg: { type: "Ski Erg", intensity: "easy", equipment: "ski", defaultMiles: 0, defaultMinutes: 20, effort: "Conversational", notes: "Drive the handles smoothly with the trunk and arms. Keep the easy opening and closing minutes in the target time." },
+  bike_intervals: { type: "Bike Intervals", intensity: "hard", equipment: "bike", defaultMiles: 0, defaultMinutes: 30, effort: "Hard repetitions", notes: "Five minutes easy, 5 × 2 minutes hard with 2 minutes light spinning between efforts, then seven minutes easy." },
 };
 
 export const CARDIO_KEYS = Object.keys(CARDIO_SESSIONS);
+
+const INTERVAL_BLOCKS = {
+  bike_intervals: { warmup: 5, rounds: 5, work: 2, rest: 2, cooldown: 7 },
+  row_intervals: { warmup: 5, rounds: 4, work: 2, rest: 2, cooldown: 6 },
+};
 
 // Build a program-shaped cardio object from a session key, allowing overrides
 // (miles, effort, notes) for experience scaling and week-to-week variation.
 export function buildCardio(key, overrides = {}) {
   const base = CARDIO_SESSIONS[key] || CARDIO_SESSIONS.easy_run;
   const miles = overrides.miles != null ? overrides.miles : base.defaultMiles;
+  const minutes = Number(overrides.minutes ?? base.defaultMinutes);
+  const block = INTERVAL_BLOCKS[key];
+  let steps;
+  if (block && !overrides.notes && minutes === base.defaultMinutes) {
+    steps = [
+      { kind: "warmup", minutes: block.warmup, intensity: "easy" },
+      { kind: "repeat", reps: block.rounds, work: { minutes: block.work, intensity: "interval" }, recovery: { minutes: block.rest, intensity: "easy" } },
+      { kind: "cooldown", minutes: block.cooldown, intensity: "easy" },
+    ];
+  }
   return {
     type: overrides.type || base.type,
+    modality: ({ treadmill: "walk", rower: "row" })[base.equipment] || base.equipment,
+    ...(Number.isFinite(minutes) && minutes > 0 && { minutes }),
+    ...(steps && { steps }),
     miles: Number.isFinite(Number(miles)) ? Number(miles) : base.defaultMiles,
     effort: overrides.effort || base.effort,
     notes: overrides.notes || base.notes,

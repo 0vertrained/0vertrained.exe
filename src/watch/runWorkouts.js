@@ -11,7 +11,7 @@
 // instead, which the watch works out from its own heart-rate zones. Steps
 // run by feel (jogs, strides, fartlek) get no alert.
 
-import { suggestPlanFromNotes } from "../cardioSession";
+import { suggestPlanFromNotes, timeBasedCardioPlan } from "../cardioSession";
 import { DEFAULT_PROGRAM, getDayName } from "../constants";
 import { getProgramSessions } from "../programSessions";
 import { applyRaceBuild, isRunCardio, resolveRaceBuildConfig } from "../raceBuild";
@@ -74,7 +74,7 @@ const recovery = (goal) => ({ purpose: "recovery", goal, alert: null });
 // The plan's steps as a warm-up, blocks of work and recovery, and a
 // cool-down. A warm-up anywhere but first, or a cool-down anywhere but last,
 // is run as a block like any other step.
-function fromSteps(steps, context) {
+function fromSteps(steps, context, betweenOnly) {
   let warmup = null;
   let cooldown = null;
   const blocks = [];
@@ -92,10 +92,14 @@ function fromSteps(steps, context) {
         const workMinutes = positive(step.work?.minutes);
         if (!reps || !workMinutes) return;
         const recoveryMinutes = positive(step.recovery?.minutes);
-        blocks.push(block(reps, [
-          work(time(workMinutes), alertFor(step.work?.intensity, context)),
+        const effort = work(time(workMinutes), alertFor(step.work?.intensity, context));
+        const omitFinalRecovery = betweenOnly && recoveryMinutes;
+        const pairs = omitFinalRecovery ? reps - 1 : reps;
+        if (pairs) blocks.push(block(pairs, [
+          effort,
           ...(recoveryMinutes ? [recovery(time(recoveryMinutes))] : []),
         ]));
+        if (omitFinalRecovery) blocks.push(block(1, [effort]));
         return;
       }
       case "strides": {
@@ -124,9 +128,9 @@ function fromSteps(steps, context) {
 // phone's interval timer reads them ("4×4 min, 3 min easy"). Otherwise one
 // stretch, its time if it has one, else its distance, with an easy cue when
 // it's meant to be easy.
-function single(cardio, context) {
+function single(cardio, context, preferDuration = false) {
   const easy = EASY_EFFORT.test(`${cardio.effort || ""} ${cardio.type || ""}`);
-  const intervals = easy ? null : suggestPlanFromNotes(cardio.notes);
+  const intervals = easy || preferDuration ? null : suggestPlanFromNotes(cardio.notes);
   if (intervals && intervals.rounds >= 2) {
     return {
       warmup: intervals.warmup > 0 ? { goal: { kind: "time", seconds: intervals.warmup }, alert: null } : null,
@@ -154,7 +158,9 @@ export function runSummary(cardio) {
 /** The run as the Workout app's steps: { warmup, blocks, cooldown }. */
 export function runStructure(cardio, context = {}) {
   if (!cardio) return null;
-  const fromPlan = Array.isArray(cardio.steps) && cardio.steps.length ? fromSteps(cardio.steps, context) : null;
+  const timed = timeBasedCardioPlan(cardio);
+  if (timed?.kind === "steady") return single(cardio, context, true);
+  const fromPlan = Array.isArray(cardio.steps) && cardio.steps.length ? fromSteps(cardio.steps, context, Boolean(timed)) : null;
   return fromPlan?.blocks.length ? fromPlan : single(cardio, context);
 }
 

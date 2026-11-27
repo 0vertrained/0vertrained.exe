@@ -19,6 +19,9 @@
 //     "trend suggests"). No medical or diagnostic claims. No causal "X caused Y".
 //   - Null-safe: a partial/loading/empty state must never throw or emit NaN.
 
+import { manualMilesForDay } from "./runningVolume";
+import { hasLoggedWorkout } from "./loadModel";
+
 const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
@@ -298,13 +301,10 @@ export function buildProgressEvidence({ data = {}, goals = {}, settings = {} } =
   );
   const last30 = entries.slice(-30);
 
-  const workouts30d = last30.filter(([, d]) => {
-    const exCount = Object.keys(d?.workout?.exercises || {}).length;
-    return exCount > 0 || (num(d?.workout?.cardio?.miles) || 0) > 0;
-  }).length;
+  const workouts30d = last30.filter(([, day]) => hasLoggedWorkout(day)).length;
 
   const miles30d = round1(
-    last30.reduce((acc, [, d]) => acc + (num(d?.workout?.cardio?.miles) || 0), 0)
+    last30.reduce((acc, [, d]) => acc + manualMilesForDay(d), 0)
   ) ?? 0;
 
   const proteinVals = last30.map(([, d]) => num(d?.nutrition?.protein)).filter((v) => v !== null && v > 0);

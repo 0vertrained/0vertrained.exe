@@ -7,6 +7,7 @@
 //     responsive to spikes and free of the window-exit artifacts of rolling means.
 //   • Monotony & strain (Foster) as additional overtraining signals.
 
+import { cardioModality, hasCardioResult } from "./cardioLog";
 import { formatDuration, parseRunTime } from "./runPaces";
 import { reconcileActivities, sportKind } from "./workout/activityMatching";
 import { watchLiftSummary } from "./watch/liftSummary";
@@ -30,10 +31,10 @@ function paceToSecPerMile(paceStr) {
 function resolveSessionRpe(wo, hasLift) {
   const logged = parseFloat(wo?.rpe);
   if (Number.isFinite(logged) && logged >= 1 && logged <= 10) return { rpe: logged, estimated: false };
-  const text = [wo?.cardio?.type, wo?.cardio?.effort, wo?.cardio?.notes, wo?.type, wo?.code]
+  const text = [wo?.cardio?.type, wo?.cardio?.effort, wo?.cardio?.plannedEffort, wo?.cardio?.notes, wo?.type, wo?.code]
     .map(v => String(v || "").toLowerCase()).join(" ");
   let rpe = 5.5;
-  if (/interval|tempo|threshold|hard|race|hyrox|sprint|speed|station/.test(text)) rpe = 7;
+  if (/interval|tempo|threshold|hard|race|hyrox|sprint|speed|\bstations?\b/.test(text)) rpe = 7;
   else if (/easy|zone\s*1|zone\s*2|recovery|shakeout|conversational|walk/.test(text)) rpe = 4;
   else if (hasLift) rpe = 6;
   return { rpe, estimated: true };
@@ -50,10 +51,11 @@ function cardioEffort(c) {
 // definition of "manually logged cardio" so manual-vs-import dedupe can never
 // drift from the load model's own reading of a day.
 export function getLoggedCardioBlocks(wo) {
-  const sessionBlocks = Object.values(wo?.cardioSessions || {})
-    .filter((c) => c && ((parseFloat(c.miles) || 0) > 0 || String(c.time || "").trim() !== ""));
-  if (!sessionBlocks.length) return wo?.cardio ? [wo.cardio] : [];
-  const plain = wo.cardio;
+  const sessionBlocks = Object.values(wo?.cardioSessions || {}).filter(hasCardioResult);
+  const plain = wo?.cardio;
+  if (!hasCardioResult(plain)) return sessionBlocks;
+  if (!sessionBlocks.length) return [plain];
+  if (plain.unplanned && !plain.activityRefs?.length) return [...sessionBlocks, plain];
   // An athlete can accept an import before later logging the same scheduled
   // run. Count the scheduled work and any distinct imported components.
   if (!Array.isArray(plain?.activityRefs) || !plain.activityRefs.length || cardioDuration(plain).minutes <= 0) return sessionBlocks;
@@ -66,11 +68,15 @@ export function getLoggedCardioBlocks(wo) {
   })));
 }
 
+export function hasLoggedWorkout(day) {
+  return Object.keys(day?.workout?.exercises || {}).length > 0 || getLoggedCardioBlocks(day?.workout).length > 0;
+}
+
 export function cardioActivityRefs(block) {
   const duration = cardioDuration(block);
   if (duration.minutes <= 0) return [];
   if (Array.isArray(block.activityRefs) && block.activityRefs.length) return block.activityRefs.filter(Boolean);
-  return [{ kind: sportKind(block.type) || "cardio", startTime: block.startTime ?? block.startedAt,
+  return [{ kind: sportKind(block.modality || block.type) || block.modality || "cardio", startTime: block.startTime ?? block.startedAt,
     minutes: duration.source === "recorded" ? duration.minutes : 0, miles: Number(block.miles) || 0 }];
 }
 
@@ -80,7 +86,7 @@ export function cardioDuration(block) {
   const seconds = parseRunTime(block?.time);
   if (seconds > 0) return { minutes: seconds / 60, source: "recorded" };
   const miles = Number(block?.miles);
-  if (!(miles > 0) || !Number.isFinite(miles)) return { minutes: 0, source: null };
+  if (!(miles > 0) || !Number.isFinite(miles) || cardioModality(block) !== "run") return { minutes: 0, source: null };
   const pace = paceToSecPerMile(block?.pace);
   return { minutes: miles * (pace || DEFAULT_PACE_SEC) / 60, source: pace ? "distance-and-pace" : "estimated" };
 }

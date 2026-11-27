@@ -5,8 +5,10 @@
 
 const CACHE_NAME = "ovt-shell-v20.0.0";
 const NAV_TIMEOUT_MS = 3000;
+const TRAINING_GUIDE = "/training-guide.html";
 const CORE_URLS = [
   "/",
+  TRAINING_GUIDE,
   "/manifest.json",
   "/favicon-64.png",
   "/favicon-180.png",
@@ -58,14 +60,16 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/") || url.pathname.startsWith("/.netlify/")) return;
 
   if (request.mode === "navigate") {
+    // Netlify also serves the guide at its extensionless pretty URL.
+    const pageKey = /^\/training-guide(?:\.html|\/)?$/.test(url.pathname) ? TRAINING_GUIDE : "/";
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_NAME);
       try {
         const response = await networkWithTimeout(request, NAV_TIMEOUT_MS);
-        if (response?.ok) await cache.put("/", response.clone());
+        if (response?.ok) await cache.put(pageKey, response.clone());
         return response;
       } catch {
-        return (await cache.match("/")) || new Response(
+        return (await cache.match(pageKey)) || new Response(
           "<!doctype html><title>0VERTRAINED offline</title><meta name=viewport content='width=device-width'><style>body{font:16px system-ui;padding:2rem;background:#faf9f6;color:#1a1a1a}</style><h1>0VERTRAINED</h1><p>The app has not completed its first online load yet. Reconnect once, then offline cold opens will use the last-good version.</p>",
           { headers: { "content-type": "text/html; charset=utf-8" } },
         );

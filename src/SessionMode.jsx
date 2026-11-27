@@ -33,6 +33,7 @@ import { AddExerciseSheet } from "./AddExercise";
 import { addToDay } from "./addedExercises";
 import {
   completedSetCount,
+  exerciseTargetSummary,
   firstIncompleteExerciseIndex,
   firstIncompleteSetIndex,
   isCompletedSet,
@@ -692,6 +693,7 @@ export function SessionMode({
                   <div className="kv grow">
                     <h2 style={{ font: "600 22px/28px var(--f-ui)" }}>{performedName}</h2>
                     {performedName !== exercise.name && <p className="t-s c2">In place of {exercise.name} today.</p>}
+                    <p className="t-s c2">{exerciseTargetSummary(exercise)}</p>
                     {lastLine && <p className="t-s c2">{lastLine}</p>}
                   </div>
                   <button type="button" className="ibtn ibtn-o" aria-haspopup="dialog" aria-label="Exercise options: swap, notes, warm-up, plate math, skip" onClick={() => { setSkipAsk(false); setSheet("options"); }}><Icon name="more" /></button>

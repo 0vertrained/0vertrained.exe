@@ -34,6 +34,15 @@ function mountRunner({ workout = { exercises: {}, sessionState: {} }, settings =
 }
 
 describe("the session runner", () => {
+  it.each([
+    [{ name: "Push-Up", sets: 3, repMin: 6, reps: 12, rir: 0, restSeconds: 90 }, "3 × 6–12 reps · 0 reps in reserve · 90 s rest"],
+    [{ name: "Side Plank", sets: 2, repMin: 20, reps: 40, restSeconds: 60, notes: "Seconds per side." }, "2 × 20–40 s per side · 60 s rest"],
+    [{ name: "Bench", sets: 2, reps: 8 }, "2 × 8 reps"],
+  ])("shows the current prescription for $name", (exercise, summary) => {
+    const { ui } = mountRunner({ lifting: [exercise] });
+    expect(ui.getByText(summary)).toBeTruthy();
+  });
+
   it("keeps the active set, focused draft, rest and edits when the window changes width", () => {
     const medium = Object.assign(new EventTarget(), { matches: false });
     const other = Object.assign(new EventTarget(), { matches: false });
@@ -165,10 +174,10 @@ describe("the session runner", () => {
     const queue = within(view.baseElement).getByRole("dialog", { name: "Queue" });
     fireEvent.click(within(queue).getByRole("button", { name: "Add an exercise" }));
     const sheet = within(view.baseElement).getByRole("dialog", { name: "Add an exercise" });
-    fireEvent.change(within(sheet).getByLabelText("Exercise"), { target: { value: "Sled Push" } });
-    fireEvent.click(within(sheet).getByRole("button", { name: "Add “Sled Push”" }));
+    fireEvent.change(within(sheet).getByLabelText("Exercise"), { target: { value: "Half-Kneeling Landmine Press" } });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Add “Half-Kneeling Landmine Press”" }));
     fireEvent.click(within(sheet).getByRole("button", { name: "Add to today" }));
-    expect(updates).toHaveBeenCalledWith("workout.added", [{ name: "Sled Push", sets: 3, reps: 10, session: "main" }]);
+    expect(updates).toHaveBeenCalledWith("workout.added", [{ name: "Half-Kneeling Landmine Press", sets: 3, reps: 10, session: "main" }]);
     // Back to the queue, where it joins the end.
     expect(within(view.baseElement).getByRole("dialog", { name: "Queue" })).toBeTruthy();
   });

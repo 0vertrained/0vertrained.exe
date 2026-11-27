@@ -5,14 +5,16 @@
 // keeps an active race plan. Train owns the top bar and which screen shows.
 
 import { useEffect, useState } from "react";
-import { DEFAULT_PROGRAM, DAYS, PROGRAM_PRESETS, PRESET_LINEUP, presetProgram } from "./constants";
+import { DEFAULT_PROGRAM, DAYS, PROGRAM_PRESETS, PRESET_LINEUP, ORIGINAL_PRESET_IDS, RESEARCH_PRESET_IDS, presetProgram } from "./constants";
 import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
 import { seedSupersetPrefsFromProgram } from "./liftLogPrefs";
 import { buildSplitSessionsFromLegacy, getProgramSessions, usesProgramSessions } from "./programSessions";
 import { useConfirm } from "./ui/ConfirmDialog";
 import { isRunPlanSpec } from "./runPlanGenerator";
-import { keepRacePlan } from "./raceBuild";
+import { isRunCardio, keepRacePlan } from "./raceBuild";
 import { FoldRow, Icon, LinkRow, Seg } from "./ui/ledger";
+import { AddExerciseSheet } from "./AddExercise";
+import { buildCardio, CARDIO_SESSIONS, exercisePrescription } from "./programExerciseLibrary";
 
 const NBSP = "\u00a0";
 const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
@@ -25,8 +27,9 @@ const firstSentence = (text = "") => {
 // same workout as the type and notes. Rewriting either here makes them stale,
 // so they're dropped and the timer goes back to reading the notes.
 export function editCardio(cardio, field, val) {
-  const next = { ...cardio, [field]: field === "miles" ? parseFloat(val) || 0 : val };
-  if (field === "type" || field === "notes") delete next.steps;
+  const next = { ...cardio, [field]: field === "miles" || field === "minutes" ? Math.max(0, parseFloat(val) || 0) : val };
+  if (field === "type" || field === "notes" || field === "minutes") delete next.steps;
+  if (field === "type") delete next.modality;
   return next;
 }
 
@@ -49,18 +52,24 @@ function targetName(exercise) {
 function dayKind(day) {
   const sessions = getProgramSessions(day || {});
   const lift = sessions.some((s) => (s.lifting || []).length > 0);
-  const run = sessions.some((s) => s.cardio);
-  return lift && run ? "Both" : lift ? "Lift" : run ? "Run" : "Rest";
+  const cardio = sessions.filter((s) => s.cardio);
+  if (lift) return cardio.length ? "Both" : "Lift";
+  if (!cardio.length) return "Rest";
+  return cardio.every((s) => isRunCardio(s.cardio)) ? "Run" : "Cardio";
 }
 function dayLine(day) {
   const sessions = getProgramSessions(day || {});
   if (sessions.length === 0) return "Rest";
   const lifts = sessions.reduce((n, s) => n + (s.lifting || []).length, 0);
-  const miles = sessions.reduce((n, s) => n + (Number(s.cardio?.miles) || 0), 0);
   const parts = [];
   if (sessions.length > 1) parts.push(`${sessions.length}${NBSP}sessions`);
   if (lifts) parts.push(`${lifts}${NBSP}exercise${lifts === 1 ? "" : "s"}`);
-  if (sessions.some((s) => s.cardio)) parts.push(miles ? `run, ${miles}${NBSP}mi` : "run");
+  for (const { cardio } of sessions) {
+    if (!cardio) continue;
+    const name = cardio.modality || (isRunCardio(cardio) ? "run" : "cardio");
+    const dose = cardio.minutes ? `${cardio.minutes}${NBSP}min` : cardio.miles ? `${cardio.miles}${NBSP}mi` : "";
+    parts.push([name, dose].filter(Boolean).join(", "));
+  }
   return parts.join(" · ");
 }
 
@@ -81,11 +90,11 @@ function SessionList({ session }) {
       {(session.label || session.title) && <p className="t-ss">{[session.label, session.title].filter(Boolean).join(" · ")}</p>}
       {(session.lifting || []).map((ex, i) => (
         <p key={`${ex.name}-${i}`} className="t-s" style={{ display: "flex", gap: 8 }}>
-          <span className="grow">{ex.name}</span><span className="n-s c2">{ex.sets}×{ex.reps}{targetUnit(ex)}</span>
+          <span className="grow">{ex.name}{ex.restSeconds && <small className="t-ss c2" style={{ display: "block" }}>{[ex.rir != null && `${ex.rir} reps in reserve`, `${ex.restSeconds} s rest`].filter(Boolean).join(" · ")}</small>}</span><span className="n-s c2">{ex.sets}×{ex.repMin && ex.repMin < ex.reps ? `${ex.repMin}–` : ""}{ex.reps}{targetUnit(ex)}</span>
         </p>
       ))}
       {session.cardio && (
-        <p className="t-s c2">{[session.cardio.type || "Run", session.cardio.miles ? `${session.cardio.miles}${NBSP}mi` : null, session.cardio.effort || null].filter(Boolean).join(" · ")}{session.cardio.notes ? `. ${session.cardio.notes}` : ""}</p>
+        <p className="t-s c2">{[session.cardio.type || "Cardio", session.cardio.minutes ? `${session.cardio.minutes}${NBSP}min` : null, session.cardio.miles ? `${session.cardio.miles}${NBSP}mi` : null, session.cardio.effort || null].filter(Boolean).join(" · ")}{session.cardio.notes ? `. ${session.cardio.notes}` : ""}</p>
       )}
     </div>
   );
@@ -107,19 +116,32 @@ function DayByDay({ program }) {
   );
 }
 
-// A preset is "current" when every day of the week carries its session names.
+// Cloud JSON objects may return keys in a different order. Compare actual
+// prescriptions so an edited week can be reset to the original preset.
+function samePrescription(left, right) {
+  if (left === right) return true;
+  if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+  const keys = Object.keys(left);
+  return Array.isArray(left) === Array.isArray(right) && keys.length === Object.keys(right).length &&
+    keys.every(key => Object.hasOwn(right, key) && samePrescription(left[key], right[key]));
+}
 function matchesPreset(program, id) {
   const preset = presetProgram(id);
-  return DAYS.every((day) => (program?.[day]?.type || "") === (preset?.[day]?.type || ""));
+  return DAYS.every((day) => program?.[day]?.type === preset[day]?.type && samePrescription(program[day], preset[day]));
 }
 
 export function ProgramHome({ program, onSaveProgram, onEdit, onBuild }) {
   const { confirm, confirmDialog } = useConfirm();
   const current = program || DEFAULT_PROGRAM;
   const hasRacePlan = isRunPlanSpec(program?.__raceBuild);
-  const presets = PRESET_LINEUP.map((id) => PROGRAM_PRESETS[id]).filter(Boolean);
-  const currentId = presets.find((p) => matchesPreset(current, p.id))?.id || null;
-  const [picked, setPicked] = useState(currentId || presets[0]?.id || null);
+  const currentId = PRESET_LINEUP.find((id) => matchesPreset(current, id));
+  const [picked, setPicked] = useState(currentId || RESEARCH_PRESET_IDS[0]);
+  const original = ORIGINAL_PRESET_IDS.includes(picked);
+  const presets = (original ? ORIGINAL_PRESET_IDS : RESEARCH_PRESET_IDS).map((id) => PROGRAM_PRESETS[id]);
+  const chooseCollection = (value) => {
+    const ids = value === "original" ? ORIGINAL_PRESET_IDS : RESEARCH_PRESET_IDS;
+    setPicked(ids.includes(currentId) ? currentId : ids[0]);
+  };
   const [busy, setBusy] = useState(false);
   const chosen = PROGRAM_PRESETS[picked];
 
@@ -130,10 +152,11 @@ export function ProgramHome({ program, onSaveProgram, onEdit, onBuild }) {
     if (!(await confirm({ message: `Switch to "${chosen.name}"? This will replace your current program.${keepsPlan ? " Your race plan stays." : ""}`, confirmLabel: "Switch program" }))) return;
     setBusy(true);
     const next = keepRacePlan(program, base);
-    const ok = await onSaveProgram(next);
-    setBusy(false);
-    // Preset-declared supersets go live immediately (sticky prefs).
-    if (ok) seedSupersetPrefsFromProgram(next);
+    try {
+      if (await onSaveProgram(next)) seedSupersetPrefsFromProgram(next);
+    } finally {
+      setBusy(false);
+    }
   };
 
   // Arrow keys move the choice; the group is one Tab stop.
@@ -152,6 +175,11 @@ export function ProgramHome({ program, onSaveProgram, onEdit, onBuild }) {
       {confirmDialog}
       <div className="main" style={{ gap: 16 }}>
         <p className="t-s c2">Start from a preset, then edit the week.{hasRacePlan ? " Loading a preset keeps your race plan." : ""}</p>
+        <label className="field"><span className="lbl">Plan collection</span>
+          <select className="input" value={original ? "original" : "research"} onChange={(event) => chooseCollection(event.target.value)}>
+            <option value="research">Research-based plans</option><option value="original">Original presets</option>
+          </select>
+        </label>
         <div role="radiogroup" aria-label="Presets" onKeyDown={onKeyDown} style={column(8)}>
           {presets.map((p) => (
             <button key={p.id} data-id={p.id} type="button" className="opt" role="radio" aria-checked={picked === p.id} tabIndex={picked === p.id ? 0 : -1} onClick={() => setPicked(p.id)}>
@@ -170,6 +198,12 @@ export function ProgramHome({ program, onSaveProgram, onEdit, onBuild }) {
               <p className="t-s c2">{chosen.desc}</p>
               <DayByDay program={presetProgram(picked)} />
             </FoldRow>
+            {chosen.guide && <FoldRow key={`${picked}-guide`} title="How to train on this plan" sub="Equipment, progression and recovery">
+              <div style={column(9)}>
+                {[chosen.guide.audience, chosen.guide.equipment, chosen.guide.progression, chosen.guide.recovery].map((line) => <p className="t-s" key={line}>{line}</p>)}
+                <a href={`/training-guide.html#${picked}`} target="_blank" rel="noreferrer">Read the plan and its research ↗</a>
+              </div>
+            </FoldRow>}
           </ul>
         )}
         <button type="button" className="btn btn-p btn-b" aria-disabled={busy || picked === currentId || undefined} onClick={load}>
@@ -206,10 +240,22 @@ function NumberField({ label, value, onChange, decimal = false }) {
 }
 
 function ExerciseList({ lifting, onChange, heading }) {
+  const [choosing, setChoosing] = useState(false);
   const list = lifting || [];
   const set = (i, field, val) => {
     const next = [...list];
-    next[i] = { ...next[i], [field]: field === "sets" || field === "reps" ? parseInt(val, 10) || 0 : val };
+    const number = Math.max(0, parseInt(val, 10) || 0);
+    next[i] = { ...next[i], [field]: field === "name" ? val : number };
+    if (field === "repMin" && number > next[i].reps) next[i].reps = number;
+    if (field === "reps" && number < next[i].repMin) next[i].repMin = number;
+
+    if (field === "name" && val !== list[i].name) {
+      // Renaming a weighted exercise to a hold must switch the logger's fields.
+      delete next[i].trackingMode;
+      delete next[i].progressionMode;
+      const selected = exercisePrescription(val);
+      if (selected?.trackingMode) next[i].trackingMode = selected.trackingMode;
+    }
     onChange(next);
   };
   const move = (i, dir) => {
@@ -230,22 +276,30 @@ function ExerciseList({ lifting, onChange, heading }) {
               <span className="lbl">Exercise {i + 1}</span>
               <input className="input" value={ex.name || ""} onChange={(event) => set(i, "name", event.target.value)} />
             </label>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, flexWrap: "wrap" }}>
               <NumberField label="Sets" value={ex.sets} onChange={(v) => set(i, "sets", v)} />
-              <NumberField label={targetName(ex)} value={ex.reps} onChange={(v) => set(i, "reps", v)} />
+              {ex.repMin != null && <NumberField label={`Min ${targetName(ex).toLowerCase()}`} value={ex.repMin} onChange={(v) => set(i, "repMin", v)} />}
+              <NumberField label={ex.repMin != null ? `Max ${targetName(ex).toLowerCase()}` : targetName(ex)} value={ex.reps} onChange={(v) => set(i, "reps", v)} />
               <button type="button" className="ibtn" aria-label={`Move ${ex.name || `exercise ${i + 1}`} up`} aria-disabled={i === 0 || undefined} onClick={() => move(i, -1)}><Icon name="up" size="s" /></button>
               <button type="button" className="ibtn" aria-label={`Move ${ex.name || `exercise ${i + 1}`} down`} aria-disabled={i === list.length - 1 || undefined} onClick={() => move(i, 1)}><Icon name="down" size="s" /></button>
               <button type="button" className="ibtn" aria-label={`Remove ${ex.name || `exercise ${i + 1}`}`} onClick={() => onChange(list.filter((_, idx) => idx !== i))}><Icon name="close" size="s" /></button>
             </div>
+            {(ex.rir != null || ex.restSeconds != null) && <div style={{ display: "flex", gap: 8 }}>
+              {ex.rir != null && <NumberField label="Reps in reserve" value={ex.rir} onChange={(v) => set(i, "rir", v)} />}
+              {ex.restSeconds != null && <NumberField label="Rest seconds" value={ex.restSeconds} onChange={(v) => set(i, "restSeconds", v)} />}
+            </div>}
           </li>
         ))}
       </ol>
+      <button type="button" className="btn btn-s btn-b" onClick={() => setChoosing(true)}>Add exercise</button>
+      <AddExerciseSheet open={choosing} program existing={list.map(ex => ex.name || "")}
+        onClose={() => setChoosing(false)} onAdd={entry => { onChange([...list, entry]); setChoosing(false); }} />
     </section>
   );
 }
 
-function CardioFields({ cardio, onChange, onToggle, whenNone }) {
-  const summary = cardio ? [cardio.type || "Run", cardio.miles ? `${cardio.miles}${NBSP}mi` : null, cardio.effort || null].filter(Boolean).join(" · ") : whenNone;
+function CardioFields({ cardio, onChange, onToggle, onSelect, whenNone }) {
+  const summary = cardio ? [cardio.type || "Cardio", cardio.minutes ? `${cardio.minutes}${NBSP}min` : null, cardio.miles ? `${cardio.miles}${NBSP}mi` : null, cardio.effort || null].filter(Boolean).join(" · ") : whenNone;
   return (
     <section aria-label="Cardio" style={column(8)}>
       <div className="row" style={{ borderTop: "1px solid var(--line)", borderBottom: cardio ? "none" : undefined }}>
@@ -254,8 +308,15 @@ function CardioFields({ cardio, onChange, onToggle, whenNone }) {
       </div>
       {cardio && (
         <>
+          <label className="field"><span className="lbl">Cardio library</span>
+            <select className="input" value="" onChange={event => event.target.value && onSelect(buildCardio(event.target.value))}>
+              <option value="">Choose a session</option>
+              {Object.entries(CARDIO_SESSIONS).map(([key, item]) => <option value={key} key={key}>{item.type}</option>)}
+            </select>
+          </label>
           <label className="field"><span className="lbl">Type</span><input className="input" value={cardio.type || ""} onChange={(event) => onChange("type", event.target.value)} /></label>
           <div style={{ display: "flex", gap: 8 }}>
+            <NumberField label="Target minutes" decimal value={cardio.minutes || ""} onChange={(v) => onChange("minutes", v)} />
             <NumberField label="Target miles" decimal value={cardio.miles || ""} onChange={(v) => onChange("miles", v)} />
             <label className="field" style={{ flex: "1 1 0", minWidth: 0 }}><span className="lbl">Effort</span><input className="input" value={cardio.effort || ""} onChange={(event) => onChange("effort", event.target.value)} /></label>
           </div>
@@ -335,6 +396,7 @@ export function ProgramEditor({ program, initialDay = null, onSaveProgram, onDon
       cardio={target.cardio}
       whenNone={`None on ${day}`}
       onChange={(field, val) => setTarget({ cardio: editCardio(target.cardio || { type: "", miles: 0, effort: "", notes: "" }, field, val) })}
+      onSelect={cardio => setTarget({ cardio })}
       onToggle={() => setTarget({ cardio: target.cardio ? null : { type: "Run", miles, effort: "Zone 2", notes: "" } })}
     />
   );
@@ -357,7 +419,6 @@ export function ProgramEditor({ program, initialDay = null, onSaveProgram, onDon
         {!sessionsDay && (
           <>
             <ExerciseList heading="Lifting" lifting={p.lifting} onChange={(lifting) => setField("lifting", lifting)} />
-            <button type="button" className="btn btn-s btn-b" onClick={() => setField("lifting", [...(p.lifting || []), { name: "New Exercise", sets: 3, reps: 10 }])}>Add exercise</button>
             {cardioFor(p, (patch) => setDayValue({ ...p, ...patch }), 3)}
             <div className="row" style={{ borderTop: "1px solid var(--line)" }}>
               <span className="kv grow"><span className="t-bs">Second session</span><span className="t-s c2">Split the day into morning and evening</span></span>
@@ -387,7 +448,6 @@ export function ProgramEditor({ program, initialDay = null, onSaveProgram, onDon
               <button type="button" className="btn btn-g btn-sm" aria-disabled={sessions.length <= 1 || undefined} onClick={removeSession}>Remove</button>
             </div>
             <ExerciseList heading={`${active.label || "Session"} lifting`} lifting={active.lifting} onChange={(lifting) => updateSession({ lifting })} />
-            <button type="button" className="btn btn-s btn-b" onClick={() => updateSession({ lifting: [...(active.lifting || []), { name: "New Exercise", sets: 2, reps: 10 }] })}>Add exercise</button>
             {cardioFor(active, updateSession, 2)}
           </>
         )}

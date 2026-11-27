@@ -6,6 +6,7 @@
 //   • ground covered per heartbeat on easy runs that have heart rate: the
 //     same pace at a lower heart rate, or a faster pace at the same one,
 //     both show up as more ground per beat.
+import { cardioModality } from "./cardioLog";
 import { DEFAULT_PROGRAM, getDayName } from "./constants";
 import { applyRaceBuild } from "./raceBuild";
 import { getProgramSessions } from "./programSessions";
@@ -73,12 +74,12 @@ export function loggedRuns(entries = {}, program = null, { todayKey, days = 56 }
     const plan = live[dayName] || DEFAULT_PROGRAM[dayName];
     for (const [block, planned] of runsOnDay(day, plan)) {
       const miles = Number.parseFloat(block?.miles);
-      if (!(miles > 0)) continue;
+      if (!(miles > 0) || cardioModality(block) !== "run") continue;
       const seconds = parseRunTime(block.time);
       const pace = parsePace(block.pace) || (seconds ? Math.round(seconds / miles) : null);
       const hr = Math.round(Number(block.hr));
       const race = normalizeRace(block.race);
-      runs.push({ dateKey, miles, seconds, pace, hr: hr > 0 ? hr : null, easy: !race && isEasyRunPlan(planned), race });
+      runs.push({ dateKey, miles, seconds, pace, hr: hr > 0 ? hr : null, easy: !race && isEasyRunPlan(block.type ? block : planned), race });
     }
   }
   return runs;

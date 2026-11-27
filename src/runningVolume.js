@@ -2,7 +2,7 @@
 // Weekly running volume — pure math for the Progress figure.
 //
 // Dedupe rule (one number per day, never both): a day's miles are the
-// MANUALLY logged cardio miles when any exist (getLoggedCardioBlocks — the
+// MANUALLY logged running miles when any exist (getLoggedCardioBlocks — the
 // load model's own definition of "logged"), otherwise the day's Strava run
 // miles. Confirming a Strava suggestion writes manual fields, so a confirmed
 // run naturally moves from the "strava" column to the "manual" column without
@@ -11,6 +11,7 @@
 // Weeks are Monday-anchored calendar weeks (training-week convention),
 // newest last so the sparkline reads left → right into the present.
 
+import { cardioModality } from "./cardioLog";
 import { getLoggedCardioBlocks } from "./loadModel";
 
 export function mondayOf(dateKey) {
@@ -24,7 +25,7 @@ export function mondayOf(dateKey) {
 
 export function manualMilesForDay(entry) {
   const blocks = getLoggedCardioBlocks(entry?.workout || {});
-  return blocks.reduce((sum, c) => sum + (parseFloat(c?.miles) || 0), 0);
+  return blocks.filter(c => cardioModality(c) === "run").reduce((sum, c) => sum + (Number(c.miles) || 0), 0);
 }
 
 export function stravaRunMilesForDay(dayActivities) {

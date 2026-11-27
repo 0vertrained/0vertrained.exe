@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { mapExerciseToMuscles, buildWeeklyMuscleVolume, classifyVolume, buildBalanceRatios, buildVolumeReport, weekStartKey, MUSCLE_LANDMARKS } from "../muscleVolume";
 import { computeAdaptiveTDEE, buildEnergyTargets, buildDriftCheck, readGoalRate, writeGoalRate } from "../adaptiveTDEE";
+import { RESISTANCE_PRESETS } from "../plans/resistance";
+import { MIXED_PLANS } from "../plans/mixed";
 
 // muscleVolume
 describe("mapExerciseToMuscles", () => {
@@ -14,6 +16,32 @@ describe("mapExerciseToMuscles", () => {
 
   it("resolves leg curl to hamstrings, not biceps (rule ordering)", () => {
     expect(mapExerciseToMuscles("Lying Leg Curl").primary).toContain("hamstrings");
+  });
+
+  it("credits the moving joints in isolation exercises", () => {
+    expect(mapExerciseToMuscles("Seated Leg Curl")).toEqual({ primary: ["hamstrings"], secondary: [] });
+    expect(mapExerciseToMuscles("Leg Extension")).toEqual({ primary: ["quads"], secondary: [] });
+    expect(mapExerciseToMuscles("Cable Fly").secondary).not.toContain("triceps");
+    expect(mapExerciseToMuscles("Straight-Arm Pulldown").secondary).not.toContain("biceps");
+    expect(mapExerciseToMuscles("Landmine Press").primary).toContain("front_delt");
+  });
+
+  it("maps every lifting slot in the six research presets", () => {
+    for (const plan of Object.values({ ...RESISTANCE_PRESETS, ...MIXED_PLANS })) {
+      for (const day of Object.values(plan.program)) {
+        for (const lift of day.lifting) expect(mapExerciseToMuscles(lift.name), `${plan.name}: ${lift.name}`).toBeTruthy();
+      }
+    }
+  });
+
+  it("reproduces the bodybuilding preset’s direct weekly sets per target muscle", () => {
+    const direct = {};
+    for (const day of Object.values(RESISTANCE_PRESETS.upperLowerGrowth.program)) {
+      for (const lift of day.lifting) {
+        for (const muscle of mapExerciseToMuscles(lift.name).primary) direct[muscle] = (direct[muscle] || 0) + lift.sets;
+      }
+    }
+    expect(direct).toMatchObject({ chest: 10, back: 10, quads: 10, hamstrings: 8 });
   });
 
   it("returns null for unmapped movements", () => {

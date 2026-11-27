@@ -15,6 +15,8 @@ import { dayFoods, itemTotals, servingsLabel } from "./foodLog";
 import { subscribeWhoopBluetooth, useWhoopBluetooth } from "./whoop/bluetooth";
 import { StoredPulseWindow } from "./whoop/WhoopStoredReadings";
 import { WorkoutPulseTimeline } from "./workout/WorkoutPulseTimeline";
+import { cardioLabel, cardioModality, cardioResultText } from "./cardioLog";
+import { getLoggedCardioBlocks } from "./loadModel";
 import { RunSplits } from "./sections/RunSplits";
 
 const NBSP = "\u00a0";
@@ -29,7 +31,7 @@ const TYPE_LABEL = { training: "Training", nutrition: "Fuel", recovery: "Recover
 const doneSets = (exercise) => (exercise?.sets || []).filter((set) => set.done);
 const liftedSets = (day) => Object.values(day?.workout?.exercises || {}).reduce((total, exercise) => total + doneSets(exercise).length, 0);
 const hasLift = (day) => Object.keys(day?.workout?.exercises || {}).length > 0;
-const runMiles = (day) => { const miles = Number.parseFloat(day?.workout?.cardio?.miles); return miles > 0 ? miles : 0; };
+const dayCardio = (day) => getLoggedCardioBlocks(day?.workout);
 
 // One line for a day: what was trained, run, eaten and weighed.
 export function daySummary(day) {
@@ -37,7 +39,7 @@ export function daySummary(day) {
   const parts = [];
   if (hasLift(day)) { const sets = liftedSets(day); parts.push(sets ? `lifting, ${sets} set${sets === 1 ? "" : "s"}` : "lifting planned, no sets logged"); }
   if (!hasLift(day) && Object.values(day.workout?.whoopHeartRate || {}).some(record => record?.count > 0)) parts.push("workout heart rate");
-  if (runMiles(day)) parts.push(`run, ${runMiles(day)}${NBSP}mi`);
+  for (const block of dayCardio(day)) parts.push(`${cardioLabel(block)}, ${cardioResultText(block)}`);
   if (Number.parseFloat(day.nutrition?.calories) > 0) parts.push(`${day.nutrition.calories}${NBSP}kcal${day.nutrition?.protein ? `, ${day.nutrition.protein}${NBSP}g protein` : ""}`);
   if (day.body?.weight) parts.push(`${day.body.weight}${NBSP}lb`);
   return parts.length ? sentence(parts.join(" · ")) : "Nothing logged";
@@ -48,7 +50,8 @@ function matches(dateKey, day, query) {
   if (dateKey.includes(q) || dayDate(dateKey).toLowerCase().includes(q)) return true;
   if (Object.keys(day.workout?.exercises || {}).some((name) => name.toLowerCase().includes(q))) return true;
   if ((day.workout?.notes || "").toLowerCase().includes(q)) return true;
-  return [day.workout?.cardio?.miles, day.nutrition?.calories, day.nutrition?.protein].some((value) => String(value || "").includes(q));
+  if (dayCardio(day).some(block => [cardioLabel(block), cardioModality(block), cardioResultText(block)].some(value => value.toLowerCase().includes(q)))) return true;
+  return [day.nutrition?.calories, day.nutrition?.protein].some((value) => String(value || "").includes(q));
 }
 
 const sessionClock = timestamp => new Date(timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -83,7 +86,7 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
   const watchLine = watchLiftLine(watchLiftSummary(day));
   const pulse = Object.entries(day.workout?.whoopHeartRate || {}).filter(([, summary]) =>
     summary?.count > 0 && summary.bpmTotal > 0 && summary.peakBpm > 0);
-  const cardio = day.workout?.cardio || {};
+  const cardioBlocks = dayCardio(day);
   const nutrition = day.nutrition || {};
   const body = day.body || {};
   const foods = dayFoods(nutrition);
@@ -93,7 +96,7 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
   const figure = (label, value, unit) => (
     <div key={label} className="kv"><span className="t-c c2">{label}</span><span><span className="n">{value}</span> <span className="t-s c2">{unit}</span></span></div>
   );
-  const empty = exercises.length === 0 && !pulse.length && !runMiles(day) && !fuelLogged && bodyRows.length === 0 && !day.workout?.notes;
+  const empty = exercises.length === 0 && !pulse.length && !cardioBlocks.length && !fuelLogged && bodyRows.length === 0 && !day.workout?.notes;
 
   return (
     <div style={column(16)} data-section="day-detail">
@@ -132,13 +135,17 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
         </section>
       )}
 
-      {runMiles(day) > 0 && (
-        <section aria-label="Run" style={{ ...column(4), borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-          <h3 className="t-h">Run</h3>
-          <p className="n">{[`${cardio.miles}${NBSP}mi`, cardio.time, cardio.pace ? `${String(cardio.pace).replace(/\s*\/mi(le)?$/, "")}${NBSP}min/mi` : ""].filter(Boolean).join(" · ")}</p>
-          <RunSplits cardio={cardio} />
-        </section>
-      )}
+      {cardioBlocks.map((cardio, index) => {
+        const running = cardioModality(cardio) === "run";
+        const label = cardioLabel(cardio);
+        return (
+          <section key={index} aria-label={label} style={{ ...column(4), borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+            <h3 className="t-h">{label}</h3>
+            <p className="n">{[cardioResultText(cardio), running && cardio.pace ? `${String(cardio.pace).replace(/\s*\/mi(le)?$/, "")}${NBSP}min/mi` : "", Number(cardio.hr) > 0 ? `${cardio.hr}${NBSP}bpm` : ""].filter(Boolean).join(" · ")}</p>
+            {running && <RunSplits cardio={cardio} />}
+          </section>
+        );
+      })}
 
       {day.workout?.notes && (
         <section aria-label="Notes" style={{ ...column(4), borderTop: "1px solid var(--line)", paddingTop: 12 }}>
@@ -209,9 +216,9 @@ function Calendar({ data, month, setMonth, picked, onPick, todayKey }) {
           const dateKey = `${month}-${pad(index + 1)}`;
           const day = data[dateKey];
           const lift = hasLift(day);
-          const run = runMiles(day) > 0;
+          const cardio = dayCardio(day);
           const future = dateKey > todayKey;
-          const what = future ? "not here yet" : [lift && "lifting", run && "run", day && !lift && !run && "logged"].filter(Boolean).join(", ") || "nothing logged";
+          const what = future ? "not here yet" : [lift && "lifting", ...cardio.map(block => cardioLabel(block).toLowerCase()), day && !lift && !cardio.length && "logged"].filter(Boolean).join(", ") || "nothing logged";
           return (
             <button
               key={dateKey}
@@ -224,13 +231,13 @@ function Calendar({ data, month, setMonth, picked, onPick, todayKey }) {
               onClick={() => !future && onPick(dateKey)}
             >
               {index + 1}
-              <span className="mk">{lift && <i className="mk-l" />}{run && <i className="mk-r" />}</span>
+              <span className="mk">{lift && <i className="mk-l" />}{cardio.length > 0 && <i className="mk-r" />}</span>
             </button>
           );
         })}
       </div>
       <p className="t-c c2" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <i className="mk-l" style={{ color: "var(--ink)" }} />Lift<i className="mk-r" style={{ color: "var(--ink)", marginLeft: 10 }} />Run<span style={{ marginLeft: 10 }}>A box marks today.</span>
+        <i className="mk-l" style={{ color: "var(--ink)" }} />Lift<i className="mk-r" style={{ color: "var(--ink)", marginLeft: 10 }} />Cardio<span style={{ marginLeft: 10 }}>A box marks today.</span>
       </p>
     </>
   );

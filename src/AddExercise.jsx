@@ -7,12 +7,11 @@
 import { useState } from "react";
 import { Icon, Sheet } from "./ui/ledger";
 import { selectionHaptic } from "./native";
-import { defaultsFor, exerciseChoices } from "./addedExercises";
+import { defaultsFor, exerciseChoices, exerciseTarget, EXERCISE_FILTERS } from "./addedExercises";
+import { EQUIPMENT_LABELS, MOVEMENT_LABELS, findLibraryExercise } from "./programExerciseLibrary";
 
-const LIMITS = { sets: [1, 10], reps: [1, 50] };
-
-function Stepper({ label, value, onChange, unit }) {
-  const [low, high] = LIMITS[unit];
+function Stepper({ label, value, onChange, unit, high }) {
+  const low = 1;
   const step = (delta) => {
     const next = Math.min(high, Math.max(low, value + delta));
     if (next === value) return;
@@ -31,26 +30,40 @@ function Stepper({ label, value, onChange, unit }) {
   );
 }
 
-function AddForm({ allData, todayKey, existing, onAdd }) {
+function AddForm({ allData, todayKey, existing, onAdd, program }) {
   const [query, setQuery] = useState("");
   const [chosen, setChosen] = useState(null);
+  const [category, setCategory] = useState("all");
+  const [pattern, setPattern] = useState("all");
+  const [visible, setVisible] = useState(8);
   const typed = query.trim();
-  const choices = exerciseChoices({ query, allData, todayKey, exclude: existing });
+  const choices = exerciseChoices({ query, allData, todayKey, exclude: existing, category, pattern, browse: true });
   const taken = existing.some((name) => name.toLowerCase() === typed.toLowerCase());
-  const custom = typed && !taken && !choices.some((name) => name.toLowerCase() === typed.toLowerCase()) ? typed : null;
+  const custom = typed && !taken && !findLibraryExercise(typed) && !choices.some((name) => name.toLowerCase() === typed.toLowerCase()) ? typed : null;
 
   const choose = (name) => setChosen({ name, ...defaultsFor(name, { allData, todayKey }) });
 
   if (chosen) {
+    const entry = findLibraryExercise(chosen.name);
+    const target = exerciseTarget(chosen);
+    const alternatives = (entry?.alternatives || []).filter(name =>
+      !existing.some(takenName => takenName.toLowerCase() === name.toLowerCase()) && findLibraryExercise(name));
     return (
       <>
         <div className="row" style={{ minHeight: 56 }}>
-          <span className="kv grow"><span className="t-bs">{chosen.name}</span><span className="t-s c2">Today only. Your program stays the same.</span></span>
+          <span className="kv grow"><span className="t-bs">{chosen.name}</span>{entry && <span className="t-s c2">{EQUIPMENT_LABELS[entry.equipment]} · {MOVEMENT_LABELS[entry.pattern]}</span>}</span>
           <button type="button" className="btn btn-s btn-sm" onClick={() => setChosen(null)}>Change</button>
         </div>
-        <Stepper label="Sets" unit="sets" value={chosen.sets} onChange={(sets) => setChosen({ ...chosen, sets })} />
-        <Stepper label="Reps" unit="reps" value={chosen.reps} onChange={(reps) => setChosen({ ...chosen, reps })} />
-        <button type="button" className="btn btn-p btn-b" onClick={() => onAdd(chosen)}>Add to today</button>
+        {entry && <p className="t-s c2">{entry.notes}</p>}
+        <Stepper label="Sets" unit="sets" high={10} value={chosen.sets} onChange={(sets) => setChosen({ ...chosen, sets })} />
+        <Stepper label={target.label} unit={target.unit} high={target.max} value={chosen.reps} onChange={(reps) => setChosen({ ...chosen, reps })} />
+        <button type="button" className="btn btn-p btn-b" onClick={() => onAdd(program && entry ? { ...chosen, notes: entry.notes } : chosen)}>{program ? "Add to session" : "Add to today"}</button>
+        {alternatives.length > 0 && <label className="field"><span className="lbl">Alternatives</span>
+          <select className="input" value="" onChange={event => event.target.value && choose(event.target.value)}>
+            <option value="">Choose an alternative</option>
+            {alternatives.map(name => <option key={name}>{name}</option>)}
+          </select>
+        </label>}
       </>
     );
   }
@@ -59,12 +72,26 @@ function AddForm({ allData, todayKey, existing, onAdd }) {
     <>
       <label className="field">
         <span className="lbl">Exercise</span>
-        <input className="input" type="search" autoComplete="off" enterKeyHint="search" maxLength={60} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search or type a name" />
+        <input className="input" type="search" autoComplete="off" enterKeyHint="search" maxLength={60} value={query} onChange={(event) => { setQuery(event.target.value); setVisible(8); }} placeholder="Search or type a name" />
       </label>
-      {taken && <p className="t-s c2">{typed} is already in today’s plan.</p>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+        <label className="field">
+          <span className="lbl">Equipment or activity</span>
+          <select className="input" value={category} onChange={event => { setCategory(event.target.value); setVisible(8); }}>
+            {Object.entries(EXERCISE_FILTERS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+        </label>
+        <label className="field">
+          <span className="lbl">Movement</span>
+          <select className="input" value={pattern} onChange={event => { setPattern(event.target.value); setVisible(8); }}>
+            <option value="all">All movements</option>
+            {Object.entries(MOVEMENT_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+        </label>
+      </div>
+      {taken && <p className="t-s c2">{typed} is already in this session.</p>}
       <div className="rows">
-        {!typed && choices.length > 0 && <p className="t-c c2" style={{ padding: "4px 0" }}>Logged lately</p>}
-        {choices.map((name) => (
+        {choices.slice(0, visible).map((name) => (
           <button key={name} type="button" className="row" onClick={() => choose(name)} style={{ minHeight: 48, textAlign: "left" }}>
             <span className="t-b grow clip">{name}</span>
             <Icon name="plus" size="s" className="c2" />
@@ -77,7 +104,8 @@ function AddForm({ allData, todayKey, existing, onAdd }) {
           </button>
         )}
       </div>
-      {!typed && choices.length === 0 && <p className="t-s c2">Search the exercise library, or type the name of your own.</p>}
+      {visible < choices.length && <button type="button" className="btn btn-s btn-sm" onClick={() => setVisible(visible + 12)}>Show more exercises</button>}
+      {choices.length === 0 && !custom && <p className="t-s c2">No matching exercises. Try another category or search.</p>}
     </>
   );
 }
@@ -86,12 +114,12 @@ function AddForm({ allData, todayKey, existing, onAdd }) {
  * existing: the names already in the day, which can't be added again.
  * onAdd({ name, sets, reps, trackingMode? }).
  */
-export function AddExerciseSheet({ open, onClose, allData, todayKey, existing = [], onAdd }) {
+export function AddExerciseSheet({ open, onClose, allData, todayKey, existing = [], onAdd, program = false }) {
   return (
     <Sheet open={open} title="Add an exercise" onClose={onClose}>
       {open && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <AddForm allData={allData} todayKey={todayKey} existing={existing} onAdd={onAdd} />
+          <AddForm allData={allData} todayKey={todayKey} existing={existing} onAdd={onAdd} program={program} />
         </div>
       )}
     </Sheet>

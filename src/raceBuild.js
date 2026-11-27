@@ -21,6 +21,8 @@
 
 import { generateRunPlan, isRunPlanSpec } from "./runPlanGenerator";
 import { applyWeekMoves } from "./weekMoves";
+import { isRunCardio } from "./cardioLog";
+export { isRunCardio } from "./cardioLog";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -210,21 +212,6 @@ export function describeBuildWeek(program, todayKey) {
 }
 
 // Plan patches (generated plans only)
-
-const RUN_HINT = /\b(run|runs|running|jog|jogging|intervals?|tempo|threshold|strides?|fartlek|track|hill repeats?|shakeout|race|5k|10k|half marathon|marathon|zone\s*2|long zone)\b/i;
-const NON_RUN = /\b(walk|walking|hike|hiking|bike|ride|cycling|cycle|row|rowing|elliptical|swim|ski|erg|stair|sled)\b/i;
-const EXPLICIT_RUN = /\b(run|runs|running|jog|jogging)\b/i;
-
-/**
- * Is this prescribed cardio a run? Walks, bike, row etc. are not — unless the
- * type also says run ("Zone 2 Bike/Run", "Long Run/Walk"), in which case the
- * plan claims it so running is never doubled up.
- */
-export function isRunCardio(cardio) {
-  const text = String(cardio?.type || "");
-  if (!cardio || !RUN_HINT.test(text)) return false;
-  return !NON_RUN.test(text) || EXPLICIT_RUN.test(text);
-}
 
 // Cardio the plan itself placed — stripped first on every resolve, so the
 // overlay is idempotent and self-heals if a resolved program is ever saved.

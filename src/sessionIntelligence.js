@@ -196,6 +196,7 @@ export function buildWarmupRamp(workingWeight, barWeight = 45) {
 // itself is client state in SessionMode; this just picks the default seconds.
 export function suggestRestSeconds(exercise) {
   if (!exercise) return 90;
+  if (Number.isInteger(exercise.restSeconds) && exercise.restSeconds > 0) return exercise.restSeconds;
   const name = (exercise.name || "").toLowerCase();
   const reps = parseInt(exercise.reps, 10) || 10;
   const compound = ["squat", "deadlift", "bench", "press", "row", "pull"].some(k => name.includes(k));

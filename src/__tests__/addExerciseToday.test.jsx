@@ -59,6 +59,12 @@ function addFromSheet(search, choice) {
 }
 
 describe("adding an exercise on Today", () => {
+  it("shows the editable rep band, reserve and rest beside each exercise", () => {
+    mountToday({ type: "Upper", lifting: [{ name: "Bench Press", sets: 3, repMin: 5, reps: 8, rir: 1, restSeconds: 150 }] });
+    fireEvent.click(screen.getByRole("button", { name: "Quick edit" }));
+    expect(screen.getByText("3 × 5–8 reps · 1 rep in reserve · 150 s rest")).toBeTruthy();
+  });
+
   it("adds one from Quick edit, for the day only", () => {
     const { day, showToast, programUnchanged } = mountToday({ type: "Upper A", lifting: [{ name: "Bench Press", sets: 4, reps: 6 }] });
     fireEvent.click(screen.getByRole("button", { name: "Quick edit" }));
@@ -82,8 +88,20 @@ describe("adding an exercise on Today", () => {
     const { day } = mountToday({ type: "Upper A", lifting: [{ name: "Bench Press", sets: 4, reps: 6 }] });
     fireEvent.click(screen.getByRole("button", { name: "Quick edit" }));
     fireEvent.click(screen.getByRole("button", { name: "Add an exercise" }));
-    addFromSheet("Sled Push", "Add “Sled Push”");
-    expect(day().workout.added[0]).toMatchObject({ name: "Sled Push", sets: 4, reps: 10 });
+    addFromSheet("My prowler drill", "Add “My prowler drill”");
+    expect(day().workout.added[0]).toMatchObject({ name: "My prowler drill", sets: 4, reps: 10 });
+  });
+
+  it("adds a carry by browsing by activity, with yards as the editable target", () => {
+    const { day } = mountToday({ type: "Upper A", lifting: [{ name: "Bench Press", sets: 4, reps: 6 }] });
+    fireEvent.click(screen.getByRole("button", { name: "Quick edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add an exercise" }));
+    const sheet = within(screen.getByRole("dialog", { name: "Add an exercise" }));
+    fireEvent.change(sheet.getByLabelText("Equipment or activity"), { target: { value: "conditioning" } });
+    fireEvent.click(sheet.getByRole("button", { name: "Sled Push" }));
+    fireEvent.click(sheet.getByRole("button", { name: "More yards" }));
+    fireEvent.click(sheet.getByRole("button", { name: "Add to today" }));
+    expect(day().workout.added[0]).toMatchObject({ name: "Sled Push", reps: 21, trackingMode: "carry" });
   });
 
   it("gives a day without lifting a way to add one", () => {

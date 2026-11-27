@@ -16,7 +16,7 @@ describe("installed app shell", () => {
   it("keeps push handling while adding a network-first navigation fallback", () => {
     const sw = fs.readFileSync(path.join(root, "public/sw.js"), "utf8");
     expect(sw).toContain('request.mode === "navigate"');
-    expect(sw).toContain('cache.match("/")');
+    expect(sw).toContain('cache.match(pageKey)');
     expect(sw).toContain('addEventListener("push"');
   });
 });

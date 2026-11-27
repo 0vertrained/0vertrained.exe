@@ -9,14 +9,14 @@
 // The Program Builder's bodyweight plans get the same "banks without a weight"
 // check, which they failed before.
 import { describe, expect, it } from "vitest";
-import { DAYS, DEFAULT_PROGRAM, PROGRAM_PRESETS, PRESET_LINEUP, presetProgram } from "../constants";
+import { DAYS, DEFAULT_PROGRAM, PROGRAM_PRESETS, PRESET_LINEUP, RESEARCH_PRESET_IDS, ORIGINAL_PRESET_IDS, presetProgram } from "../constants";
 import { getProgramSessions, flattenProgramLifting } from "../programSessions";
 import { TRACKING_MODES, resolveTrackingMode, validateSet } from "../workoutLogging";
 import { applyRaceBuild, isRunCardio } from "../raceBuild";
 import { suggestPlanFromNotes, suggestPlanFromSteps } from "../cardioSession";
 import { resolveOnboardingProgramPreset } from "../onboardingSetup";
 import { buildProgramPlan } from "../programBuilder";
-import { EXERCISES } from "../programExerciseLibrary";
+import { EXERCISES, exercisePrescription } from "../programExerciseLibrary";
 import { buildNutritionRecommendation } from "../nutritionCoach";
 import { suggestWorkoutAdjustments } from "../adaptiveTraining";
 import { mapExerciseToMuscles } from "../muscleVolume";
@@ -65,8 +65,9 @@ const PLAN_WEEKS = Array.from({ length: 12 }, (_, i) => {
 
 describe("Switch preset lineup", () => {
   it("lists one plan per kind of athlete, in order", () => {
-    expect(PRESET_LINEUP).toEqual(["hybrid", "bodybuilding", "calisthenics", "running", "doubleEdition"]);
-    expect(PRESET_LINEUP.map((id) => PROGRAM_PRESETS[id].name)).toEqual(["Hybrid Athlete", "Bodybuilding", "Calisthenics", "Runner", "The Double Edition"]);
+    expect(PRESET_LINEUP).toEqual([...RESEARCH_PRESET_IDS, ...ORIGINAL_PRESET_IDS]);
+    expect(ORIGINAL_PRESET_IDS).toEqual(["hybrid", "bodybuilding", "calisthenics", "running", "doubleEdition"]);
+    expect(ORIGINAL_PRESET_IDS.map((id) => PROGRAM_PRESETS[id].name)).toEqual(["Hybrid Athlete", "Bodybuilding", "Calisthenics", "Runner", "The Double Edition"]);
   });
 
   it("every listed preset carries its own program and copy", () => {
@@ -85,8 +86,8 @@ describe("Switch preset lineup", () => {
   it("keeps only the lineup and the unlisted 50K race build", () => {
     expect(Object.keys(PROGRAM_PRESETS).sort()).toEqual([...PRESET_LINEUP, "raceEdition50k"].sort());
     expect(PRESET_LINEUP).not.toContain("raceEdition50k");
-    expect(resolveOnboardingProgramPreset("strength")).toBe("hybrid");
-    expect(resolveOnboardingProgramPreset("muscle")).toBe("bodybuilding");
+    expect(resolveOnboardingProgramPreset("strength")).toBe("barbellStrength");
+    expect(resolveOnboardingProgramPreset("muscle")).toBe("upperLowerGrowth");
     expect(resolveOnboardingProgramPreset("endurance")).toBe("running");
   });
 });
@@ -127,11 +128,11 @@ describe.each(PRESET_LINEUP)("%s · loggable as written", (id) => {
     }
   });
 
-  it("every cardio block has a type, miles and an effort", () => {
+  it("every cardio block has a type, a distance or duration, and an effort", () => {
     for (const s of sessionsOf(program)) {
       if (!s.cardio) continue;
       expect(s.cardio.type.trim().length, s.day).toBeGreaterThan(0);
-      expect(s.cardio.miles, s.day).toBeGreaterThan(0);
+      expect(Math.max(s.cardio.miles || 0, s.cardio.minutes || 0), s.day).toBeGreaterThan(0);
       expect(typeof s.cardio.effort, s.day).toBe("string");
     }
   });
@@ -236,7 +237,7 @@ describe("bodyweight movements bank without a weight in every listed plan", () =
   const BODYWEIGHT_MOVES = /hanging|dead bug|back extension|push-up|pull-up|chin-up|\bdips?\b|inverted row|pistol|nordic|box jump|jump squat|plank|hollow|l-sit|wall sit|dead hang|handstand|glute bridge/i;
   it.each([...PRESET_LINEUP.map((id) => [id, PROGRAM_PRESETS[id].program]), ["DEFAULT_PROGRAM", DEFAULT_PROGRAM]])("%s", (_id, program) => {
     const moves = exercisesOf(program).filter((ex) => BODYWEIGHT_MOVES.test(ex.name));
-    expect(moves.length).toBeGreaterThan(0);
+    if (ORIGINAL_PRESET_IDS.includes(_id) || _id === "DEFAULT_PROGRAM") expect(moves.length).toBeGreaterThan(0);
     for (const ex of moves) expect(banksWithoutWeight(ex), `${ex.day} ${ex.name}`).toBe(true);
   });
 });
@@ -408,12 +409,11 @@ describe("Program Builder · bodyweight plans", () => {
     }
   });
 
-  it("only the library's bodyweight movements get a declared mode; loaded lifts are untouched", () => {
+  it("declared modes match how each movement is logged in the catalog", () => {
     for (const program of plans("full_gym")) {
       for (const ex of exercisesOf(program)) {
         if (!("trackingMode" in ex)) continue;
-        expect(ex.trackingMode, ex.name).toBe(TRACKING_MODES.BODYWEIGHT_REPS);
-        expect(LIBRARY.get(ex.name)?.equipment, ex.name).toBe("bodyweight");
+        expect(ex.trackingMode, ex.name).toBe(exercisePrescription(ex.name)?.trackingMode);
       }
     }
   });

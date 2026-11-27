@@ -20,6 +20,7 @@ import {
   selectExercises,
   buildCardio,
   isCompoundPattern,
+  exercisePrescription,
 } from "./programExerciseLibrary";
 import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
 
@@ -399,23 +400,11 @@ function liftEntry(exercise, { goal, experience, isMain }) {
   const band = isMain ? scheme.main : (isCompoundPattern(exercise.pattern) ? scheme.compound : scheme.accessory);
   const setsAdj = EXPERIENCE_ADJUST[experience]?.sets || 0;
   const sets = Math.max(2, band.sets + (isCompoundPattern(exercise.pattern) ? setsAdj : Math.min(0, setsAdj)));
-  const entry = {
-    name: exercise.name,
-    sets,
-    reps: band.reps,
-    notes: exercise.notes,
-  };
+  const entry = exercisePrescription(exercise.name);
   const mode = resolveTrackingMode(entry);
-  // A hold's target is seconds: keep the library's (Plank 45 s)
-  // rather than the goal's rep band, which made a 12-second plank.
-  if (mode === TRACKING_MODES.TIMED_HOLD) entry.reps = exercise.defaultReps;
-  // The logger reads a bodyweight movement it can't recognize by name
-  // (Bodyweight Squat, Inverted Row, Glute Bridge…) as loaded, and won't bank
-  // a set without a weight. The library knows it's bodyweight, so say so.
-  // Names the logger already reads right (Push-Up, Plank…) are left alone.
-  if (exercise.equipment === "bodyweight" && mode === TRACKING_MODES.LOADED_REPS) {
-    entry.trackingMode = TRACKING_MODES.BODYWEIGHT_REPS;
-  }
+  entry.sets = sets;
+  // Seconds and yards are stored in the same numeric target field as reps.
+  if (mode !== TRACKING_MODES.TIMED_HOLD && mode !== TRACKING_MODES.CARRY) entry.reps = band.reps;
   return entry;
 }
 

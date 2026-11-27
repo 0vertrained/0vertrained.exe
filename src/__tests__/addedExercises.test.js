@@ -83,10 +83,25 @@ describe("choosing an exercise", () => {
     expect(found.every((name) => /squat/i.test(name))).toBe(true);
   });
 
+  it("browses equipment and session types while preserving each movement's logging units", () => {
+    expect(exerciseChoices({ browse: true, category: "plate_loaded" })).toContain("Belt Squat");
+    expect(exerciseChoices({ browse: true, category: "selectorized" })).toContain("Machine Chest Press");
+    expect(exerciseChoices({ browse: true, category: "assisted" })).toContain("Assisted Pull-Up");
+    expect(exerciseChoices({ browse: true, category: "bodyweight" })).not.toContain("Weighted Push-Up");
+    expect(exerciseChoices({ browse: true, query: "pushup" })).toContain("Push-Up");
+    expect(exerciseChoices({ browse: true, query: "dumbbell row", pattern: "horizontalPull" })).toContain("One-Arm DB Row");
+    expect(exerciseChoices({ browse: true, category: "plate_loaded", pattern: "squat" })).toEqual(["Belt Squat"]);
+    expect(defaultsFor("Weighted Push-Up").trackingMode).toBe("loaded_reps");
+    expect(defaultsFor("Sled Push")).toEqual({ sets: 3, reps: 20, trackingMode: "carry" });
+    const previousHold = { "2026-11-20": { workout: { exercises: { Plank: { sets: [{ done: true, duration: 75 }] } } } } };
+    const hold = { name: "Plank", ...defaultsFor("Plank", {allData: previousHold, todayKey: "2026-11-26"}) };
+    expect(withAdded(legacyDay, { added: addToDay({}, hold) }).lifting.at(-1).reps).toBe(75);
+  });
+
   it("fills sets and reps from last time, else the library, else 3 × 10", () => {
     expect(defaultsFor("Cable Fly", { allData, todayKey: "2026-11-26" })).toEqual({ sets: 2, reps: 15 });
     expect(defaultsFor("Goblet Squat", { allData, todayKey: "2026-11-26" })).toEqual({ sets: 3, reps: 10 });
     expect(defaultsFor("Bodyweight Squat", { allData, todayKey: "2026-11-26" })).toEqual({ sets: 3, reps: 15, trackingMode: "bodyweight_reps" });
-    expect(defaultsFor("Sled Push", { allData, todayKey: "2026-11-26" })).toEqual({ sets: 3, reps: 10 });
+    expect(defaultsFor("My sled drill", { allData, todayKey: "2026-11-26" })).toEqual({ sets: 3, reps: 10 });
   });
 });

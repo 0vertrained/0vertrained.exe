@@ -209,7 +209,13 @@ function mixedLoadPrescription({ exercise, mode, sessions, range, targetSets, in
   const topAndBackoff = completePattern && lighter < top && sets.slice(split).every(set => set.weight === lighter);
   const adverse = last.pain || last.worstQuality === "form_break";
   const effort = effortRange(exercise.rir);
-  const raise = group => !adverse && group.every(set => set.reps >= range.max && (!effort || set.rir != null) && !grindingSet(set, effort));
+  const reachedCeiling = set => set.reps >= range.max && (!effort || set.rir != null) && !grindingSet(set, effort);
+  const prior = sessions[1];
+  const confirmed = exercise.progressionExposures !== 2 || (
+    !prior?.pain && prior?.worstQuality !== "form_break" && prior?.sets.length === targetSets &&
+    sets.every((set, index) => prior.sets[index]?.weight === set.weight && reachedCeiling(prior.sets[index]) && reachedCeiling(set))
+  );
+  const raise = group => !adverse && confirmed && group.every(reachedCeiling);
   const raiseTop = topAndBackoff && raise(sets.slice(0, split));
   const raiseBackoff = topAndBackoff && raise(sets.slice(split));
   const slots = new Map(sets.map(set => [set.slot, set]));
@@ -262,11 +268,15 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
   if (!exercise?.name || !todayKey) return null;
   const mode = resolveTrackingMode(exercise);
   const range = parseRepRange(exercise.reps, mode === TRACKING_MODES.TIMED_HOLD ? { min: 30, max: 45 } : { min: 8, max: 12 });
+  if (Number.isInteger(exercise.repMin) && exercise.repMin > 0 && exercise.repMin <= range.max) range.min = exercise.repMin;
   const targetSets = Math.max(1, Number.parseInt(exercise.sets, 10) || 1);
   const increment = defaultWeightIncrement(exercise);
   const history = getExerciseSessions(data, currentSession?.performedName || exercise.name, todayKey, { exercise, limit: 8 });
   const current = sessionFromCurrent(exercise, currentSession, todayKey);
-  const sessions = current ? [current, ...history.filter((session) => session.date !== current.date)] : history;
+  const exposures = current ? [current, ...history.filter((session) => session.date !== current.date)] : history;
+  // Weighted pull-ups from an earlier program are a different baseline.
+  const leverage = exercise.progressionMode === "leverage" && (mode === TRACKING_MODES.BODYWEIGHT_REPS || mode === TRACKING_MODES.TIMED_HOLD);
+  const sessions = leverage ? exposures.filter(session => session.weight === 0) : exposures;
   const last = sessions[0];
 
   if (!last) {
@@ -278,7 +288,7 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
       targetSets,
       targetWeight: null,
       targetReps: Array(targetSets).fill(range.min),
-      rationale: `Establish a clean baseline inside ${range.min}–${range.max} reps before the engine changes load.`,
+      rationale: `Start at ${range.min} ${mode === TRACKING_MODES.TIMED_HOLD ? "seconds" : mode === TRACKING_MODES.CARRY ? "yards" : "reps"} per set and record the effort.`,
     }), mode };
   }
 
@@ -288,11 +298,22 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
   const hitFloor = hitAllSets && last.reps.slice(0, targetSets).every((reps) => reps >= range.min);
   const stall = detectStall(sessions, targetSets);
 
+  const effort = effortRange(exercise.rir);
+  const twoVisits = exercise.progressionExposures === 2;
+  const cleanCeiling = (session) => Boolean(session && !session.pain && session.worstQuality !== "form_break" &&
+    session.sets.length >= targetSets && session.sets.slice(0, targetSets).every(set =>
+      (mode === TRACKING_MODES.TIMED_HOLD ? set.duration : set.reps) >= range.max &&
+      set.weight === last.weight && (!effort || set.rir != null) && !grindingSet(set, effort)));
+  const repeatCeiling = twoVisits && !cleanCeiling(sessions[1]);
   if (mode === TRACKING_MODES.TIMED_HOLD) {
+    const advanceVariation = leverage && cleanCeiling(last) && !repeatCeiling;
     const durationTargets = nextRepTargets({ reps: last.sets.map((set) => set.duration) }, range, targetSets);
     return { ...prescriptionBase({
-      kind: "timed_progress", exercise, sessions, range, targetSets, targetReps: durationTargets,
-      rationale: hitUpper ? "All holds reached the top of the range. Add load or choose a harder variation after another clean exposure." : "Add time to one hold while keeping position clean.",
+      kind: "timed_progress", exercise, sessions, range, targetSets,
+      targetReps: adverseTechnique || advanceVariation ? Array(targetSets).fill(range.min) : durationTargets,
+      rationale: adverseTechnique ? "Return to the easier duration and a comfortable position."
+        : advanceVariation ? "Choose the next hold variation in the exercise notes and restart at the lower time."
+        : "Build time with good position. Repeat the top duration before advancing the variation.",
       caution: adverseTechnique ? "Technique or discomfort was flagged; repeat the easier duration instead of progressing." : null,
     }), mode };
   }
@@ -346,7 +367,7 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
     }), mode };
   }
 
-  if (stall) {
+  if (stall && !(twoVisits && hitUpper)) {
     return { ...prescriptionBase({
       kind: "reset", exercise, sessions, range, targetSets, targetWeight: stepBackWeight,
       targetReps: Array(targetSets).fill(range.min),
@@ -356,9 +377,18 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
     }), mode };
   }
 
-  const effort = effortRange(exercise.rir);
   const grinding = last.sets.some(set => grindingSet(set, effort));
   const missingEffort = Boolean(effort && !last.allRirLogged);
+  if (hitUpper && !grinding && !missingEffort && repeatCeiling) {
+    return { ...prescriptionBase({ kind: "hold_for_quality", exercise, sessions, range, targetSets,
+      targetWeight: lastWeight, targetReps: Array(targetSets).fill(range.max),
+      rationale: "Repeat the upper target at the same difficulty for a second clean visit." }), mode };
+  }
+  if (hitUpper && !grinding && !missingEffort && leverage) {
+    return { ...prescriptionBase({ kind: "advance_variation", exercise, sessions, range, targetSets,
+      targetWeight: 0, targetReps: Array(targetSets).fill(range.min),
+      rationale: "Choose a harder bodyweight variation or reduce support using the exercise notes. Restart at the lower rep target." }), mode };
+  }
   if (hitUpper && !grinding && !missingEffort) {
     const targetWeight = roundToIncrement(lastWeight + increment, increment);
     return { ...prescriptionBase({
@@ -373,7 +403,7 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
       kind: "hold_for_quality", exercise, sessions, range, targetSets, targetWeight: lastWeight,
       targetReps: Array(targetSets).fill(range.max),
       rationale: missingEffort ? "Repeat this load and log reps in reserve for each set to check the intended effort."
-        : "The rep target was reached, but the final work was a grind. Repeat the load and make the reps cleaner before adding weight.",
+        : "Repeat the target at the same difficulty with cleaner reps and the intended reserve.",
     }), mode };
   }
 

@@ -9,6 +9,9 @@ import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { Icon, LinkRow, QuickNumber } from "./ui/ledger";
 import { useTopBar } from "./ui/shell";
 import { getTodayKey } from "./constants";
+import { getLoggedCardioBlocks, hasLoggedWorkout } from "./loadModel";
+import { cardioModality, cardioResultText } from "./cardioLog";
+import { manualMilesForDay } from "./runningVolume";
 import { calcWeeklyReview } from "./recovery";
 import { buildWeeklyCoachReview } from "./weeklyCoachReview";
 import { buildCoachingCalibrationProfile } from "./coachingCalibration";
@@ -121,10 +124,8 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   const weights  = last30.map(([,d]) => parseFloat(d.body?.weight)).filter(Boolean);
   const proteins = last30.map(([,d]) => parseFloat(d.nutrition?.protein)).filter(Boolean);
   const sleeps   = last30.map(([,d]) => parseFloat(d.body?.sleep)).filter(Boolean);
-  const workoutsDone = entries.filter(([,d]) => {
-    return Object.keys(d.workout?.exercises||{}).length > 0 || parseFloat(d.workout?.cardio?.miles) > 0;
-  }).length;
-  const totalMiles = entries.reduce((acc,[,d]) => acc+(parseFloat(d.workout?.cardio?.miles)||0),0);
+  const workoutsDone = entries.filter(([, day]) => hasLoggedWorkout(day)).length;
+  const totalMiles = entries.reduce((acc,[,d]) => acc + manualMilesForDay(d),0);
   const goals = settings?.goals || { protein:200, calories:3600, water:128 };
   const review = calcWeeklyReview(data, goals);
   const TARGET_LABELS = review.targetLabels || ["5 or more workouts", "15 or more miles", `${goals.protein} g protein on 5 days`, "7 hours of sleep a night", "Water goal on 5 days"];
@@ -209,12 +210,9 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   ];
 
   // ── Running ──
-  const runs = last30
-    .map(([date, d]) => {
-      const miles = parseFloat(d.workout?.cardio?.miles) || 0;
-      return miles > 0 ? { date, miles, time: d.workout.cardio.time || "", pace: paceToSeconds(d.workout.cardio.pace), race: Boolean(d.workout.cardio.race) } : null;
-    })
-    .filter(Boolean);
+  const runs = last30.flatMap(([date, day]) => getLoggedCardioBlocks(day.workout)
+    .filter(block => cardioModality(block) === "run")
+    .map((block, index) => ({ ...block, pace: paceToSeconds(block.pace), date, key: `${date}-${index}` })));
   const runningScreen = [
     <Fragment key="figures">
       <Suspense fallback={loading("weekly miles")}>
@@ -231,10 +229,10 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
           <h2 id="runs-title" className="t-h">Recent runs</h2>
           <ul className="rows">
             {runs.slice(-5).reverse().map((run) => (
-              <li key={run.date} className="row" style={{ minHeight: 56 }}>
+              <li key={run.key} className="row" style={{ minHeight: 56 }}>
                 <span className="kv grow">
                   <span className="t-bs">{dayDate(run.date)}</span>
-                  <span className="n-s c2">{[`${run.miles}${NBSP}mi`, run.time, run.pace ? `${secondsToPace(run.pace)}${NBSP}min/mi` : ""].filter(Boolean).join(" · ")}</span>
+                  <span className="n-s c2">{[cardioResultText(run), run.pace ? `${secondsToPace(run.pace)}${NBSP}min/mi` : ""].filter(Boolean).join(" · ")}</span>
                 </span>
                 {run.race && <span className="tag tag-f">Race</span>}
               </li>

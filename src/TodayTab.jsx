@@ -2,7 +2,7 @@
 // Today: how am I, what do I do, where am I on fuel. The check-in folds to a
 // line, the call sits under it with the day's one primary action, then the
 // plan, the day's progress and the daily log. The pieces private to this
-// screen (FirstWeekCard, RunFields, QuickEdit, DailyLog, CardioNotes,
+// screen (FirstWeekCard, CardioFields, QuickEdit, DailyLog, CardioNotes,
 // ExerciseLogger) live below it.
 import { useState, useEffect, useRef, memo, lazy, Suspense } from "react";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
@@ -41,17 +41,17 @@ import { AddExerciseSheet } from "./AddExercise";
 import { OuraBedtimeLine, OuraStressLine } from "./sections/OuraSignals";
 import { RunSplits } from "./sections/RunSplits";
 import { buildWearableLoadRows } from "./wearableWorkoutLoad";
-import { TRACKING_MODES, completedSetCount, isCompletedSet, isExerciseHandled, reconcileExerciseSets, resolveTrackingMode, validateSet } from "./workoutLogging";
+import { TRACKING_MODES, completedSetCount, exerciseTargetSummary, isCompletedSet, isExerciseHandled, reconcileExerciseSets, resolveTrackingMode, validateSet } from "./workoutLogging";
 import { isFirstWeekUser, countLoggedDays, buildFirstWeekChecklist, summarizeChecklist, buildFirstWeekCoachCopy, buildBetaFeedbackText, resolveDataMode } from "./firstWeekJourney";
 import { useDayOps, CallCard, FuelSnapshot, DayProgress, CallSheets } from "./TodayCall";
 import { RaceWeekLine } from "./RaceWeekLine";
-import { isRunCardio } from "./raceBuild";
+import { cardioLabel, cardioModality, cardioResultText, hasCardioResult, isRunCardio } from "./cardioLog";
 import { paceCheck, paceCheckText } from "./runPaceCheck";
 import { tomorrowSummary } from "./tomorrowLine";
 import { watchLiftLine, watchLiftSummary } from "./watch/liftSummary";
 import { RaceLine, RaceSheet, likelyRaceDistance } from "./RaceResult";
 import { normalizeRace, personalBests, raceLabel, raceMiles, racePace, raceResults } from "./raceResults";
-import { formatDuration, formatPace } from "./runPaces";
+import { formatDuration, formatPace, parseRunTime } from "./runPaces";
 import { isRunPlanSpec } from "./runPlanGenerator";
 import { movedFrom } from "./weekMoves";
 
@@ -160,16 +160,15 @@ function FirstWeekCard({ settings, entries, program, ouraConnected, setTab, show
   );
 }
 
-// Miles, time, pace and average heart rate for one run. Pace fills itself
-// from miles and time (see the effect in TodayTab), and Apple Health fills
-// all four in the iPhone app (src/watch/healthRuns.js). Two to a row, so
-// every field has room on a phone.
-function RunFields({ logged = {}, planned = null, onChange }) {
+// Record duration and heart rate for all cardio. Runs also accept mileage and
+// pace. Distance-based cross-training keeps its prescribed distance field.
+function CardioFields({ logged = {}, planned = null, running, onChange }) {
+  const showMiles = running || Number(planned?.miles) > 0 || Number(logged.miles) > 0;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
-      <label className="field"><span className="lbl">Miles</span><input className="input n" type="number" inputMode="decimal" autoComplete="off" placeholder={String(planned?.miles || "")} value={logged.miles || ""} onChange={(e) => onChange("miles", e.target.value)} /></label>
-      <label className="field"><span className="lbl">Time</span><input className="input n" type="text" inputMode="numeric" autoComplete="off" placeholder="mm:ss" value={logged.time || ""} onChange={(e) => onChange("time", e.target.value)} /></label>
-      <label className="field"><span className="lbl">Pace</span><input className="input n" type="text" autoComplete="off" placeholder="/mi" value={logged.pace || ""} onChange={(e) => onChange("pace", e.target.value)} /></label>
+      {showMiles && <label className="field"><span className="lbl">Miles</span><input className="input n" type="number" inputMode="decimal" autoComplete="off" placeholder={String(planned?.miles || "")} value={logged.miles || ""} onChange={(e) => onChange("miles", e.target.value)} /></label>}
+      <label className="field"><span className="lbl">Time</span><input className="input n" type="text" autoComplete="off" placeholder="minutes or mm:ss" value={logged.time || ""} onChange={(e) => onChange("time", e.target.value)} /></label>
+      {running && <label className="field"><span className="lbl">Pace</span><input className="input n" type="text" autoComplete="off" placeholder="/mi" value={logged.pace || ""} onChange={(e) => onChange("pace", e.target.value)} /></label>}
       <label className="field"><span className="lbl">Avg heart rate</span><input className="input n" type="number" inputMode="numeric" autoComplete="off" placeholder="bpm" value={logged.hr || ""} onChange={(e) => onChange("hr", e.target.value)} /></label>
     </div>
   );
@@ -398,16 +397,13 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
     const miles = parseFloat(wo.cardio?.miles);
     const time  = wo.cardio?.time || "";
     const pace  = wo.cardio?.pace || "";
-    if (!miles || !time || pace) return; // nothing to do
-    const parts = time.split(":");
-    if (parts.length !== 2) return;
-    const totalMins = parseInt(parts[0]) + parseInt(parts[1]) / 60;
-    if (!totalMins || miles === 0) return;
-    const paceMins = totalMins / miles;
-    const pm = Math.floor(paceMins);
-    const ps = Math.round((paceMins - pm) * 60);
-    updateToday("workout.cardio.pace", `${pm}:${String(ps).padStart(2, "0")}`);
-  }, [wo.cardio?.miles, wo.cardio?.time]); // eslint-disable-line react-hooks/exhaustive-deps
+    const recorded = wo.cardio?.modality || wo.cardio?.type || wo.cardio?.activityRefs?.length ? wo.cardio : null;
+    const running = cardioModality(recorded || (!sessionAwareProgram && p.cardio) || wo.cardio) === "run";
+    // Wait for a complete clock value; the first digit typed into 30:00
+    // is also a valid duration in plain minutes.
+    const seconds = /^\d{1,3}:\d{2}(?::\d{2})?$/.test(time) && parseRunTime(time);
+    if (running && miles > 0 && seconds && !pace) updateToday("workout.cardio.pace", formatPace(seconds / miles));
+  }, [wo.cardio, sessionAwareProgram, p.cardio, updateToday]);
 
   // PR flash — detect if any set today is a new personal best
   const [prFlash, setPrFlash] = useState(null);
@@ -439,11 +435,9 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
 
   // Single "Do next" row — the emphasized primary action derived from current
   // logging state. Display-only; the button just scrolls to the right inputs.
-  const cardioLogged = hasPlannedCardio && (
-    (parseFloat(wo.cardio?.miles) || 0) > 0 ||
-    String(wo.cardio?.time || "").trim() !== "" ||
-    Object.values(wo.cardioSessions || {}).some((c) => (parseFloat(c?.miles) || 0) > 0 || String(c?.time || "").trim() !== "")
-  );
+  const pendingCardio = programSessions.find(session => session.cardio &&
+    !hasCardioResult(sessionAwareProgram ? wo.cardioSessions?.[session.id] : wo.cardio));
+  const cardioLogged = hasPlannedCardio && !pendingCardio;
   const nextAction = buildNextAction({
     totalExercises,
     doneExercises,
@@ -458,12 +452,13 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   const [activeCardioSessionId, setActiveCardioSessionId] = useState(null);
   const [quickEditOpen, setQuickEditOpen] = useState({}); // Today is the launchpad; grids are deliberate quick edit.
   const activeLiftingSession = programSessions.find((s) => s.id === activeLiftingSessionId) || programSessions.find((s) => (s.lifting || []).length > 0) || { lifting: plannedLifting };
-  const activeCardioSession = programSessions.find((s) => s.id === activeCardioSessionId && s.cardio) || programSessions.find((s) => s.cardio) || { id: "main", cardio: p.cardio };
+  const activeCardioSession = programSessions.find((s) => s.id === activeCardioSessionId && s.cardio) || pendingCardio || programSessions.find((s) => s.cardio) || { id: "main", cardio: p.cardio };
   const checkinRef = useRef(null);
   const planRef = useRef(null);
   // The run-by-hand fields: opened on request, and whenever a run sits there.
   const hasPlainCardio = !sessionAwareProgram && Boolean(p.cardio);
-  const unplannedRunLogged = !hasPlainCardio && ((parseFloat(wo.cardio?.miles) || 0) > 0 || String(wo.cardio?.time || "").trim() !== "");
+  const unplannedLogged = !hasPlainCardio && hasCardioResult(wo.cardio);
+  const plainRunning = !unplannedLogged || cardioModality(wo.cardio) === "run";
   const [runOpen, setRunOpen] = useState(false);
   // The run whose race sheet is open: { path, race, defaultDistance }.
   const [raceSheet, setRaceSheet] = useState(null);
@@ -483,7 +478,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   const runNextAction = () => {
     if (!nextAction) return;
     if (nextAction.status === "cardio") {
-      const sid = programSessions.find((s) => s.cardio)?.id;
+      const sid = pendingCardio?.id;
       if (sid) setActiveCardioSessionId(sid);
       setCardioSessionOpen(true);
       return;
@@ -540,7 +535,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
     : !nextAction ? null
     : nextAction.status === "start" ? { label: "Start session", onGo: runNextAction }
     : nextAction.status === "continue" ? { label: "Resume session", onGo: runNextAction }
-    : nextAction.status === "cardio" ? { label: isRunCardio(activeCardioSession?.cardio) ? "Start run" : "Start cardio", onGo: runNextAction }
+    : nextAction.status === "cardio" ? { label: isRunCardio(pendingCardio?.cardio) ? "Start run" : "Start cardio", onGo: runNextAction }
     : null;
   // Once the lifting is done the card names it and offers the Box Score, and
   // closing out the day becomes the next thing to do.
@@ -560,6 +555,20 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   const raceSpec = isRunPlanSpec((baseProgram || activeProgram)?.__raceBuild) ? (baseProgram || activeProgram).__raceBuild : null;
   const bests = personalBests(raceResults(allData || {}));
   const blockAt = (path) => path.split(".").reduce((node, key) => node?.[key], todayData) || {};
+  const cardioPath = session => sessionAwareProgram ? `workout.cardioSessions.${session.id}` : "workout.cardio";
+  const logCardioField = (path, planned, field, value) => {
+    const logged = blockAt(path);
+    // Confirm the sport once, alongside the measurement, so a later plan
+    // change cannot turn a bike ride into a run in the athlete's history.
+    if (!logged.modality && !logged.type && !logged.activityRefs?.length && value !== "") {
+      const activity = planned || { type: "Run", modality: "run" };
+      updateToday(`${path}.type`, cardioLabel(activity));
+      updateToday(`${path}.modality`, cardioModality(activity));
+      if (planned?.effort) updateToday(`${path}.plannedEffort`, planned.effort);
+      if (!planned) updateToday(`${path}.unplanned`, true);
+    }
+    updateToday(`${path}.${field}`, value);
+  };
   const raceLine = (path, logged, planned = null) => {
     const race = normalizeRace(logged?.race);
     const loggedRun = Number.parseFloat(logged?.miles) > 0 || String(logged?.time || "").trim() !== "";
@@ -595,21 +604,25 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       : "Race saved");
   };
 
-  // One planned cardio block: what is planned, the runner, and the run fields.
-  const cardioBlock = ({ cardio, logged, path, onStart, startLabel }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0 8px" }}>
-      <div className="row">
-        <Icon name="run" />
-        <span className="kv grow"><span className="t-bs clip">{cardio.type}</span><span className="t-s c2">{cardioMeta(cardio) || "Cardio"}</span></span>
-        {!isLoggingPast && onStart && <button type="button" className="btn btn-s btn-sm" onClick={onStart}>{startLabel}</button>}
+  // Show the prescription beside the measurements for this activity.
+  const cardioBlock = ({ cardio, logged, path, onStart, startLabel }) => {
+    const recorded = logged.modality || logged.type || logged.activityRefs?.length ? logged : cardio;
+    const running = cardioModality(recorded) === "run";
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0 8px" }}>
+        <div className="row">
+          <Icon name="run" />
+          <span className="kv grow"><span className="t-bs clip">{cardioLabel(recorded)}</span><span className="t-s c2">{cardioMeta(cardio) || "Cardio"}</span></span>
+          {!isLoggingPast && onStart && <button type="button" className="btn btn-s btn-sm" onClick={onStart}>{startLabel}</button>}
+        </div>
+        {cardio.notes && <CardioNotes notes={cardio.notes} />}
+        <CardioFields logged={logged} planned={cardio} running={running} onChange={(field, value) => logCardioField(path, cardio, field, value)} />
+        {running && <PaceCheck cardio={cardio} logged={logged} />}
+        {running && <RunSplits cardio={logged} />}
+        {running && raceLine(path, logged, cardio)}
       </div>
-      {cardio.notes && <CardioNotes notes={cardio.notes} />}
-      <RunFields logged={logged} planned={cardio} onChange={(field, value) => updateToday(`${path}.${field}`, value)} />
-      <PaceCheck cardio={cardio} logged={logged} />
-      <RunSplits cardio={logged} />
-      {isRunCardio(cardio) && raceLine(path, logged, cardio)}
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="shell" data-screen="today">
@@ -634,16 +647,18 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           pulse={wo.whoopHeartRate?.[activeLiftingSession.id || "main"]} workout={wo} data={allData}
           effort={wo.rpe}
           onEffort={(score) => updateToday("workout.rpe", String(score))}
-          finisher={hasPlannedCardio && !cardioLogged && activeCardioSession?.cardio ? {
-            label: `${activeCardioSession.cardio.type} · ${activeCardioSession.cardio.miles} mi`,
+          finisher={pendingCardio ? {
+            label: [pendingCardio.cardio.type, cardioTarget(pendingCardio.cardio)].filter(Boolean).join(" · "),
             onLog: () => {
-              const c = activeCardioSession.cardio;
-              if (activeCardioSession.id && activeCardioSession.id !== "main") {
-                updateToday(`workout.cardioSessions.${activeCardioSession.id}.miles`, String(c.miles ?? ""));
-              } else {
-                updateToday("workout.cardio.miles", String(c.miles ?? ""));
+              const c = pendingCardio.cardio;
+              const path = cardioPath(pendingCardio);
+              if (Number(c.minutes) > 0) logCardioField(path, c, "time", formatDuration(c.minutes * 60));
+              else if (Number(c.miles) > 0) logCardioField(path, c, "miles", String(c.miles));
+              else {
+                setActiveCardioSessionId(pendingCardio.id);
+                setCardioSessionOpen(true);
               }
-              showToast?.("Finisher logged. Add your time on Today whenever you like.");
+              if (cardioTarget(c)) showToast?.("Finisher logged.");
               setSessionDone(false);
             },
           } : null}
@@ -779,14 +794,14 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           <div>
             <div className="row">
               <Icon name="run" />
-              <span className="kv grow"><span className="t-bs">{hasPlannedCardio ? "Another run" : "Run"}</span><span className="t-s c2">{unplannedRunLogged ? `${wo.cardio.miles || "—"}${"\u00a0"}mi · ${wo.cardio.time || "no time"}` : "Not logged"}</span></span>
-              <button type="button" className="btn btn-s btn-sm" aria-expanded={runOpen || unplannedRunLogged} onClick={() => setRunOpen((open) => !open)}>{runOpen ? "Hide" : unplannedRunLogged ? "Edit" : "Log run"}</button>
+              <span className="kv grow"><span className="t-bs">{unplannedLogged ? cardioLabel(wo.cardio) : hasPlannedCardio ? "Another run" : "Run"}</span><span className="t-s c2">{unplannedLogged ? cardioResultText(wo.cardio) : "Not logged"}</span></span>
+              <button type="button" className="btn btn-s btn-sm" aria-expanded={runOpen} onClick={() => setRunOpen((open) => !open)}>{runOpen ? "Hide" : unplannedLogged ? "Edit" : "Log run"}</button>
             </div>
             {runOpen && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingBottom: 8 }}>
-                <RunFields logged={wo.cardio || {}} onChange={(field, value) => updateToday(`workout.cardio.${field}`, value)} />
-                <RunSplits cardio={wo.cardio || {}} />
-                {raceLine("workout.cardio", wo.cardio || {})}
+                <CardioFields logged={wo.cardio || {}} running={plainRunning} onChange={(field, value) => logCardioField("workout.cardio", null, field, value)} />
+                {plainRunning && <RunSplits cardio={wo.cardio || {}} />}
+                {plainRunning && raceLine("workout.cardio", wo.cardio || {})}
               </div>
             )}
           </div>
@@ -934,10 +949,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
             cardio={activeCardioSession.cardio}
             pulseSummary={wo.whoopHeartRate?.[`cardio-${activeCardioSession.id || "main"}`]}
             onSavePulse={isLoggingPast ? undefined : summary => updateToday(`workout.whoopHeartRate.cardio-${activeCardioSession.id || "main"}`, { ...summary, label: activeCardioSession.cardio?.type || "Cardio" })}
-            onLogTime={(mmss) => {
-              if (sessionAwareProgram) updateToday(`workout.cardioSessions.${activeCardioSession.id}.time`, mmss);
-              else updateToday("workout.cardio.time", mmss);
-            }}
+            onLogTime={(mmss) => logCardioField(cardioPath(activeCardioSession), activeCardioSession.cardio, "time", mmss)}
             showToast={showToast}
             settings={settings}
           />
@@ -1075,9 +1087,15 @@ export { epley1RM };
 
 // Planned minutes (race-plan runs carry them), effort, and the pace target
 // when the plan has one. Old programs show the effort alone.
+function cardioTarget(cardio) {
+  if (Number(cardio?.minutes) > 0) return `${cardio.minutes}\u00a0min`;
+  if (Number(cardio?.miles) > 0) return `${cardio.miles}\u00a0mi`;
+  return "";
+}
+
 function cardioMeta(cardio) {
   return [
-    Number(cardio?.minutes) > 0 ? `${cardio.minutes}\u00a0min` : null,
+    cardioTarget(cardio),
     cardio?.effort || null,
     cardio?.targetPace || null,
   ].filter(Boolean).join(" · ");
@@ -1157,8 +1175,9 @@ const ExerciseLogger = memo(function ExerciseLogger({ exercise, data, onChange, 
     <section className="sets" aria-label={name}>
       <div className="sec">
         <h3 className="t-ss grow clip">{name}</h3>
-        <span className="n-s c2">{exercise.sets}{" "}×{" "}{exercise.reps} · {done}/{exercise.sets}</span>
+        <span className="n-s c2">{done}/{exercise.sets} done</span>
       </div>
+      <p className="t-s c2">{exerciseTargetSummary(exercise)}</p>
       {best1RM > 0 && <p className="t-s c2">Estimated one-rep max <span className="n-s">{best1RM}{" "}lb</span></p>}
       {exercise.notes && (
         <>

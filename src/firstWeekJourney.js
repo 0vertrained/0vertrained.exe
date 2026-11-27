@@ -15,6 +15,7 @@
 //     tokens, usernames, or other account identifiers — only whitelisted,
 //     non-identifying setup metadata plus what the user typed themselves.
 
+import { hasLoggedWorkout } from "./loadModel";
 import { ONBOARDING_GOALS, ONBOARDING_DATA_MODES } from "./onboardingSetup";
 import { summarizeProgramForHub } from "./moreHub";
 
@@ -37,12 +38,7 @@ const nonEmptyString = (v) => typeof v === "string" && v.trim().length > 0;
 // it carries a real training, nutrition, recovery/check-in, or note signal. An
 // object of empty scaffolding (all zeros / blanks) does NOT count.
 function dayHasTraining(entry) {
-  const w = entry?.workout || {};
-  const exercises = w.exercises && typeof w.exercises === "object" ? w.exercises : {};
-  if (Object.keys(exercises).length > 0) return true;
-  if (num(w.cardio?.miles) > 0) return true;
-  if (num(w.cardio?.minutes) > 0) return true;
-  return false;
+  return hasLoggedWorkout(entry) || num(entry?.workout?.cardio?.minutes) > 0;
 }
 
 function dayHasNote(entry) {
