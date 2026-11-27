@@ -1,11 +1,13 @@
 // src/__tests__/runSplits.test.jsx
 // A run from the watch is cut into mile splits from Apple Health's distance
 // and heart rate, pauses left out of each split's time; its effort comes
-// with it; and the splits show on Today and in History behind one button.
+// with it and counts in the day's load; and the splits show on Today and in
+// History behind one button.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { runSplits, splitPace } from "../watch/runSplits";
 import { detailWrites, planRunDetails } from "../watch/healthRuns";
+import { computeSessionLoad } from "../loadModel";
 import { RunSplits } from "../sections/RunSplits";
 import { METERS_PER_MILE } from "../runPaces";
 
@@ -74,6 +76,22 @@ describe("reading a run's detail", () => {
     expect(writes[1].value).toBe("6");
     expect(writes[2].value).toBe(true);
     expect(detailWrites({})).toEqual([]);
+  });
+});
+
+describe("a run's effort in the day's load", () => {
+  it("counts the run at its own effort, and everything else as before", () => {
+    const run = { miles: "4", pace: "8:00" };
+    const before = computeSessionLoad({ workout: { exercises: {}, cardio: run } });
+    expect(before.rpeEstimated).toBe(true);
+    const scored = computeSessionLoad({ workout: { exercises: {}, cardio: { ...run, effortScore: "8" } } });
+    expect(scored.load).toBe(Math.round(8 * 32));
+    expect(scored.rpe).toBe(8);
+    expect(scored.rpeEstimated).toBe(false);
+    // A rated session still sets the lifting's load.
+    const set = { weight: "200", reps: "5", done: true };
+    const mixed = computeSessionLoad({ workout: { rpe: "6", exercises: { Squat: { sets: [set, set] } }, cardio: { ...run, effortScore: "3" } } });
+    expect(mixed.load).toBe(Math.round(6 * 6 + 3 * 32));
   });
 });
 

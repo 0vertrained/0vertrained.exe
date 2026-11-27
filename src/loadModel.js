@@ -35,6 +35,13 @@ function resolveSessionRpe(wo, hasLift) {
   return { rpe, estimated: true };
 }
 
+// A cardio block's own effort, 1–10: the effort score saved with a run read
+// from Apple Health (Apple's estimate or your rating there), else none.
+function cardioEffort(c) {
+  const score = parseFloat(c?.effortScore);
+  return Number.isFinite(score) && score >= 1 && score <= 10 ? score : null;
+}
+
 // Exported: the Strava running-volume figure reuses this exact
 // definition of "manually logged cardio" so manual-vs-import dedupe can never
 // drift from the load model's own reading of a day.
@@ -85,16 +92,30 @@ export function computeSessionLoad(dayData) {
   }, 0);
   const durationMin = liftingMin + cardioMin;
 
-  const { rpe: sessionRpe, estimated } = resolveSessionRpe(wo, hasLift);
+  const { rpe: dayRpe, estimated } = resolveSessionRpe(wo, hasLift);
   // Internal load in arbitrary units. ACWR is invariant to this scale, so there
   // are no magic normalization constants here — it is literally RPE × minutes.
-  const load = Math.round(sessionRpe * durationMin);
+  // A run with an effort score of its own (Apple's, read with the run from
+  // the watch) counts at that effort; everything else at the day's RPE.
+  let rawLoad = dayRpe * liftingMin;
+  let scoredRun = false;
+  for (const c of cardioBlocks) {
+    const miles = parseFloat(c?.miles) || 0;
+    if (miles <= 0) continue;
+    const minutes = (miles * (paceToSecPerMile(c?.pace) || DEFAULT_PACE_SEC)) / 60;
+    const own = cardioEffort(c);
+    if (own != null) scoredRun = true;
+    rawLoad += (own ?? dayRpe) * minutes;
+  }
+  const load = Math.round(rawLoad);
+  const sessionRpe = durationMin > 0 ? Math.round((rawLoad / durationMin) * 10) / 10 : dayRpe;
 
   return {
     volume: Math.round(volume),
     rpe: sessionRpe,
     sessionRpe,
-    rpeEstimated: estimated,
+    // Estimated unless something was rated: the session, or a run's effort.
+    rpeEstimated: estimated && !scoredRun,
     durationMin: Math.round(durationMin),
     liftingMin: Math.round(liftingMin),
     cardioMin: Math.round(cardioMin),
