@@ -1,11 +1,13 @@
 // src/__tests__/ouraSignals.test.jsx
 // Oura beyond sleep and readiness: daytime stress on Today, which fills an
-// unanswered check-in stress (and says so), and tonight's bedtime window in
-// the evening, on Today and in the evening check-in reminder.
+// unanswered check-in stress (and says so); tonight's bedtime window in the
+// evening, on Today and in the evening check-in reminder; resilience and
+// what follows your tags in Recovery, with a reconnect for the tag
+// permission.
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { bedtimeText, checkinStress, formatMinutes, stressSentence } from "../oura/extrasView";
+import { bedtimeText, checkinStress, effectText, formatMinutes, resilienceView, stressSentence, tagEffects } from "../oura/extrasView";
 import { remindersFor, rememberBedtime } from "../reminders/localReminders";
 
 const extras = vi.hoisted(() => ({ value: null, tags: null }));
@@ -16,7 +18,7 @@ vi.mock("../oura/extras", () => ({
 }));
 vi.mock("../oura/auth", () => ({ getOuraAuthUrl: vi.fn(async () => null) }));
 
-import { OuraBedtimeLine, OuraStressLine } from "../sections/OuraSignals";
+import { OuraBedtimeLine, OuraRecoveryExtras, OuraStressLine } from "../sections/OuraSignals";
 import { MorningCheckin } from "../MorningCheckin";
 
 const TODAY = "2026-11-26";
@@ -38,10 +40,35 @@ describe("reading Oura's extras", () => {
     expect(checkinStress([{ day: "2026-11-25", summary: "restored" }], TODAY)).toBe(2);
   });
 
+  it("calls for a lighter week after three limited days", () => {
+    const view = resilienceView([{ day: "2026-11-23", level: "solid" }, { day: "2026-11-24", level: "limited" }, { day: "2026-11-25", level: "limited" }, { day: "2026-11-26", level: "limited" }]);
+    expect(view).toMatchObject({ limitedStreak: 3, lighterWeek: true });
+    expect(view.days.map((day) => day.rank)).toEqual([3, 1, 1, 1]);
+    expect(resilienceView([{ day: "2026-11-26", level: "strong" }]).lighterWeek).toBe(false);
+    expect(resilienceView([])).toBeNull();
+  });
+
   it("writes the bedtime window as clock times", () => {
     expect(bedtimeText({ startMinutes: -75, endMinutes: -30 })).toBe("10:45\u00a0pm to 11:30\u00a0pm");
     expect(bedtimeText({ startMinutes: -60, endMinutes: 15 })).toBe("11\u00a0pm to 12:15\u00a0am");
     expect(bedtimeText(null)).toBe("");
+  });
+
+  it("compares the mornings after a tag with the other mornings", () => {
+    const mornings = [];
+    const tags = [];
+    for (let day = 1; day <= 20; day += 1) {
+      const key = `2026-11-${String(day).padStart(2, "0")}`;
+      const afterSauna = day % 4 === 1 && day > 1;
+      mornings.push({ day: key, readiness: afterSauna ? 84 : 80, hrv: afterSauna ? 66 : 60, restingHr: afterSauna ? 47 : 49 });
+      if (day % 4 === 0) tags.push({ day: key, label: "Sauna" });
+    }
+    tags.push({ day: "2026-11-02", label: "Alcohol" });
+    const { effects, few } = tagEffects({ tags, mornings });
+    expect(effects).toHaveLength(1);
+    expect(effects[0]).toMatchObject({ label: "Sauna", nights: 4, hrv: { after: 66, others: 60, change: 6 }, readiness: { change: 4 }, restingHr: { change: -2 } });
+    expect(effectText(effects[0])).toBe("HRV +6\u00a0ms, readiness +4, resting heart rate −2\u00a0bpm");
+    expect(few).toEqual([{ label: "Alcohol", nights: 1 }]);
   });
 });
 
@@ -117,5 +144,28 @@ describe("the bedtime window", () => {
     // A week-old window says nothing about tonight.
     const later = new Date(2026, 11, 5, 12, 0);
     expect(remindersFor({ checkin: true }, { now: later, days: [] })[0].body).toBe("Log sleep, energy, and soreness — tomorrow's call depends on tonight's data.");
+  });
+});
+
+describe("Recovery", () => {
+  it("shows resilience and what follows each tag", async () => {
+    extras.value = { stress: [], bedtime: null, resilience: [{ day: "2026-11-24", level: "limited", sleepRecovery: 40, daytimeRecovery: 20, stress: 30 }, { day: "2026-11-25", level: "limited" }, { day: "2026-11-26", level: "limited", sleepRecovery: 41, daytimeRecovery: 22, stress: 35 }] };
+    const mornings = Array.from({ length: 12 }, (_, index) => ({ day: `2026-11-${String(index + 10).padStart(2, "0")}`, readiness: index % 3 === 0 ? 70 : 80, hrv: index % 3 === 0 ? 50 : 60, restingHr: null }));
+    extras.tags = { needsReconnect: false, days: 90, mornings, tags: [{ day: "2026-11-09", label: "Alcohol" }, { day: "2026-11-12", label: "Alcohol" }, { day: "2026-11-15", label: "Alcohol" }, { day: "2026-11-18", label: "Alcohol" }, { day: "2026-11-14", label: "Late meal" }] };
+    render(<OuraRecoveryExtras enabled />);
+    expect(await screen.findByRole("heading", { name: "Resilience" })).toBeTruthy();
+    expect(screen.getByText("Limited")).toBeTruthy();
+    expect(screen.getByText("Out of 100: sleep recovery 41, daytime recovery 22, stress 35.")).toBeTruthy();
+    expect(screen.getByText("Limited 3 days running. A lighter week usually lets it build back.")).toBeTruthy();
+    expect(await screen.findByText("4 mornings after: HRV −10 ms, readiness −10")).toBeTruthy();
+    expect(screen.getByText("Too few mornings yet for late meal (1). Each needs 3.")).toBeTruthy();
+  });
+
+  it("asks to reconnect when Oura hasn't shared tags", async () => {
+    extras.value = null;
+    extras.tags = { needsReconnect: true, tags: [], mornings: [] };
+    render(<OuraRecoveryExtras enabled />);
+    expect(await screen.findByRole("button", { name: "Reconnect Oura" })).toBeTruthy();
+    expect(screen.getByText(/Oura shares tags only with your permission/)).toBeTruthy();
   });
 });

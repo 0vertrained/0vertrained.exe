@@ -12,6 +12,7 @@ import { describeCall } from "./recovery/verdictResolver";
 import { checkinEvidenceLine, divergenceNote, checkinSummaryLine } from "./checkinMorning";
 import { buildMuscleRecency } from "./muscleVolume";
 import { buildEmptyStateExplanation } from "./recovery/wearableSyncEvents";
+import { OuraRecoveryExtras } from "./sections/OuraSignals";
 
 const NBSP = "\u00a0";
 const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
@@ -545,6 +546,7 @@ export function RecoveryConnected({ view }) {
     <>
       <Trend history={recoveryHistory} score={score} />
       <Drivers hrv={view.hrv} rhr={view.rhr} sleep={view.sleep} temp={view.temp} rawMetrics={view.rawMetrics} sleepDebt={view.sleepDebt} />
+      <OuraRecoveryExtras enabled={Boolean(view.connected)} />
       <Load trainingLoad={trainingLoad} externalCardio={externalCardio} unloggedFlags={unloggedFlags} />
     </>
   );
