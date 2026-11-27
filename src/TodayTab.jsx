@@ -38,6 +38,7 @@ import { buildAggregatedRecoveryContext } from "./recovery/aggregationModel";
 import { flattenProgramLifting, getProgramSessions, usesProgramSessions } from "./programSessions";
 import { addToDay, removeFromDay, withAdded } from "./addedExercises";
 import { AddExerciseSheet } from "./AddExercise";
+import { OuraBedtimeLine, OuraStressLine } from "./sections/OuraSignals";
 import { buildWearableLoadRows } from "./wearableWorkoutLoad";
 import { TRACKING_MODES, completedSetCount, isCompletedSet, isExerciseHandled, reconcileExerciseSets, resolveTrackingMode, validateSet } from "./workoutLogging";
 import { isFirstWeekUser, countLoggedDays, buildFirstWeekChecklist, summarizeChecklist, buildFirstWeekCoachCopy, buildBetaFeedbackText, resolveDataMode } from "./firstWeekJourney";
@@ -704,6 +705,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           )}
           <CallCard ops={ops} decision={todayDecision} recommendation={dailyRecommendation} call={sharedCall} sessionTitle={sessionTitle} exerciseCount={totalExercises} primary={primary} isRest={todayPlan.isRest} finished={finished} onOpenRecovery={() => setTab?.("Recovery")} />
           <FuelSnapshot ops={ops} onOpenFuel={() => setTab?.("Fuel")} />
+          <OuraStressLine enabled={ouraConnected} todayKey={todayKey} body={bod} updateToday={updateToday} fill />
         </>
       )}
       </section>
@@ -801,6 +803,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
 
         {/* What tomorrow holds, so there's time to get ready. */}
         {!isLoggingPast && tomorrow && <p className="t-s c2" style={{ paddingTop: 4 }}>{tomorrow}</p>}
+        {!isLoggingPast && <OuraBedtimeLine enabled={ouraConnected} />}
 
         {/* Strava: appears only when the displayed day has a recorded
             activity and no cardio logged by hand. One tap fills the same

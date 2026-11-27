@@ -31,8 +31,15 @@ export function MorningCheckin({ body = {}, updateToday }) {
                 label={rowLabel(row)}
                 options={row.options.map((opt) => ({ value: opt.value, label: opt.text }))}
                 value={selectedOption(row, body?.[row.field])?.value}
-                onChange={(value) => updateToday(`body.${row.field}`, String(value))}
+                onChange={(value) => {
+                  updateToday(`body.${row.field}`, String(value));
+                  // Your own answer replaces the one filled from Oura.
+                  if (row.field === "stress" && body?.stressFrom) updateToday("body.stressFrom", "");
+                }}
               />
+              {row.field === "stress" && body?.stressFrom === "oura" && (
+                <span className="t-s c2" style={{ gridColumn: "1 / -1" }}>From Oura’s daytime stress yesterday. Tap to change it.</span>
+              )}
             </div>
           ))}
           {checkin.complete && (

@@ -10,10 +10,14 @@
 
 import { nativePlugin } from "../native";
 import { DEFAULT_MORNING_TIME, nextMornings, parseTime, timeLabel } from "./morningPlan";
+import { bedtimeText } from "../oura/extrasView";
 
 const PREFS_KEY = "ovt-local-reminders";
 const PLAN_KEY = "ovt-morning-plan";
 const SCHEDULED_KEY = "ovt-local-reminders-set";
+const BEDTIME_KEY = "ovt-oura-bedtime";
+// An old window says nothing about tonight.
+const BEDTIME_DAYS = 7;
 
 export const LOCAL_REMINDERS = [
   {
@@ -86,6 +90,33 @@ export function readMorningPlan() {
   }
 }
 
+/**
+ * Keeps Oura's bedtime window (src/oura/extras.js) for the evening
+ * check-in's words, and sends the phone the new words when it changed.
+ */
+export function rememberBedtime(bedtime, { now = new Date() } = {}) {
+  const text = bedtimeText(bedtime);
+  let before = "";
+  try { before = JSON.parse(localStorage.getItem(BEDTIME_KEY) || "null")?.text || ""; } catch { /* nothing kept */ }
+  try {
+    if (text) localStorage.setItem(BEDTIME_KEY, JSON.stringify({ text, at: now.getTime() }));
+    else localStorage.removeItem(BEDTIME_KEY);
+  } catch { return; }
+  if (text === before) return;
+  const prefs = readReminderPrefs();
+  if (prefs.checkin && hasLocalReminders()) applyReminderPrefs(prefs, { onlyIfChanged: true, now }).catch(() => {});
+}
+
+function bedtimeLine(now) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(BEDTIME_KEY) || "null");
+    if (!saved?.text || now.getTime() - Number(saved.at) > BEDTIME_DAYS * 24 * 60 * 60 * 1000) return "";
+    return ` Bedtime tonight: ${saved.text}, Oura’s window for you.`;
+  } catch {
+    return "";
+  }
+}
+
 /** What the phone is asked to schedule for these switches. */
 export function remindersFor(prefs, { days = readMorningPlan(), now = new Date() } = {}) {
   const reminders = [];
@@ -98,7 +129,8 @@ export function remindersFor(prefs, { days = readMorningPlan(), now = new Date()
       }
       continue;
     }
-    const { id, title, body, hour, minute, weekday } = reminder;
+    const { id, title, hour, minute, weekday } = reminder;
+    const body = reminder.id === "checkin" ? `${reminder.body}${bedtimeLine(now)}` : reminder.body;
     reminders.push({ id, title, body, hour, minute, ...(weekday ? { weekday } : {}) });
   }
   return reminders;
