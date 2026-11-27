@@ -233,7 +233,8 @@ export default async (req) => {
         accessToken,
         refreshToken: newRefreshToken || resolved.refreshToken,
         expiresAt,
-        scopes: ["personal", "daily", "heartrate", "spo2"],
+        // A refresh keeps what was granted when the account connected.
+        scopes: resolved.scopes?.length ? resolved.scopes : ["personal", "daily", "heartrate", "spo2"],
       });
       if (!persisted.ok) {
         console.error("Token storage failed after refresh:", persisted.reason);

@@ -1,5 +1,6 @@
 // netlify/functions/oura-auth.js
 import { PROVIDERS, storeProviderOAuthState, consumeProviderOAuthState, randomState, resolveProviderTokens, persistProviderTokens, getProviderConnectionSummary } from "./_provider-standard.js";
+import { shapeBedtime, shapeMornings, shapeResilience, shapeStress, shapeTags } from "./_oura-extras.js";
 
 // Oura OAuth flow handler (PHASE 2)
 //
@@ -8,6 +9,10 @@ import { PROVIDERS, storeProviderOAuthState, consumeProviderOAuthState, randomSt
 // • GET /api/oura/callback — handles OAuth callback, exchanges code for tokens
 // • GET /api/oura/status — returns safe token/sync status without exposing tokens
 // • POST /api/oura/disconnect — deletes the caller's Oura tokens and cached data
+// • GET /api/oura/extras — daytime stress, resilience and the bedtime window,
+//   read live from Oura for the caller (nothing stored)
+// • GET /api/oura/tags — the caller's Oura tags and the mornings after them,
+//   read live; says when the connection predates the tag permission
 //
 // Security:
 // • User ownership is derived from a verified Supabase Bearer token, never query params.
@@ -20,6 +25,10 @@ const OURA_AUTH_URL = "https://cloud.ouraring.com/oauth/authorize";
 const OURA_TOKEN_URL = "https://api.ouraring.com/oauth/token";
 const OURA_API_BASE = "https://api.ouraring.com/v2/usercollection";
 
+
+// What the app asks Oura for. `tag` came later: connections made before it
+// read everything else, and /api/oura/tags asks them to reconnect.
+const OURA_SCOPES = ["personal", "daily", "heartrate", "spo2", "tag"];
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 // Treat an access token with <= 5 minutes of life left as due for refresh so
@@ -281,7 +290,7 @@ async function handleAuth(req) {
   authorizeUrl.searchParams.set("redirect_uri", redirectUri);
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("state", state);
-  authorizeUrl.searchParams.set("scope", "personal daily heartrate spo2");
+  authorizeUrl.searchParams.set("scope", OURA_SCOPES.join(" "));
 
   const wantsJson = (req.headers.get("accept") || "").includes("application/json");
   return wantsJson ? json({ url: authorizeUrl.toString() }) : redirect(authorizeUrl.toString());
@@ -562,7 +571,8 @@ async function refreshOuraAccessToken(supabaseUrl, serviceKey, userId) {
       accessToken,
       refreshToken: newRefresh,
       expiresAt,
-      scopes: ["personal", "daily", "heartrate", "spo2"],
+      // A refresh keeps what was granted; only a new connection changes it.
+      scopes: resolved.scopes?.length ? resolved.scopes : OURA_SCOPES,
     });
     if (!persisted.ok) {
       // The rotation already happened at Oura; a failed store means the stored
@@ -772,7 +782,7 @@ async function handleCallback(req) {
     accessToken,
     refreshToken,
     expiresAt,
-    scopes: ["personal", "daily", "heartrate", "spo2"],
+    scopes: OURA_SCOPES,
   });
   if (!persisted.ok) {
     console.error("Failed to store Oura tokens:", persisted.reason);
@@ -870,6 +880,94 @@ async function handleCallback(req) {
   return redirect(`/settings?oura_connected=true`);
 }
 
+// Oura documents of one kind between two dates, following next_token for a
+// few pages. Resolves { docs, status }: status is Oura's for a failed page.
+async function fetchOuraDocs(accessToken, endpoint, startDate, endDate, maxPages = 6) {
+  const docs = [];
+  let nextToken = null;
+  for (let page = 0; page < maxPages; page += 1) {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+    if (nextToken) params.set("next_token", nextToken);
+    let r;
+    try {
+      r = await fetch(`${OURA_API_BASE}/${endpoint}?${params}`, { headers: { "Authorization": `Bearer ${accessToken}` } });
+    } catch {
+      return { docs, status: 502 };
+    }
+    if (!r.ok) return { docs, status: r.status };
+    const payload = await r.json().catch(() => ({}));
+    if (Array.isArray(payload?.data)) docs.push(...payload.data);
+    nextToken = payload?.next_token || null;
+    if (!nextToken) break;
+  }
+  return { docs, status: 200 };
+}
+
+function readDays(req, { fallback, low, high }) {
+  const requested = parseInt(new URL(req.url).searchParams.get("days") || "", 10);
+  return Number.isFinite(requested) ? Math.min(high, Math.max(low, requested)) : fallback;
+}
+
+// The caller and a usable Oura token, or the response to send instead.
+async function ouraCaller(req) {
+  if (req.method !== "GET") return { response: json({ error: "Method not allowed" }, 405) };
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return { response: json({ error: "Server not configured" }, 500) };
+  let userId;
+  try { userId = await resolveUserIdFromBearer(req); } catch { userId = null; }
+  if (!userId) return { response: json({ error: "Not authenticated" }, 401) };
+  const token = await getUsableOuraAccessToken(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, userId);
+  if (token.error) return { response: json({ error: token.error }, token.status || 502) };
+  return { accessToken: token.accessToken };
+}
+
+// Route: GET /api/oura/extras?days=14
+// Daytime stress, resilience and the bedtime window, shaped for display.
+async function handleExtras(req) {
+  const caller = await ouraCaller(req);
+  if (caller.response) return caller.response;
+  const days = readDays(req, { fallback: 14, low: 1, high: 30 });
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - days);
+  const [stress, resilience, sleepTime] = await Promise.all([
+    fetchOuraDocs(caller.accessToken, "daily_stress", fmtDate(start), fmtDate(end)),
+    fetchOuraDocs(caller.accessToken, "daily_resilience", fmtDate(start), fmtDate(end)),
+    fetchOuraDocs(caller.accessToken, "sleep_time", fmtDate(start), fmtDate(end)),
+  ]);
+  const unavailable = [["stress", stress], ["resilience", resilience], ["bedtime", sleepTime]]
+    .filter(([, result]) => result.status !== 200)
+    .map(([name]) => name);
+  return json({
+    stress: shapeStress(stress.docs),
+    resilience: shapeResilience(resilience.docs),
+    bedtime: shapeBedtime(sleepTime.docs),
+    unavailable,
+  });
+}
+
+// Route: GET /api/oura/tags?days=90
+// The caller's tags by day and each morning's readiness, HRV and resting
+// heart rate, so the app can compare the nights after a tag with the rest.
+async function handleTags(req) {
+  const caller = await ouraCaller(req);
+  if (caller.response) return caller.response;
+  const days = readDays(req, { fallback: 90, low: 14, high: 120 });
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - days);
+  const tags = await fetchOuraDocs(caller.accessToken, "enhanced_tag", fmtDate(start), fmtDate(end));
+  // Connections made before the tag permission get 401 or 403 here.
+  if (tags.status === 401 || tags.status === 403) return json({ needsReconnect: true, tags: [], mornings: [] });
+  if (tags.status !== 200) return json({ error: "Tags unavailable" }, 502);
+  const [readiness, sleep] = await Promise.all([
+    fetchOuraDocs(caller.accessToken, "daily_readiness", fmtDate(start), fmtDate(end)),
+    fetchOuraDocs(caller.accessToken, "sleep", fmtDate(start), fmtDate(end)),
+  ]);
+  return json({ needsReconnect: false, days, tags: shapeTags(tags.docs), mornings: shapeMornings(readiness.docs, sleep.docs) });
+}
+
 // Route: GET /api/oura/events
 // Returns the most recent wearable_sync_events rows for the caller (Oura only
 // for this endpoint). Owner-derived via Bearer token. Mirrors /api/whoop/events.
@@ -933,6 +1031,10 @@ export default async (req) => {
     return await handleEvents(req);
   } else if (url.pathname.endsWith("/api/oura/disconnect")) {
     return await handleDisconnect(req);
+  } else if (url.pathname.endsWith("/api/oura/extras")) {
+    return await handleExtras(req);
+  } else if (url.pathname.endsWith("/api/oura/tags")) {
+    return await handleTags(req);
   } else {
     return json({ error: "Not found" }, 404);
   }

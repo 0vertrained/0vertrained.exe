@@ -58,7 +58,7 @@ describe("serverless security guards", () => {
     expect(authorizeUrl.origin + authorizeUrl.pathname).toBe("https://cloud.ouraring.com/oauth/authorize");
     expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(`https://${"0vertrained"}.netlify.app/api/oura/callback`);
     expect(authorizeUrl.searchParams.get("response_type")).toBe("code");
-    expect(authorizeUrl.searchParams.get("scope")).toBe("personal daily heartrate spo2");
+    expect(authorizeUrl.searchParams.get("scope")).toBe("personal daily heartrate spo2 tag");
   });
 
   test("oura auth derives callback redirect when custom-domain env uses the wrong callback path", async () => {
