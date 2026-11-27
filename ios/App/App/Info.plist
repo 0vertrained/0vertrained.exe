@@ -29,7 +29,9 @@
 	<key>OTAppGroup</key>
 	<string>group.$(APP_BUNDLE_ID)</string>
 	<key>NSCameraUsageDescription</key>
-	<string>0VERTRAINED uses the camera to scan food barcodes into your food log.</string>
+	<string>0VERTRAINED uses the camera to scan food barcodes into your food log and to take progress photos, which stay on this iPhone.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>0VERTRAINED lets you choose progress photos from your library. They stay on this iPhone.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>0VERTRAINED reads your runs, with their heart rate, splits and effort, your cardio fitness, and your steps, weight, sleep, resting heart rate and HRV to fill in your training log.</string>
 	<key>NSHealthUpdateUsageDescription</key>
