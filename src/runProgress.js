@@ -152,3 +152,20 @@ export function heartRateTrend(runs = [], { todayKey, windowDays = 21 } = {}) {
     change: earlierReach ? Math.round(((recentReach - earlierReach) / earlierReach) * 1000) / 1000 : null,
   };
 }
+
+/**
+ * Apple's cardio fitness (VO2 max) estimates, [{ date, value }] oldest
+ * first, read: { latest, change, since }, the change against the first
+ * estimate in the 90 days before the latest (null with none earlier).
+ */
+export function cardioFitnessTrend(points = []) {
+  const list = (Array.isArray(points) ? points : [])
+    .filter((point) => typeof point?.date === "string" && Number.isFinite(Number(point.value)) && Number(point.value) > 0)
+    .map((point) => ({ date: point.date, value: Number(point.value) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (!list.length) return null;
+  const latest = list[list.length - 1];
+  const earlier = list.find((point) => point.date >= shiftKey(latest.date, -90));
+  const change = earlier && earlier.date !== latest.date ? Math.round((latest.value - earlier.value) * 10) / 10 : null;
+  return { latest, change, since: change == null ? null : earlier.date, points: list };
+}

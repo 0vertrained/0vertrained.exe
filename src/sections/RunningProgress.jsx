@@ -1,13 +1,15 @@
 // src/sections/RunningProgress.jsx
-// Progress → Running, below the weekly miles: your races and best times,
-// the race times your fitness points to, how easy pace is moving, and how
-// much ground each heartbeat covers on easy runs. Read-only.
+// Progress → Running, below the weekly miles: cardio fitness from the watch,
+// your races and best times, the race times your fitness points to, how
+// easy pace is moving, and how much ground each heartbeat covers on easy
+// runs. Read-only.
 import { useMemo } from "react";
 import { formatDuration, formatPace } from "../runPaces";
 import { isRunPlanSpec } from "../runPlanGenerator";
 import { currentFitness, personalBests, raceLabel, raceResults } from "../raceResults";
 import { easyPaceTrend, heartRateTrend, loggedRuns } from "../runProgress";
 import { dayDate } from "./charts";
+import { CardioFitness } from "./CardioFitness";
 
 const NBSP = " ";
 const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
@@ -32,6 +34,7 @@ export function RunningProgress({ data = {}, program = null, todayKey }) {
 
   return (
     <>
+      <CardioFitness />
       {(easy || heart) && (
         <section aria-labelledby="easy-title" style={column(8)}>
           <h2 id="easy-title" className="t-h">Easy runs</h2>
