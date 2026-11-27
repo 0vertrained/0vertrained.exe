@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { getWhoopBluetooth, subscribeWhoopBluetooth } from "../whoop/bluetooth";
+import { WhoopReadingStatus } from "../whoop/WhoopReadingStatus";
+import { WhoopStoredReadings } from "../whoop/WhoopStoredReadings";
+import { useScreenWakeLock } from "../sessionDevice";
 
 const FRESH_MS = 15_000;
 const INITIAL = { status: "idle", devices: [], device: null };
@@ -31,16 +34,29 @@ export function WhoopBluetoothCard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [scanned, setScanned] = useState(false);
+  const [viewHistory, setViewHistory] = useState(false);
+  const [lastLiveAt, setLastLiveAt] = useState(null);
   const revision = useRef(0);
+  const shownDevice = useRef(null);
   const connected = state.status === "connected";
   const connecting = state.status === "connecting";
   const scanning = state.status === "scanning";
   const devices = state.devices || [];
+  const plugin = getWhoopBluetooth();
+  const history = state.history;
+  const syncing = history?.status === "syncing";
+  useScreenWakeLock(syncing);
 
   function applyState(next) {
     if (!next?.status) return;
     revision.current += 1;
     setState(next);
+    const id = next.device?.id ?? next.savedDevice?.id ?? null;
+    if (id !== shownDevice.current) {
+      shownDevice.current = id;
+      setLastLiveAt(null);
+      setSample(null);
+    }
     if (next.status !== "connected") setSample(null);
     else if (freshSample(next.lastSample)) {
       setSample(previous => previous?.timestamp > next.lastSample.timestamp ? previous : next.lastSample);
@@ -49,7 +65,11 @@ export function WhoopBluetoothCard() {
 
   useEffect(() => subscribeWhoopBluetooth({
     onState: applyState,
-    onSample: reading => setSample(freshSample(reading)),
+    onSample: reading => {
+      const fresh = freshSample(reading);
+      if (fresh) setLastLiveAt(fresh.timestamp);
+      setSample(fresh);
+    },
     onError: () => setError("Couldn’t read the strap connection. Reopen Integrations to try again."),
   }), []);
 
@@ -85,7 +105,7 @@ export function WhoopBluetoothCard() {
   return (
     <section className="card" aria-labelledby="int-whoop-strap" style={column}>
       <h2 id="int-whoop-strap" className="t-h">WHOOP Bluetooth</h2>
-      <p className="t-s c2">Stream live workout heart rate from your WHOOP 4.0 directly to this iPhone without a WHOOP membership.</p>
+      <p className="t-s c2">Connect your WHOOP 4.0 directly to this iPhone for heart rate{history ? " and stored readings" : ""} without a WHOOP membership.</p>
       {!connected && !connecting && !state.savedDevice && (
         <p className="t-s c2">Take the strap off your wrist and tap the sensor until it flashes blue. Choose Find strap, then select yours.</p>
       )}
@@ -95,6 +115,8 @@ export function WhoopBluetoothCard() {
           {sample ? <><span className="n-lg">{sample.bpm}</span> bpm</> : "Waiting for a fresh reading…"}
         </p>
       )}
+      {(state.device || state.savedDevice) && <WhoopReadingStatus batteryPercent={state.batteryPercent}
+        batteryAt={state.batteryAt} lastReadingAt={Math.max(lastLiveAt || 0, state.lastReadingAt || 0, state.lastSample?.timestamp || 0)} />}
       {state.message && <p className="t-s c2">{state.message}</p>}
       {error && <p role="alert" className="t-s err">{error}</p>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -121,6 +143,25 @@ export function WhoopBluetoothCard() {
             </li>
           ))}
         </ul>
+      )}
+      {history && plugin?.readHistory && (
+        <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+          <h3 className="t-bs">Overnight and phone-free recordings</h3>
+          <p className="t-s c2">After wearing the strap away from your phone, bring it nearby and keep this screen open to sync. Once this iPhone saves a block of readings, the strap can free that space.</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" className="btn btn-p btn-sm" disabled={busy || syncing || !state.historyAvailable}
+              onClick={() => action("startHistorySync")}>{syncing ? "Syncing strap history…" : "Sync strap history"}</button>
+            <button type="button" className="btn btn-s btn-sm" aria-expanded={viewHistory}
+              onClick={() => setViewHistory(open => !open)}>{viewHistory ? "Hide stored readings" : "View stored readings"}</button>
+          </div>
+          {(!state.historyAvailable && !syncing) && <p className="t-s c2">{connected
+            ? "Waiting for the strap’s history channel." : "Connect the strap to sync new readings."}</p>}
+          {(syncing || history.message) && <p role="status" className="t-s c2">{history.message || "Receiving stored readings…"}
+            {syncing && history.records > 0 && ` · ${history.records.toLocaleString()} records`}</p>}
+          {history.lastSyncAt > 0 && <p className="t-s c2">Last completed sync · {new Date(history.lastSyncAt).toLocaleString()}</p>}
+          {history.unsupported > 0 && <p className="t-s c2">{history.unsupported.toLocaleString()} records use a layout this version can’t display yet.</p>}
+          {viewHistory && <WhoopStoredReadings bridge={plugin} history={history} />}
+        </div>
       )}
     </section>
   );

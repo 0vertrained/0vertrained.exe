@@ -249,6 +249,20 @@ describe("V2.9 normalization — synthetic Whoop v2 payloads", () => {
     expect(w.id).toBe("w1");
   });
 
+  test("excludes unrecorded time and falls back to observed stages when durations are missing", () => {
+    const mins = m => m * 60_000;
+    const normalize = stage_summary => normalizeSleep({ score: { stage_summary } });
+    const partial = { total_in_bed_time_milli: mins(480), total_awake_time_milli: mins(30),
+      total_no_data_time_milli: mins(60) };
+    expect(normalize(partial)).toMatchObject({ asleepMin: 390, noDataMin: 60 });
+    const staged = { total_light_sleep_time_milli: mins(200), total_rem_sleep_time_milli: mins(50),
+      total_slow_wave_sleep_time_milli: mins(100) };
+    expect(normalize({ ...partial, ...staged }).asleepMin).toBe(350);
+    expect(normalize({ ...staged, total_in_bed_time_milli: null }).asleepMin).toBe(350);
+    expect(normalize({ ...partial, total_no_data_time_milli: mins(480) }).asleepMin).toBe(0);
+    expect(normalize({ total_in_bed_time_milli: mins(480), total_awake_time_milli: null }).asleepMin).toBeNull();
+  });
+
   test("tolerates missing / partial payloads without throwing", () => {
     expect(normalizeRecovery(null)).toBeNull();
     expect(normalizeSleep({})).toEqual(expect.objectContaining({ inBedMin: null, asleepMin: null }));

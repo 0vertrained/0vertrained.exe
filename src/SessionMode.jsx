@@ -40,6 +40,7 @@ import {
   isSessionHandled,
   nextIncompleteExerciseIndex,
   reconcileExerciseSets,
+  resolveTrackingMode,
   validateSet,
 } from "./workoutLogging";
 
@@ -350,6 +351,11 @@ export function SessionMode({
     setIdx(bounded);
   };
 
+  const clearRest = () => {
+    pulse.current?.endRest();
+    setRest(null);
+  };
+
   const reopenSet = (setIndex) => {
     const { completedAt, ...reopened } = sets[setIndex];
     void completedAt;
@@ -357,7 +363,7 @@ export function SessionMode({
     saveExercise({ ...exData, sets: reopenedSets, nextPrescription: undefined });
     setValidationError("");
     setEditing(false);
-    setRest(null);
+    clearRest();
     setActiveSetIndex(setIndex);
   };
 
@@ -383,6 +389,7 @@ export function SessionMode({
       exData, sets, setIndex, set: current, exercise, progressionExercise, prescription,
       data: allData, todayKey, performedName, selectedSource: choice || source?.key || "manual",
     });
+    pulse.current?.logSet({ name: exercise.name, index: setIndex, completedAt: completed.completedAt, mode: resolveTrackingMode(progressionExercise) });
     saveExercise(logged);
     setValidationError("");
     setChoice(null);
@@ -397,12 +404,13 @@ export function SessionMode({
       nextExerciseName: lifting[idx + 1]?.name,
     });
     const startRest = () => {
+      pulse.current?.startRest(completed.completedAt);
       cuedRef.current = null;
       setRest({ seconds: suggestRestSeconds(exercise), startedAt: Date.now(), pausedAt: null, next: nextGlance, setIndex, exerciseIdx: idx });
     };
 
     if (paired && canPair) {
-      setRest(null);
+      clearRest();
       setTimeout(() => goToExercise(idx + 1), 220);
       return;
     }
@@ -418,7 +426,7 @@ export function SessionMode({
     } else {
       // Nothing follows the session's last set, so nothing to rest for.
       const othersHandled = lifting.every((item, index) => index === idx || isExerciseHandled(item, workoutData?.exercises?.[item.name] || {}));
-      if (exerciseComplete && othersHandled) setRest(null);
+      if (exerciseComplete && othersHandled) clearRest();
       else startRest();
     }
 
@@ -466,7 +474,7 @@ export function SessionMode({
     saveExercise({ ...exData, sets, skipped: reason });
     setSkipAsk(false);
     setSheet(null);
-    setRest(null);
+    clearRest();
   };
 
   const toggleWarmup = (warmupIndex) => {
@@ -513,12 +521,12 @@ export function SessionMode({
     setRest((current) => current ? { ...current, seconds: current.seconds + seconds } : current);
   };
   const startNextSet = () => {
-    setRest(null);
+    clearRest();
     setEditing(false);
     if (nextSetIndex >= 0) setActiveSetIndex(nextSetIndex);
   };
   const goNextExercise = () => {
-    setRest(null);
+    clearRest();
     setEditing(false);
     if (nextExerciseIndex >= 0) goToExercise(nextExerciseIndex);
   };
@@ -620,6 +628,7 @@ export function SessionMode({
         <p className="sr" role="status">{restStatus}</p>
         {todayKey === getTodayKey() && strap && (
           <WhoopWorkoutPulse key={strap.owner + todayKey + sessionId} ref={pulse} saved={workoutData?.whoopHeartRate?.[sessionId]}
+            workout={workoutData} data={allData} dateKey={todayKey}
             onSave={summary => onUpdate(`workout.whoopHeartRate.${sessionId}`, { ...summary, label: sessionLabel })} />
         )}
 
@@ -633,7 +642,7 @@ export function SessionMode({
           {dockQueue && (
             <aside data-section="session-queue" aria-label="Session queue" className="session-queue">
               <div className="sec"><h2 className="t-title">Queue</h2><span className="t-s c2">{handledExercises} of {lifting.length} done</span></div>
-              <Queue lifting={lifting} workoutData={workoutData} current={idx} onGo={(index) => { setRest(null); goToExercise(index); }} />
+              <Queue lifting={lifting} workoutData={workoutData} current={idx} onGo={(index) => { clearRest(); goToExercise(index); }} />
               <button type="button" className="btn btn-s btn-b" onClick={() => setSheet("add")}><Icon name="plus" size="s" />Add an exercise</button>
             </aside>
           )}
@@ -848,7 +857,7 @@ export function SessionMode({
       <Sheet open={sheet === "queue"} title="Queue" onClose={() => setSheet(null)}>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <p className="t-s c2">{handledExercises} of {lifting.length} exercises done. Choose one to go to it.</p>
-          <Queue lifting={lifting} workoutData={workoutData} current={idx} onGo={(index) => { setSheet(null); setRest(null); goToExercise(index); }} />
+          <Queue lifting={lifting} workoutData={workoutData} current={idx} onGo={(index) => { setSheet(null); clearRest(); goToExercise(index); }} />
           <button type="button" className="btn btn-s btn-b" onClick={() => setSheet("add")}><Icon name="plus" size="s" />Add an exercise</button>
           <VolumeAfter projection={volumeProjection} />
         </div>

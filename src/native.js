@@ -56,8 +56,17 @@ export function selectionHaptic() {
   return call("OTDevice", "haptic", { kind: "select" });
 }
 
+let wakeRequests = 0;
 export function nativeKeepAwake(on) {
-  return call("OTDevice", "keepAwake", { on: Boolean(on) });
+  // A foreground history transfer and a seated check can run together.
+  // Keep the screen on until both callers have released their request.
+  if (on) {
+    if (wakeRequests === 0 && !call("OTDevice", "keepAwake", { on: true })) return false;
+    wakeRequests++;
+    return true;
+  }
+  wakeRequests = Math.max(0, wakeRequests - 1);
+  return wakeRequests > 0 || call("OTDevice", "keepAwake", { on: false });
 }
 
 // A notification at the end of a rest, for when the phone is locked and the

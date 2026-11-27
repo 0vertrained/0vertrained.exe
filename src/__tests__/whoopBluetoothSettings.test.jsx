@@ -110,6 +110,30 @@ describe("native WHOOP strap in Integrations", () => {
     expect(screen.getByRole("button", { name: "Find strap" }).disabled).toBe(false);
   });
 
+  it("keeps the last reading and zero-percent battery visible, and allows a saved overnight import to be reopened offline", async () => {
+    const readingAt = Date.now() - 60_000;
+    const history = { status: "idle", records: 0, unsupported: 0, lastSyncAt: null };
+    const { plugin, update } = install({ ...idle, status: "connected", device: strap, savedDevice: strap,
+      batteryPercent: 0, batteryAt: readingAt, lastReadingAt: readingAt, historyAvailable: true, history });
+    plugin.startHistorySync = vi.fn(async () => update({ history: { ...history, status: "syncing" } }));
+    plugin.readHistory = vi.fn(async ({ owner }) => ({ owner, records: [], nextAfter: null }));
+    await setWhoopBluetoothOwner("athlete");
+    render(<WhoopBluetoothCard />);
+    await act(async () => {});
+    expect(screen.getByLabelText("Strap status").textContent).toMatch(/Battery 0% · Last reading 1 min ago/);
+    expect(plugin.startHistorySync).not.toHaveBeenCalled();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Sync strap history" })));
+    expect(plugin.startHistorySync).toHaveBeenCalledWith({ owner: "athlete" });
+    expect(screen.getByRole("button", { name: "Syncing strap history…" }).disabled).toBe(true);
+    act(() => update({ status: "disconnected", device: null, historyAvailable: false,
+      history: { ...history, status: "complete", records: 25, lastSyncAt: Date.now() } }));
+    expect(screen.getByRole("button", { name: "Sync strap history" }).disabled).toBe(true);
+    expect(screen.getByLabelText("Strap status").textContent).toContain("1 min ago");
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "View stored readings" })));
+    expect(plugin.readHistory).toHaveBeenCalledWith(expect.objectContaining({ owner: "athlete" }));
+    expect(screen.getByText(/No readings saved for this window/)).toBeTruthy();
+  });
+
   it("removes listeners even if the native bridge resolves after unmount", async () => {
     const { plugin } = install();
     const resolve = [];
@@ -123,6 +147,17 @@ describe("native WHOOP strap in Integrations", () => {
     expect(remove).toHaveBeenCalledTimes(2);
     expect(onState).not.toHaveBeenCalled();
     expect(plugin.getState).not.toHaveBeenCalled();
+  });
+
+  it("clears the displayed sample when changing straps within one account", async () => {
+    const { emit, update } = install({ ...idle, status: "connected", device: strap, savedDevice: strap });
+    await setWhoopBluetoothOwner("athlete");
+    render(<WhoopBluetoothCard />);
+    await act(async () => {});
+    act(() => emit("sample", { timestamp: Date.now(), bpm: 90 }));
+    expect(screen.getByLabelText("Strap status").textContent).toMatch(/Last reading just now/);
+    act(() => update({ status: "connecting", device: { id: "device-2" }, lastSample: null }));
+    expect(screen.getByLabelText("Strap status").textContent).toMatch(/Last reading unavailable/);
   });
 
   it("keeps a newer native event when a passive getState reply arrives late", async () => {

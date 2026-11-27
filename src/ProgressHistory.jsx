@@ -4,7 +4,7 @@
 // totals. A day opens read-only; "Edit this day" hands it to Today, which is
 // where a past day is changed. On a wide screen the day docks beside the list.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName } from "./constants";
 import { buildAthleteTimeline, filterTimelineEvents, groupTimelineByDate, summarizeTimeline } from "./athleteTimeline";
 import { displaySet } from "./workoutLogging";
@@ -12,6 +12,9 @@ import { Icon, Seg } from "./ui/ledger";
 import { dayDate } from "./sections/charts";
 import { watchLiftLine, watchLiftSummary } from "./watch/liftSummary";
 import { dayFoods, itemTotals, servingsLabel } from "./foodLog";
+import { subscribeWhoopBluetooth, useWhoopBluetooth } from "./whoop/bluetooth";
+import { StoredPulseWindow } from "./whoop/WhoopStoredReadings";
+import { WorkoutPulseTimeline } from "./workout/WorkoutPulseTimeline";
 import { RunSplits } from "./sections/RunSplits";
 
 const NBSP = "\u00a0";
@@ -48,9 +51,30 @@ function matches(dateKey, day, query) {
   return [day.workout?.cardio?.miles, day.nutrition?.calories, day.nutrition?.protein].some((value) => String(value || "").includes(q));
 }
 
+const sessionClock = timestamp => new Date(timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+function StoredWorkoutWindows({ bridge, workout }) {
+  const [history, setHistory] = useState(null);
+  const [opened, setOpened] = useState(null);
+  useEffect(() => subscribeWhoopBluetooth({ onState: state => setHistory(state.history) }), [bridge]);
+  if (!(history?.lastSyncAt || history?.records > 0)) return null;
+  return Object.entries(workout.sessionState || {}).map(([id, session]) => {
+    const from = Date.parse(session?.startedAt);
+    const until = Date.parse(session?.completedAt);
+    if (session?.status !== "complete" || !(until > from) || until - from > 86_400_000) return null;
+    return <section key={id} style={column(6)}>
+      <button type="button" className="btn btn-s btn-sm" aria-expanded={opened === id} onClick={() => setOpened(opened === id ? null : id)}>
+        {opened === id ? "Hide" : "View"} stored WHOOP readings · {sessionClock(from)}–{sessionClock(until)}
+      </button>
+      {opened === id && <StoredPulseWindow key={`${from}/${until}/${history.lastSyncAt}`} bridge={bridge} from={from} until={until} />}
+    </section>;
+  });
+}
+
 // A day, read-only.
 export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClose }) {
   const [allLifts, setAllLifts] = useState(false);
+  const strap = useWhoopBluetooth();
   const day = data[dateKey] || defaultDay();
   const dayName = getDayName(new Date(`${dateKey}T12:00:00`));
   const planned = program?.[dayName] || DEFAULT_PROGRAM[dayName];
@@ -84,9 +108,10 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
       {pulse.length > 0 && (
         <section aria-label="WHOOP workout heart rate" style={column(4)}>
           <h3 className="t-h">Workout heart rate</h3>
-          {pulse.map(([id, summary]) => <p className="t-s" key={id}>{summary.label || "Workout"} · WHOOP · {Math.round(summary.bpmTotal / summary.count)} bpm average · {summary.peakBpm} bpm peak</p>)}
+          {pulse.map(([id, summary]) => <WorkoutPulseTimeline key={id} summary={summary} workout={day.workout} data={data} dateKey={dateKey} />)}
         </section>
       )}
+      {strap?.readHistory && day.workout?.sessionState && <StoredWorkoutWindows key={strap.owner + dateKey} bridge={strap} workout={day.workout} />}
       {exercises.length > 0 && (
         <section aria-label="Lifting" style={column(8)}>
           <div className="sec"><h3 className="t-h">{planned?.type || "Lifting"}</h3><span className="t-s c2">{liftedSets(day)} sets</span></div>

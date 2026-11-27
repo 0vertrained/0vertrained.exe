@@ -11,7 +11,7 @@ enum WhoopLiveProtocolTests {
     static func main() {
         let first = bytes("AA 14 00 03 28 0B 00 F1 53 65 00 00 4B 03 20 03 00 00 30 03 80 E7 51 B8")
         let second = bytes("AA 0E 00 D6 28 0C 01 F1 53 65 00 00 70 00 27 12 60 A3")
-        let expected = [WhoopLiveReading(bpm: 75, rrMs: [800, 816]), WhoopLiveReading(bpm: 112, rrMs: [])]
+        let expected = [WhoopLiveReading(bpm: 75, rrMs: [800, 0, 816]), WhoopLiveReading(bpm: 112, rrMs: [])]
         let combined = first + second
         for split in 0...combined.count {
             var decoder = WhoopLiveFrameDecoder()

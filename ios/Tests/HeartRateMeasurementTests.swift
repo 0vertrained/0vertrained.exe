@@ -7,7 +7,7 @@ struct HeartRateMeasurementTests {
         let single = HeartRateMeasurement(Data([0, 75]))
         precondition(single?.bpm == 75 && single?.rrMs == [])
         let extended = HeartRateMeasurement(Data([0x1f, 0x04, 0x01, 1, 0, 0, 4, 0, 3, 0, 0]))
-        precondition(extended?.bpm == 260 && extended?.rrMs == [1000, 750])
+        precondition(extended?.bpm == 260 && extended?.rrMs == [1000, 750, 0])
         let optionalEnergy = HeartRateMeasurement(Data([0x08, 89, 0x12, 0x00]))
         precondition(optionalEnergy?.bpm == 89 && optionalEnergy?.rrMs == [])
         let invalid: [[UInt8]] = [[], [0], [0, 0], [0x04, 78], [0x01, 0x23], [0x01, 0xff, 0xff],

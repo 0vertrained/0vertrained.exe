@@ -13,6 +13,8 @@ import { checkinEvidenceLine, divergenceNote, checkinSummaryLine } from "./check
 import { buildMuscleRecency } from "./muscleVolume";
 import { buildEmptyStateExplanation } from "./recovery/wearableSyncEvents";
 import { OuraRecoveryExtras } from "./sections/OuraSignals";
+import { WhoopMorningCheck } from "./whoop/WhoopMorningCheck";
+import { WhoopRecoveryHistory } from "./whoop/WhoopStoredReadings";
 
 const NBSP = "\u00a0";
 const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
@@ -323,6 +325,7 @@ function Whoop({ connected, summary, syncEvents }) {
         ["Skin temperature", recovery ? shown(recovery.skinTempC, "°C", 1) : null],
         ["Asleep", sleep ? duration(sleep.asleepMin) : "Not available yet"],
         ["In bed", sleep ? duration(sleep.inBedMin) : null],
+        ["Unrecorded", sleep?.noDataMin > 0 ? duration(sleep.noDataMin) : null],
         ["Sleep efficiency", sleep ? shown(sleep.efficiencyPct, "%") : null],
         ["Breathing rate", sleep ? shown(sleep.respiratoryRate, `${NBSP}a minute`, 1) : null],
         ["Day strain", cycle ? shown(cycle.strain, "", 1) : "Not available yet"],
@@ -497,6 +500,8 @@ export function RecoveryManual({ view }) {
           {typeof onOpenCheckin === "function" && <button type="button" className="btn btn-p btn-b" onClick={onOpenCheckin} style={{ marginTop: 6 }}>{subjectiveRecovery ? "Edit check-in on Today" : "Check in on Today"}</button>}
         </section>
 
+        <WhoopMorningCheck />
+        <WhoopRecoveryHistory />
         <section aria-labelledby="rec-inputs" style={column(4)}>
           <div className="sec"><h2 id="rec-inputs" className="t-h">What you logged</h2><span className="t-s c2">{manualCompleteness.filled} of {manualCompleteness.total} fields</span></div>
           {inputs.length
@@ -544,6 +549,8 @@ export function RecoveryConnected({ view }) {
       <Alerts alerts={alerts} conflicts={conflicts} />
       {(verdict || sharedCall) && <Why verdict={verdict} shared={sharedCall} todayCall={todayCall} trend={score !== null ? trend : null} checkin={checkin} recovery={recovery} data={data} todayKey={todayKey} todayPlan={todayPlan} changeSummary={score !== null ? changeSummary : { hasFlags: false }} provenance={score !== null ? provenance : null} />}
       {todayKey && <CheckinBanner checkin={checkin} todayBody={todayBody} onOpenCheckin={onOpenCheckin} />}
+      <WhoopMorningCheck />
+      <WhoopRecoveryHistory />
     </>
   );
   const figures = (

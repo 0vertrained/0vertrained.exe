@@ -102,6 +102,16 @@ describe("in the iPhone app", () => {
     expect(plugins.OTRestAlert.cancel).toHaveBeenCalledTimes(1);
   });
 
+  it("releases the screen only when both active recordings finish", () => {
+    const plugins = installApp();
+    nativeKeepAwake(true);
+    nativeKeepAwake(true);
+    nativeKeepAwake(false);
+    expect(plugins.OTDevice.keepAwake.mock.calls).toEqual([[{ on: true }]]);
+    nativeKeepAwake(false);
+    expect(plugins.OTDevice.keepAwake).toHaveBeenLastCalledWith({ on: false });
+  });
+
   it("gives a light tap when a control changes, unless the runner's haptics are off", () => {
     const plugins = installApp();
     expect(selectionHaptic()).toBe(true);

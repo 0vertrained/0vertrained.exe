@@ -27,7 +27,8 @@ struct HeartRateMeasurement {
             guard cursor < bytes.count, (bytes.count - cursor).isMultiple(of: 2) else { return nil }
             while cursor < bytes.count {
                 let ticks = uint16(cursor)
-                if ticks > 0 { intervals.append(Double(ticks) * 1000 / 1024) }
+                // A zero slot breaks beat-to-beat continuity for HRV.
+                intervals.append(Double(ticks) * 1000 / 1024)
                 cursor += 2
             }
         }

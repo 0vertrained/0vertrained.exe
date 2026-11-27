@@ -12,6 +12,7 @@
 // there. Brass marks a record and nothing else.
 
 import { Flow, Icon, TopBar } from "./ui/ledger";
+import { WorkoutPulseTimeline } from "./workout/WorkoutPulseTimeline";
 import { watchLiftLine } from "./watch/liftSummary";
 import { effortWord } from "./effort";
 
@@ -82,7 +83,7 @@ function EffortRating({ value, onChange }) {
   );
 }
 
-export function SessionComplete({ boxScore, finisher, onDismiss, dateKey = "", sessionName = "", effort = "", onEffort = null }) {
+export function SessionComplete({ boxScore, finisher, onDismiss, dateKey = "", sessionName = "", effort = "", onEffort = null, pulse, workout, data }) {
   const b = boxScore || {};
   const lifts = b.lifts || [];
   const compare = b.tonnageCompare || null;
@@ -106,6 +107,8 @@ export function SessionComplete({ boxScore, finisher, onDismiss, dateKey = "", s
               {lifts.length > 0 && <p className="t-s c2">{b.liftsDone} of {lifts.length}{NBSP}exercises done.</p>}
               {b.watch && <p className="t-s c2" data-testid="box-watch">On your watch: {watchLiftLine(b.watch)}.</p>}
             </header>
+
+            {pulse && <WorkoutPulseTimeline summary={pulse} workout={workout} data={data} dateKey={dateKey} />}
 
             {(b.prs || []).map((pr, index) => (
               <section key={pr.name} className="card" aria-label={`Personal record: ${pr.name}`} style={{ border: "2px solid var(--earned)", display: "flex", flexDirection: "column", gap: 10 }}>

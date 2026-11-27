@@ -3,13 +3,13 @@ import CoreBluetooth
 import UIKit
 import Capacitor
 
-/// A user-initiated, foreground connection to the athlete's strap. Only the
-/// selected peripheral's identifier and display name survive an app restart.
+/// User-initiated foreground streaming and import of the strap’s on-device history.
 @objc(WhoopBluetoothPlugin)
 public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManagerDelegate, CBPeripheralDelegate {
     public let identifier = "WhoopBluetoothPlugin"
     public let jsName = "WhoopBluetooth"
-    public let pluginMethods: [CAPPluginMethod] = ["setOwner", "getState", "scan", "stopScan", "connect", "disconnect"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["setOwner", "getState", "scan", "stopScan", "connect", "disconnect",
+                                                       "startHistorySync", "readHistory"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
 
@@ -17,6 +17,7 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
     private let hrMeasurement = CBUUID(string: "2A37")
     private let strapService = CBUUID(string: WhoopLiveProtocol.serviceUUID)
     private let commandID = CBUUID(string: WhoopLiveProtocol.commandUUID)
+    private let eventID = CBUUID(string: WhoopLiveProtocol.eventUUID)
     private let dataID = CBUUID(string: WhoopLiveProtocol.dataUUID)
     private let responseID = CBUUID(string: WhoopLiveProtocol.responseUUID)
     private let savedKey = "ot.whoopBluetooth.selected.v1"
@@ -33,9 +34,9 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
     private var message: String?
     private var lastSample: [String: Any]?
     private var timer: DispatchWorkItem?
-    private var vendorFallback: DispatchWorkItem?
     private var standardSource: CBCharacteristic?
     private var command: CBCharacteristic?
+    private var vendorEvent: CBCharacteristic?
     private var vendorData: CBCharacteristic?
     private var vendorResponse: CBCharacteristic?
     private var discoveredServices: Set<CBUUID> = []
@@ -43,6 +44,32 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
     private var waitingForPairingWrite = false
     private var requestedVendorStream = false
     private var decoder = WhoopLiveFrameDecoder()
+    private var eventDecoder = WhoopLiveFrameDecoder()
+    private var responseDecoder = WhoopLiveFrameDecoder()
+    private let archiveQueue = DispatchQueue(label: "ot.whoop.history", qos: .userInitiated)
+    private var transfer: WhoopHistoryTransfer?
+    private var transferID = UUID()
+    private var commitPending = false
+    private var sequence: UInt8 = 4
+    private var batterySequence: UInt8?
+    private var historySequence: UInt8?
+    private var ackSequence: UInt8?
+    private var historyTimer: DispatchWorkItem?
+    private var lastProgress: TimeInterval = 0
+    private var historyStatus = "idle"
+    private var historyMessage: String?
+    private var imported = 0
+    private var unsupported = 0
+    private var lastSyncAt: Int64?
+    private var batteryPercent: Int?
+    private var batteryAt: Int64?
+    private var lastLiveAt: Int64?
+    private var lastImportedAt: Int64?
+    private var lastReadingAt: Int64? {
+        [lastLiveAt, lastImportedAt].compactMap { $0 }.max()
+    }
+    private var cachedAt: Int64 = 0
+    private var lastIntervalUptime = -TimeInterval.infinity
     private var sampleSource: CBUUID?
     private var sampleUptime: TimeInterval = 0
 
@@ -91,7 +118,12 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
             "owner": owner as Any? ?? NSNull(), "status": status, "message": message as Any? ?? NSNull(),
             "devices": devices.keys.map(row).sorted { ($0["name"] ?? "", $0["id"] ?? "") < ($1["name"] ?? "", $1["id"] ?? "") },
             "device": device as Any? ?? NSNull(), "savedDevice": saved as Any? ?? NSNull(),
-            "lastSample": lastSample as Any? ?? NSNull()
+            "lastSample": lastSample as Any? ?? NSNull(),
+            "batteryPercent": batteryPercent as Any? ?? NSNull(), "batteryAt": batteryAt as Any? ?? NSNull(),
+            "lastReadingAt": lastReadingAt as Any? ?? NSNull(), "lastLiveAt": lastLiveAt as Any? ?? NSNull(),
+            "historyAvailable": historyAvailable,
+            "history": ["status": historyStatus, "message": historyMessage as Any? ?? NSNull(), "records": imported,
+                        "unsupported": unsupported, "lastSyncAt": lastSyncAt as Any? ?? NSNull()] as [String: Any]
         ]
     }
 
@@ -112,6 +144,11 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
                 self.names.removeAll()
                 self.owner = next
                 if next == nil || self.saved == nil { UserDefaults.standard.removeObject(forKey: self.savedKey) }
+                self.historyStatus = "idle"
+                self.historyMessage = nil
+                self.imported = 0
+                self.unsupported = 0
+                self.restoreReadings(id: self.saved?["id"])
                 self.setStatus("idle")
             }
             call.resolve(self.snapshot)
@@ -172,6 +209,7 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
                 return
             }
             self.stopScanning()
+            self.restoreReadings(id: id.uuidString)
             self.pendingID = id
             self.setStatus("connecting", "Connecting to your WHOOP…")
             self.prepareBluetooth()
@@ -182,9 +220,12 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
     @objc func disconnect(_ call: CAPPluginCall) {
         authorized(call) {
             self.resumeOnForeground = nil
-            if call.getBool("forget") == true { UserDefaults.standard.removeObject(forKey: self.savedKey) }
             self.stopScanning()
             self.endConnection(stopVendor: true)
+            if call.getBool("forget") == true {
+                UserDefaults.standard.removeObject(forKey: self.savedKey)
+                self.restoreReadings(id: nil)
+            }
             self.setStatus("idle")
             call.resolve(self.snapshot)
         }
@@ -203,13 +244,21 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
 
     private func clearConnection() {
         timer?.cancel()
-        vendorFallback?.cancel()
         timer = nil
-        vendorFallback = nil
+        cacheReadings()
+        if transfer != nil {
+            historyStatus = "interrupted"
+            historyMessage = "Sync paused. Reconnect and sync again to pick up stored readings."
+        }
+        resetTransfer()
+        batterySequence = nil
+        responseDecoder = WhoopLiveFrameDecoder()
+        eventDecoder = WhoopLiveFrameDecoder()
         active = nil
         pendingID = nil
         standardSource = nil
         command = nil
+        vendorEvent = nil
         vendorData = nil
         vendorResponse = nil
         discoveredServices.removeAll()
@@ -219,6 +268,7 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
         decoder = WhoopLiveFrameDecoder()
         lastSample = nil
         sampleSource = nil
+        lastIntervalUptime = -.infinity
     }
 
     private func endConnection(stopVendor: Bool = false) {
@@ -368,7 +418,7 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
         }
         discoveredServices = Set(services.map(\.uuid))
         for service in services {
-            peripheral.discoverCharacteristics(service.uuid == hrService ? [hrMeasurement] : [commandID, dataID, responseID], for: service)
+            peripheral.discoverCharacteristics(service.uuid == hrService ? [hrMeasurement] : [commandID, dataID, responseID, eventID], for: service)
         }
     }
 
@@ -383,6 +433,7 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
             for c in service.characteristics ?? [] {
                 if c.uuid == commandID, c.properties.contains(.write) { command = c }
                 if c.uuid == dataID, notifiable(c) { vendorData = c }
+                if c.uuid == eventID, notifiable(c) { vendorEvent = c }
                 if c.uuid == responseID, notifiable(c) { vendorResponse = c }
                 if c.uuid == hrMeasurement, notifiable(c) { standardSource = c }
             }
@@ -390,17 +441,14 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
         guard discoveredServices.isEmpty else { return }
         if let standardSource {
             peripheral.setNotifyValue(true, for: standardSource)
-            // Prefer the standard profile when already broadcasting. A strap
-            // can expose that characteristic but stay silent until streaming
-            // is enabled through its own service.
-            vendorFallback = after(4) { [weak self] in self?.startVendorIfNeeded() }
-        } else {
-            startVendorIfNeeded()
         }
+        // The proprietary channel also carries R-R, battery and stored history
+        // when the standard profile is already broadcasting.
+        startVendorIfNeeded()
     }
 
     private func startVendorIfNeeded() {
-        guard status == "connecting", !vendorStarted, let active else { return }
+        guard active?.state == .connected, !vendorStarted, let active else { return }
         guard vendorData != nil, let command else {
             if standardSource == nil { failed("The strap has no supported live heart-rate channel.") }
             return
@@ -417,6 +465,9 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
         if characteristic.uuid == hrMeasurement, error != nil || !characteristic.isNotifying {
             standardSource = nil
             startVendorIfNeeded()
+        } else if characteristic.uuid == responseID, error == nil, characteristic.isNotifying {
+            batterySequence = send(26, [0])
+            historyReady()
         } else if characteristic.uuid == dataID {
             guard error == nil, characteristic.isNotifying, let command else {
                 if standardSource == nil { failed("Couldn’t subscribe to the strap. Check the iPhone pairing prompt and retry.") }
@@ -424,17 +475,20 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
             }
             requestedVendorStream = true
             peripheral.writeValue(WhoopLiveProtocol.setStreaming(true), for: command, type: .withResponse)
+            historyReady()
         }
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         guard peripheral === active, characteristic.uuid == commandID else { return }
         if error != nil {
+            if transfer != nil { abortHistory("The strap declined a sync write. Reconnect and retry."); return }
             if standardSource == nil { failed("The strap declined the live connection. Check the iPhone pairing prompt and reconnect.") }
             return
         }
         if waitingForPairingWrite, let vendorData {
             waitingForPairingWrite = false
+            if let vendorEvent { peripheral.setNotifyValue(true, for: vendorEvent) }
             if let vendorResponse { peripheral.setNotifyValue(true, for: vendorResponse) }
             peripheral.setNotifyValue(true, for: vendorData)
         }
@@ -446,12 +500,46 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard peripheral === active, error == nil, let data = characteristic.value else { return }
+        guard peripheral === active else { return }
+        guard error == nil, let data = characteristic.value else {
+            if [dataID, responseID, eventID].contains(characteristic.uuid), transfer != nil { abortHistory("A history notification was lost. Reconnect and retry.") }
+            return
+        }
         if characteristic.uuid == hrMeasurement, let reading = HeartRateMeasurement(data) {
             received(reading.bpm, rrMs: reading.rrMs, from: characteristic.uuid)
-        } else if characteristic.uuid == dataID {
-            for reading in decoder.append(data) {
-                received(reading.bpm, rrMs: reading.rrMs.map(Double.init), from: characteristic.uuid)
+        } else {
+            let frames: [Data]
+            let discarded: Int
+            switch characteristic.uuid {
+            case dataID:
+                frames = decoder.frames(data)
+                discarded = decoder.discardedBytes
+            case responseID:
+                frames = responseDecoder.frames(data)
+                discarded = responseDecoder.discardedBytes
+            case eventID:
+                frames = eventDecoder.frames(data)
+                discarded = eventDecoder.discardedBytes
+            default: return
+            }
+            if discarded > 0, transfer != nil {
+                abortHistory("A history packet failed its checksum. Reconnect and retry.")
+                return
+            }
+            for frame in frames {
+                guard peripheral === active else { return }
+                switch frame[4] {
+                case 36: handleResponse(frame)
+                case 40:
+                    if let reading = WhoopLiveFrameDecoder.decodeHeartRate(frame) {
+                        received(reading.bpm, rrMs: reading.rrMs.map(Double.init), from: characteristic.uuid)
+                    }
+                case 48 where characteristic.uuid == eventID:
+                    // Real-time battery events can interleave with a disk commit.
+                    if let value = WhoopHistoryReading.batteryEvent(frame) { updateBattery(value) }
+                default:
+                    if transfer != nil { routeHistory(frame, peripheral: peripheral, source: characteristic.uuid) }
+                }
             }
         }
     }
@@ -459,19 +547,237 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
     private func received(_ bpm: Int, rrMs: [Double], from source: CBUUID) {
         guard let owner else { return }
         let now = ProcessInfo.processInfo.systemUptime
-        if let sampleSource, sampleSource != source, now - sampleUptime < 5 { return }
+        let hasIntervals = rrMs.contains { $0 > 0 }
+        if let sampleSource, sampleSource != source, now - sampleUptime < 5 {
+            // Switch from HR-only to a source carrying beats. Drop the first
+            // overlapping packet while handing over to avoid counting beats twice.
+            guard now - lastIntervalUptime >= 5, hasIntervals else { return }
+            self.sampleSource = source
+            lastIntervalUptime = now
+            sampleUptime = now
+            return
+        }
+        if hasIntervals { lastIntervalUptime = now }
         sampleSource = source
         sampleUptime = now
         let sample: [String: Any] = ["owner": owner, "bpm": bpm, "rrMs": rrMs, "timestamp": Int64(Date().timeIntervalSince1970 * 1000)]
         lastSample = sample
+        lastLiveAt = Self.now
+        if Self.now - cachedAt >= 60_000 { cacheReadings() }
         if status != "connected", let active {
             timer?.cancel()
-            vendorFallback?.cancel()
-            var selected = row(active.identifier)
-            selected["owner"] = owner
-            UserDefaults.standard.set(selected, forKey: savedKey)
+            rememberSelection(active)
             setStatus("connected")
         }
         notifyListeners("sample", data: sample)
+    }
+}
+
+extension WhoopBluetoothPlugin {
+    private static var now: Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
+
+    private var historyAvailable: Bool {
+        active?.state == .connected && command != nil && vendorData?.isNotifying == true && vendorResponse?.isNotifying == true
+    }
+
+    private func rememberSelection(_ peripheral: CBPeripheral) {
+        guard let owner else { return }
+        var selected = row(peripheral.identifier)
+        selected["owner"] = owner
+        UserDefaults.standard.set(selected, forKey: savedKey)
+    }
+
+    private func historyReady() {
+        guard historyAvailable, let active else { return }
+        timer?.cancel()
+        rememberSelection(active)
+        setStatus("connected")
+    }
+
+    private func restoreReadings(id: String?) {
+        cachedAt = 0
+        let defaults = UserDefaults.standard
+        let prefix = owner.map { "ot.whoopBluetooth." + WhoopHistoryStore.key($0) }
+        lastSyncAt = prefix.flatMap { (defaults.object(forKey: $0 + ".lastSync") as? NSNumber)?.int64Value }
+        let saved = prefix.flatMap { key in id.flatMap { defaults.dictionary(forKey: key + "." + $0) } }
+        batteryPercent = (saved?["batteryPercent"] as? NSNumber)?.intValue
+        batteryAt = (saved?["batteryAt"] as? NSNumber)?.int64Value
+        lastLiveAt = (saved?["lastLiveAt"] as? NSNumber)?.int64Value
+        lastImportedAt = nil
+        guard let owner, let id else { return }
+        archiveQueue.async {
+            let latest = try? WhoopHistoryStore(owner: owner).latestPulse(device: id)
+            DispatchQueue.main.async {
+                let selected = (self.active?.identifier ?? self.pendingID)?.uuidString ?? self.saved?["id"]
+                guard self.owner == owner, selected == id, let latest else { return }
+                self.lastImportedAt = max(self.lastImportedAt ?? 0, latest)
+                self.notifyListeners("state", data: self.snapshot)
+            }
+        }
+    }
+
+    private func cacheReadings() {
+        guard let owner, let id = active?.identifier else { return }
+        var values: [String: NSNumber] = [:]
+        if let lastLiveAt { values["lastLiveAt"] = NSNumber(value: lastLiveAt) }
+        if let batteryAt, let batteryPercent {
+            values["batteryAt"] = NSNumber(value: batteryAt)
+            values["batteryPercent"] = NSNumber(value: batteryPercent)
+        }
+        UserDefaults.standard.set(values, forKey: "ot.whoopBluetooth." + WhoopHistoryStore.key(owner) + "." + id.uuidString)
+        cachedAt = Self.now
+    }
+
+    private func send(_ number: UInt8, _ payload: [UInt8]) -> UInt8? {
+        guard let active, let command, active.state == .connected else { return nil }
+        sequence &+= 1
+        let data = WhoopLiveProtocol.command(number, sequence: sequence, payload: payload)
+        active.writeValue(data, for: command, type: .withResponse)
+        return sequence
+    }
+
+    private func updateBattery(_ value: Int) {
+        batteryPercent = value
+        batteryAt = Self.now
+        cacheReadings()
+        notifyListeners("state", data: snapshot)
+    }
+
+    private func handleResponse(_ frame: Data) {
+        guard frame.count >= 13, frame[4] == 36 else { return }
+        if let seq = batterySequence, let value = WhoopHistoryReading.battery(frame, sequence: seq) {
+            batterySequence = nil
+            updateBattery(value)
+        }
+        guard transfer != nil,
+              (frame[6] == 22 && frame[7] == historySequence) || (frame[6] == 23 && frame[7] == ackSequence) else { return }
+        if frame[8] != 1 && frame[8] != 2 {
+            abortHistory("Your strap declined the history request. Wake it and reconnect to try again.")
+        }
+    }
+
+    @objc func startHistorySync(_ call: CAPPluginCall) {
+        authorized(call) {
+            if self.transfer != nil { call.resolve(self.snapshot); return }
+            guard self.historyAvailable else { call.reject("Connect to your WHOOP 4.0 history channel first."); return }
+            self.transfer = WhoopHistoryTransfer()
+            self.transferID = UUID()
+            self.historyStatus = "syncing"
+            self.historyMessage = nil
+            self.imported = 0
+            self.unsupported = 0
+            self.historySequence = self.send(22, [0])
+            self.lastProgress = ProcessInfo.processInfo.systemUptime
+            self.watchHistory()
+            self.notifyListeners("state", data: self.snapshot)
+            call.resolve(self.snapshot)
+        }
+    }
+
+    private func watchHistory() {
+        historyTimer?.cancel()
+        historyTimer = after(30) { [weak self] in
+            guard let self, self.transfer != nil else { return }
+            if ProcessInfo.processInfo.systemUptime - self.lastProgress >= 30 {
+                self.abortHistory("The strap stopped sending history. Reconnect to continue the import.")
+            } else { self.watchHistory() }
+        }
+    }
+
+    private func resetTransfer() {
+        historyTimer?.cancel()
+        historyTimer = nil
+        transferID = UUID()
+        transfer = nil
+        commitPending = false
+        ackSequence = nil
+        historySequence = nil
+    }
+
+    private func abortHistory(_ detail: String) {
+        resetTransfer()
+        historyStatus = "error"
+        historyMessage = detail
+        // A local timeout does not cancel the strap's transfer. Close this
+        // connection so a subsequent attempt cannot receive its late END.
+        failed(detail)
+    }
+
+    private func routeHistory(_ frame: Data, peripheral: CBPeripheral, source: CBUUID) {
+        let onDataChannel = source == dataID
+        guard let owner, WhoopHistoryTransfer.carriesHistory(frame, onDataChannel: onDataChannel) else { return }
+        lastProgress = ProcessInfo.processInfo.systemUptime
+        // A control frame can arrive on …0003 while a fragmented record is on
+        // …0005. Never trim across an incomplete record on the data channel.
+        if source != dataID, frame[4] == 49, [2, 3].contains(frame[6]), decoder.hasPartialFrame {
+            abortHistory("A history block ended with a partial packet. Reconnect to retry.")
+            return
+        }
+        if commitPending {
+            abortHistory("History continued before the last block was confirmed. Reconnect to retry.")
+            return
+        }
+        do {
+            switch try transfer?.ingest(frame, onDataChannel: onDataChannel) {
+            case .commit(let frames, let token):
+                commitPending = true
+                let current = transferID
+                let device = peripheral.identifier.uuidString
+                archiveQueue.async {
+                    let result = Result { try WhoopHistoryStore(owner: owner).commit(frames, token: token, device: device) }
+                    DispatchQueue.main.async {
+                        // The disk commit remains valid across a disconnect. Only
+                        // its original live session can deliver its trim ACK.
+                        if case .success(let counts) = result, self.owner == owner,
+                           let latest = counts.latestPulse {
+                            let selected = (self.active?.identifier ?? self.pendingID)?.uuidString ?? self.saved?["id"]
+                            if selected == device { self.lastImportedAt = max(self.lastImportedAt ?? 0, latest) }
+                        }
+                        guard current == self.transferID, self.owner == owner, self.active === peripheral else {
+                            if self.owner == owner { self.notifyListeners("state", data: self.snapshot) }
+                            return
+                        }
+                        self.commitPending = false
+                        switch result {
+                        case .success(let counts):
+                            self.imported += counts.records
+                            self.unsupported += counts.unsupported
+                            self.ackSequence = self.send(23, [1] + token)
+                            self.notifyListeners("state", data: self.snapshot)
+                        case .failure(let error): self.abortHistory(error.localizedDescription)
+                        }
+                    }
+                }
+            case .complete:
+                resetTransfer()
+                historyStatus = "complete"
+                lastSyncAt = Self.now
+                UserDefaults.standard.set(lastSyncAt, forKey: "ot.whoopBluetooth." + WhoopHistoryStore.key(owner) + ".lastSync")
+                notifyListeners("state", data: snapshot)
+            default: break
+            }
+        } catch { abortHistory(error.localizedDescription) }
+    }
+
+    @objc func readHistory(_ call: CAPPluginCall) {
+        authorized(call) {
+            guard let owner = self.owner, let from = call.getInt("from"), let to = call.getInt("to"), from >= 0, to >= from else {
+                call.reject("Choose a valid period to read WHOOP history.")
+                return
+            }
+            let after = max(0, call.getInt("after") ?? 0)
+            let limit = min(4096, max(1, call.getInt("limit") ?? 1000))
+            self.archiveQueue.async {
+                let result = Result { try WhoopHistoryStore(owner: owner).read(from: Int64(from), to: Int64(to), after: Int64(after), limit: limit) }
+                DispatchQueue.main.async {
+                    guard self.owner == owner else { call.reject("The signed-in account changed."); return }
+                    switch result {
+                    case .success(let page):
+                        call.resolve(["owner": owner, "records": page.records, "nextAfter": page.nextAfter as Any? ?? NSNull()])
+                    case .failure(let error): call.reject(error.localizedDescription)
+                    }
+                }
+            }
+        }
     }
 }

@@ -17,6 +17,7 @@ import { APP_VERSION, SUPPORT_EMAIL, buildSupportMailto } from "./appMeta";
 import { nativePlugin } from "./native";
 import { AppleWatchCard } from "./sections/AppleWatchCard";
 import { WhoopBluetoothCard } from "./sections/WhoopBluetoothCard";
+import { WhoopMorningCheck } from "./whoop/WhoopMorningCheck";
 import { useWhoopBluetooth } from "./whoop/bluetooth";
 import { AppleHealthCard } from "./sections/AppleHealthCard";
 import { useNavTransition } from "./ui/navTransition";
@@ -606,6 +607,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
         ),
       }} />
       {strap && <WhoopBluetoothCard key={strap.owner} />}
+      {strap && <WhoopMorningCheck key={`morning-${strap.owner}`} />}
       <ProviderCard onSync={onSync} {...{
         id: "whoop", name: "Whoop", on: whoopOn, status: whoopStatus, lastSynced: whoopStatus?.lastSynced,
         about: "Connect your WHOOP account to sync recovery, sleep, strain cycles and workouts. The strap supplies the signals and the recovery score is still computed by the app.",

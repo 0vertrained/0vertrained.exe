@@ -24,7 +24,8 @@ export function useWhoopBluetooth() {
 function accountBridge(binding) {
   const { plugin, owner } = binding;
   const result = { owner };
-  for (const method of ["getState", "scan", "stopScan", "connect", "disconnect"]) {
+  for (const method of ["getState", "scan", "stopScan", "connect", "disconnect", "startHistorySync", "readHistory"]) {
+    if (typeof plugin[method] !== "function") continue;
     result[method] = async options => {
       if (selected !== binding) throw new Error("The strap account changed.");
       const next = await plugin[method]({ ...options, owner });

@@ -15,8 +15,9 @@ function finiteNum(v) {
 }
 
 function milliToMin(v) {
+  if (v == null || v === "") return null;
   const n = finiteNum(v);
-  return n === null ? null : n / 60000;
+  return n === null || n < 0 ? null : n / 60000;
 }
 
 // A record may be stored as the raw object or wrapped; unwrap to the object.
@@ -54,15 +55,24 @@ export function normalizeSleep(rec) {
   const stages = score.stage_summary || {};
   const inBed = milliToMin(stages.total_in_bed_time_milli);
   const awake = milliToMin(stages.total_awake_time_milli);
-  const asleep = inBed !== null && awake !== null ? Math.max(0, inBed - awake) : null;
+  const noData = milliToMin(stages.total_no_data_time_milli);
+  const light = milliToMin(stages.total_light_sleep_time_milli);
+  const deep = milliToMin(stages.total_slow_wave_sleep_time_milli);
+  const rem = milliToMin(stages.total_rem_sleep_time_milli);
+  const measured = light !== null && deep !== null && rem !== null ? light + deep + rem : null;
+  // Older records sometimes contain only in-bed and awake durations.
+  const available = inBed !== null && awake !== null
+    ? Math.max(0, inBed - awake - (noData ?? 0)) : null;
+  const asleep = measured !== null && available !== null ? Math.min(measured, available) : measured ?? available;
   return {
     date: dateOf(r),
     inBedMin: inBed,
     asleepMin: asleep,
-    lightMin: milliToMin(stages.total_light_sleep_time_milli),
-    deepMin: milliToMin(stages.total_slow_wave_sleep_time_milli),
-    remMin: milliToMin(stages.total_rem_sleep_time_milli),
+    lightMin: light,
+    deepMin: deep,
+    remMin: rem,
     awakeMin: awake,
+    noDataMin: noData,
     efficiencyPct: finiteNum(score.sleep_efficiency_percentage),
     performancePct: finiteNum(score.sleep_performance_percentage),
     respiratoryRate: finiteNum(score.respiratory_rate),

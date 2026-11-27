@@ -11,6 +11,9 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Flow, Icon, TopBar } from "./ui/ledger";
 import { CARDIO_PRESETS, normalizePlan, buildSegments, totalPlannedSeconds, fmtSeconds, suggestPlanFromNotes, suggestPlanFromSteps } from "./cardioSession";
 import { triggerHaptic, useScreenWakeLock } from "./sessionDevice";
+import { WhoopWorkoutPulse } from "./workout/WhoopWorkoutPulse";
+import { WorkoutPulseTimeline } from "./workout/WorkoutPulseTimeline";
+import { useWhoopBluetooth } from "./whoop/bluetooth";
 import { selectionHaptic } from "./native";
 
 const NBSP = "\u00a0";
@@ -29,7 +32,7 @@ function Stepper({ label, value, display, onChange, step, min, max }) {
   );
 }
 
-export function CardioSession({ open, onClose, cardio, onLogTime, showToast, settings }) {
+export function CardioSession({ open, onClose, cardio, onLogTime, showToast, settings, pulseSummary, onSavePulse }) {
   // Structured race-plan steps win; prose parsing stays the fallback.
   const suggested = useMemo(() => suggestPlanFromSteps(cardio?.steps) || suggestPlanFromNotes(cardio?.notes), [cardio]);
   const hapticsEnabled = settings?.trainingCues?.haptics !== false;
@@ -44,18 +47,24 @@ export function CardioSession({ open, onClose, cardio, onLogTime, showToast, set
   const startedAtRef = useRef(null);
   const [startedAt, setStartedAt] = useState(null);
   const elapsedRef = useRef(0);
+  const wasOpen = useRef(false);
+  const pulse = useRef(null);
+  const strap = useWhoopBluetooth();
+  const closeSession = () => { pulse.current?.flush(); onClose(); };
 
   const segments = useMemo(() => buildSegments(plan), [plan]);
   const seg = segments[segIdx] || null;
 
   useEffect(() => {
-    if (open) {
+    // A checkpoint can refresh the plan object while the timer is running.
+    if (open && !wasOpen.current) {
       setPhase("setup");
       setPlan(suggested || normalizePlan(CARDIO_PRESETS[0]));
       setSegIdx(0); setSegEndsAt(null); setPausedRemaining(null);
       elapsedRef.current = 0; startedAtRef.current = null;
       setStartedAt(null);
     }
+    wasOpen.current = open;
   }, [open, suggested]);
 
   useEffect(() => {
@@ -77,6 +86,7 @@ export function CardioSession({ open, onClose, cardio, onLogTime, showToast, set
     } else {
       triggerHaptic([300, 100, 300, 100, 300], hapticsEnabled);
       elapsedRef.current = Math.round((Date.now() - startedAtRef.current) / 1000);
+      pulse.current?.flush();
       setPhase("done");
     }
   }, [phase, remaining, segEndsAt, segIdx, segments, hapticsEnabled]);
@@ -99,10 +109,12 @@ export function CardioSession({ open, onClose, cardio, onLogTime, showToast, set
       setPausedRemaining(null);
     } else {
       elapsedRef.current = Math.round((Date.now() - startedAtRef.current) / 1000);
+      pulse.current?.flush();
       setPhase("done");
     }
   };
   const endEarly = () => {
+    pulse.current?.flush();
     elapsedRef.current = startedAtRef.current ? Math.round((Date.now() - startedAtRef.current) / 1000) : 0;
     setPhase("done");
   };
@@ -118,9 +130,9 @@ export function CardioSession({ open, onClose, cardio, onLogTime, showToast, set
   const planNote = notes.length > 110 ? `${notes.slice(0, 110).replace(/\s+\S*$/, "")}…` : notes;
 
   return (
-    <Flow label="Cardio session" onClose={onClose} data-screen="intervals">
+    <Flow label="Cardio session" onClose={closeSession} data-screen="intervals">
       <div className="shell">
-        <TopBar title={title} close="Close" onClose={onClose} />
+        <TopBar title={title} close="Close" onClose={closeSession} />
 
         {phase === "setup" && (
           <>
@@ -153,6 +165,7 @@ export function CardioSession({ open, onClose, cardio, onLogTime, showToast, set
         {phase === "running" && seg && (
           <>
             <div className="main" style={{ gap: 16 }}>
+              {strap && onSavePulse && <WhoopWorkoutPulse key={strap.owner} ref={pulse} saved={pulseSummary} onSave={onSavePulse} />}
               <p className="n">{planLine}</p>
               <p className="sr" role="status">{paused ? "Paused." : `${KIND[seg.kind]}${seg.kind !== "warmup" ? `, round ${seg.round} of ${workRounds}` : ""}.`}</p>
               <section className="card" aria-label="Current segment" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "24px 16px", ...(seg.kind === "work" && !paused ? { borderColor: "var(--ink)", borderWidth: 2 } : {}) }}>
@@ -189,6 +202,7 @@ export function CardioSession({ open, onClose, cardio, onLogTime, showToast, set
               <p className="stamp">Session over</p>
               <p className="n-xl">{fmtSeconds(elapsedRef.current)}</p>
               <p className="t-s c2">{workRounds} rounds planned · {title}</p>
+              {pulseSummary && <div style={{ width: "100%", textAlign: "left" }}><WorkoutPulseTimeline summary={pulseSummary} /></div>}
             </div>
             <div className="foot">
               <button type="button" className="btn btn-p btn-lg btn-b" onClick={() => { onLogTime?.(fmtSeconds(elapsedRef.current)); showToast?.("Time logged"); onClose(); }}>Log {fmtSeconds(elapsedRef.current)} to today</button>

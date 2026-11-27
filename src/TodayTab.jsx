@@ -631,6 +631,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           boxScore={boxScore || buildBoxScore({ data: allData, todayKey, todayName: sessionTitle })}
           dateKey={todayKey}
           sessionName={sessionTitle}
+          pulse={wo.whoopHeartRate?.[activeLiftingSession.id || "main"]} workout={wo} data={allData}
           effort={wo.rpe}
           onEffort={(score) => updateToday("workout.rpe", String(score))}
           finisher={hasPlannedCardio && !cardioLogged && activeCardioSession?.cardio ? {
@@ -927,10 +928,12 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       {/* Cardio session runner overlay (lazy) */}
       {cardioSessionOpen && (
         <Suspense fallback={null}>
-          <CardioSession
+          <CardioSession key={`${todayKey}-${activeCardioSession.id || "main"}`}
             open={cardioSessionOpen}
             onClose={() => setCardioSessionOpen(false)}
             cardio={activeCardioSession.cardio}
+            pulseSummary={wo.whoopHeartRate?.[`cardio-${activeCardioSession.id || "main"}`]}
+            onSavePulse={isLoggingPast ? undefined : summary => updateToday(`workout.whoopHeartRate.cardio-${activeCardioSession.id || "main"}`, { ...summary, label: activeCardioSession.cardio?.type || "Cardio" })}
             onLogTime={(mmss) => {
               if (sessionAwareProgram) updateToday(`workout.cardioSessions.${activeCardioSession.id}.time`, mmss);
               else updateToday("workout.cardio.time", mmss);
