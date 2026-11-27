@@ -58,7 +58,7 @@ import { movedFrom } from "./weekMoves";
 // SessionMode is lazy — it only loads when a session actually starts,
 // keeping it out of the initial bundle.
 const SessionMode = lazy(() => import("./SessionMode").then(m => ({ default: m.SessionMode })));
-const CardioSession = lazy(() => import("./CardioSession").then(m => ({ default: m.CardioSession })));
+const CardioSession = lazy(() => import("./CardioSession.jsx").then(m => ({ default: m.CardioSession })));
 
 // First week
 // A new account's setup checklist: where the baseline stands, the one next

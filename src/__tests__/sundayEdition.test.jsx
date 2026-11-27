@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { vi } from "vitest";
 import { ThemeProvider } from "../theme";
-import { SundayEdition } from "../SundayEdition";
+import { SundayEdition } from "../SundayEdition.jsx";
 import { buildSundayEdition, editionWindow } from "../sundayEdition";
 import { defaultDay } from "../constants";
 import { readFileSync } from "node:fs";

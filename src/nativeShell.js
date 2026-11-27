@@ -26,7 +26,7 @@ const SCREENS = [
   () => import("./SettingsScreen"),
   () => import("./Coach"),
   () => import("./SessionMode"),
-  () => import("./CardioSession"),
+  () => import("./CardioSession.jsx"),
   () => import("./BlockScreen"),
   () => import("./ProgressHistory"),
 ];

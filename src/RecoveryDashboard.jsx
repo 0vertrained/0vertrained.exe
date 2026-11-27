@@ -8,7 +8,7 @@ import { loadStravaActivities } from "./strava/dataLoading"; // display context
 import { buildRecoveryChangeSummary, buildRecoveryCoachInterpretation, buildRecoveryHeroMeta } from "./recoverySummary";
 import { logFunnelEvent } from "./funnel";
 import { editionWindow } from "./sundayEdition";
-import { SundayEdition } from "./SundayEdition";
+import { SundayEdition } from "./SundayEdition.jsx";
 import { buildAggregatedRecoveryContext, buildConfidenceExplanation } from "./recovery/aggregationModel";
 import { buildWearableReadinessQA } from "./recovery/wearableReadinessQA";
 import {

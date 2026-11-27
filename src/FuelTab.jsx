@@ -22,7 +22,7 @@ import { LoadingShell } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
 import { EnergyIntelligence } from "./EnergyIntelligence";
 import { addFoodToDay, dayFoods, makeFoodItem, recentFoods, removeFoodFromDay, savedFoods, setFoodServings, toggleSavedFood } from "./foodLog";
-import { FoodEditSheet, SaveMealSheet, ScannedFoodSheet, TodayFoods, YourFoods } from "./FoodLog";
+import { FoodEditSheet, SaveMealSheet, ScannedFoodSheet, TodayFoods, YourFoods } from "./FoodLog.jsx";
 import { barcodeScanner, scanFood } from "./barcode";
 
 const NBSP = " ";
