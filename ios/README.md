@@ -5,15 +5,17 @@ A private build for your own phone and watch.
 - `App/` is the iPhone app: a web view that opens the site, plus the native
   pieces a web page can't do: haptics, a rest-over notification when the phone
   is locked, keeping the screen on during a session, the link to the watch,
-  planned runs scheduled in the watch's Workout app, recorded runs and the
-  day's steps, weight and sleep read from Apple Health, barcode scanning for
-  the food log, and the evening check-in and Sunday Edition reminders.
+  planned runs scheduled in the watch's Workout app, recorded runs with their
+  splits and effort, cardio fitness and the day's steps, weight and sleep read
+  from Apple Health, weight, food and lifts saved to it, progress photos kept
+  on the phone, barcode scanning for the food log, and the reminders.
 - `RestActivity/` draws the rest timer on the Lock Screen and in the Dynamic
   Island, and the Today widget for the Home and Lock Screen (a widget
   extension the app embeds).
 - `WatchApp/` is the Apple Watch app, written in SwiftUI: the day's lifts, one
   set at a time, a tap on the wrist when the rest is over, the workout
-  tracked in Health, and the day's runs, which open in the Workout app.
+  tracked in Health, and the day's runs, which open in the Workout app. Double
+  tap logs a set, and the Ultra's Action button can start the day's lifting.
 - `WatchWidgets/` is the Today complication for the watch face (a widget
   extension the watch app embeds).
 - `Shared/` is code more than one of them builds: a planned run as a
@@ -73,6 +75,12 @@ TestFlight instead, where a build lasts 90 days and installs over the air.
   go into your log the next time the iPhone app is open.
 - End workout saves the workout to Health and Fitness, and marks the session
   finished on the phone if every set is logged.
+- Double tap (thumb and finger, on Series 9, Ultra 2 and later, watchOS 11)
+  presses the screen's main button: Log set, Skip during a rest, or Next.
+- On Apple Watch Ultra, the Action button can start the day's lifting: Watch
+  Settings > Action Button > Action: Workout > App: 0VERTRAINED. Pressing it
+  opens the app with the workout running. With no lifting planned that day it
+  just opens the app.
 
 ## Runs on the watch
 
@@ -88,6 +96,13 @@ TestFlight instead, where a build lasts 90 days and installs over the air.
 - When you open the iPhone app after a run, it fills in that day's miles,
   time and pace from Health, unless you've already logged a run for that day.
   Undo in the message takes it back out. Each run is filled in only once.
+- Its mile splits (pace and heart rate, pauses left out) and its effort come
+  with it, and show under the run on Today and in History. The effort is your
+  rating in the Workout or Fitness app, else Apple's estimate (iOS 18 and
+  later), and it sets that run's training load. The first time, iOS asks to
+  read cardio fitness and effort too.
+- Progress > Running shows the watch's cardio fitness (VO2 max) over the
+  last year.
 - Turning it off takes the runs off the watch.
 
 ## The rest timer on the Lock Screen
@@ -104,6 +119,15 @@ TestFlight instead, where a build lasts 90 days and installs over the air.
   weight, and sleep, resting heart rate and HRV when Oura and Whoop aren't
   connected. Only empty fields are filled; numbers you type stay. Turning it
   on asks iOS to read them.
+- Save to Apple Health, under it, saves the weight you type, each day's food
+  totals (calories, protein, carbs and fat), and lifts you finish in the
+  session runner on the phone as strength workouts, with the effort you give
+  them on the Box Score. Lifts tracked on the watch are already in Health;
+  they get the rating (iOS 18 and later). Saving a day again replaces what
+  was saved for it. Turning it on asks iOS to save these.
+- Progress > Body > Progress photos keeps photos on the phone only, in the
+  app's own folder, never uploaded. Add a photo opens the iPhone's photo
+  picker or camera.
 - Fuel > Log food > Scan a barcode reads a packaged food's barcode with the
   camera and looks it up in Open Food Facts, then the USDA database. The
   first scan asks for the camera.
@@ -114,10 +138,12 @@ TestFlight instead, where a build lasts 90 days and installs over the air.
 
 ## Reminders
 
-- In the iPhone app, Profile > Notifications has the evening check-in (7:30
-  pm) and the Sunday Edition (Sunday, 5 pm), off until you turn them on. The
-  phone schedules them itself, with the same words the web app's
-  notifications use.
+- In the iPhone app, Profile > Notifications has Today's plan (each morning
+  at a time you choose, naming the session, its first lifts and its run), the
+  evening check-in (7:30 pm, with Oura's bedtime window when Oura has one)
+  and the Sunday Edition (Sunday, 5 pm), off until you turn them on. The
+  phone schedules them itself; the app writes the coming mornings again
+  whenever it opens or the plan changes.
 - The Morning Edition and state changes go out only once your data has
   reached the server, so they need push. Push in the app needs the paid Apple
   Developer Program and work on the server; the Home Screen web app gets them
