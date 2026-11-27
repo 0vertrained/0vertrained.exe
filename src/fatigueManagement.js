@@ -55,7 +55,7 @@ function setQualitySignal(entries) {
       for (const set of exercise?.sets || []) {
         if (!set?.done) continue;
         total += 1;
-        if (set.quality === "grind" || set.quality === "form_break" || Number(set.rir) === 0) hard += 1;
+        if (set.quality === "grind" || set.quality === "form_break" || n(set.rir) === 0) hard += 1;
       }
     }
   }

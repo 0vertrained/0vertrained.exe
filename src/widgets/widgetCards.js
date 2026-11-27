@@ -6,6 +6,7 @@
 import { DEFAULT_PROGRAM, getDayName } from "../constants";
 import { getProgramSessions } from "../programSessions";
 import { withAdded } from "../addedExercises";
+import { resolveCustomTrainingDay } from "../customTrainingDay";
 import { applyRaceBuild } from "../raceBuild";
 import { isExerciseHandled } from "../workoutLogging";
 
@@ -26,11 +27,13 @@ export function cardioPart(cardio) {
 }
 
 /** One day's card. `logged` is that day's entry, for how far it has got. */
-export function dayCard(program, dateKey, logged = null) {
+export function dayCard(program, dateKey, logged = null, { data, currentDateKey = dateKey, wearableScore, readiness } = {}) {
   const dayName = getDayName(new Date(`${dateKey}T12:00:00`));
   const live = applyRaceBuild(program || DEFAULT_PROGRAM, dateKey) || DEFAULT_PROGRAM;
   // Exercises added to the day count, as they do on Today.
-  const day = withAdded(live[dayName] || DEFAULT_PROGRAM[dayName] || {}, logged?.workout);
+  const projected = resolveCustomTrainingDay({ day: live[dayName] || DEFAULT_PROGRAM[dayName] || {},
+    dateKey, currentDateKey, data: data || { [dateKey]: logged }, wearableScore, readiness });
+  const day = withAdded(projected, logged?.workout);
   const sessions = getProgramSessions(day);
   const lifting = sessions.flatMap((session) => session.lifting || []);
   const runs = sessions.map((session) => session.cardio).filter(Boolean);
@@ -40,15 +43,19 @@ export function dayCard(program, dateKey, logged = null) {
     const done = logged ? lifting.filter((exercise) => isExerciseHandled(exercise, logged?.workout?.exercises?.[exercise.name] || {})).length : 0;
     parts.push(done > 0 ? `${done} of ${lifting.length} exercises done` : `${lifting.length} ${lifting.length === 1 ? "exercise" : "exercises"}`);
   }
+  if (day.adaptivePlan?.version === 1 && lifting.length) {
+    const sets = lifting.reduce((sum, ex) => sum + Number(ex.sets || 0), 0);
+    parts.push(`${sets} work set${sets === 1 ? "" : "s"}`);
+  }
   for (const cardio of runs) parts.push(cardioPart(cardio));
   const kind = lifting.length && runs.length ? "both" : lifting.length ? "lift" : "run";
   return { date: dateKey, title: day.type || (lifting.length ? "Lifting" : runs[0]?.type || "Training"), detail: parts.join(" · "), kind };
 }
 
 /** Today's card, then the next six days'. */
-export function weekCards({ program, data = {}, todayKey, days = WIDGET_DAYS }) {
+export function weekCards({ program, data = {}, todayKey, wearableScore, readiness, days = WIDGET_DAYS }) {
   return Array.from({ length: days }, (_, index) => {
     const dateKey = shift(todayKey, index);
-    return dayCard(program, dateKey, index === 0 ? data?.[dateKey] : null);
+    return dayCard(program, dateKey, index === 0 ? data?.[dateKey] : null, { data, currentDateKey: todayKey, wearableScore, readiness });
   });
 }

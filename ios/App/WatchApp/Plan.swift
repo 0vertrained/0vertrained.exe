@@ -49,6 +49,7 @@ struct PlanExercise: Codable, Equatable {
     var name: String
     /// What was actually done, if it was swapped on the phone.
     var display: String
+    var targetRir: String?
     var skipped: Bool?
     var restSeconds: Int
     var fields: [PlanField]

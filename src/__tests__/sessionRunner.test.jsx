@@ -34,6 +34,16 @@ function mountRunner({ workout = { exercises: {}, sessionState: {} }, settings =
 }
 
 describe("the session runner", () => {
+  it("logs the frozen recovery-adjusted weight instead of recalculating a heavier target", () => {
+    const lift = { ...LIFTING[0], sets: 1, adaptivePrescription: { exerciseName: "Bench", mode: "loaded_reps", kind: "hold_for_quality",
+      repRange: { min: 6, max: 8 }, targetSets: 1, targetWeight: 165, targetReps: [6], targetRir: 3, sourceDate: "2026-07-13", rationale: "Lighter targets today." } };
+    const { ui, updates } = mountRunner({ lifting: [lift] });
+    fireEvent.click(ui.getByRole("button", { name: "Log set" }));
+    const [, saved] = updates.mock.calls.findLast(([key]) => key === "workout.exercises.Bench");
+    expect(saved.sets).toHaveLength(1);
+    expect(saved.sets[0]).toMatchObject({ weight: "165", reps: "6", done: true, progressionTarget: { weight: 165, rir: 3 } });
+  });
+
   it.each([
     [{ name: "Push-Up", sets: 3, repMin: 6, reps: 12, rir: 0, restSeconds: 90 }, "3 × 6–12 reps · 0 reps in reserve · 90 s rest"],
     [{ name: "Side Plank", sets: 2, repMin: 20, reps: 40, restSeconds: 60, notes: "Seconds per side." }, "2 × 20–40 s per side · 60 s rest"],

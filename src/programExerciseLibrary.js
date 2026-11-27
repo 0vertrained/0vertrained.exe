@@ -37,7 +37,7 @@ export function isCompoundPattern(pattern) {
 
 // Equipment
 // Exercise-level tag → which equipment MODES may use it.
-export const EQUIPMENT_MODES = ["full_gym", "dumbbells", "bodyweight", "mixed"];
+export const EQUIPMENT_MODES = ["full_gym", "dumbbells", "barbell", "free_weights", "bodyweight", "calisthenics", "machines", "mixed"];
 
 export const EQUIPMENT_LABELS = {
   barbell: "Barbell", dumbbell: "Dumbbell", kettlebell: "Kettlebell", plate: "Added weight",
@@ -48,8 +48,12 @@ export const EQUIPMENT_LABELS = {
 const EQUIPMENT_ALLOW = {
   full_gym: Object.keys(EQUIPMENT_LABELS),
   mixed: Object.keys(EQUIPMENT_LABELS),
-  dumbbells:  ["dumbbell", "bodyweight"],
+  dumbbells: ["dumbbell", "bodyweight"],
+  barbell: ["barbell", "bodyweight"],
+  free_weights: ["barbell", "dumbbell", "bodyweight"],
   bodyweight: ["bodyweight"],
+  calisthenics: ["bodyweight"],
+  machines: ["machine", "selectorized", "plate_loaded", "cable"],
 };
 
 const DIFFICULTY_RANK = { beginner: 1, intermediate: 2, advanced: 3 };
@@ -61,6 +65,11 @@ function ex(name, pattern, equipment, difficulty, defaultSets, defaultReps, note
 
 // Strength catalog
 export const EXERCISES = [
+  ex("Prone W Raise", "horizontalPull", "bodyweight", "beginner", 2, 12, "Lie face down with bent elbows, draw the shoulder blades together and lift your hands slightly off the floor. Pause at the top.", ["Inverted Row", "One-Arm DB Row"]),
+  ex("DB Floor Press", "horizontalPush", "dumbbell", "beginner", 3, 10, "Lie on the floor. Lower the dumbbells until the upper arms touch down lightly, then press.", ["Push-Up", "Dumbbell Bench Press"]),
+  ex("Standing DB Press", "verticalPush", "dumbbell", "beginner", 3, 8, "Brace the trunk and press the dumbbells overhead without leaning back.", ["Seated DB Press", "Pike Push-Up"]),
+  ex("Plate Squat", "squat", "plate", "beginner", 2, 10, "Hold a plate securely against the chest with both hands. Squat to a repeatable depth and keep the heels down.", ["Goblet Squat", "Bodyweight Squat"]),
+  ex("Barbell Glute Bridge", "hinge", "barbell", "beginner", 2, 10, "Lying on the floor with bent knees, center a padded bar across the hips. Raise the hips under control and lower to the floor.", ["Glute Bridge", "Barbell Hip Thrust"]),
   // ── Squat pattern ──
   ex("Back Squat", "squat", "barbell", "intermediate", 4, 6, "Brace hard, sit between the hips, hit at least parallel. Controlled descent, drive the floor away.", ["Front Squat", "Goblet Squat"]),
   ex("Front Squat", "squat", "barbell", "advanced", 4, 6, "Elbows high, upright torso. More quad and upper-back demand than the back squat.", ["Back Squat", "Goblet Squat"]),
@@ -98,7 +107,7 @@ export const EXERCISES = [
   // ── Horizontal pull ──
   ex("Barbell Row", "horizontalPull", "barbell", "intermediate", 4, 8, "Hinge to ~45°, pull to the lower chest, lead with the elbows. Flat back.", ["Chest-Supported Row", "One-Arm DB Row"]),
   ex("Chest-Supported Row", "horizontalPull", "machine", "beginner", 3, 10, "Chest on the pad removes the low back. Squeeze the shoulder blades at the top.", ["Cable Row", "One-Arm DB Row"]),
-  ex("One-Arm DB Row", "horizontalPull", "dumbbell", "beginner", 3, 10, "Brace on a bench, pull the dumbbell to the hip, big stretch at the bottom.", ["Chest-Supported Row", "Cable Row"]),
+  ex("One-Arm DB Row", "horizontalPull", "dumbbell", "beginner", 3, 10, "Brace your free hand on your thigh or a bench, then pull the dumbbell toward your hip.", ["Chest-Supported Row", "Cable Row"]),
   ex("Cable Row", "horizontalPull", "cable", "beginner", 3, 12, "Drive the elbows back, slight forward lean at the start for a lat stretch.", ["Chest-Supported Row", "One-Arm DB Row"]),
   ex("Inverted Row", "horizontalPull", "bodyweight", "beginner", 3, 10, "Use a fixed low bar or anchored rings. Keep the body straight and move your feet to adjust difficulty.", ["One-Arm DB Row", "Cable Row"]),
 
@@ -147,8 +156,8 @@ export const EXERCISES = [
   // ── Calves ──
   ex("Standing Calf Raise", "calves", "machine", "beginner", 4, 15, "Full stretch at the bottom, full contraction at the top. Gastrocnemius.", ["Seated Calf Raise", "DB Calf Raise"]),
   ex("Seated Calf Raise", "calves", "machine", "beginner", 3, 15, "Knees bent to bias the soleus. Pause 1s at the bottom stretch.", ["Standing Calf Raise", "DB Calf Raise"]),
-  ex("DB Calf Raise", "calves", "dumbbell", "beginner", 3, 20, "One or two dumbbells, on a step for range. Full stretch and squeeze.", ["Standing Calf Raise", "Seated Calf Raise"]),
-  ex("Bodyweight Calf Raise", "calves", "bodyweight", "beginner", 3, 20, "On a step for full range, one-legged to add load. Slow, full stretch and squeeze.", ["Standing Calf Raise", "DB Calf Raise"]),
+  ex("DB Calf Raise", "calves", "dumbbell", "beginner", 3, 20, "Hold dumbbells at your sides. Rise onto your toes from the floor or a stable step and lower under control.", ["Standing Calf Raise", "Seated Calf Raise"]),
+  ex("Bodyweight Calf Raise", "calves", "bodyweight", "beginner", 3, 20, "Rise onto your toes from the floor. Lower slowly, then progress to one leg as balance allows.", ["Standing Calf Raise", "DB Calf Raise"]),
 
   // ── Bodyweight leg accessories (home/travel fallbacks) ──
   ex("Sissy Squat", "quadIso", "bodyweight", "advanced", 3, 12, "Rise onto the toes, lean back and bend the knees — deep quad isolation. Hold support to scale.", ["Leg Extension"]),
@@ -277,12 +286,35 @@ export function cardioIntensity(key) {
 
 // Structured view (patterns grouped by equipment mode)
 // Kept for tests / callers that want to verify pattern coverage per mode.
+// Floor-only plans cannot rely on a bar, bench, sliders or an anchor.
+const FLOOR_MOVEMENTS = new Set([
+  "Bodyweight Squat", "Bodyweight Split Squat", "Glute Bridge", "Single-Leg Glute Bridge",
+  "Reverse Lunge", "Push-Up", "Pike Push-Up", "Prone W Raise", "Bodyweight Calf Raise",
+  "Plank", "Dead Bug", "Hollow Body Hold", "Side Plank",
+]);
+const NEEDS_BENCH = new Set(["Dumbbell Bench Press", "Incline DB Press", "Incline DB Curl", "Seated DB Press", "Step-Up", "Bulgarian Split Squat", "DB Fly"]);
+
+const BAR_FROM_FLOOR = new Set(["Conventional Deadlift", "Romanian Deadlift", "Barbell Row", "Barbell Glute Bridge", "Plate Squat"]);
+const BENCH_BODYWEIGHT = new Set(["Incline Push-Up", "Decline Push-Up", "Bench Dip"]);
+
+function equipmentFits(exercise, mode) {
+  if (mode === "barbell") return BAR_FROM_FLOOR.has(exercise.name) || FLOOR_MOVEMENTS.has(exercise.name);
+  if (mode === "free_weights") {
+    if (exercise.equipment === "bodyweight") return FLOOR_MOVEMENTS.has(exercise.name) || BENCH_BODYWEIGHT.has(exercise.name);
+    if (["Trap Bar Deadlift", "Landmine Press", "EZ Bar Curl"].includes(exercise.name)) return false;
+  }
+  if (mode === "bodyweight") return FLOOR_MOVEMENTS.has(exercise.name);
+  if (mode === "calisthenics" && exercise.name === "Nordic Hamstring Curl") return false;
+  if (mode === "dumbbells" && exercise.equipment === "bodyweight") return FLOOR_MOVEMENTS.has(exercise.name);
+  if (mode === "dumbbells" && NEEDS_BENCH.has(exercise.name)) return false;
+  return EQUIPMENT_ALLOW[mode].includes(exercise.equipment);
+}
+
 export const EXERCISE_LIBRARY = EQUIPMENT_MODES.reduce((acc, mode) => {
-  const allowed = EQUIPMENT_ALLOW[mode];
   const byPattern = {};
   for (const pattern of MOVEMENT_PATTERNS) byPattern[pattern] = [];
   for (const e of EXERCISES) {
-    if (allowed.includes(e.equipment)) byPattern[e.pattern].push(e);
+    if (equipmentFits(e, mode)) byPattern[e.pattern].push(e);
   }
   acc[mode] = byPattern;
   return acc;
@@ -293,21 +325,14 @@ export const EXERCISE_LIBRARY = EQUIPMENT_MODES.reduce((acc, mode) => {
 // and biased toward the experience level. A `seed` rotates the starting point
 // so week-to-week variants pull different (but stable) movements. Falls back
 // gracefully when a pattern has no match for the requested equipment.
-export function selectExercises(pattern, equipmentMode, level = "intermediate", n = 1, seed = 0) {
-  const allowed = EQUIPMENT_ALLOW[equipmentMode] || EQUIPMENT_ALLOW.full_gym;
-  let pool = EXERCISES.filter((e) => e.pattern === pattern && allowed.includes(e.equipment));
-  // Bodyweight is allowed in every mode, so it is the only safe fallback — never
-  // return equipment the athlete said they don't have.
-  if (pool.length === 0) pool = EXERCISES.filter((e) => e.pattern === pattern && allowed.includes("bodyweight") && e.equipment === "bodyweight");
-  if (pool.length === 0) return [];
-
+export function selectExercises(pattern, equipmentMode, level = "intermediate", n = 1, seed = 0, equipmentChoices = null) {
+  const custom = equipmentMode === "mixed" && Array.isArray(equipmentChoices);
+  const pool = custom ? EXERCISES.filter(ex => ex.pattern === pattern &&
+    (FLOOR_MOVEMENTS.has(ex.name) || equipmentChoices.some(choice => EQUIPMENT_ALLOW[choice] && equipmentFits(ex, choice)))) :
+    (EXERCISE_LIBRARY[equipmentMode] || EXERCISE_LIBRARY.full_gym)[pattern] || [];
   const levelRank = DIFFICULTY_RANK[level] || 2;
-  let filtered = pool.filter((e) => (DIFFICULTY_RANK[e.difficulty] || 2) <= levelRank);
-  if (filtered.length < n) filtered = pool; // not enough at-or-below level — open it up
-
-  const len = filtered.length;
-  const start = ((seed % len) + len) % len;
-  const out = [];
-  for (let i = 0; i < n; i++) out.push(filtered[(start + i) % len]);
-  return out;
+  const available = pool.filter(e => DIFFICULTY_RANK[e.difficulty] <= levelRank);
+  if (!available.length) return [];
+  const start = ((seed % available.length) + available.length) % available.length;
+  return [...available.slice(start), ...available.slice(0, start)].slice(0, n);
 }

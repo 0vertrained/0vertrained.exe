@@ -37,7 +37,7 @@ export function completeSet({
     ? { ...chosen, outcome: evaluateSetOutcome(chosen.target, completed) }
     : chosen || decision;
   const exerciseComplete = nextSets.every((item) => item.done && validateSet(item, exercise).valid);
-  const generatedNext = exerciseComplete
+  const generatedNext = exerciseComplete && !exercise.adaptivePrescription
     ? buildExercisePrescription({ data, exercise: progressionExercise, todayKey, currentSession: { date: todayKey, sets: nextSets, performedName } })
     : undefined;
   return {
@@ -49,7 +49,7 @@ export function completeSet({
       sets: nextSets,
       skipped: undefined,
       progressionDecision,
-      ...(generatedNext ? { nextPrescription: generatedNext } : {}),
+      ...(generatedNext ? { nextPrescription: generatedNext } : exercise.adaptivePrescription ? { nextPrescription: null } : {}),
     },
   };
 }

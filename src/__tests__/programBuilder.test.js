@@ -23,14 +23,19 @@ import {
 } from "../programBuilder";
 
 
+import { findLibraryExercise } from "../programExerciseLibrary";
+import { mapExerciseToMuscles } from "../muscleVolume";
+import { runSchedule } from "../watch/runWorkouts";
+import { timeBasedCardioPlan } from "../cardioSession";
+
 function totalSets(program) {
   return DAYS.reduce((sum, d) => sum + (program[d].lifting || []).reduce((s, l) => s + l.sets, 0), 0);
 }
 
 describe("catalogs", () => {
-  it("exposes the six goals", () => {
+  it("exposes lifting, endurance and cardio-only goals", () => {
     expect(PROGRAM_BUILDER_GOAL_IDS).toEqual([
-      "basic_fitness", "bodybuilding", "strength", "endurance", "hybrid", "fat_loss",
+      "basic_fitness", "bodybuilding", "strength", "endurance", "hybrid", "cardio_only", "fat_loss",
     ]);
     for (const g of PROGRAM_BUILDER_GOALS) {
       expect(typeof g.label).toBe("string");
@@ -41,7 +46,7 @@ describe("catalogs", () => {
   it("exposes training/equipment/experience/session/cardio option lists", () => {
     expect(TRAINING_DAY_OPTIONS).toEqual([2, 3, 4, 5, 6]);
     expect(REST_DAY_OPTIONS).toEqual(DAYS);
-    expect(EQUIPMENT_OPTIONS.map((e) => e.id)).toEqual(["full_gym", "dumbbells", "bodyweight", "mixed"]);
+    expect(EQUIPMENT_OPTIONS.map((e) => e.id)).toEqual(["full_gym", "dumbbells", "barbell", "free_weights", "bodyweight", "calisthenics", "machines", "mixed"]);
     expect(EXPERIENCE_LEVELS.map((e) => e.id)).toEqual(["beginner", "intermediate", "advanced"]);
     expect(SESSION_LENGTH_OPTIONS).toEqual([30, 45, 60, 75]);
     expect(CARDIO_PREFERENCES.map((c) => c.id)).toEqual(["none", "light", "moderate", "high"]);
@@ -83,7 +88,7 @@ describe("normalizeProgramBuilderInput", () => {
   });
 
   it("recommends sensible training days and rest days", () => {
-    expect(recommendTrainingDaysForGoal("bodybuilding")).toBe(5);
+    expect(recommendTrainingDaysForGoal("bodybuilding")).toBe(4);
     const rest = recommendRestDays({ trainingDaysPerWeek: 3, goal: "basic_fitness" });
     expect(rest.length).toBe(4);
   });
@@ -119,7 +124,7 @@ describe("buildWeeklySchedule", () => {
 });
 
 describe("buildProgramPlan — shape + goal templates", () => {
-  const goals = ["basic_fitness", "bodybuilding", "strength", "endurance", "hybrid", "fat_loss"];
+  const goals = PROGRAM_BUILDER_GOAL_IDS;
 
   it("every generated program passes validation for every goal and day count", () => {
     for (const goal of goals) {
@@ -154,12 +159,11 @@ describe("buildProgramPlan — shape + goal templates", () => {
     expect(training.length).toBe(5);
   });
 
-  it("bodybuilding 5-day covers chest / back / legs variety", () => {
+  it("five-day hypertrophy distributes upper and lower work across the week", () => {
     const plan = buildProgramPlan({ goal: "bodybuilding", trainingDaysPerWeek: 5 });
     const codes = DAYS.map((d) => plan.program[d].code);
-    expect(codes).toContain("CHEST");
-    expect(codes).toContain("BACK");
-    expect(codes).toContain("LEGS");
+    expect(codes.filter(code => code.startsWith("UPPER"))).toHaveLength(3);
+    expect(codes.filter(code => code.startsWith("LOWER"))).toHaveLength(2);
   });
 
   it("strength 4-day covers squat / bench / deadlift / press focus", () => {
@@ -200,7 +204,7 @@ describe("buildProgramPlan — shape + goal templates", () => {
 
 describe("multi-week variation", () => {
   it("returns four weeks with week 4 as a deload", () => {
-    const weeks = buildMultiWeekProgram({ goal: "hybrid", trainingDaysPerWeek: 5 }, 4);
+    const weeks = buildMultiWeekProgram({ goal: "hybrid", trainingDaysPerWeek: 5, adaptiveTraining: false }, 4);
     expect(weeks).toHaveLength(4);
     expect(weeks[3].isDeload).toBe(true);
     // deload week has strictly lower total volume than the base week
@@ -208,8 +212,8 @@ describe("multi-week variation", () => {
   });
 
   it("week 2 varies at least some accessory/cardio selection vs week 1", () => {
-    const w1 = buildWeekVariant({ goal: "bodybuilding", trainingDaysPerWeek: 5 }, 0);
-    const w2 = buildWeekVariant({ goal: "bodybuilding", trainingDaysPerWeek: 5 }, 1);
+    const w1 = buildWeekVariant({ goal: "bodybuilding", trainingDaysPerWeek: 5, adaptiveTraining: false }, 0);
+    const w2 = buildWeekVariant({ goal: "bodybuilding", trainingDaysPerWeek: 5, adaptiveTraining: false }, 1);
     const names1 = DAYS.flatMap((d) => w1.program[d].lifting.map((l) => l.name)).join("|");
     const names2 = DAYS.flatMap((d) => w2.program[d].lifting.map((l) => l.name)).join("|");
     expect(names1).not.toBe(names2);
@@ -244,5 +248,129 @@ describe("summary + validation + settings patch", () => {
     expect(patch.programBuilder.goal).toBe("strength");
     expect(patch.programBuilder.trainingDaysPerWeek).toBe(4);
     expect(patch.programBuilder.lastGeneratedAt).toBe("2026-07-01T00:00:00.000Z");
+  });
+});
+
+describe("research-based custom weeks", () => {
+  it("carries the reference hypertrophy dose into a four-day gym week", () => {
+    const plan = buildProgramPlan({ goal: "bodybuilding", trainingDaysPerWeek: 4, sessionLength: 60 });
+    const sets = {};
+    for (const day of Object.values(plan.program)) {
+      for (const lift of day.lifting) {
+        for (const muscle of mapExerciseToMuscles(lift.name).primary) sets[muscle] = (sets[muscle] || 0) + lift.sets;
+        expect(lift.repMin).toBeLessThanOrEqual(lift.reps);
+        expect(lift).toMatchObject({ rir: expect.any(Number), progressionExposures: 2 });
+        expect(lift.restSeconds).toBeGreaterThanOrEqual(60);
+      }
+    }
+    expect(sets).toMatchObject({ chest: 10, back: 10, quads: 10, hamstrings: 8 });
+    expect(plan.metadata.guideId).toBe("upperLowerGrowth");
+  });
+
+  it("preserves explicit weekdays even when the requested long-run day conflicts", () => {
+    const plan = buildProgramPlan({ goal: "hybrid", trainingDaysPerWeek: 3, longRunDay: "Saturday",
+      restDays: ["Monday", "Wednesday", "Friday", "Saturday"] });
+    expect(DAYS.filter(d => plan.program[d].code !== "REST")).toEqual(["Tuesday", "Thursday", "Sunday"]);
+    expect(plan.program.Sunday.type).toBe("Long Run");
+  });
+
+  it("keeps matched weeks stable for adaptive comparisons and stores the opt-out", () => {
+    const [base, ...later] = buildMultiWeekProgram({ goal: "strength", trainingDaysPerWeek: 3 });
+    for (const week of later) {
+      expect(week.isDeload).toBe(false);
+      expect(week.program).toEqual(base.program);
+    }
+    const { program } = buildProgramPlan({ goal: "strength", trainingDaysPerWeek: 3, adaptiveTraining: false });
+    expect(DAYS.every(day => !program[day].adaptivePlan)).toBe(true);
+    expect(buildProgramBuilderSettingsPatch({ adaptiveTraining: false }).programBuilder.adaptiveTraining).toBe(false);
+    const mainLifts = DAYS.flatMap(d => base.program[d].lifting.slice(0, 1));
+    expect(mainLifts.map(l => l.name)).toEqual(["Back Squat", "Conventional Deadlift", "Barbell Bench Press"]);
+    expect(mainLifts.every(l => l.repMin === 3 && l.reps === 5 && l.restSeconds === 180)).toBe(true);
+  });
+
+  it("keeps all gear, movement names, time budgets and selected day counts achievable", () => {
+    for (const goal of PROGRAM_BUILDER_GOAL_IDS) {
+      for (const equipment of EQUIPMENT_OPTIONS.map(e => e.id)) {
+        for (const days of TRAINING_DAY_OPTIONS) {
+          const plan = buildProgramPlan({ goal, equipment, trainingDaysPerWeek: days, sessionLength: 30, experience: "beginner" });
+          expect(summarizeGeneratedPlan(plan).trainingDays, [goal, equipment, days].join(" ")).toBe(days);
+          for (const day of Object.values(plan.program)) {
+            if (day.adaptivePlan) expect(day.adaptivePlan.estimatedMinutes).toBeLessThanOrEqual(30);
+            expect(day.cardio?.minutes || 0).toBeLessThanOrEqual(30);
+            const names = day.lifting.map(l => l.name);
+            expect(new Set(names).size).toBe(names.length);
+            for (const lift of day.lifting) {
+              expect(findLibraryExercise(lift.name).difficulty).toBe("beginner");
+              if (equipment === "machines") expect(["machine", "selectorized", "plate_loaded", "cable"]).toContain(findLibraryExercise(lift.name).equipment);
+              if (equipment === "bodyweight") expect(lift.name).not.toMatch(/hanging|inverted|pull-up|chin-up|nordic|dip|incline|decline|sliding/i);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it("selects only the available combination and never assumes a rack with a bare bar", () => {
+    function movements(equipment, equipmentChoices) {
+      const plan = buildProgramPlan({ goal: "strength", trainingDaysPerWeek: 4, equipment, equipmentChoices, experience: "advanced" });
+      return DAYS.flatMap(day => plan.program[day].lifting);
+    }
+    const bareBar = movements("barbell");
+    expect(bareBar.map(lift => lift.name)).toContain("Conventional Deadlift");
+    for (const lift of bareBar) {
+      expect(["barbell", "plate", "bodyweight"]).toContain(findLibraryExercise(lift.name).equipment);
+      expect(lift.name).not.toMatch(/bench|incline|front squat|back squat|trap bar|landmine/i);
+    }
+    const beginner = buildProgramPlan({ goal: "bodybuilding", experience: "beginner", equipment: "barbell", trainingDaysPerWeek: 2 });
+    const starterLifts = Object.values(beginner.program).flatMap(d => d.lifting.map(l => l.name));
+    expect(starterLifts).toEqual(expect.arrayContaining(["Plate Squat", "Barbell Glute Bridge"]));
+    const custom = movements("mixed", ["dumbbells", "calisthenics"]);
+    expect(custom.some(lift => findLibraryExercise(lift.name).equipment === "dumbbell")).toBe(true);
+    expect(custom.every(lift => ["dumbbell", "bodyweight"].includes(findLibraryExercise(lift.name).equipment))).toBe(true);
+    expect(movements("mixed", []).every(lift => findLibraryExercise(lift.name).equipment === "bodyweight")).toBe(true);
+  });
+
+  it("uses loadable presses, rows and hinges on every short bodybuilding day with dumbbells and a bare bar", () => {
+    const { program } = buildProgramPlan({ goal: "bodybuilding", experience: "intermediate", trainingDaysPerWeek: 3,
+      restDays: ["Monday", "Wednesday", "Thursday", "Saturday"], equipment: "mixed", equipmentChoices: ["dumbbells", "barbell"], sessionLength: 30 });
+    for (const day of ["Tuesday", "Friday", "Sunday"]) {
+      const entries = program[day].lifting.map(lift => findLibraryExercise(lift.name));
+      for (const pattern of ["squat", "horizontalPush", "horizontalPull", "hinge"]) {
+        const lift = entries.find(e => e.pattern === pattern);
+        expect(lift, day + " " + pattern).toBeDefined();
+        expect(["barbell", "plate", "dumbbell"]).toContain(lift.equipment);
+      }
+    }
+  });
+
+  it("preserves knee, hinge, press and pull across two- and three-day growth weeks within the shortest time budget", () => {
+    for (const days of [2, 3]) for (const { id: equipment } of EQUIPMENT_OPTIONS) {
+      for (const experience of ["beginner", "intermediate", "advanced"]) for (const cardioPreference of ["none", "high"]) {
+        const { program } = buildProgramPlan({ goal: "bodybuilding", equipment, experience, sessionLength: 30,
+          cardioPreference, trainingDaysPerWeek: days });
+        const moves = Object.values(program).flatMap(day => day.lifting.map(lift => findLibraryExercise(lift.name).pattern));
+        expect(moves, [days, equipment, experience, cardioPreference].join(" ")).toEqual(expect.arrayContaining(["squat", "hinge", "horizontalPush", "horizontalPull"]));
+      }
+    }
+  });
+
+  it("uses the athlete’s available cardio modality and actual elapsed time", () => {
+    const plan = buildProgramPlan({ goal: "cardio_only", cardioModality: "row", sessionLength: 30, trainingDaysPerWeek: 4, includeIntervals: true });
+    const active = Object.values(plan.program).filter(day => day.cardio);
+    expect(active).toHaveLength(4);
+    expect(active.every(d => !d.lifting.length && d.cardio.modality === "row" && d.cardio.minutes === 30)).toBe(true);
+    expect(active.filter(d => d.code === "QUALITY")).toHaveLength(1);
+    expect(active.find(d => d.code === "QUALITY").cardio.steps[1]).toMatchObject({ reps: 3, work: { minutes: 4 } });
+    const now = new Date("2026-11-23T10:00:00");
+    expect(runSchedule(plan.program, "2026-11-23", { days: 7, now })).toEqual([]);
+    const runs = buildProgramPlan({ goal: "cardio_only", cardioModality: "run", sessionLength: 30, trainingDaysPerWeek: 4, includeIntervals: true });
+    const workouts = runSchedule(runs.program, "2026-11-23", { days: 7, now });
+    expect(workouts).toHaveLength(4);
+    const quality = workouts.find(run => run.warmup);
+    expect(quality.warmup.goal.seconds + quality.cooldown.goal.seconds + quality.blocks.reduce((sec, block) =>
+      sec + block.iterations * block.steps.reduce((sum, step) => sum + step.goal.seconds, 0), 0)).toBe(1800);
+    expect(timeBasedCardioPlan(active.find(d => d.code === "QUALITY").cardio)).toMatchObject({ rounds: 3, work: 240, rest: 180 });
+    const easyWeek = buildProgramPlan({ goal: "cardio_only", equipment: "bodyweight", includeIntervals: false });
+    expect(Object.values(easyWeek.program).filter(d => d.cardio).every(d => ["run","walk"].includes(d.cardio.modality) && d.code === "EASY")).toBe(true);
   });
 });

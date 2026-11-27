@@ -13,7 +13,6 @@ import {
 } from "./onboardingSetup";
 import {
   TRAINING_DAY_OPTIONS,
-  EQUIPMENT_OPTIONS,
   EXPERIENCE_LEVELS,
   SESSION_LENGTH_OPTIONS,
   CARDIO_PREFERENCES,
@@ -26,6 +25,7 @@ import {
   summarizeGeneratedPlan,
 } from "./programBuilder";
 import { Flow, Fold, Icon, Meter, RadioRows, Seg, TopBar, Wordmark } from "./ui/ledger";
+import { AdaptiveLiftingChoice, BuilderEquipment, BuilderWeekPreview, TrainingWeekdays } from "./BuilderWeek";
 
 const TOUR = [
   {
@@ -124,7 +124,8 @@ function Tour({ slide, onNext, onBack, onSkip }) {
   );
 }
 
-function ProgramStep({ goal, builder, setField }) {
+function ProgramStep({ goal, builder, setPrefs }) {
+  const setField = (key, value) => setPrefs({ [key]: value });
   const [more, setMore] = useState(false);
   const builderGoal = mapOnboardingGoalToBuilderGoal(goal);
   const usesRunning = goalUsesRunning(builderGoal);
@@ -132,22 +133,24 @@ function ProgramStep({ goal, builder, setField }) {
     goal: builderGoal,
     trainingDaysPerWeek: builder.trainingDaysPerWeek || recommendTrainingDaysForGoal(builderGoal),
     equipment: builder.equipment || "full_gym",
+    equipmentChoices: builder.equipmentChoices,
     experience: builder.experience || "intermediate",
     sessionLength: builder.sessionLength || 60,
     cardioPreference: builder.cardioPreference || recommendCardioPreference(builderGoal),
     longRunDay: builder.longRunDay,
     restDays: builder.restDays,
+    adaptiveTraining: builder.adaptiveTraining,
   };
   const plan = buildProgramPlan(input);
   const summary = summarizeGeneratedPlan(plan);
-  const cardio = CARDIO_PREFERENCES.find((c) => c.id === input.cardioPreference);
+  const trainingDays = DAYS.filter(day => !plan.input.restDays.includes(day));
   return (
     <>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span id="ob-days" className="lbl">Training days per week</span>
         <Seg labelledBy="ob-days" options={TRAINING_DAY_OPTIONS.map((n) => ({ value: n, label: String(n) }))} value={input.trainingDaysPerWeek} onChange={(v) => setField("trainingDaysPerWeek", v)} />
       </div>
-      <RadioRows id="ob-equip" label="Equipment" options={EQUIPMENT_OPTIONS} value={builder.equipment} onChange={(v) => setField("equipment", v)} />
+      <BuilderEquipment id="ob-equip" equipment={builder.equipment} choices={builder.equipmentChoices} onChange={setPrefs} />
       <RadioRows id="ob-exp" label="Experience level" options={EXPERIENCE_LEVELS} value={builder.experience} onChange={(v) => setField("experience", v)} />
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span id="ob-len" className="lbl">Session length (min)</span>
@@ -155,33 +158,24 @@ function ProgramStep({ goal, builder, setField }) {
       </div>
       <div>
         <button type="button" className="row" aria-expanded={more} aria-controls="ob-more" onClick={() => setMore((open) => !open)}>
-          <span className="kv grow"><span className="t-bs">More choices</span><span className="t-s c2">Cardio: {cardio ? cardio.label : "as suggested"}{usesRunning ? `. Long run: ${input.longRunDay}` : ""}.</span></span>
+          <span className="kv grow"><span className="t-bs">More choices</span><span className="t-s c2">{trainingDays.map(day => day.slice(0, 3)).join(" · ")}</span></span>
           <Icon name={more ? "up" : "down"} size="s" className="c2" />
         </button>
         <Fold open={more} id="ob-more">
           <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 8 }}>
-            <RadioRows id="ob-cardio" label="Cardio" options={CARDIO_PREFERENCES} value={input.cardioPreference} onChange={(v) => setField("cardioPreference", v)} />
+            <TrainingWeekdays input={plan.input} onChange={setPrefs} />
+            {!usesRunning && <RadioRows id="ob-cardio" label="Cardio" options={CARDIO_PREFERENCES} value={input.cardioPreference} onChange={(v) => setField("cardioPreference", v)} />}
             {usesRunning && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span id="ob-long" className="lbl">Long run day</span>
-                <Seg labelledBy="ob-long" options={DAYS.map((d) => ({ value: d, label: <><span aria-hidden="true">{d.charAt(0)}</span><span className="sr">{d}</span></> }))} value={plan.input.longRunDay} onChange={(v) => setField("longRunDay", v)} />
+                <Seg labelledBy="ob-long" options={trainingDays.map(day => ({ value: day, label: day.slice(0, 3) }))} value={plan.input.longRunDay} onChange={(v) => setField("longRunDay", v)} />
               </div>
             )}
           </div>
         </Fold>
       </div>
-      <section aria-labelledby="ob-week" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <h3 id="ob-week" className="t-h">Your week</h3>
-        <p className="t-s c2">{summary.headline}</p>
-        <ol className="rows" style={{ margin: 0, padding: 0, listStyle: "none" }}>
-          {summary.days.map((d) => (
-            <li key={d.day} className="row" style={{ minHeight: 48 }}>
-              <span className="n-s c2" style={{ width: 40, flex: "none" }}>{d.day.slice(0, 3)}</span>
-              <span className="kv grow"><span className="t-bs clip">{d.isRest ? "Rest" : d.type}</span>{!d.isRest && d.label && <span className="t-s c2">{d.label}</span>}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
+      {summary.liftingDays > 0 && <AdaptiveLiftingChoice enabled={plan.input.adaptiveTraining} onChange={(v) => setField("adaptiveTraining", v)} />}
+      <BuilderWeekPreview id="ob-week" plan={plan} summary={summary} />
     </>
   );
 }
@@ -248,6 +242,7 @@ export function Tutorial({ onComplete }) {
   const [builder, setBuilder] = useState({
     trainingDaysPerWeek: null,
     equipment: null,
+    equipmentChoices: [],
     experience: null,
     sessionLength: 60,
     cardioPreference: null,
@@ -259,7 +254,7 @@ export function Tutorial({ onComplete }) {
 
   useEffect(() => { if (phase === "setup") questionRef.current?.focus({ preventScroll: true }); }, [phase, step]);
 
-  const setField = (key, value) => { setBuilder((b) => ({ ...b, [key]: value })); setMissing(""); };
+  const setPrefs = (patch) => { setBuilder((b) => ({ ...b, ...patch })); setMissing(""); };
 
   // The goal sets the defaults the next steps start from.
   const chooseGoal = (id) => {
@@ -345,7 +340,7 @@ export function Tutorial({ onComplete }) {
                 <p className="t-s c2">Connect Oura, Whoop or Strava in Settings, under Integrations. There is nothing to enter here.</p>
               </>
             )}
-            {current.key === "program" && <ProgramStep goal={goal} builder={builder} setField={setField} />}
+            {current.key === "program" && <ProgramStep goal={goal} builder={builder} setPrefs={setPrefs} />}
             {current.key === "macros" && (
               <FuelStep
                 macroPreset={macroPreset}

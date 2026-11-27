@@ -36,6 +36,9 @@ import { lastSessionSets, firstEmptyIndex, ghostForSet } from "./setGhosts";
 import { buildBoxScore } from "./boxScore";
 import { buildAggregatedRecoveryContext } from "./recovery/aggregationModel";
 import { flattenProgramLifting, getProgramSessions, usesProgramSessions } from "./programSessions";
+import { hasEntry, proposeSet } from "./workout/setFill";
+import { sessionPrescription } from "./customTrainingDay";
+import { formatPrescription } from "./progressionEngine";
 import { addToDay, removeFromDay, withAdded } from "./addedExercises";
 import { AddExerciseSheet } from "./AddExercise";
 import { OuraBedtimeLine, OuraStressLine } from "./sections/OuraSignals";
@@ -314,7 +317,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
     previousReadiness: prevReadinessRef.current,
   }));
   prevReadinessRef.current = dailyRecommendation.readiness;
-  const adaptiveSuggestion = suggestWorkoutAdjustments({
+  const adaptiveSuggestion = p.adaptation ? null : suggestWorkoutAdjustments({
     recommendation: dailyRecommendation,
     todayProgram: p,
     recentEntries: allData || {},
@@ -726,6 +729,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       <section data-section="session-ledger" ref={planRef} aria-labelledby="today-plan" className="today-plan">
         <h2 id="today-plan" className="t-ss">{isLoggingPast ? "Training" : "Today’s plan"}</h2>
 
+        {p.adaptation?.reason && <p className="t-s c2" aria-label="Custom training adjustment">{p.adaptation.reason}</p>}
         {/* Race plan line: week of the plan, phase, countdown. Renders nothing without a plan. */}
         <RaceWeekLine program={activeProgram} dateKey={todayKey} />
         {movedFrom(baseProgram || activeProgram, todayKey) && <p className="t-s c2">Moved here from {movedFrom(baseProgram || activeProgram, todayKey)} this week.</p>}
@@ -1169,7 +1173,9 @@ const ExerciseLogger = memo(function ExerciseLogger({ exercise, data, onChange, 
     { head: mode === TRACKING_MODES.BODYWEIGHT_REPS ? "Added lb" : "lb", prop: "weight", label: "load", inputMode: "decimal", placeholder: mode === TRACKING_MODES.BODYWEIGHT_REPS ? "0" : "" },
     { head: "Reps", prop: "reps", label: "reps", inputMode: "numeric", placeholder: String(exercise.reps) },
   ];
-  const ghostable = mode !== TRACKING_MODES.TIMED_HOLD && mode !== TRACKING_MODES.CARRY;
+  const target = exercise.adaptivePrescription && sessionPrescription({ exercise, performedName: name });
+  const targetIndex = target ? sets.findIndex(set => !set.done && !hasEntry(set, exercise)) : -1;
+  const ghostable = !target && mode !== TRACKING_MODES.TIMED_HOLD && mode !== TRACKING_MODES.CARRY;
 
   return (
     <section className="sets" aria-label={name}>
@@ -1178,6 +1184,9 @@ const ExerciseLogger = memo(function ExerciseLogger({ exercise, data, onChange, 
         <span className="n-s c2">{done}/{exercise.sets} done</span>
       </div>
       <p className="t-s c2">{exerciseTargetSummary(exercise)}</p>
+      {target && (
+        <p className="t-s c2">Target · {formatPrescription(target)}. {target.rationale}</p>
+      )}
       {best1RM > 0 && <p className="t-s c2">Estimated one-rep max <span className="n-s">{best1RM}{" "}lb</span></p>}
       {exercise.notes && (
         <>
@@ -1194,6 +1203,11 @@ const ExerciseLogger = memo(function ExerciseLogger({ exercise, data, onChange, 
       <div className="sets-h" aria-hidden="true"><span>Set</span><span>{columns[0].head}</span><span>{columns[1].head}</span><span>RIR</span><span>Done</span></div>
       {sets.map((set, index) => (
         <div key={index} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {index === targetIndex && <button type="button" className="btn btn-g btn-sm" style={{ alignSelf: "flex-start" }}
+            onClick={() => {
+              const proposal = proposeSet({ set, setIndex: index, sets, exercise, prescription: target, choice: "target" });
+              onChange({ ...data, sets: sets.map((entry, i) => i === index ? proposal.set : entry) });
+            }}>Use target for set {index + 1}</button>}
           {ghostable && index === firstEmptyIndex(sets) && (
             <GhostChip ghost={ghostForSet(sets, index, lastSets)} onFill={({ weight, reps }) => onChange({ ...data, sets: sets.map((entry, setIndex) => setIndex === index ? { ...entry, weight, reps } : entry) })} />
           )}

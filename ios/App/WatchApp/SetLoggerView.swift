@@ -67,6 +67,23 @@ struct SetLoggerView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
+                if let target = exercise.targetRir {
+                    let logged = isEdited(current) ? edits["rir"].map { Int($0) } : nil
+                    Picker("Reps left · aim for \(target)", selection: Binding(
+                        get: { logged ?? -1 },
+                        set: { choice in editReserve(choice < 0 ? nil : choice, current: current) }
+                    )) {
+                        Text("Unrecorded").tag(-1)
+                        ForEach(0...10, id: \.self) { count in
+                            Text("\(count) reps left").tag(count)
+                        }
+                    }
+                    .pickerStyle(.navigationLink)
+                    .font(.footnote)
+                    .accessibilityLabel("Reps in reserve")
+                    .accessibilityValue(logged.map(String.init) ?? "Unrecorded, target \(target)")
+                }
+
                 Button("Log set") { log(exercise, current: current) }
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(!isValid(exercise, current: current))
@@ -133,6 +150,14 @@ struct SetLoggerView: View {
         )
     }
 
+    private func editReserve(_ value: Int?, current: SetState) {
+        if editsFor != setKey(current) {
+            edits = [:]
+            editsFor = setKey(current)
+        }
+        edits["rir"] = value.map { Double($0) }
+    }
+
     private func isValid(_ exercise: PlanExercise, current: SetState) -> Bool {
         exercise.fields.allSatisfy { !$0.required || value($0, current: current) > 0 }
     }
@@ -146,6 +171,9 @@ struct SetLoggerView: View {
         for field in exercise.fields {
             let number = value(field, current: current)
             if field.required || number > 0 { logged[field.prop] = number }
+        }
+        if exercise.targetRir != nil, isEdited(current), let reserve = edits["rir"] {
+            logged["rir"] = reserve
         }
         store.logSet(key, setIndex: current.index, values: logged)
         WKInterfaceDevice.current().play(.success)

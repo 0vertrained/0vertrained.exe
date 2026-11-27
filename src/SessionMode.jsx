@@ -15,6 +15,7 @@ import { useMediaQuery, BROADSHEET_QUERY, WORKOUT_PANES_QUERY } from "./ui/useMe
 import { Flow, Icon, Seg, Sheet, Switch, TopBar } from "./ui/ledger";
 import { CascadeSet } from "./CascadeSet";
 import { CurrentSetComposer, LoggedSets } from "./workout/CurrentSetComposer";
+import { sessionPrescription } from "./customTrainingDay";
 import { proposeSet } from "./workout/setFill";
 import { completeSet } from "./workout/completeSet";
 import { WhoopWorkoutPulse } from "./workout/WhoopWorkoutPulse";
@@ -269,11 +270,11 @@ export function SessionMode({
     [allData, progressionExercise, todayKey]
   );
   const prescription = useMemo(
-    () => progressionExercise ? buildExercisePrescription({ data: allData, exercise: progressionExercise, todayKey }) : null,
-    [allData, progressionExercise, todayKey]
+    () => exercise ? sessionPrescription({ data: allData, exercise, performedName, dateKey: todayKey }) : null,
+    [allData, exercise, performedName, todayKey]
   );
   const nextPrescription = useMemo(
-    () => progressionExercise && isExerciseHandled(exercise, exData)
+    () => progressionExercise && !exercise.adaptivePrescription && isExerciseHandled(exercise, exData)
       ? buildExercisePrescription({ data: allData, exercise: progressionExercise, todayKey, currentSession: { date: todayKey, sets, performedName } })
       : null,
     [allData, progressionExercise, todayKey, sets, performedName, exercise, exData]
@@ -684,7 +685,7 @@ export function SessionMode({
                     <Icon name="warn" size="s" className={deload.status === "safety" ? "stop" : "caution"} />
                     <span>
                       <span className="t-ss">{deload.headline}.</span> {deload.guidance}
-                      {deload.prescription && <><br /><span className="n-s">Sets −{deload.prescription.setReductionPct}% · load about {deload.prescription.loadPct}% · RIR {deload.prescription.rirFloor}</span></>}
+                      {deload.prescription && <><br /><span className="n-s">Sets −{deload.prescription.volumeReductionPct}% · load about {deload.prescription.loadPct}% · RIR {deload.prescription.targetRir}</span></>}
                     </span>
                   </div>
                 )}

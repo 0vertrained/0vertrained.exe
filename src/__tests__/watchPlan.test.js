@@ -101,6 +101,65 @@ describe("buildWatchPlan", () => {
   });
 });
 
+describe("adaptive custom plans on Watch", () => {
+  const bench = { ...upper.lifting[0], repMin: 6, rir: 2, restSeconds: 180 };
+  const authored = { ...upper, lifting: [bench], adaptivePlan: { version: 1, goal: "strength", experience: "intermediate" } };
+  const custom = { ...program, Thursday: authored, Friday: authored };
+  const frozen = { dateKey: DAY, day: { ...authored, adaptation: { dateKey: DAY, status: "reduce" }, lifting: [{ ...bench, sets: 2,
+    adaptivePrescription: { exerciseName: bench.name, kind: "hold_for_quality", mode: "loaded_reps",
+      targetSets: 2, baseSets: 3, repRange: { min: 6, max: 8 }, targetWeight: 150, targetReps: [6, 6] } }] } };
+
+  it("sends frozen weights and effort prompts while future days keep their own work sets", () => {
+    const data = { [DAY]: { workout: { customPlanSnapshot: frozen } } };
+    const week = buildWatchWeek({ data, program: custom, todayKey: DAY, wearableScore: 10, days: 2 });
+    expect(week.days[0].sessions[0].exercises[0]).toMatchObject({ targetRir: "2", sets: [
+      { values: { weight: 150, reps: 6 } }, { values: { weight: 150, reps: 6 } },
+    ] });
+    expect(week.days[1].sessions[0].exercises[0].sets).toHaveLength(3);
+  });
+
+  it("a shared rest verdict also clears the day's planned run on the watch", () => {
+    const mixed = { ...custom, Thursday: { ...authored, cardio: { type: "Easy Run", miles: 2, effort: "Easy" } } };
+    const watch = buildWatchWeek({ program: mixed, todayKey: DAY, readiness: "rest" });
+    expect(watch.sessions).toEqual([]);
+    expect(watch.runs).toEqual([]);
+    expect(watch.days[1].sessions[0].exercises).toHaveLength(1);
+  });
+
+  it("keeps late extra sets beyond the recovered budget and distinguishes zero RIR from unrecorded", () => {
+    const data = { [DAY]: { workout: { customPlanSnapshot: frozen } } };
+    const events = [setEvent("last", 2, { weight: 155, reps: 6, rir: 0 }), setEvent("first", 0, { weight: 155, reps: 7 }),
+      setEvent("off-plan", 9, { weight: 155, reps: 7 })];
+    const result = applyWatchEvents({ data, program: custom, currentDateKey: "2026-11-27", events });
+    const sets = result.days[DAY].workout.exercises["Bench Press"].sets;
+    expect(result.applied).toBe(2);
+    expect(sets).toHaveLength(3);
+    expect(sets[2]).toMatchObject({ done: true, reps: "6", rir: "0" });
+    expect(sets[0].rir).toBe("");
+  });
+
+  it("freezes a snapshot only when the watch logs a valid set", () => {
+    const invalid = setEvent("invalid", 0, { reps: 8 });
+    const event = setEvent("accepted", 0, { weight: 100, reps: 8, rir: 2 });
+    expect(applyWatchEvents({ program: custom, currentDateKey: DAY, events: [invalid] }).writes).toHaveLength(0);
+    const result = applyWatchEvents({ program: custom, currentDateKey: DAY, events: [invalid, event] });
+    expect(result.days[DAY].workout.customPlanSnapshot.day.adaptation.dateKey).toBe(DAY);
+    expect(result.days[DAY].workout.exercises["Bench Press"].sets[0].rir).toBe("2");
+  });
+
+  it("records a legitimate offline set even if the phone now recommends rest", () => {
+    const data = { [DAY]: { intelligence: { physiqueOS: { safetyFlag: true } } } };
+    expect(buildWatchWeek({ data, program: custom, todayKey: DAY, days: 1 }).sessions).toHaveLength(0);
+    const result = applyWatchEvents({ data, program: custom, currentDateKey: DAY,
+      events: [setEvent("done", 0, { weight: 155, reps: 6 })] });
+    expect(result.applied).toBe(1);
+    expect(result.days[DAY].workout.customPlanSnapshot.day.adaptation.status).toBe("safety");
+    const watched = buildWatchPlan({ data: result.days, program: custom, dateKey: DAY });
+    expect(watched.sessions[0].exercises[0].sets).toHaveLength(1);
+    expect(watched.sessions[0].exercises[0].sets[0].done).toBe(true);
+  });
+});
+
 describe("applyWatchEvents", () => {
   it("writes a logged set the way the runner does", () => {
     const result = applyWatchEvents({ data: {}, program, events: [setEvent("a", 0, { weight: 185, reps: 8 })] });

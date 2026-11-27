@@ -245,8 +245,10 @@ function mixedLoadPrescription({ exercise, mode, sessions, range, targetSets, in
 export function formatPrescription(prescription) {
   if (!prescription) return "No target yet";
   if (Array.isArray(prescription.targetWeights)) {
+    const unit = prescription.mode === TRACKING_MODES.ASSISTED_REPS ? "lb assist" : "lb";
+    const targetUnit = prescription.mode === TRACKING_MODES.CARRY ? " yd" : "";
     return prescription.targetWeights.map((weight, index) =>
-      `${weight} lb × ${prescription.targetReps[index]}`).join(" / ");
+      `${weight} ${unit} × ${prescription.targetReps[index]}${targetUnit}`).join(" / ");
   }
   const reps = Array.isArray(prescription.targetReps) && prescription.targetReps.length
     ? prescription.targetReps.join(" / ")
@@ -300,10 +302,13 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
 
   const effort = effortRange(exercise.rir);
   const twoVisits = exercise.progressionExposures === 2;
+  const carry = mode === TRACKING_MODES.CARRY;
+  const assisted = mode === TRACKING_MODES.ASSISTED_REPS;
+  const measure = set => mode === TRACKING_MODES.TIMED_HOLD ? set.duration : carry ? set.distance : set.reps;
+  const resistance = set => assisted ? set.assistance : set.weight;
   const cleanCeiling = (session) => Boolean(session && !session.pain && session.worstQuality !== "form_break" &&
     session.sets.length >= targetSets && session.sets.slice(0, targetSets).every(set =>
-      (mode === TRACKING_MODES.TIMED_HOLD ? set.duration : set.reps) >= range.max &&
-      set.weight === last.weight && (!effort || set.rir != null) && !grindingSet(set, effort)));
+      measure(set) >= range.max && resistance(set) === resistance(last.sets[0]) && (!effort || set.rir != null) && !grindingSet(set, effort)));
   const repeatCeiling = twoVisits && !cleanCeiling(sessions[1]);
   if (mode === TRACKING_MODES.TIMED_HOLD) {
     const advanceVariation = leverage && cleanCeiling(last) && !repeatCeiling;
@@ -318,17 +323,34 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
     }), mode };
   }
 
+  if (twoVisits && (carry || assisted) && last.sets.some(set => resistance(set) !== resistance(last.sets[0]))) {
+    // Varying sled loads or assistance settings are separate set targets.
+    const values = last.sets.map(resistance);
+    const fallback = assisted ? Math.max(...values) : Math.min(...values);
+    const targetWeights = Array.from({ length: targetSets }, (_, i) => {
+      const set = last.sets.find(item => item.slot === i);
+      const value = set ? resistance(set) : fallback;
+      if (!adverseTechnique) return value;
+      return assisted ? value + increment : Math.max(Math.min(increment, value), value - increment);
+    });
+    return { ...prescriptionBase({
+      kind: assisted ? "assistance_hold" : "carry_progress", exercise, sessions, range, targetSets,
+      targetReps: Array(targetSets).fill(range.min), rationale: "Keep each set’s equipment setting. Use the lower end of the target range.",
+    }), mode, targetWeights };
+  }
   if (mode === TRACKING_MODES.CARRY) {
+    const advance = twoVisits ? cleanCeiling(last) && !repeatCeiling : hitUpper;
     const distances = last.sets.map((set) => set.distance || set.duration);
-    const targetReps = nextRepTargets({ reps: distances }, range, targetSets);
-    const targetWeight = adverseTechnique ? Math.max(0, last.weight - increment) : hitUpper ? last.weight + increment : last.weight;
+    const targetReps = twoVisits && (advance || adverseTechnique) ? Array(targetSets).fill(range.min) : nextRepTargets({ reps: distances }, range, targetSets);
+    const targetWeight = adverseTechnique ? Math.max(Math.min(last.weight, increment), last.weight - increment) : advance ? last.weight + increment : last.weight;
     return { ...prescriptionBase({
       kind: "carry_progress", exercise, sessions, range, targetSets, targetWeight, targetReps,
-      rationale: adverseTechnique ? "Reduce the carry load and restore posture and gait." : hitUpper ? "Distance target is complete; add the smallest practical load increase." : "Hold load and add distance to one set.",
+      rationale: adverseTechnique ? "Reduce the carry load and restore posture and gait." : advance ? "Distance target is complete; add the smallest practical load increase." : "Hold load and add distance to one set.",
     }), mode };
   }
 
   if (mode === TRACKING_MODES.ASSISTED_REPS) {
+    const advance = twoVisits ? cleanCeiling(last) && !repeatCeiling : hitUpper;
     const assistance = last.sets[0]?.assistance || 0;
     if (adverseTechnique) {
       return { ...prescriptionBase({
@@ -337,10 +359,10 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
       }), mode };
     }
     return { ...prescriptionBase({
-      kind: hitUpper ? "assistance_down" : "assistance_hold", exercise, sessions, range, targetSets,
-      targetWeight: Math.max(0, assistance - (hitUpper ? increment : 0)),
-      targetReps: hitUpper ? Array(targetSets).fill(range.min) : nextRepTargets(last, range, targetSets),
-      rationale: hitUpper ? "All sets reached the upper rep target; reduce assistance one step." : "Keep assistance and add one clean rep.",
+      kind: advance ? "assistance_down" : "assistance_hold", exercise, sessions, range, targetSets,
+      targetWeight: Math.max(0, assistance - (advance ? increment : 0)),
+      targetReps: advance ? Array(targetSets).fill(range.min) : nextRepTargets(last, range, targetSets),
+      rationale: advance ? "All sets reached the upper rep target; reduce assistance one step." : "Keep assistance and add one clean rep.",
     }), mode };
   }
 

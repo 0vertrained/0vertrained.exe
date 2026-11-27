@@ -14,11 +14,11 @@ import { isNativeApp, nativePlugin } from "../native";
 const SEND_DELAY_MS = 400;
 
 // `ready`: the account's own data is loaded, so writes land on real days.
-export function useWatchBridge({ ready, data, program, updateEntryAtDate }) {
+export function useWatchBridge({ ready, data, program, wearableScore, readiness, updateEntryAtDate }) {
   const native = isNativeApp() && Boolean(nativePlugin("OTWatch"));
   // What the drains read: the latest render's data and writer.
-  const latest = useRef({ data, program, updateEntryAtDate });
-  useEffect(() => { latest.current = { data, program, updateEntryAtDate }; });
+  const latest = useRef({ data, program, wearableScore, readiness, updateEntryAtDate });
+  useEffect(() => { latest.current = { data, program, wearableScore, readiness, updateEntryAtDate }; });
   // Ids of the watch events dealt with, sent back in the plan so the watch
   // stops showing those sets as its own. Bumping the version resends it.
   const seen = useRef([]);
@@ -58,7 +58,7 @@ export function useWatchBridge({ ready, data, program, updateEntryAtDate }) {
           if (cancelled || events.length === 0) break;
           const { applyWatchEvents } = await import("./watchPlan");
           const state = latest.current.data || {};
-          const result = applyWatchEvents({ data: currentData(), program: latest.current.program, events });
+          const result = applyWatchEvents({ data: currentData(), program: latest.current.program, currentDateKey: getTodayKey(), wearableScore: latest.current.wearableScore, readiness: latest.current.readiness, events });
           for (const [dateKey, day] of Object.entries(result.days)) {
             written.current[dateKey] = { base: state[dateKey], day };
           }
@@ -97,7 +97,7 @@ export function useWatchBridge({ ready, data, program, updateEntryAtDate }) {
       try {
         const { buildWatchWeek } = await import("./watchPlan");
         if (cancelled) return;
-        const week = buildWatchWeek({ data, program, todayKey, seen: seen.current });
+        const week = buildWatchWeek({ data, program, todayKey, wearableScore, readiness, seen: seen.current });
         const { sentAt, ...content } = week;
         void sentAt;
         const signature = JSON.stringify(content);
@@ -109,7 +109,7 @@ export function useWatchBridge({ ready, data, program, updateEntryAtDate }) {
       }
     }, SEND_DELAY_MS);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [native, ready, data, program, todayKey, seenVersion]);
+  }, [native, ready, data, program, todayKey, wearableScore, readiness, seenVersion]);
 }
 
 export default useWatchBridge;

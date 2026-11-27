@@ -102,7 +102,7 @@ export function fillOptions({ setIndex = 0, sets = [], exercise = {}, prescripti
   }
 
   const slot = lastRaw?.sets?.length ? (lastRaw.sets[setIndex] || lastRaw.sets[lastRaw.sets.length - 1]) : null;
-  if (slot && fields.some((field) => positive(slot[field.prop]))) {
+  if (slot && !(exercise.adaptivePrescription && prescription?.targetWeight == null && !prescription?.targetWeights) && fields.some((field) => positive(slot[field.prop]))) {
     const values = {};
     for (const field of fields) if (filled(slot[field.prop])) values[field.prop] = String(slot[field.prop]);
     options.push({ key: "last", name: "Last time", source: "Filled from last time", values });

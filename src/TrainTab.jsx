@@ -137,9 +137,11 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
     return (
       <ProgramBuilderPanel
         settings={settings}
+        hasRacePlan={hasRacePlan}
         initialGoal={settings?.programBuilder?.goal || undefined}
         onApply={async (payload) => {
-          const ok = await onApplyGeneratedProgram({ ...payload, program: keepRacePlan(program, payload.program) });
+          const generated = payload.keepExistingRace === false ? payload.program : keepRacePlan(program, payload.program);
+          const ok = await onApplyGeneratedProgram({ ...payload, program: generated });
           if (ok !== false) setView("program");
         }}
       />

@@ -83,7 +83,15 @@ export function defaultSetForExercise(exercise = {}) {
 }
 
 export function reconcileExerciseSets(exercise = {}, existingSets = []) {
-  const targetCount = Math.max(0, Number.parseInt(exercise.sets, 10) || 0);
+  let targetCount = Math.max(0, Number.parseInt(exercise.sets, 10) || 0);
+  // An offline watch can return a performed set beyond a reduced phone target.
+  // Keep the recorded slots when editing, including partly entered work.
+  if (exercise.adaptivePrescription) {
+    for (let index = targetCount; index < existingSets.length; index++) {
+      const set = existingSets[index];
+      if (set?.done || ["weight", "reps", "assistance", "duration", "distance", "rir"].some(key => String(set?.[key] ?? "").trim())) targetCount = index + 1;
+    }
+  }
   return Array.from({ length: targetCount }, (_, index) => ({
     ...defaultSetForExercise(exercise),
     ...(existingSets[index] || {}),

@@ -145,6 +145,11 @@ export function getColor(score) {
 // Rolling personal baseline for the subjective recovery score: trailing-window
 // mean and (sample) SD, so the decision layer can ask "is this low FOR YOU?"
 // rather than only "is this low in absolute terms?".
+function hasSubjectiveCheckIn(entry) {
+  const body = entry?.body;
+  return [body?.sleep, body?.soreness, body?.energy].some(value => Number.parseFloat(value) > 0);
+}
+
 export function computeRecoveryBaseline(data, refDateKey = null, days = PERSONALIZATION.windowDays) {
   if (!data) return { mean: 0, sd: 0, n: 0 };
   const end = refDateKey ? new Date(`${refDateKey}T12:00:00`) : new Date();
@@ -152,7 +157,7 @@ export function computeRecoveryBaseline(data, refDateKey = null, days = PERSONAL
   for (let i = 0; i < days; i++) {
     const d = new Date(end); d.setDate(end.getDate() - i);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (!data[key]) continue;
+    if (!hasSubjectiveCheckIn(data[key])) continue;
     const r = calcRecoveryScore(data[key], data, key);
     if (r && Number.isFinite(r.score)) scores.push(r.score);
   }
@@ -166,9 +171,8 @@ export function computeRecoveryBaseline(data, refDateKey = null, days = PERSONAL
 // A morning check-in belongs to the morning on which the athlete entered it.
 // Older diaries logged recovery the previous evening, so fall back to that day.
 export function manualRecoveryForDay(data, day, previousDay) {
-  const body = data?.[day]?.body;
-  const currentInput = [body?.sleep, body?.soreness, body?.energy].some(value => Number.parseFloat(value) > 0);
-  const dayKey = currentInput ? day : previousDay;
+  const dayKey = hasSubjectiveCheckIn(data?.[day]) ? day : previousDay;
+  if (!hasSubjectiveCheckIn(data?.[dayKey])) return null;
   return calcRecoveryScore(data?.[dayKey], data, dayKey);
 }
 

@@ -32,6 +32,16 @@ describe("dayCard", () => {
 });
 
 describe("weekCards", () => {
+  it("uses the frozen day when counting work sets and completed lifts", () => {
+    const authored = { ...program.Thursday, adaptivePlan: { version: 1, goal: "strength", experience: "intermediate" } };
+    const short = { ...authored, lifting: authored.lifting.map(ex => ({ ...ex, sets: 2 })), adaptation: { status: "reduce", dateKey: THU } };
+    const data = { [THU]: { workout: { customPlanSnapshot: { dateKey: THU, day: short },
+      exercises: { Row: { sets: Array.from({ length: 2 }, () => ({ weight: "135", reps: "10", done: true })) } } } } };
+    const cards = weekCards({ program: { ...program, Thursday: authored, Friday: authored }, data, todayKey: THU, days: 2 });
+    expect(cards[0].detail).toContain("1 of 2 exercises done · 4 work sets");
+    expect(cards[1].detail).toContain("2 exercises · 6 work sets");
+  });
+
   it("is today and the next six days", () => {
     expect(weekCards({ program, todayKey: THU }).map((card) => card.date)).toEqual([
       "2026-11-26", "2026-11-27", "2026-11-28", "2026-11-29", "2026-11-30", "2026-12-01", "2026-12-02",

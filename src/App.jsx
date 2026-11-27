@@ -7,7 +7,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { ThemeProvider, useTheme } from "./theme";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName, presetProgram } from "./constants";
-import { applyRaceBuild } from "./raceBuild";
+import { recoveryVerdictFromLoad } from "./sharedCall";
+import { shiftDate } from "./coachWindows";
+import { liveTrainingWeek, snapshotOnTrainingWrite } from "./customTrainingDay";
 import { detectDayZero } from "./dayZero";
 import { readOAuthReturn, cleanOAuthReturnUrl } from "./oauthReturn";
 import { logFunnelEvent } from "./funnel";
@@ -588,8 +590,17 @@ function AppInner({ onThemeChange }) {
   const todayData = data[todayKey] || defaultDay();
   // Race-build overlay: consuming surfaces see the current build week;
   // Train's program screens keep the raw template so edits target the source of truth.
-  const liveProgram = useMemo(() => applyRaceBuild(program, todayKey), [program, todayKey]);
-  const recoveryProgram = todayKey === currentDayKey ? liveProgram : applyRaceBuild(program, currentDayKey);
+  // Use the same dated wearable warnings, sleep debt and check-in ceiling
+  // displayed on Recovery when deciding whether today's loads can advance.
+  const customReadiness = useMemo(() => {
+    if (!Object.values(program || {}).some(day => day?.adaptivePlan)) return undefined;
+    const verdict = recoveryVerdictFromLoad(currentLoad, { data, todayKey: currentDayKey,
+      yesterdayKey: shiftDate(currentDayKey, -1), settings });
+    return { capped: "moderate", easy: "pull_back", recover: "rest" }[verdict?.call];
+  }, [program, currentLoad, data, settings, currentDayKey]);
+  const liveProgram = useMemo(() => liveTrainingWeek({ program, data, dateKey: todayKey, currentDateKey: currentDayKey, wearableScore: ouraRecovery, readiness: customReadiness }),
+    [program, data, todayKey, currentDayKey, ouraRecovery, customReadiness]);
+  const recoveryProgram = todayKey === currentDayKey ? liveProgram : liveTrainingWeek({ program, data, dateKey: currentDayKey, currentDateKey: currentDayKey, wearableScore: ouraRecovery, readiness: customReadiness });
 
   // Debounced per-day save with offline retry queue
   const scheduleSave = useCallback((dateKey, dayPayload) => {
@@ -720,7 +731,8 @@ function AppInner({ onThemeChange }) {
   const updateEntryAtDate = (dateKey, path, value) => {
     setData(prev => {
       const current = prev[dateKey] || defaultDay();
-      const updated = setPath(current, path.split("."), value);
+      const beforeEdit = snapshotOnTrainingWrite({ entry: current, program, data: prev, dateKey, currentDateKey: currentDayKey, wearableScore: ouraRecovery, readiness: customReadiness, path });
+      const updated = setPath(beforeEdit, path.split("."), value);
       const next = { ...prev, [dateKey]: updated };
       // Optimistically cache local edits so a reload does not drop visible work
       // while a debounced/offline save is still pending. Only once the
@@ -737,10 +749,10 @@ function AppInner({ onThemeChange }) {
 
   // In the iPhone app: today's lifting to the watch, and the sets logged on
   // the watch into the log. Nothing in a browser.
-  useWatchBridge({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, updateEntryAtDate });
+  useWatchBridge({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, wearableScore: ouraRecovery, readiness: customReadiness, updateEntryAtDate });
   useWatchRuns({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, updateEntryAtDate, showToast });
   useHealthDaily({ ready: accountReady && !demoMode && Boolean(user?.id), data, wearables: Boolean(settings?.ouraConnected || settings?.whoopConnected), updateEntryAtDate });
-  useWidgetCards({ ready: accountReady && !demoMode && Boolean(user?.id), data, program });
+  useWidgetCards({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, wearableScore: ouraRecovery, readiness: customReadiness });
   useHealthWrite({ ready: accountReady && !demoMode && Boolean(user?.id), data });
   useMorningPlan({ ready: accountReady && !demoMode && Boolean(user?.id), program });
   // The app's light taps on controls follow the runner's haptics setting.
@@ -960,13 +972,10 @@ function AppInner({ onThemeChange }) {
   // generated program via the existing program path AND merges the builder
   // preferences into settings.programBuilder WITHOUT clobbering other settings.
   const handleApplyGeneratedProgram = async ({ program: generatedProgram, preferences }) => {
-    const mergedSettings = {
-      ...settings,
-      programBuilder: { ...(settings.programBuilder || {}), ...(preferences || {}) },
-    };
+    const builderPatch = { programBuilder: { ...settingsRef.current.programBuilder, ...preferences } };
     if (demoMode) {
       setProgram(generatedProgram);
-      setSettings(mergedSettings);
+      setSettings(prev => ({ ...prev, ...builderPatch }));
       showToast("Demo plan applied locally");
       return true;
     }
@@ -975,12 +984,12 @@ function AppInner({ onThemeChange }) {
     if (res.error) { setSaving(false); showToast(res.error || "Program save error"); return false; }
     // Program is saved; persist preferences too. If preferences fail we keep the
     // applied program and surface a softer message rather than rolling back.
-    const sres = await saveSettings(mergedSettings);
+    const sres = await patchSettings(builderPatch);
     setSaving(false);
     setProgram(generatedProgram);
-    setSettings(mergedSettings);
-    if (user?.id) {
-      writeCache(user.id, { entries: data, program: generatedProgram, settings: mergedSettings, myUsername });
+    setSettings(prev => ({ ...prev, ...builderPatch }));
+    if (user?.id && accountReadyRef.current) {
+      writeCache(user.id, { entries: data, program: generatedProgram, settings: { ...settingsRef.current, ...builderPatch }, myUsername });
     }
     showToast(sres?.error ? "Plan applied · prefs not saved" : "Plan applied");
     return true;

@@ -15,12 +15,13 @@
 // This module GENERATES and PREVIEWS plans. It never persists. Applying a plan
 // is an explicit user action wired in App.jsx / the builder panel / onboarding.
 
-import { DAYS } from "./constants";
+import { DAYS, PROGRAM_PRESETS } from "./constants";
 import {
   selectExercises,
-  buildCardio,
   isCompoundPattern,
   exercisePrescription,
+  findLibraryExercise,
+  EXERCISES,
 } from "./programExerciseLibrary";
 import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
 
@@ -31,6 +32,7 @@ export const PROGRAM_BUILDER_GOALS = [
   { id: "strength",      label: "Strength",       desc: "Squat, bench, deadlift and press. Heavier, lower reps, more rest between." },
   { id: "endurance",     label: "Running / endurance", desc: "Miles first. Mostly easy running with a weekly long run and light strength support." },
   { id: "hybrid",        label: "Hybrid",         desc: "Lift and run seriously. Lower-body work spaced away from the hard runs." },
+  { id: "cardio_only",   label: "Cardio only", desc: "Time-based aerobic sessions using your preferred activity." },
   { id: "fat_loss",      label: "Fat loss / recomp", desc: "Hold muscle in a deficit. Full-body or upper/lower strength with more cardio." },
 ];
 export const PROGRAM_BUILDER_GOAL_IDS = PROGRAM_BUILDER_GOALS.map((g) => g.id);
@@ -43,9 +45,14 @@ export { DAYS };
 export const EQUIPMENT_OPTIONS = [
   { id: "full_gym",   label: "Full gym",       desc: "Barbells, dumbbells, machines and cables." },
   { id: "dumbbells",  label: "Dumbbells only", desc: "Adjustable or fixed dumbbells, plus bodyweight." },
+  { id: "barbell", label: "Barbell and plates", desc: "Straight bar, plates and floor space." },
+  { id: "free_weights", label: "Free weights with rack and bench", desc: "Straight bar, rack, bench, plates and dumbbells." },
   { id: "bodyweight", label: "Bodyweight",     desc: "No equipment — home or travel friendly." },
-  { id: "mixed",      label: "Mixed / unsure", desc: "A bit of everything, or not sure yet." },
+  { id: "calisthenics", label: "Calisthenics bars", desc: "Bodyweight, secure high and low bars, a bench or step, and towels for sliding curls." },
+  { id: "machines", label: "Machines and cables", desc: "Selectorized machines, plate-loaded machines and cable stations." },
+  { id: "mixed", label: "Choose my equipment", desc: "Combine the equipment you have with floor exercises." },
 ];
+export const EQUIPMENT_COMBINATIONS = EQUIPMENT_OPTIONS.filter(e => !["full_gym", "bodyweight", "mixed"].includes(e.id));
 export const EQUIPMENT_IDS = EQUIPMENT_OPTIONS.map((e) => e.id);
 
 export const EXPERIENCE_LEVELS = [
@@ -66,6 +73,14 @@ export const CARDIO_PREFERENCES = [
 export const CARDIO_PREFERENCE_IDS = CARDIO_PREFERENCES.map((c) => c.id);
 
 // Goals that inherently involve running/cardio scheduling.
+export const CARDIO_MODALITIES = [
+  { id: "mixed", label: "Mixed cardio" }, { id: "run", label: "Running" }, { id: "walk", label: "Walking" },
+  { id: "bike", label: "Cycling" }, { id: "row", label: "Rowing" }, { id: "elliptical", label: "Elliptical" },
+];
+const GUIDE_FOR_GOAL = {
+  bodybuilding: "upperLowerGrowth", strength: "barbellStrength", hybrid: "balancedHybrid",
+  basic_fitness: "foundation", fat_loss: "foundation", endurance: "cardioBase", cardio_only: "cardioBase",
+};
 const RUNNING_GOALS = ["endurance", "hybrid"];
 export function goalUsesRunning(goal) {
   return RUNNING_GOALS.includes(goal);
@@ -86,11 +101,12 @@ export function mapOnboardingGoalToBuilderGoal(goal) {
 // Recommendations
 const GOAL_DEFAULT_DAYS = {
   basic_fitness: 3,
-  bodybuilding: 5,
-  strength: 4,
+  bodybuilding: 4,
+  strength: 3,
   endurance: 4,
-  hybrid: 5,
+  hybrid: 4,
   fat_loss: 4,
+  cardio_only: 4,
 };
 export function recommendTrainingDaysForGoal(goal) {
   return GOAL_DEFAULT_DAYS[goal] || 4;
@@ -98,11 +114,12 @@ export function recommendTrainingDaysForGoal(goal) {
 
 const GOAL_DEFAULT_CARDIO = {
   basic_fitness: "light",
-  bodybuilding: "light",
+  bodybuilding: "none",
   strength: "none",
   endurance: "high",
   hybrid: "moderate",
   fat_loss: "moderate",
+  cardio_only: "moderate",
 };
 export function recommendCardioPreference(goal) {
   return GOAL_DEFAULT_CARDIO[goal] || "light";
@@ -139,9 +156,14 @@ export function normalizeProgramBuilderInput(input = {}) {
   const goal = PROGRAM_BUILDER_GOAL_IDS.includes(input.goal) ? input.goal : "hybrid";
   const trainingDaysPerWeek = clampTrainingDays(input.trainingDaysPerWeek, goal);
   const equipment = EQUIPMENT_IDS.includes(input.equipment) ? input.equipment : "full_gym";
+  const equipmentChoices = Array.isArray(input.equipmentChoices)
+    ? EQUIPMENT_COMBINATIONS.filter(option => input.equipmentChoices.includes(option.id)).map(option => option.id)
+    : equipment === "mixed" ? EQUIPMENT_COMBINATIONS.map(option => option.id) : [];
   const experience = EXPERIENCE_IDS.includes(input.experience) ? input.experience : "intermediate";
   const sessionLength = SESSION_LENGTH_OPTIONS.includes(Number(input.sessionLength)) ? Number(input.sessionLength) : 60;
   const usesRunning = goalUsesRunning(goal);
+  const cardioModality = CARDIO_MODALITIES.some(option => option.id === input.cardioModality) ? input.cardioModality : "mixed";
+  const adaptiveTraining = input.adaptiveTraining !== false;
 
   const cardioPreference = CARDIO_PREFERENCE_IDS.includes(input.cardioPreference)
     ? input.cardioPreference
@@ -169,7 +191,7 @@ export function normalizeProgramBuilderInput(input = {}) {
   // Intervals only for goals/experience where a quality day is sensible.
   const includeIntervals = typeof input.includeIntervals === "boolean"
     ? input.includeIntervals
-    : (usesRunning && experience !== "beginner" && (cardioPreference === "moderate" || cardioPreference === "high"));
+    : ((usesRunning || goal === "cardio_only") && experience !== "beginner" && (cardioPreference === "moderate" || cardioPreference === "high"));
 
   return {
     goal,
@@ -177,9 +199,12 @@ export function normalizeProgramBuilderInput(input = {}) {
     restDays,
     longRunDay,
     equipment,
+    equipmentChoices,
     experience,
     sessionLength,
     cardioPreference,
+    cardioModality,
+    adaptiveTraining,
     includeIntervals,
     weekIndex: Number.isFinite(Number(input.weekIndex)) ? Number(input.weekIndex) : 0,
     generatedAt: typeof input.generatedAt === "string" && input.generatedAt ? input.generatedAt : null,
@@ -189,7 +214,7 @@ export function normalizeProgramBuilderInput(input = {}) {
 
 function resolveRestDays(requested, training, goal, longRunDay) {
   const restCount = 7 - training;
-  let rest = requested.filter((d) => !(goalUsesRunning(goal) && d === longRunDay));
+  let rest = [...requested];
 
   if (rest.length > restCount) {
     // Too many hard rest days for the training volume — keep the most-preferred.
@@ -234,7 +259,7 @@ const GOAL_TEMPLATES = {
     2: ["full_body", "full_body"],
     3: ["full_body", "full_body", "full_body"],
     4: ["upper", "lower", "upper", "lower"],
-    5: ["chest", "back", "legs", "shoulders", "arms"],
+    5: ["upper", "lower", "upper", "lower", "upper_accessory"],
     6: ["push", "pull", "legs", "push", "pull", "legs"],
   },
   strength: {
@@ -252,9 +277,9 @@ const GOAL_TEMPLATES = {
     6: ["easy_run", "full_body", "quality_run", "easy_run", "full_body_light", "long_run"],
   },
   hybrid: {
-    2: ["upper", "long_run"],
-    3: ["upper", "lower", "long_run"],
-    4: ["upper", "easy_run", "lower", "long_run"],
+    2: ["full_body", "long_run"],
+    3: ["full_body", "full_body", "long_run"],
+    4: ["full_body", "easy_run", "full_body", "long_run"],
     5: ["upper", "easy_run", "lower", "pull", "long_run"],
     6: ["upper", "easy_run", "lower", "quality_run", "pull", "long_run"],
   },
@@ -299,7 +324,19 @@ export function buildWeeklySchedule(input) {
   const { goal, restDays, longRunDay, includeIntervals } = norm;
 
   const trainingDays = DAYS.filter((d) => !restDays.includes(d));
-  let roles = templateRoles(goal, trainingDays.length);
+  let roles = goal === "cardio_only" ? trainingDays.map((_, i) =>
+    includeIntervals && norm.experience !== "beginner" && trainingDays.length >= 3 && i === 1 ? "quality_run" : "easy_run")
+    : templateRoles(goal, trainingDays.length);
+  if (!goalUsesRunning(goal) && goal !== "cardio_only") {
+    const target = CARDIO_PREFERENCES.find(p => p.id === norm.cardioPreference).sessions;
+    let cardioSlots = target - (target > 0 && roles.includes("active_recovery") ? 1 : 0);
+    roles = roles.map(role => {
+      if (!CARDIO_ROLES.has(role)) return role;
+      if (cardioSlots <= 0) return "full_body_light";
+      cardioSlots -= 1;
+      return role;
+    });
+  }
   // Guard: if a template is short/long, pad or trim to the actual training-day count.
   while (roles.length < trainingDays.length) roles.push(goalUsesRunning(goal) ? "easy_run" : "full_body");
   if (roles.length > trainingDays.length) roles = roles.slice(0, trainingDays.length);
@@ -327,12 +364,14 @@ export function buildWeeklySchedule(input) {
   return schedule;
 }
 
-// Count adjacency violations across the calendar week (no weekend wrap).
+// Include the boundary when this seven-day schedule repeats.
 function scoreSchedule(roleByDay, restDays, includeIntervals) {
   let score = 0;
-  for (let i = 0; i < DAYS.length - 1; i++) {
+  for (let i = 0; i < DAYS.length; i++) {
     const a = restDays.includes(DAYS[i]) ? null : roleByDay[DAYS[i]];
-    const b = restDays.includes(DAYS[i + 1]) ? null : roleByDay[DAYS[i + 1]];
+    const following = DAYS[(i + 1) % DAYS.length];
+    const b = restDays.includes(following) ? null : roleByDay[following];
+    if (a === "full_body" && b === "full_body") score += 1;
     if (!a || !b) continue;
     if (roleIsHeavyLower(a) && b === "long_run") score += 4;       // heavy legs before long run
     if (roleIsHeavyLower(a) && (b === "quality_run" || b === "tempo_run")) score += 3; // intervals after heavy lower
@@ -370,42 +409,49 @@ function improveScheduleSafety(roleByDay, restDays, lockedDay, includeIntervals)
   return map;
 }
 
-// Set/rep schemes
-const GOAL_SCHEME = {
-  strength:      { compound: { sets: 4, reps: 5 }, accessory: { sets: 3, reps: 10 }, main: { sets: 5, reps: 3 } },
-  bodybuilding:  { compound: { sets: 4, reps: 8 }, accessory: { sets: 3, reps: 12 }, main: { sets: 4, reps: 8 } },
-  basic_fitness: { compound: { sets: 3, reps: 8 }, accessory: { sets: 2, reps: 12 }, main: { sets: 3, reps: 8 } },
-  fat_loss:      { compound: { sets: 3, reps: 10 }, accessory: { sets: 3, reps: 12 }, main: { sets: 3, reps: 10 } },
-  hybrid:        { compound: { sets: 4, reps: 6 }, accessory: { sets: 3, reps: 12 }, main: { sets: 4, reps: 6 } },
-  endurance:     { compound: { sets: 3, reps: 8 }, accessory: { sets: 2, reps: 12 }, main: { sets: 3, reps: 8 } },
-};
-
-const EXPERIENCE_ADJUST = {
-  beginner:     { sets: -1, count: -1 },
-  intermediate: { sets: 0,  count: 0 },
-  advanced:     { sets: 1,  count: 1 },
-};
-
-const SESSION_BASE_COUNT = { 30: 4, 45: 5, 60: 6, 75: 7 };
-
-function exerciseCountForSession(sessionLength, experience) {
-  const base = SESSION_BASE_COUNT[sessionLength] || 6;
-  const adj = EXPERIENCE_ADJUST[experience]?.count || 0;
-  return Math.max(3, base + adj);
-}
-
-// Build one { name, sets, reps, notes[, trackingMode] } lifting entry.
-function liftEntry(exercise, { goal, experience, isMain }) {
-  const scheme = GOAL_SCHEME[goal] || GOAL_SCHEME.hybrid;
-  const band = isMain ? scheme.main : (isCompoundPattern(exercise.pattern) ? scheme.compound : scheme.accessory);
-  const setsAdj = EXPERIENCE_ADJUST[experience]?.sets || 0;
-  const sets = Math.max(2, band.sets + (isCompoundPattern(exercise.pattern) ? setsAdj : Math.min(0, setsAdj)));
+// Ranges and rests mirror the published plans, including an easier starting
+// effort for a novice. Fixed time/distance prescriptions keep their own units.
+function liftEntry(exercise, ctx, preferred, isMain = false) {
   const entry = exercisePrescription(exercise.name);
   const mode = resolveTrackingMode(entry);
-  entry.sets = sets;
-  // Seconds and yards are stored in the same numeric target field as reps.
-  if (mode !== TRACKING_MODES.TIMED_HOLD && mode !== TRACKING_MODES.CARRY) entry.reps = band.reps;
-  return entry;
+  const compound = isCompoundPattern(exercise.pattern);
+  const loaded = mode === TRACKING_MODES.LOADED_REPS;
+  const beginner = ctx.experience === "beginner";
+  const strengthMain = ctx.goal === "strength" && isMain && loaded && !beginner;
+  const timed = mode === TRACKING_MODES.TIMED_HOLD || mode === TRACKING_MODES.CARRY;
+  const matched = preferred?.name === exercise.name;
+  const reserve = beginner ? 3 : ctx.goal === "bodybuilding" && !compound ? 1 : 2;
+  const reps = timed ? entry.reps : strengthMain ? 5 : matched ? preferred.reps : compound ? 12 : 15;
+  const repMin = timed ? Math.max(1, Math.round(reps * 2 / 3)) : strengthMain ? 3 :
+    matched ? preferred.repMin : compound && loaded ? 6 : compound ? 8 : 10;
+  const sets = beginner ? 2 : preferred?.sets || (compound ? 3 : 2);
+  const restSeconds = strengthMain ? 180 : matched ? preferred.restSeconds : compound ? 120 : 90;
+  const leverage = mode === TRACKING_MODES.BODYWEIGHT_REPS || mode === TRACKING_MODES.TIMED_HOLD;
+  return { ...entry, sets, reps, repMin, restSeconds, progressionExposures: 2,
+    ...(!timed && { rir: strengthMain ? 2 : reserve }),
+    ...(leverage && { progressionMode: "leverage" }),
+    ...(matched && { notes: preferred.notes }),
+  };
+}
+
+function sessionMinutes(lifting) {
+  // Five minutes to warm up, one minute per station change, 45 seconds per
+  // work set (double for unilateral work), plus prescribed between-set rests.
+  return lifting.reduce((minutes, lift) => {
+    const seconds = /per (side|leg|arm)|each (side|leg|arm)/i.test(lift.notes) ? 90 : 45;
+    return minutes + 1 + (lift.sets * seconds + (lift.sets - 1) * lift.restSeconds) / 60;
+  }, 5);
+}
+
+function fitToTime(lifting, minutes) {
+  const result = lifting.map(lift => ({ ...lift }));
+  // Protect initial movements and keep at least two sets per movement when possible.
+  while (result.length && sessionMinutes(result) > minutes) {
+    const index = result.findLastIndex(lift => lift.sets > 2);
+    if (index >= 0) result[index].sets -= 1;
+    else result.pop();
+  }
+  return result;
 }
 
 // Role → concrete day
@@ -429,227 +475,158 @@ const LIFT_ROLE_PLANS = {
   upper_accessory:{ type: "Upper Accessory", code: "UPPER ACC", plan: [["horizontalPush", 1], ["horizontalPull", 1], ["lateralDelts", 1], ["biceps", 1], ["triceps", 1]] },
 };
 
-// Small core block attached to interval/recovery cardio days for variety.
-function coreBlock(ctx) {
-  const picks = selectExercises("core", ctx.equipment, ctx.experience, 2, ctx.seed);
-  return picks.map((e) => liftEntry(e, { goal: ctx.goal, experience: ctx.experience, isMain: false }));
+function referenceLifts(role, ctx, occurrence) {
+  const number = occurrence - 1;
+  let id = GUIDE_FOR_GOAL[ctx.goal];
+  let days;
+  if (ctx.goal !== "bodybuilding" && ["bodyweight", "calisthenics"].includes(ctx.equipment) && role.startsWith("full_body")) {
+    id = "bodyweightStrength";
+    days = ["Monday", "Wednesday", "Friday"];
+  } else if (id === "upperLowerGrowth" && ["upper", "lower"].includes(role)) {
+    days = role === "upper" ? ["Monday", "Thursday"] : ["Tuesday", "Friday"];
+  } else if (id === "barbellStrength") {
+    days = { full_body: ["Monday", "Wednesday", "Friday"], squat: ["Monday"], deadlift: ["Wednesday"], bench: ["Friday"] }[role];
+  } else if (role === "full_body" && ["balancedHybrid", "foundation"].includes(id)) {
+    days = ["Monday", "Thursday"];
+  }
+  return days ? PROGRAM_PRESETS[id].program[days[number % days.length]].lifting : null;
 }
 
 function buildLiftingDay(role, ctx, occurrence) {
   const spec = LIFT_ROLE_PLANS[role] || LIFT_ROLE_PLANS.full_body;
-  const maxCount = exerciseCountForSession(ctx.sessionLength, ctx.experience) - (spec.light ? 1 : 0);
-  const seed = ctx.seed;
+  const reference = referenceLifts(role, ctx, occurrence);
+  // Alternate lower-body priorities. With a short session plus a cardio
+  // finisher, the final movement may be trimmed before the athlete sees it.
+  const alternateFullBody = role === "full_body" && ctx.goal === "bodybuilding" && occurrence % 2 === 0;
+  const patterns = alternateFullBody
+    ? [["hinge", 1], ["horizontalPull", 1], ["horizontalPush", 1], ["squat", 1], ...spec.plan.slice(4)] : spec.plan;
+  const slots = reference ? reference.map(preferred => ({ pattern: findLibraryExercise(preferred.name)?.pattern, preferred })) :
+    patterns.flatMap(([pattern, count]) => Array.from({ length: count }, () => ({ pattern })));
   const lifting = [];
-  let filled = 0;
-  let mainDone = false;
-
-  for (const [pattern, count] of spec.plan) {
-    if (filled >= maxCount) break;
-    const take = Math.min(count, maxCount - filled);
-    const picks = selectExercises(pattern, ctx.equipment, ctx.experience, take, seed + filled);
-    picks.forEach((exr) => {
-      if (filled >= maxCount) return;
-      const isMain = spec.main === pattern && !mainDone;
-      if (isMain) mainDone = true;
-      lifting.push(liftEntry(exr, { goal: ctx.goal, experience: ctx.experience, isMain }));
-      filled += 1;
-    });
+  for (const { pattern, preferred } of slots) {
+    const pool = selectExercises(pattern, ctx.equipment, ctx.experience, EXERCISES.length, ctx.seed + lifting.length, ctx.equipmentChoices);
+    const available = pool.filter(ex => !lifting.some(lift => lift.name === ex.name));
+    const preferredPick = available.find(ex => ex.name === preferred?.name);
+    const loadedFocus = ctx.goal === "bodybuilding" || ctx.goal === "strength" || ctx.equipment === "dumbbells";
+    const comparable = loadedFocus ? available.find(ex => ex.equipment !== "bodyweight") : null;
+    const pick = preferredPick || comparable || available[0];
+    if (pick) lifting.push(liftEntry(pick, ctx, preferred, !lifting.length));
   }
-
-  // Deload week: trim the top set off each movement.
-  const adjusted = ctx.deload
-    ? lifting.map((l) => ({ ...l, sets: Math.max(1, l.sets - 1) }))
-    : lifting;
-
-  const letter = occurrence > 1 ? ` ${String.fromCharCode(64 + occurrence)}` : "";
-  return {
-    type: `${spec.type}${letter}${ctx.deload ? " · Deload" : ""}`,
-    code: `${spec.code}${letter}`.trim(),
-    lifting: adjusted,
-    cardio: null,
-  };
-}
-
-// Miles scaling by experience for run days.
-const RUN_MILES = {
-  beginner:     { easy: 3, long: 5, tempo: 3, quality: 3 },
-  intermediate: { easy: 4, long: 8, tempo: 5, quality: 5 },
-  advanced:     { easy: 5, long: 11, tempo: 6, quality: 6 },
-};
-
-function buildCardioDay(role, ctx) {
-  const miles = RUN_MILES[ctx.experience] || RUN_MILES.intermediate;
-  const volMul = ctx.deload ? 0.7 : (ctx.volumeBump ? 1.1 : 1);
-  const round = (m) => Math.round(m * volMul * 10) / 10;
-  const deloadNote = ctx.deload ? " Deload week — keep it easy and short." : "";
-
-  if (role === "long_run") {
-    return { type: "Long Run", code: "LONG", lifting: [], cardio: buildCardio("long_run", { miles: round(miles.long), notes: (ctx.variantNote || CardioNoteFor("long_run", ctx.weekIndex)) + deloadNote }) };
-  }
-  if (role === "tempo_run") {
-    return { type: "Tempo Run", code: "TEMPO", lifting: [], cardio: buildCardio("tempo_run", { miles: round(miles.tempo), notes: CardioNoteFor("tempo_run", ctx.weekIndex) + deloadNote }) };
-  }
-  if (role === "quality_run") {
-    // Alternate hard quality: intervals when the athlete opted in, else hills/tempo.
-    if (ctx.includeIntervals && !ctx.deload) {
-      const key = ctx.weekIndex % 2 === 0 ? "intervals" : "hill_repeats";
-      return { type: CARDIO_LABEL[key], code: "QUALITY", lifting: [], cardio: buildCardio(key, { miles: round(miles.quality) }) };
+  // Sparse equipment can leave an isolation-only session empty. Fill it with
+  // feasible movements from distinct patterns while preserving session order.
+  if (lifting.length < 3) {
+    for (const pattern of ["squat", "horizontalPush", "horizontalPull", "hinge", "core"]) {
+      if (lifting.length >= 3) break;
+      const [pick] = selectExercises(pattern, ctx.equipment, ctx.experience, 1, 0, ctx.equipmentChoices);
+      if (pick && !lifting.some(lift => lift.name === pick.name)) lifting.push(liftEntry(pick, ctx));
     }
-    return { type: "Tempo Run", code: "QUALITY", lifting: [], cardio: buildCardio("tempo_run", { miles: round(miles.tempo), notes: CardioNoteFor("tempo_run", ctx.weekIndex) + deloadNote }) };
   }
-  if (role === "recovery") {
-    return { type: "Recovery + Core", code: "RECOVERY", lifting: coreBlock(ctx), cardio: buildCardio("recovery_walk", { miles: round(2) }) };
-  }
-  // easy_run: rotate easy variants for variety across weeks.
-  const easyKey = ["easy_run", "zone2_run", "incline_walk"][ctx.weekIndex % 3];
-  return { type: CARDIO_LABEL[easyKey], code: "EASY", lifting: [], cardio: buildCardio(easyKey, { miles: round(miles.easy), notes: CardioNoteFor(easyKey, ctx.weekIndex) }) };
+  const adjusted = ctx.deload || spec.light ? lifting.map(lift => ({ ...lift, sets: Math.max(1, lift.sets - 1) })) : lifting;
+  const letter = occurrence > 1 ? ` ${String.fromCharCode(64 + occurrence)}` : "";
+  const restricted = !["full_gym", "free_weights"].includes(ctx.equipment) && !(ctx.equipment === "mixed" && ctx.equipmentChoices.includes("free_weights"));
+  const focus = restricted && { bench: "Horizontal press", press: "Overhead press", deadlift: "Hip hinge", squat: "Squat pattern" }[role];
+  return { type: `${focus || spec.type}${letter}${ctx.deload ? " · Deload" : ""}`, code: `${spec.code}${letter}`.trim(),
+    lifting: fitToTime(adjusted, ctx.sessionLength), cardio: null };
 }
 
-const CARDIO_LABEL = {
-  easy_run: "Easy Run", zone2_run: "Zone 2 Run", incline_walk: "Incline Walk",
-  intervals: "Intervals + Core", hill_repeats: "Hill Repeats", tempo_run: "Tempo Run",
-};
+const MODALITY_NAMES = { run: "Run", walk: "Walk", bike: "Ride", row: "Row", elliptical: "Elliptical" };
 
-function CardioNoteFor(key, weekIndex) {
-  const variants = {
-    easy_run: ["Relaxed aerobic miles — nothing forced.", "Keep it conversational; add strides if you feel good.", "Pure easy volume. Slow is the point."],
-    zone2_run: ["Steady Zone 2 — controlled and sustainable.", "Aerobic base work; hold the pace even on hills.", "Long-ish steady effort at true Zone 2."],
-    incline_walk: ["Brisk incline walk — low impact aerobic work.", "Steady incline, easy on the joints.", "Recovery-friendly aerobic session."],
-    long_run: ["Weekly mileage anchor — easy and conversational.", "Long, steady, aerobic. Fuel before and hydrate.", "Build the aerobic engine; negative-split the last mile if fresh."],
-    tempo_run: ["Comfortably hard sustained effort in the middle.", "Threshold work — controlled discomfort, not a race.", "Steady tempo; hold form as it gets hard."],
-  };
-  const list = variants[key];
-  if (!list) return buildCardio(key).notes;
-  return list[weekIndex % list.length];
+function steadyCardio(modality, minutes, type) {
+  return { type, modality, miles: 0, minutes, effort: "Conversational · RPE 3–4/10",
+    notes: "Start gently and keep the pace easy enough to speak in sentences.",
+    steps: [{ kind: "steady", minutes, intensity: "easy" }] };
+}
+
+function buildCardioDay(role, ctx, occurrence) {
+  const gym = ["full_gym", "machines"].includes(ctx.equipment) || (ctx.equipment === "mixed" && ctx.equipmentChoices.includes("machines"));
+  const rotation = gym ? ["walk", "run", "bike", "elliptical", "row"] : ["walk", "run"];
+  const selected = ctx.goal === "cardio_only" && ctx.cardioModality !== "mixed" ? ctx.cardioModality : null;
+  const modality = selected || (ctx.goal === "cardio_only" ? rotation[(occurrence - 1) % rotation.length] : "run");
+  const quality = (role === "tempo_run" || role === "quality_run") && ctx.includeIntervals && !ctx.deload && ctx.experience !== "beginner";
+  if (quality) {
+    const rounds = ctx.sessionLength < 45 ? 3 : 4;
+    const warmup = rounds === 3 ? 7 : 10;
+    const cooldown = 5;
+    const minutes = warmup + rounds * 4 + (rounds - 1) * 3 + cooldown;
+    return { type: `${MODALITY_NAMES[modality]} intervals`, code: "QUALITY", lifting: [],
+      cardio: { type: `${MODALITY_NAMES[modality]} intervals`, modality, minutes, miles: 0, effort: "Hard and repeatable · RPE 7–8/10",
+        notes: `Warm up for ${warmup} minutes. Complete ${rounds} × 4 minutes brisk with 3 easy minutes between efforts. Cool down for ${cooldown} minutes.`,
+        steps: [{ kind: "warmup", minutes: warmup, intensity: "easy" },
+          { kind: "repeat", reps: rounds, work: { minutes: 4, intensity: "interval" }, recovery: { minutes: 3, intensity: "easy" } },
+          { kind: "cooldown", minutes: cooldown, intensity: "easy" }] } };
+  }
+  const easy = { beginner: 20, intermediate: 30, advanced: 40 }[ctx.experience];
+  const longRun = role === "long_run";
+  const planned = longRun ? easy + 15 : easy;
+  const minutes = Math.min(ctx.sessionLength, ctx.deload ? Math.round(planned * .75) : planned);
+  const type = longRun ? "Long Run" : role === "recovery" ? "Recovery Walk" : `Easy ${MODALITY_NAMES[modality]}`;
+  return { type, code: longRun ? "LONG" : "EASY", lifting: [], cardio: steadyCardio(role === "recovery" ? "walk" : modality, minutes, type) };
 }
 
 function buildActiveRecoveryDay(ctx) {
-  return {
-    type: "Active Recovery",
-    code: "ACTIVE",
-    lifting: coreBlock(ctx),
-    cardio: buildCardio("recovery_walk", { miles: 2, notes: "Optional easy movement or mobility. Genuinely light — this is recovery, not a session." }),
-  };
+  const picks = selectExercises("core", ctx.equipment, "beginner", 2, 0, ctx.equipmentChoices);
+  const lifting = picks.map(pick => ({ ...liftEntry(pick, ctx), sets: 1 }));
+  const minutes = Math.min(15, ctx.sessionLength - Math.ceil(sessionMinutes(lifting)));
+  return { type: "Active Recovery", code: "ACTIVE", lifting,
+    cardio: ctx.cardioPreference === "none" ? null : steadyCardio("walk", minutes, "Recovery Walk") };
 }
 
 function restDay() {
   return { type: "Rest", code: "REST", lifting: [], cardio: null };
 }
 
-// Build the weekly program
-export function buildProgramPlan(input) {
-  const norm = normalizeProgramBuilderInput(input);
+function generateWeek(norm, weekIndex) {
   const schedule = buildWeeklySchedule(norm);
-  const weekIndex = norm.weekIndex;
-  const deload = false; // single-week plan is always a base week; deload comes via buildWeekVariant
-  const seedBase = 3 + weekIndex * 5;
-
+  const adaptive = norm.adaptiveTraining;
+  const deload = !adaptive && weekIndex % 4 === 3;
+  const roleCount = {};
+  let cardioIndex = 0;
   const program = {};
-  const roleOccurrence = {};
+  const cardioDays = DAYS.filter(day => CARDIO_ROLES.has(schedule[day]) || (schedule[day] === "active_recovery" && norm.cardioPreference !== "none")).length;
+  const desired = CARDIO_PREFERENCES.find(p => p.id === norm.cardioPreference).sessions;
+  let finishers = goalUsesRunning(norm.goal) || norm.goal === "cardio_only" ? 0 : Math.max(0, desired - cardioDays);
   for (const day of DAYS) {
     const role = schedule[day];
     if (role === "rest") { program[day] = restDay(); continue; }
-    const ctx = {
-      goal: norm.goal,
-      equipment: norm.equipment,
-      experience: norm.experience,
-      sessionLength: norm.sessionLength,
-      includeIntervals: norm.includeIntervals,
-      weekIndex,
-      deload,
-      volumeBump: false,
-      seed: seedBase + DAYS.indexOf(day),
-    };
-    if (role === "active_recovery") { program[day] = buildActiveRecoveryDay(ctx); continue; }
-    if (CARDIO_ROLES.has(role)) { program[day] = buildCardioDay(role, ctx); continue; }
-    roleOccurrence[role] = (roleOccurrence[role] || 0) + 1;
-    program[day] = buildLiftingDay(role, ctx, roleOccurrence[role]);
+    const ctx = { ...norm, deload, seed: DAYS.indexOf(day) + (adaptive ? 0 : weekIndex % 4 * 5) };
+    roleCount[role] = (roleCount[role] || 0) + 1;
+    let result;
+    if (CARDIO_ROLES.has(role)) result = buildCardioDay(role, ctx, ++cardioIndex);
+    else if (role === "active_recovery") result = buildActiveRecoveryDay(ctx);
+    else {
+      const minutes = finishers > 0 ? (norm.sessionLength <= 30 ? 8 : 12) : 0;
+      if (minutes) finishers -= 1;
+      result = buildLiftingDay(role, { ...ctx, sessionLength: norm.sessionLength - minutes }, roleCount[role]);
+      if (minutes) result.cardio = steadyCardio("walk", minutes, "Easy walking finisher");
+      if (!adaptive && weekIndex % 4 === 2 && result.lifting.length) {
+        const proposed = result.lifting.map((lift, i) => i === 0 ? { ...lift, sets: lift.sets + 1 } : lift);
+        if (sessionMinutes(proposed) + minutes <= norm.sessionLength) result.lifting = proposed;
+      }
+    }
+    if (adaptive && result.lifting.length && role !== "active_recovery") {
+      result.adaptivePlan = { version: 1, goal: norm.goal, experience: norm.experience, sessionLength: norm.sessionLength,
+        estimatedMinutes: Math.ceil(sessionMinutes(result.lifting) + (result.cardio?.minutes || 0)) };
+    }
+    program[day] = result;
   }
-
-  const rationale = buildRationale(norm, schedule);
-  const warnings = buildWarnings(norm, schedule);
-
-  return {
-    input: norm,
-    program,
-    metadata: {
-      generatedBy: "programBuilderV2",
-      goal: norm.goal,
-      trainingDaysPerWeek: norm.trainingDaysPerWeek,
-      restDays: norm.restDays,
-      longRunDay: norm.longRunDay,
-      equipment: norm.equipment,
-      experience: norm.experience,
-      sessionLength: norm.sessionLength,
-      cardioPreference: norm.cardioPreference,
-      includeIntervals: norm.includeIntervals,
-      weekVariant: weekIndex + 1,
-      isDeload: false,
-      generatedAt: norm.generatedAt,
-    },
-    rationale,
-    warnings,
-  };
+  return { program, schedule, isDeload: deload };
 }
 
-// Week-to-week variation
-// Week 1 base · Week 2 varied accessories/cardio · Week 3 slightly harder ·
-// Week 4 deload. Applies via seed offset + volume flags; does NOT auto-persist.
+export function buildProgramPlan(input) {
+  const norm = normalizeProgramBuilderInput(input);
+  const { program, schedule, isDeload } = generateWeek(norm, norm.weekIndex);
+  const guideId = ["bodyweight", "calisthenics"].includes(norm.equipment) && norm.goal !== "cardio_only" ? "bodyweightStrength" : GUIDE_FOR_GOAL[norm.goal];
+  return { input: norm, program, metadata: {
+    generatedBy: "programBuilderV3", ...norm, weekVariant: norm.weekIndex + 1, isDeload, guideId,
+  }, rationale: buildRationale(norm, program), warnings: buildWarnings(norm, schedule) };
+}
+
 export function buildWeekVariant(baseInput, weekIndex = 0) {
-  const norm = normalizeProgramBuilderInput(baseInput);
-  const deload = weekIndex === 3;
-  const volumeBump = weekIndex === 2;
-  const schedule = buildWeeklySchedule(norm);
-  const seedBase = 3 + weekIndex * 5;
-
-  const program = {};
-  const roleOccurrence = {};
-  for (const day of DAYS) {
-    const role = schedule[day];
-    if (role === "rest") { program[day] = restDay(); continue; }
-    const ctx = {
-      goal: norm.goal,
-      equipment: norm.equipment,
-      experience: norm.experience,
-      sessionLength: norm.sessionLength,
-      includeIntervals: norm.includeIntervals,
-      weekIndex,
-      deload,
-      volumeBump,
-      seed: seedBase + DAYS.indexOf(day),
-    };
-    if (role === "active_recovery") { program[day] = buildActiveRecoveryDay(ctx); continue; }
-    if (CARDIO_ROLES.has(role)) { program[day] = buildCardioDay(role, ctx); continue; }
-    roleOccurrence[role] = (roleOccurrence[role] || 0) + 1;
-    let day3 = buildLiftingDay(role, ctx, roleOccurrence[role]);
-    if (volumeBump && !deload) {
-      // Slightly more challenge where safe: +1 set on the anchor compound only.
-      const lifting = day3.lifting.slice();
-      if (lifting[0]) lifting[0] = { ...lifting[0], sets: lifting[0].sets + 1 };
-      day3 = { ...day3, lifting };
-    }
-    program[day] = day3;
-  }
-
-  const focusNote = ["Base week — establish movements and baseline loads.",
-    "Variation week — accessories and cardio rotate to spread stimulus.",
-    "Progression week — a touch more volume/intensity where it's safe.",
-    "Deload week — reduced sets and easy cardio to absorb the work."][weekIndex] || "";
-
-  return {
-    weekIndex,
-    weekLabel: `Week ${weekIndex + 1}`,
-    isDeload: deload,
-    focus: focusNote,
-    program,
-    metadata: {
-      generatedBy: "programBuilderV2",
-      goal: norm.goal,
-      weekVariant: weekIndex + 1,
-      isDeload: deload,
-      generatedAt: norm.generatedAt,
-    },
-  };
+  const plan = buildProgramPlan({ ...baseInput, weekIndex });
+  const focus = plan.input.adaptiveTraining ? "Repeat the movement and compare your logged sets at the prescribed effort." :
+    ["Establish movements and baseline loads.", "Rotate available accessories.",
+      "Add one anchor set where the session budget allows.", "Reduce working sets and keep aerobic sessions easy."][weekIndex % 4];
+  return { weekIndex, weekLabel: `Week ${weekIndex + 1}`, isDeload: plan.metadata.isDeload, focus, program: plan.program, metadata: plan.metadata };
 }
 
 export function buildMultiWeekProgram(input, weeks = 4) {
@@ -664,18 +641,22 @@ function goalLabel(goal) {
   return PROGRAM_BUILDER_GOALS.find((g) => g.id === goal)?.label || goal;
 }
 
-function buildRationale(norm, schedule) {
+function buildRationale(norm, program) {
   const lines = [];
-  const liftingDays = DAYS.filter((d) => schedule[d] !== "rest" && !CARDIO_ROLES.has(schedule[d]) && schedule[d] !== "active_recovery").length;
-  const cardioDays = DAYS.filter((d) => CARDIO_ROLES.has(schedule[d])).length;
-
-  lines.push(`${goalLabel(norm.goal)} focus across ${norm.trainingDaysPerWeek} training days, ${norm.experience} volume.`);
-  if (liftingDays) lines.push(`${liftingDays} lifting session${liftingDays === 1 ? "" : "s"} using your ${EQUIPMENT_OPTIONS.find((e) => e.id === norm.equipment)?.label.toLowerCase() || norm.equipment} setup, ~${norm.sessionLength} min each.`);
-  if (cardioDays) lines.push(`${cardioDays} cardio session${cardioDays === 1 ? "" : "s"} scheduled around your lifting.`);
-  if (norm.restDays.length) lines.push(`Rest kept on ${norm.restDays.join(", ")}.`);
-  if (norm.longRunDay) lines.push(`Long run placed on ${norm.longRunDay}, with heavy lower-body work spaced away from it.`);
-  if (norm.trainingDaysPerWeek >= 6) lines.push("Six days: at least one session is kept low-intensity or active recovery.");
-  if (norm.experience === "beginner") lines.push("Beginner: fewer sets and simpler movements to build the pattern first.");
+  const lifts = DAYS.filter(day => program[day].lifting.length > 0);
+  const cardio = DAYS.filter(day => program[day].cardio);
+  lines.push(`${goalLabel(norm.goal)} across ${norm.trainingDaysPerWeek} days with a ${norm.sessionLength}-minute session budget.`);
+  if (lifts.length) {
+    const sets = lifts.flatMap(day => program[day].lifting).reduce((sum, lift) => sum + lift.sets, 0);
+    lines.push(`${sets} weekly working sets across ${lifts.length} lifting days. Start at the low end of each range with the prescribed reps in reserve.`);
+    if (norm.experience === "beginner") lines.push("Two working sets per movement provide a starting dose while you learn the exercises.");
+  }
+  if (norm.goal === "bodybuilding") lines.push("The four-day upper/lower reference week starts at ten direct sets each for chest, back and quads. Your equipment and session budget determine the starting dose.");
+  if (norm.goal === "strength") lines.push("Practice the priority movements early. Take up to three minutes between heavy sets.");
+  if (cardio.length) lines.push(`${cardio.reduce((sum, day) => sum + program[day].cardio.minutes, 0)} planned aerobic minutes across ${cardio.length} days.`);
+  if (norm.equipment === "bodyweight" && lifts.length) lines.push("Floor raises train the upper back with limited resistance. Select calisthenics bars if you have a secure pulling station.");
+  if (norm.longRunDay) lines.push(`Long run on ${norm.longRunDay}.`);
+  if (norm.restDays.length) lines.push(`Rest on ${norm.restDays.join(", ")}.`);
   return lines;
 }
 
@@ -690,7 +671,6 @@ function buildWarnings(norm, schedule) {
   for (const d of DAYS) roleByDay[d] = schedule[d];
   const score = scoreSchedule(roleByDay, norm.restDays, norm.includeIntervals);
   if (score > 0) warnings.push("With your chosen days, a hard session sits close to another — reorder rest days for more spacing if you can.");
-  warnings.push("Generated programming is general guidance, not medical or injury advice. Adjust anything that doesn't feel right.");
   return warnings;
 }
 
@@ -704,7 +684,7 @@ export function summarizeGeneratedPlan(plan) {
     const isRest = lifting.length === 0 && !cardio;
     const parts = [];
     if (lifting.length) parts.push(`${lifting.length} lift${lifting.length === 1 ? "" : "s"}`);
-    if (cardio) parts.push(`${cardio.type}${cardio.miles ? ` ${cardio.miles}mi` : ""}`);
+    if (cardio) parts.push(`${cardio.type}${cardio.minutes ? ` · ${cardio.minutes} min` : cardio.miles ? ` · ${cardio.miles} mi` : ""}`);
     return {
       day,
       type: d.type || (isRest ? "Rest" : ""),
@@ -774,9 +754,12 @@ export function buildProgramBuilderSettingsPatch(input, plan = null) {
       restDays: norm.restDays,
       longRunDay: norm.longRunDay,
       equipment: norm.equipment,
+      equipmentChoices: norm.equipmentChoices,
       experience: norm.experience,
       sessionLength: norm.sessionLength,
       cardioPreference: norm.cardioPreference,
+      adaptiveTraining: norm.adaptiveTraining,
+      cardioModality: norm.cardioModality,
       includeIntervals: norm.includeIntervals,
       varietyMode: "balanced",
       lastGeneratedAt: plan?.metadata?.generatedAt || norm.generatedAt || null,

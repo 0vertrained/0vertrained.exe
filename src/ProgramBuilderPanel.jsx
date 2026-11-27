@@ -1,8 +1,7 @@
 // src/ProgramBuilderPanel.jsx
 // Program Builder V2 — product-facing panel
 //
-// Mobile-first, whitepaper/ruled builder UI. Collects goal + constraints, shows
-// a live weekly preview, rationale/warnings and a 4-week variation preview, then
+// Collects goals and constraints, shows the weekly prescriptions and rationale, then
 // hands the caller an explicit Apply payload. It NEVER persists on its own —
 // applying is an explicit user action wired in App.jsx. Cancel discards.
 //
@@ -15,22 +14,24 @@
 //   initialGoal     optional builder-goal id to preselect
 
 import { useMemo, useState } from "react";
-import { RadioRows, Seg } from "./ui/ledger";
+import { RadioRows, Seg, Switch } from "./ui/ledger";
+import { AdaptiveLiftingChoice, BuilderEquipment, BuilderWeekPreview, TrainingWeekdays } from "./BuilderWeek";
 import {
   PROGRAM_BUILDER_GOALS,
   PROGRAM_BUILDER_GOAL_IDS,
   TRAINING_DAY_OPTIONS,
-  EQUIPMENT_OPTIONS,
+  EQUIPMENT_COMBINATIONS,
   EXPERIENCE_LEVELS,
   SESSION_LENGTH_OPTIONS,
   CARDIO_PREFERENCES,
+  CARDIO_MODALITIES,
   DAYS,
   goalUsesRunning,
   recommendTrainingDaysForGoal,
   recommendCardioPreference,
   normalizeProgramBuilderInput,
   buildProgramPlan,
-  buildMultiWeekProgram,
+  buildWeeklySchedule,
   summarizeGeneratedPlan,
   buildProgramBuilderSettingsPatch,
 } from "./programBuilder";
@@ -45,10 +46,16 @@ function initialDraft(settings, initialGoal) {
     "hybrid";
   return {
     goal,
+    scheduleChosen: Boolean(saved.trainingDaysPerWeek),
+    adaptiveTraining: saved.adaptiveTraining !== false,
+    cardioModality: saved.cardioModality || "mixed",
+    includeIntervals: typeof saved.includeIntervals === "boolean" ? saved.includeIntervals : undefined,
     trainingDaysPerWeek: saved.trainingDaysPerWeek || recommendTrainingDaysForGoal(goal),
     restDays: Array.isArray(saved.restDays) ? saved.restDays : [],
     longRunDay: saved.longRunDay || "Saturday",
     equipment: saved.equipment || "full_gym",
+    equipmentChoices: Array.isArray(saved.equipmentChoices) ? saved.equipmentChoices
+      : saved.equipment === "mixed" ? EQUIPMENT_COMBINATIONS.map(item => item.id) : [],
     experience: saved.experience || "intermediate",
     sessionLength: saved.sessionLength || 60,
     cardioPreference: saved.cardioPreference || recommendCardioPreference(goal),
@@ -60,38 +67,31 @@ const STEPS = ["Goal and time", "Your week", "Cardio and preview"];
 // Build a program in three steps. Every answer has a default, the preview
 // follows the answers, and nothing changes until "Use this program".
 // Train's top bar goes back (and so cancels); nothing is saved until Apply.
-export function ProgramBuilderPanel({ settings, onApply, initialGoal }) {
+export function ProgramBuilderPanel({ settings, onApply, initialGoal, hasRacePlan = false }) {
   const [draft, setDraft] = useState(() => initialDraft(settings, initialGoal));
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(0);
+  const [keepExistingRace, setKeepExistingRace] = useState(true);
   const usesRunning = goalUsesRunning(draft.goal);
 
   const setGoal = (goal) => {
-    setDraft((d) => ({
+    setDraft((d) => d.goal === goal ? d : ({
       ...d,
       goal,
-      trainingDaysPerWeek: recommendTrainingDaysForGoal(goal),
+      trainingDaysPerWeek: d.scheduleChosen ? d.trainingDaysPerWeek : recommendTrainingDaysForGoal(goal),
+      includeIntervals: undefined,
       cardioPreference: recommendCardioPreference(goal),
     }));
   };
   const set = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
-  const toggleRestDay = (day) => {
-    setDraft((d) => {
-      const has = d.restDays.includes(day);
-      const next = has ? d.restDays.filter((x) => x !== day) : [...d.restDays, day];
-      return { ...d, restDays: next };
-    });
-  };
-
-  const { plan, norm, summary, weeks } = useMemo(() => {
-    const p = buildProgramPlan(draft);
-    return {
-      plan: p,
-      norm: p.input,
-      summary: summarizeGeneratedPlan(p),
-      weeks: buildMultiWeekProgram(draft, 4),
-    };
-  }, [draft]);
+  const setSchedule = (fields) => setDraft(d => ({ ...d, ...fields, scheduleChosen: true }));
+  const plan = useMemo(() => buildProgramPlan(draft), [draft]);
+  const norm = plan.input;
+  const summary = summarizeGeneratedPlan(plan);
+  const trainingDays = DAYS.filter(day => !norm.restDays.includes(day));
+  const cardioOnly = norm.goal === "cardio_only";
+  const canScheduleQuality = (usesRunning || cardioOnly) && norm.experience !== "beginner" &&
+    Object.values(buildWeeklySchedule({ ...norm, includeIntervals: true })).some(role => role === "quality_run" || role === "tempo_run");
 
   const apply = async () => {
     if (busy) return;
@@ -100,7 +100,7 @@ export function ProgramBuilderPanel({ settings, onApply, initialGoal }) {
     const stampedPlan = buildProgramPlan(stampedInput);
     const preferences = buildProgramBuilderSettingsPatch(stampedPlan.input, stampedPlan).programBuilder;
     try {
-      await onApply({ program: stampedPlan.program, preferences, plan: stampedPlan });
+      await onApply({ program: stampedPlan.program, preferences, plan: stampedPlan, keepExistingRace });
     } finally {
       setBusy(false);
     }
@@ -127,7 +127,7 @@ export function ProgramBuilderPanel({ settings, onApply, initialGoal }) {
             <RadioRows id="pb-goal" label="What are you training for?" options={PROGRAM_BUILDER_GOALS} value={draft.goal} onChange={setGoal} />
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span id="pb-days" className="lbl">Training days per week</span>
-              <Seg labelledBy="pb-days" options={TRAINING_DAY_OPTIONS.map((n) => ({ value: n, label: String(n) }))} value={draft.trainingDaysPerWeek} onChange={(v) => set("trainingDaysPerWeek", v)} />
+              <Seg labelledBy="pb-days" options={TRAINING_DAY_OPTIONS.map((n) => ({ value: n, label: String(n) }))} value={draft.trainingDaysPerWeek} onChange={(v) => setSchedule({ trainingDaysPerWeek: v })} />
               <p className="t-s c2">{restDays} rest day{restDays === 1 ? "" : "s"} a week.</p>
             </div>
             <RadioRows id="pb-exp" label="Experience" options={EXPERIENCE_LEVELS} value={draft.experience} onChange={(v) => set("experience", v)} />
@@ -140,41 +140,39 @@ export function ProgramBuilderPanel({ settings, onApply, initialGoal }) {
 
         {step === 1 && (
           <>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span id="pb-rest" className="lbl">Preferred rest days (optional)</span>
-              <div className="chips" role="group" aria-labelledby="pb-rest">
-                {DAYS.map((day) => (
-                  <button key={day} type="button" className="chip" aria-pressed={norm.restDays.includes(day)} onClick={() => toggleRestDay(day)}>{day.slice(0, 3)}</button>
-                ))}
-              </div>
-              <p className="t-s c2">The plan keeps exactly {restDays}. Extra picks are dropped; too few, and it fills the rest.</p>
-            </div>
+            <TrainingWeekdays input={norm} onChange={setSchedule} />
             {usesRunning && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span id="pb-long" className="lbl">Long run day</span>
-                <Seg labelledBy="pb-long" options={DAYS.map((d) => ({ value: d, label: <><span aria-hidden="true">{d.charAt(0)}</span><span className="sr">{d}</span></> }))} value={norm.longRunDay} onChange={(v) => set("longRunDay", v)} />
-                <p className="t-s c2">{norm.longRunDay}. Heavy lower-body work is kept away from it.</p>
+                <Seg labelledBy="pb-long" options={trainingDays.map(day => ({ value: day, label: day.slice(0, 3) }))} value={norm.longRunDay} onChange={(v) => set("longRunDay", v)} />
               </div>
             )}
-            <RadioRows id="pb-equip" label="Equipment" options={EQUIPMENT_OPTIONS} value={draft.equipment} onChange={(v) => set("equipment", v)} />
+            {cardioOnly ? (
+              <>
+                <RadioRows id="pb-modality" label="Cardio activity" options={CARDIO_MODALITIES} value={norm.cardioModality} onChange={(v) => set("cardioModality", v)} />
+                {norm.cardioModality === "mixed" && (
+                  <RadioRows id="pb-cardio-equipment" label="Available cardio equipment"
+                    options={[{ id: "full_gym", label: "Gym cardio machines" }, { id: "bodyweight", label: "Walking and running only" }]}
+                    value={(["full_gym", "machines"].includes(norm.equipment) || (norm.equipment === "mixed" && norm.equipmentChoices?.includes("machines"))) ? "full_gym" : "bodyweight"} onChange={(v) => set("equipment", v)} />
+                )}
+              </>
+            ) : <BuilderEquipment id="pb-equip" equipment={draft.equipment} choices={draft.equipmentChoices} onChange={fields => setDraft(d => ({ ...d, ...fields }))} />}
           </>
         )}
 
         {step === 2 && (
           <>
-            <RadioRows id="pb-cardio" label="Cardio" options={CARDIO_PREFERENCES} value={draft.cardioPreference} onChange={(v) => set("cardioPreference", v)} />
-            <section aria-labelledby="pb-preview" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <div className="sec"><h2 id="pb-preview" className="t-h">Your week</h2></div>
-              <p className="t-s c2">{summary.headline}</p>
-              <ol className="rows">
-                {summary.days.map((d) => (
-                  <li key={d.day} className="row" style={{ minHeight: 48 }}>
-                    <span className="n-s c2" style={{ width: 40, flex: "none" }}>{d.day.slice(0, 3)}</span>
-                    <span className="kv grow"><span className="t-bs clip">{d.isRest ? "Rest" : d.type}</span>{!d.isRest && d.label && <span className="t-s c2">{d.label}</span>}</span>
-                  </li>
-                ))}
-              </ol>
-            </section>
+            {!cardioOnly && !usesRunning && (
+              <RadioRows id="pb-cardio" label="Cardio" options={CARDIO_PREFERENCES} value={norm.cardioPreference} onChange={(v) => set("cardioPreference", v)} />
+            )}
+            {canScheduleQuality && (
+              <div className="row" style={{ minHeight: 44 }}>
+                <span className="t-bs grow">Include a harder cardio session</span>
+                <Switch label="Include a harder cardio session" checked={norm.includeIntervals} onChange={(v) => set("includeIntervals", v)} />
+              </div>
+            )}
+            {summary.liftingDays > 0 && <AdaptiveLiftingChoice enabled={norm.adaptiveTraining} onChange={(v) => set("adaptiveTraining", v)} />}
+            <BuilderWeekPreview id="pb-preview" summary={summary} plan={plan} />
             {plan.rationale?.length > 0 && (
               <section aria-labelledby="pb-why" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <h2 id="pb-why" className="t-h">Why this plan</h2>
@@ -187,18 +185,15 @@ export function ProgramBuilderPanel({ settings, onApply, initialGoal }) {
                 <ul className="lst">{plan.warnings.map((w) => <li key={w} className="t-s">{w}</li>)}</ul>
               </section>
             )}
-            <section aria-labelledby="pb-weeks" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <h2 id="pb-weeks" className="t-h">The first four weeks</h2>
-              <ol className="rows">
-                {weeks.map((w) => (
-                  <li key={w.weekIndex} className="row" style={{ minHeight: 48 }}>
-                    <span className="t-bs" style={{ width: 72, flex: "none" }}>{w.weekLabel}</span>
-                    <span className="t-s c2 grow">{w.focus}</span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-            <p className="t-s c2">Using it replaces your program. A race plan stays.</p>
+            <a className="t-s" href={`/training-guide.html#${plan.metadata.guideId || "dose"}`} target="_blank" rel="noreferrer">Read the training evidence ↗</a>
+            {hasRacePlan && <div className="kv" style={{ gap: 4 }}>
+              <div className="row"><span className="t-bs grow">Keep my race plan</span>
+                <Switch label="Keep my race plan" checked={keepExistingRace} onChange={setKeepExistingRace} /></div>
+              <p className="t-s c2">{keepExistingRace
+                ? "Your race schedule sets the running days. A race workout can fall on a rest day in this preview."
+                : "Applying this week will replace your race schedule with the training days shown above."}</p>
+            </div>}
+            <p className="t-s c2">Applying this week replaces your current program.</p>
           </>
         )}
       </div>
