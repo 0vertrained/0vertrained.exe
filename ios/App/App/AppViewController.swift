@@ -55,10 +55,12 @@ class AppViewController: CAPBridgeViewController {
     /// text in iOS apps. Smaller sizes leave the page as designed, and the
     /// page never gets narrower than the screens are laid out for.
     private func applyTextSize() {
-        guard let webView, view.bounds.width > 0 else { return }
+        guard let webView else { return }
+        let contentWidth = webView.safeAreaLayoutGuide.layoutFrame.width
+        guard contentWidth > 0 else { return }
         let zoom = Self.pageZoom(
-            for: UIApplication.shared.preferredContentSizeCategory,
-            width: view.bounds.width
+            for: webView.traitCollection.preferredContentSizeCategory,
+            width: contentWidth
         )
         if abs(webView.pageZoom - zoom) > 0.001 {
             webView.pageZoom = zoom

@@ -25,10 +25,9 @@ describe("broadsheet shell (V15.0)", () => {
       expect(src).toContain(`data-section="${id}"`);
     }
     expect(src).toContain('gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)"');
-    // The two rails dissolve into the single column below the tier; the plan
-    // keeps its own section there so the heading and its rows stay together.
-    const rails = src.match(/isBroadsheet \? \{[^}]+\} : \{ display: "contents" \}/g) || [];
-    expect(rails.length).toBe(2);
+    // The same regions are present when the medium or wide grid opens.
+    expect((src.match(/className="today-rail"/g) || []).length).toBe(2);
+    expect(read("src/ledger.css")).toMatch(/\.today-rail \{ display: contents; \}/);
     expect(src).toMatch(/data-section="session-ledger"[^>]*aria-labelledby="today-plan"/);
   });
 
@@ -91,9 +90,9 @@ describe("broadsheet shell (V15.0)", () => {
     expect(src).toContain('data-section="session-queue"');
     expect(src).toContain('data-section="session-rail"');
     expect(src).toContain('gridTemplateColumns: "340px minmax(0, 1fr) 380px"');
-    // Both asides are tier-gated null on mobile; the wrapper is contents.
-    expect((src.match(/\{isBroadsheet && \(\s*<aside/g) || []).length).toBe(2);
-    expect(src).toContain('{ display: "contents" }');
+    // Only the queue docks in a medium window. The detail rail stays wide-only.
+    expect(src).toMatch(/\{dockQueue && \(\s*<aside data-section="session-queue"/);
+    expect(src).toMatch(/\{isBroadsheet && \(\s*<aside data-section="session-rail"/);
     // On a phone the same detail is one tap away: exercise options and the queue are sheets.
     expect(src).toContain('setSheet("options")');
     expect(src).toContain('setSheet("queue")');

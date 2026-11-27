@@ -1,16 +1,16 @@
 // src/ui/useMediaQuery.js
-// Shared viewport hook for the broadsheet shell. One breakpoint, one
-// definition: at >=1024px the app swaps the mobile dock for masthead
-// navigation. Components subscribe here instead of each guessing widths.
+// The shell and workout subscribe to changes in the available window width.
 import { useEffect, useState } from "react";
 
 export const DESKTOP_QUERY = "(min-width: 1024px)";
 
 // The broadsheet tier. At >=1440px the shell widens into the ruled
-// three-column layout (decision · session ledger · telemetry). Below it,
-// every layout is as before — the 1024–1439 band keeps the
-// masthead + single 760px column exactly as shipped (plan decision D1).
+// three-column layout (decision · session ledger · telemetry). The
+// 1024–1439 band keeps the masthead and its 760px reading column.
 export const BROADSHEET_QUERY = "(min-width: 1440px)";
+// A full exercise queue fits beside the set editor in a medium-width window.
+// Keep the existing laptop reading layout and the larger three-column desk.
+export const WORKOUT_PANES_QUERY = "(min-width: 640px) and (max-width: 1023px)";
 
 export function useMediaQuery(query) {
   const get = () =>

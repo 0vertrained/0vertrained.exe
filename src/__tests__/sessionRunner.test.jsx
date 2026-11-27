@@ -2,9 +2,10 @@
 // starts the rest timer, and a clinician stop rule pauses logging.
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, within } from "@testing-library/react";
+import { act, fireEvent, render, within } from "@testing-library/react";
 import { ThemeProvider } from "../theme";
 import { SessionMode } from "../SessionMode";
+import { WORKOUT_PANES_QUERY } from "../ui/useMediaQuery";
 
 const done = (weight, reps, extra = {}) => ({ weight: String(weight), reps: String(reps), rir: "", done: true, ...extra });
 const HISTORY = { "2026-07-13": { workout: { exercises: { Bench: { sets: [done(185, 8), done(185, 8)] } } } } };
@@ -33,6 +34,45 @@ function mountRunner({ workout = { exercises: {}, sessionState: {} }, settings =
 }
 
 describe("the session runner", () => {
+  it("keeps the active set, focused draft, rest and edits when the window changes width", () => {
+    const medium = Object.assign(new EventTarget(), { matches: false });
+    const other = Object.assign(new EventTarget(), { matches: false });
+    vi.stubGlobal("matchMedia", (query) => query === WORKOUT_PANES_QUERY ? medium : other);
+    const widen = (matches) => act(() => {
+      medium.matches = matches;
+      medium.dispatchEvent(Object.assign(new Event("change"), { matches }));
+    });
+    try {
+      const { ui, updates } = mountRunner();
+      const weight = ui.getByRole("spinbutton", { name: "Weight in pounds" });
+      weight.focus();
+      fireEvent.change(weight, { target: { value: "190" } });
+      widen(true);
+      expect(ui.getByRole("complementary", { name: "Session queue" })).toBeTruthy();
+      expect(ui.getByRole("spinbutton", { name: "Weight in pounds" })).toBe(weight);
+      expect(document.activeElement).toBe(weight);
+      expect(weight.value).toBe("190");
+
+      fireEvent.click(ui.getByRole("button", { name: "Log set" }));
+      const timer = ui.getByRole("timer");
+      const written = updates.mock.calls.length;
+      widen(false);
+      expect(ui.queryByRole("complementary", { name: "Session queue" })).toBeNull();
+      expect(ui.getByRole("timer")).toBe(timer);
+      expect(ui.getByRole("button", { name: "Pause" })).toBeTruthy();
+      expect(updates.mock.calls.length).toBe(written);
+
+      fireEvent.click(ui.getByRole("button", { name: "Skip rest, start set 2" }));
+      fireEvent.click(ui.getByRole("button", { name: /^Set 1, logged/ }));
+      const edit = ui.getByRole("button", { name: "Done editing" });
+      widen(true);
+      expect(ui.getByRole("button", { name: "Done editing" })).toBe(edit);
+      expect(ui.getByText("Set 1 of 2")).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("logs a set done as planned in one tap, then rests without starting the next set", () => {
     const { ui, updates } = mountRunner();
     expect(ui.getByText("Set 1 of 2")).toBeTruthy();

@@ -60,9 +60,9 @@ export function ConfirmDialog({
     <>
       <div className="scrim mo-scrim" aria-hidden="true" />
       <div
+        className="confirm-frame"
         role="presentation"
         onClick={onCancel}
-        style={{ position: "fixed", inset: 0, zIndex: "var(--z-sheet)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
       >
         <div
           className="dialog mo-rise"

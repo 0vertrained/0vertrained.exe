@@ -655,10 +655,8 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
         />
       )}
 
-      {/* Broadsheet grid: decision rail, session ledger, telemetry. Below the
-          tier the container and the three sections are display:contents, so a
-          phone reads them as one column in source order. */}
-      <div className="main" style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)", gap: 24, alignItems: "start" } : undefined}>
+      {/* Keep these regions mounted as the available space changes. */}
+      <div className="main today-layout" style={isBroadsheet ? { display: "grid", gridTemplateColumns: "var(--ovt-rail-m) 1fr var(--ovt-rail-s)", gap: 24, alignItems: "start" } : undefined}>
 
       {/* Logging a past day: step by a day, pick a date, and say plainly that
           the call belongs to today only. */}
@@ -690,7 +688,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
         </button>
       )}
 
-      <section data-section="decision-rail" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
+      <section data-section="decision-rail" className="today-rail" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : undefined}>
 
       {/* First-week setup: new accounts only, and only for today. */}
       {!isLoggingPast && firstWeek && (
@@ -714,7 +712,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       )}
       </section>
 
-      <section data-section="session-ledger" ref={planRef} aria-labelledby="today-plan" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 8, minWidth: 0 } : { display: "flex", flexDirection: "column", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 12, scrollMarginTop: 64 }}>
+      <section data-section="session-ledger" ref={planRef} aria-labelledby="today-plan" className="today-plan">
         <h2 id="today-plan" className="t-ss">{isLoggingPast ? "Training" : "Today’s plan"}</h2>
 
         {/* Race plan line: week of the plan, phase, countdown. Renders nothing without a plan. */}
@@ -840,7 +838,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
         })()}
       </section>
 
-      <section data-section="telemetry" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : { display: "contents" }}>
+      <section data-section="telemetry" className="today-rail" style={isBroadsheet ? { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 } : undefined}>
         {!isLoggingPast && (
           <div style={isBroadsheet ? undefined : { borderTop: "1px solid var(--line)", paddingTop: 12 }}>
             <DayProgress ops={ops} primary={closeIsNext} />

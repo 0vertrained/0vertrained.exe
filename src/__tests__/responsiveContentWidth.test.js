@@ -13,15 +13,17 @@ describe("responsive content-width contract", () => {
     const css = read("src/index.css");
 
     expect(css).toContain(":root { --ovt-content-width: 480px; }");
+    expect(css).toMatch(/@media \(min-width: 481px\) and \(max-width: 767px\)\s*\{\s*:root \{ --ovt-content-width: 100%;/);
     expect(css).toContain("@media (min-width: 768px)");
     expect(css).toContain(":root { --ovt-content-width: 720px; }");
+    expect(css).toMatch(/@media \(min-width: 768px\) and \(max-width: 1023px\)\s*\{\s*:root \{ --ovt-shell-width: 100%;/);
   });
 
   test("V15.0 · defines the broadsheet shell tier without touching the content-width contract", () => {
     const css = readFileSync(resolve(root, "src/index.css"), "utf8");
     // The shell width defaults to the content width…
     expect(css).toContain("--ovt-shell-width: var(--ovt-content-width)");
-    // …and widens only at the broadsheet tier.
+    // …and widens for the full three-column broadsheet at this tier.
     // The :root block went multi-line when the rail tokens landed;
     // substring pins replace the one-line regex.
     expect(css).toContain("@media (min-width: 1440px)");
@@ -31,7 +33,7 @@ describe("responsive content-width contract", () => {
     const ledger = readFileSync(resolve(root, "src/ledger.css"), "utf8");
     // A tab screen consumes the shell var (with the content var as fallback)…
     expect(ledger).toMatch(/\.tab-screen \{[^}]*max-width: var\(--ovt-shell-width, var\(--ovt-content-width\)\)/);
-    // …while sheets and the tab bar stay on the content var.
+    // …while the sheet and compact tab bar default to the reading width.
     expect(ledger).toMatch(/\.sheet \{[^}]*max-width: var\(--ovt-content-width\)/);
     expect(ledger).toMatch(/\.tabbar \{[^}]*max-width: var\(--ovt-content-width\)/);
     expect(css).toContain("@media (min-width: 1024px)");

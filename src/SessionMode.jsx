@@ -11,7 +11,7 @@
 // nothing.
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
+import { useMediaQuery, BROADSHEET_QUERY, WORKOUT_PANES_QUERY } from "./ui/useMediaQuery";
 import { Flow, Icon, Seg, Sheet, Switch, TopBar } from "./ui/ledger";
 import { CascadeSet } from "./CascadeSet";
 import { CurrentSetComposer, LoggedSets } from "./workout/CurrentSetComposer";
@@ -169,6 +169,8 @@ export function SessionMode({
   safetyFlag = false,
 }) {
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
+  const mediumPanes = useMediaQuery(WORKOUT_PANES_QUERY);
+  const dockQueue = isBroadsheet || mediumPanes;
   const [idx, setIdx] = useState(0);
   const [activeSetIndex, setActiveSetIndex] = useState(0);
   const [editing, setEditing] = useState(false);
@@ -595,7 +597,7 @@ export function SessionMode({
 
   return (
     <Flow label={`${sessionLabel} workout session`} onClose={onClose} data-screen="session">
-      <div className="shell" style={isBroadsheet ? { maxWidth: "none" } : undefined}>
+      <div className="shell session-shell" style={isBroadsheet ? { maxWidth: "none" } : undefined}>
         <TopBar title={sessionLabel} close="Exit" onClose={onClose} status={syncStatus({ online, saving, savePending })}>
           <span className="t-s c2" style={{ flex: "none" }} aria-label={`Exercise ${idx + 1} of ${lifting.length}`}>{idx + 1} of {lifting.length}</span>
         </TopBar>
@@ -607,16 +609,16 @@ export function SessionMode({
           </p>
         )}
 
-        <div style={isBroadsheet ? { display: "grid", gridTemplateColumns: "340px minmax(0, 1fr) 380px", flex: "1 1 auto", minHeight: 0 } : { display: "contents" }}>
-          {isBroadsheet && (
-            <aside data-section="session-queue" aria-label="Session queue" style={{ borderRight: "1px solid var(--line)", padding: "16px 24px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="session-layout" style={isBroadsheet ? { display: "grid", gridTemplateColumns: "340px minmax(0, 1fr) 380px", flex: "1 1 auto", minHeight: 0 } : undefined}>
+          {dockQueue && (
+            <aside data-section="session-queue" aria-label="Session queue" className="session-queue">
               <div className="sec"><h2 className="t-title">Queue</h2><span className="t-s c2">{handledExercises} of {lifting.length} done</span></div>
               <Queue lifting={lifting} workoutData={workoutData} current={idx} onGo={(index) => { setRest(null); goToExercise(index); }} />
               <button type="button" className="btn btn-s btn-b" onClick={() => setSheet("add")}><Icon name="plus" size="s" />Add an exercise</button>
             </aside>
           )}
 
-          <div style={isBroadsheet ? { display: "flex", flexDirection: "column", minWidth: 0 } : { display: "contents" }}>
+          <div className="session-workspace" style={isBroadsheet ? { display: "flex", flexDirection: "column", minWidth: 0 } : undefined}>
           <div className="main" style={isBroadsheet ? { maxWidth: 560, width: "100%", margin: "0 auto" } : undefined}>
             {view === "stop" ? (
               <>
@@ -721,7 +723,7 @@ export function SessionMode({
                   </section>
                 )}
 
-                {!isBroadsheet && (
+                {!dockQueue && (
                   <button type="button" className="row" aria-haspopup="dialog" onClick={() => setSheet("queue")} style={{ borderTop: "1px solid var(--line)" }}>
                     <span className="kv grow">
                       <span className="t-bs">Queue</span>
@@ -833,13 +835,13 @@ export function SessionMode({
       {/* For today only; it joins the end of the queue. */}
       <AddExerciseSheet
         open={sheet === "add"}
-        onClose={() => setSheet(isBroadsheet ? null : "queue")}
+        onClose={() => setSheet(dockQueue ? null : "queue")}
         allData={allData}
         todayKey={todayKey}
         existing={lifting.map((item) => item.name)}
         onAdd={(item) => {
           onUpdate("workout.added", addToDay(workoutData, { ...item, session: sessionId }));
-          setSheet(isBroadsheet ? null : "queue");
+          setSheet(dockQueue ? null : "queue");
         }}
       />
     </Flow>

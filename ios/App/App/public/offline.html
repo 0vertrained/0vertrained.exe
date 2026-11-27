@@ -22,7 +22,9 @@
     body {
       display: flex; flex-direction: column; justify-content: center;
       min-height: 100vh;
-      padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+      min-height: 100dvh;
+      padding: calc(24px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right))
+               calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
       font: 400 16px/24px var(--f-ui);
       -webkit-text-size-adjust: 100%;
     }
