@@ -5,6 +5,8 @@
 
 const ON_KEY = "ovt-watch-runs-on";
 const HANDLED_KEY = "ovt-health-runs-handled";
+// Runs whose splits and effort were read, so each is read once.
+const DETAILED_KEY = "ovt-health-runs-detailed";
 
 // Fired on window when the setting changes, so the app picks it up at once.
 export const WATCH_RUNS_EVENT = "ovt:watch-runs";
@@ -38,4 +40,17 @@ export function readHandledRuns() {
 
 export function writeHandledRuns(ids) {
   try { localStorage.setItem(HANDLED_KEY, JSON.stringify(ids)); } catch { /* looked at again next time */ }
+}
+
+export function readDetailedRuns() {
+  try {
+    const ids = JSON.parse(localStorage.getItem(DETAILED_KEY) || "[]");
+    return Array.isArray(ids) ? ids.filter((id) => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeDetailedRuns(ids) {
+  try { localStorage.setItem(DETAILED_KEY, JSON.stringify(ids.slice(-200))); } catch { /* read again next time */ }
 }

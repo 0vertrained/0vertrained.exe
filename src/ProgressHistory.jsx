@@ -12,6 +12,7 @@ import { Icon, Seg } from "./ui/ledger";
 import { dayDate } from "./sections/charts";
 import { watchLiftLine, watchLiftSummary } from "./watch/liftSummary";
 import { dayFoods, itemTotals, servingsLabel } from "./foodLog";
+import { RunSplits } from "./sections/RunSplits";
 
 const NBSP = "\u00a0";
 const column = (gap) => ({ display: "flex", flexDirection: "column", gap });
@@ -101,6 +102,7 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
         <section aria-label="Run" style={{ ...column(4), borderTop: "1px solid var(--line)", paddingTop: 12 }}>
           <h3 className="t-h">Run</h3>
           <p className="n">{[`${cardio.miles}${NBSP}mi`, cardio.time, cardio.pace ? `${String(cardio.pace).replace(/\s*\/mi(le)?$/, "")}${NBSP}min/mi` : ""].filter(Boolean).join(" · ")}</p>
+          <RunSplits cardio={cardio} />
         </section>
       )}
 

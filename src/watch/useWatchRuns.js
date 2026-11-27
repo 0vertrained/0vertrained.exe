@@ -1,14 +1,14 @@
 // src/watch/useWatchRuns.js
 // In the iPhone app, once runs are turned on in Settings › Integrations:
 // keeps this week's planned runs in the Workout app on the watch, and fills
-// in the log from runs recorded on the watch, with Undo. In a browser, or
-// while it's off, it does nothing, and its logic (./runWorkouts,
-// ./healthRuns) is only loaded inside the app.
+// in the log from runs recorded on the watch, with Undo, then each run's
+// mile splits and effort. In a browser, or while it's off, it does nothing,
+// and its logic (./runWorkouts, ./healthRuns) is only loaded inside the app.
 
 import { useEffect, useRef, useState } from "react";
 import { getTodayKey } from "../constants";
 import { isNativeApp, nativePlugin } from "../native";
-import { WATCH_RUNS_EVENT, readHandledRuns, readWatchRunsOn, writeHandledRuns } from "./watchRunsState";
+import { WATCH_RUNS_EVENT, readDetailedRuns, readHandledRuns, readWatchRunsOn, writeDetailedRuns, writeHandledRuns } from "./watchRunsState";
 
 const SCHEDULE_DELAY_MS = 1500;
 // How far back recorded runs are looked for.
@@ -69,7 +69,30 @@ export function useWatchRuns({ ready, data, program, updateEntryAtDate, showToas
           // Left alone if it was changed since.
           if (String(cardio[path.split(".").pop()] ?? "") === value) write(fill.dateKey, path, "");
         }
+        // The splits and effort read with the run go with it.
+        if (cardio.splits) write(fill.dateKey, "workout.cardio.splits", null);
+        if (cardio.effortScore) {
+          write(fill.dateKey, "workout.cardio.effortScore", "");
+          write(fill.dateKey, "workout.cardio.effortEstimated", null);
+        }
       }
+    };
+
+    // Splits and effort for logged runs that are these Health runs: read
+    // once per run, in builds that can (RunsPlugin.runDetail).
+    const readDetails = async (runs, filled, healthRuns) => {
+      const plugin = nativePlugin("OTRuns");
+      if (typeof plugin?.runDetail !== "function") return;
+      const { data: state, updateEntryAtDate: write } = latest.current;
+      const detailed = readDetailedRuns();
+      for (const { dateKey, id } of healthRuns.planRunDetails({ runs, data: state, detailed, filled })) {
+        let detail;
+        try { detail = await plugin.runDetail({ id }); } catch { break; }
+        if (cancelled) break;
+        detailed.push(id);
+        for (const { path, value } of healthRuns.detailWrites(detail)) write(dateKey, path, value);
+      }
+      writeDetailedRuns(detailed);
     };
 
     const importRuns = async () => {
@@ -78,16 +101,17 @@ export function useWatchRuns({ ready, data, program, updateEntryAtDate, showToas
       try {
         const { runs = [] } = (await nativePlugin("OTRuns")?.recentRuns({ days: IMPORT_DAYS })) || {};
         if (cancelled || !runs.length) return;
-        const { fillMessage, fillWrites, planHealthFills } = await import("./healthRuns");
+        const healthRuns = await import("./healthRuns");
+        const { fillMessage, fillWrites, planHealthFills } = healthRuns;
         if (cancelled) return;
         const { data: state, updateEntryAtDate: write, showToast: toast } = latest.current;
         const { fills, handled } = planHealthFills({ runs, data: state, handled: readHandledRuns() });
         writeHandledRuns(handled);
-        if (!fills.length) return;
         for (const fill of fills) {
           for (const { path, value } of fillWrites(fill)) write(fill.dateKey, path, value);
         }
-        toast?.(fillMessage(fills, getTodayKey()), { action: "Undo", onAction: () => undo(fills, fillWrites) });
+        if (fills.length) toast?.(fillMessage(fills, getTodayKey()), { action: "Undo", onAction: () => undo(fills, fillWrites) });
+        await readDetails(runs, fills.map((fill) => fill.dateKey), healthRuns);
       } catch {
         // Read again next time the app comes to the front.
       } finally {

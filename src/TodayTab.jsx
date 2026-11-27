@@ -39,6 +39,7 @@ import { flattenProgramLifting, getProgramSessions, usesProgramSessions } from "
 import { addToDay, removeFromDay, withAdded } from "./addedExercises";
 import { AddExerciseSheet } from "./AddExercise";
 import { OuraBedtimeLine, OuraStressLine } from "./sections/OuraSignals";
+import { RunSplits } from "./sections/RunSplits";
 import { buildWearableLoadRows } from "./wearableWorkoutLoad";
 import { TRACKING_MODES, completedSetCount, isCompletedSet, isExerciseHandled, reconcileExerciseSets, resolveTrackingMode, validateSet } from "./workoutLogging";
 import { isFirstWeekUser, countLoggedDays, buildFirstWeekChecklist, summarizeChecklist, buildFirstWeekCoachCopy, buildBetaFeedbackText, resolveDataMode } from "./firstWeekJourney";
@@ -610,6 +611,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       {cardio.notes && <CardioNotes notes={cardio.notes} />}
       <RunFields logged={logged} planned={cardio} onChange={(field, value) => updateToday(`${path}.${field}`, value)} />
       <PaceCheck cardio={cardio} logged={logged} />
+      <RunSplits cardio={logged} />
       {isRunCardio(cardio) && raceLine(path, logged, cardio)}
     </div>
   );
@@ -787,6 +789,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
             {runOpen && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingBottom: 8 }}>
                 <RunFields logged={wo.cardio || {}} onChange={(field, value) => updateToday(`workout.cardio.${field}`, value)} />
+                <RunSplits cardio={wo.cardio || {}} />
                 {raceLine("workout.cardio", wo.cardio || {})}
               </div>
             )}

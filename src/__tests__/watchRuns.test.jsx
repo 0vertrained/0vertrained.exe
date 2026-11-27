@@ -85,6 +85,25 @@ describe("useWatchRuns", () => {
     await waitFor(() => expect(result.current[today].workout.cardio).toMatchObject({ miles: "", time: "", pace: "" }));
   });
 
+  it("reads the run's splits and effort once, and Undo takes them too", async () => {
+    const today = getTodayKey();
+    const plugin = installRuns({ runs: [{ id: "hk-1", date: today, meters: 8046.72, seconds: 2430 }] });
+    const steady = Array.from({ length: 243 }, (_, index) => [(index + 1) * 10, ((index + 1) * 10 * 8046.72) / 2430]);
+    plugin.runDetail = vi.fn(async () => ({ distance: steady, heartRate: [[60, 150]], pauses: [], effort: { value: 5, estimated: true } }));
+    writeWatchRunsOn(true);
+    const showToast = vi.fn();
+    const { result, rerender } = renderHook(() => useApp(showToast));
+    await waitFor(() => expect(result.current[today]?.workout?.cardio?.splits).toHaveLength(5));
+    expect(plugin.runDetail).toHaveBeenCalledWith({ id: "hk-1" });
+    expect(result.current[today].workout.cardio).toMatchObject({ effortScore: "5", effortEstimated: true });
+    expect(result.current[today].workout.cardio.splits[0]).toMatchObject({ n: 1, miles: 1, seconds: 486, hr: 150 });
+    expect(JSON.parse(localStorage.getItem("ovt-health-runs-detailed"))).toEqual(["hk-1"]);
+
+    act(() => showToast.mock.calls[0][1].onAction());
+    rerender();
+    await waitFor(() => expect(result.current[today].workout.cardio).toMatchObject({ miles: "", splits: null, effortScore: "" }));
+  });
+
   it("doesn't fill the same run twice", async () => {
     const today = getTodayKey();
     const plugin = installRuns({ runs: [{ id: "hk-1", date: today, meters: 8046.72, seconds: 2430 }] });

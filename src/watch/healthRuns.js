@@ -7,6 +7,7 @@
 
 import { defaultDay } from "../constants";
 import { METERS_PER_MILE } from "../runPaces";
+import { runSplits } from "./runSplits";
 
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 // How many Health workout ids are remembered as dealt with.
@@ -112,4 +113,51 @@ export function fillMessage(fills, todayKey) {
     : sameDay(date, yesterday) ? "Yesterday’s"
     : `${date.toLocaleDateString("en-US", { weekday: "long" })}’s`;
   return `${day} run filled in from Apple Health`;
+}
+
+// A logged run is the Health run when their miles agree this closely.
+const SAME_RUN = 0.03;
+
+/**
+ * Which logged runs to read splits and effort for: [{ dateKey, id }], one
+ * per day, the day's longest Health run, where the day's logged run has its
+ * miles and no splits yet, and that run wasn't read before (`detailed`).
+ * `filled` are days just filled from these runs, whose writes may not have
+ * landed in `data` yet.
+ */
+export function planRunDetails({ runs = [], data = {}, detailed = [], filled = [] } = {}) {
+  const done = new Set(detailed);
+  const justFilled = new Set(filled);
+  const byDate = new Map();
+  for (const run of runs) {
+    if (!run || typeof run.id !== "string" || !DATE_KEY.test(run.date || "")) continue;
+    byDate.set(run.date, [...(byDate.get(run.date) || []), run]);
+  }
+  const plan = [];
+  for (const [dateKey, dayRuns] of byDate) {
+    const longest = [...dayRuns].sort((a, b) => positive(b.meters) - positive(a.meters))[0];
+    if (!longest || done.has(longest.id) || !(positive(longest.meters) > 0)) continue;
+    const cardio = (data[dateKey] || defaultDay()).workout?.cardio || {};
+    if (Array.isArray(cardio.splits) && cardio.splits.length) continue;
+    if (!justFilled.has(dateKey)) {
+      const logged = positive(Number.parseFloat(cardio.miles));
+      const recorded = dayRuns.reduce((sum, run) => sum + positive(run.meters), 0) / METERS_PER_MILE;
+      if (!(logged > 0) || Math.abs(logged - recorded) > recorded * SAME_RUN) continue;
+    }
+    plan.push({ dateKey, id: longest.id });
+  }
+  return plan.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+}
+
+/** The log writes for a run's detail: its splits and its effort. */
+export function detailWrites(detail) {
+  const writes = [];
+  const splits = runSplits(detail);
+  if (splits.length) writes.push({ path: "workout.cardio.splits", value: splits });
+  const effort = Number(detail?.effort?.value);
+  if (Number.isFinite(effort) && effort >= 1 && effort <= 10) {
+    writes.push({ path: "workout.cardio.effortScore", value: String(Math.round(effort)) });
+    writes.push({ path: "workout.cardio.effortEstimated", value: detail.effort.estimated !== false });
+  }
+  return writes;
 }
