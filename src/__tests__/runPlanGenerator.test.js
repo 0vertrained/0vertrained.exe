@@ -153,10 +153,53 @@ describe("Rami's 12-week 10K plan", () => {
   });
 });
 
+describe("plans starting during a training week", () => {
+  const fridayStart = { ...RAMI_10K, startDate: "2026-10-30", benchmarkTest: "auto" };
+
+  it("keeps the calendar phases, trims only week one and previews just its scheduled runs", () => {
+    const plan = generateRunPlan(fridayStart);
+    const monday = generateRunPlan({ ...fridayStart, startDate: "2026-10-26" });
+    expect(plan.startDate).toBe("2026-10-30");
+    expect(plan.totalWeeks).toBe(12);
+    expect(Object.keys(plan.weeks[0].days)).toEqual(["Friday", "Saturday", "Sunday"]);
+    expect(plan.weeks[0].days.Saturday.run).toEqual(monday.weeks[0].days.Saturday.run);
+    expect(summarizeRunPlan(plan)[0]).toMatchObject({ totalRunMinutes: 35, longMinutes: 35, quality: null });
+    expect(plan.weeks.slice(1)).toEqual(monday.weeks.slice(1));
+    expect(plan.benchmarkDate).toBe("2026-11-24");
+    expect(plan.weeks[4].days.Tuesday.run.planRole).toBe("benchmark");
+    expect(plan.weeks[11].days.Saturday.day.cardio.planRole).toBe("race");
+  });
+
+  it("allows a Sunday start without inventing missed runs", () => {
+    const plan = generateRunPlan({ ...fridayStart, startDate: "2026-11-01" });
+    expect(plan.totalWeeks).toBe(12);
+    expect(Object.keys(plan.weeks[0].days)).toEqual(["Sunday"]);
+    expect(summarizeRunPlan(plan)[0]).toMatchObject({ totalRunMinutes: 0, longMinutes: null });
+    expect(plan.weeks[1].days.Monday.run).toBeTruthy();
+  });
+
+  it("applies a dated benchmark on the selected start or in the following week", () => {
+    const first = generateRunPlan({ ...fridayStart, benchmarkTest: "2026-10-30" });
+    expect(first.weeks[0].days.Friday.run.planRole).toBe("benchmark");
+    expect(first.weeks[0].days.Thursday).toBeUndefined();
+    const later = generateRunPlan({ ...fridayStart, benchmarkTest: "2026-11-02" });
+    expect(later.weeks[1].days.Monday.run.planRole).toBe("benchmark");
+    expect(later.weeks[0].benchmark).toBe(false);
+    const early = generateRunPlan({ ...fridayStart, benchmarkTest: "2026-10-28" });
+    expect(early.benchmarkDate).toBeNull();
+    expect(early.warnings.join(" ")).toContain("outside the plan");
+  });
+
+  it("rejects an earlier race in the same week and an impossible start date", () => {
+    expect(validateRunPlanSpec({ ...fridayStart, raceDate: "2026-10-29" }).errors).toContain("The race date is before the plan starts.");
+    expect(validateRunPlanSpec({ ...fridayStart, startDate: "2026-02-31" }).errors).toContain("Pick a start date.");
+  });
+});
+
 describe("spec normalization + validation", () => {
-  it("snaps the start to its Monday and fills defaults", () => {
+  it("keeps the selected start date and fills defaults", () => {
     const spec = normalizeRunPlanSpec({ raceDate: "2027-01-16", startDate: "2026-10-28" });
-    expect(spec.startDate).toBe("2026-10-26");
+    expect(spec.startDate).toBe("2026-10-28");
     expect(spec).toMatchObject({ distance: "10k", runsPerWeek: 4, longRunDay: "Saturday", qualityDay: "Tuesday", crossTraining: "none", benchmarkTest: "auto" });
   });
 

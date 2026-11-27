@@ -1,61 +1,34 @@
-// src/programSummary.js
-// Pure display helpers for weekly program days. Keeps Today/Coach labels aligned
-// with what the Program editor saves: lifting + optional cardio.
+// Shared day labels for Today and Coach, including separate morning and evening sessions.
+import { getProgramSessions } from "./programSessions";
 
-const finiteNumber = (value) => {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-};
+function describeCardio(cardio) {
+  const type = typeof cardio.type === "string" ? cardio.type.trim() : "";
+  const effort = typeof cardio.effort === "string" ? cardio.effort.trim() : "";
+  const minutes = Number(cardio.minutes);
+  const miles = Number(cardio.miles);
+  const parts = type ? [type] : [];
+  // Time-based race prescriptions carry an estimated distance. Show the prescribed time.
+  if (Number.isFinite(minutes) && minutes > 0) {
+    parts.push(`${minutes} min`);
+    if (effort && !type.toLowerCase().includes(effort.toLowerCase())) parts.push(effort);
+  } else {
+    if (Number.isFinite(miles) && miles > 0) parts.push(`${miles}mi`);
+    if (effort) parts.push(effort);
+  }
+  return { type, label: parts.join(" · ") || "Cardio" };
+}
 
 export function summarizeProgramDay(day = null) {
-  if (!day) {
-    return {
-      label: "Rest / mobility",
-      hasLifting: false,
-      hasCardio: false,
-      liftCount: 0,
-      cardioLabel: null,
-    };
-  }
-
-  const lifting = Array.isArray(day.lifting) ? day.lifting : [];
-  const liftCount = lifting.length;
+  const sessions = getProgramSessions(day);
+  const liftCount = sessions.reduce((count, session) => count + session.lifting.length, 0);
   const hasLifting = liftCount > 0;
-  const cardio = day.cardio || null;
-  const hasCardio = Boolean(cardio);
-  const type = typeof day.type === "string" && day.type.trim() ? day.type.trim() : null;
-  const cardioType = typeof cardio?.type === "string" && cardio.type.trim() ? cardio.type.trim() : null;
-  const miles = finiteNumber(cardio?.miles);
-  const minutes = finiteNumber(cardio?.minutes);
-  const effort = typeof cardio?.effort === "string" && cardio.effort.trim() ? cardio.effort.trim() : null;
-
-  const cardioParts = [];
-  if (cardioType) cardioParts.push(cardioType);
-  if (minutes !== null && minutes > 0) {
-    // Race-plan runs are prescribed in minutes (their miles are an
-    // estimate), and their type already names the effort ("Threshold Run").
-    cardioParts.push(`${minutes} min`);
-    if (effort && !(cardioType || "").toLowerCase().includes(effort.toLowerCase())) cardioParts.push(effort);
-  } else {
-    if (miles !== null && miles > 0) cardioParts.push(`${miles}mi`);
-    if (effort) cardioParts.push(effort);
+  const cardios = sessions.filter(session => session.cardio).map(session => describeCardio(session.cardio));
+  const hasCardio = cardios.length > 0;
+  const cardioLabel = cardios.map(cardio => cardio.label).join(" + ") || null;
+  const type = typeof day?.type === "string" ? day.type.trim() : "";
+  const labels = type ? [type] : hasLifting ? [`${liftCount} lift${liftCount === 1 ? "" : "s"}`] : [];
+  for (const cardio of cardios) {
+    if (!type || !type.toLowerCase().includes(cardio.type.toLowerCase())) labels.push(cardio.label);
   }
-  const cardioLabel = hasCardio ? (cardioParts.join(" · ") || "Cardio") : null;
-
-  let label;
-  if (type && cardioLabel && !type.toLowerCase().includes((cardioType || "").toLowerCase())) {
-    label = `${type} + ${cardioLabel}`;
-  } else if (type) {
-    label = type;
-  } else if (cardioLabel && hasLifting) {
-    label = `${liftCount} lift${liftCount === 1 ? "" : "s"} + ${cardioLabel}`;
-  } else if (cardioLabel) {
-    label = cardioLabel;
-  } else if (hasLifting) {
-    label = `${liftCount} lift${liftCount === 1 ? "" : "s"}`;
-  } else {
-    label = "Rest / mobility";
-  }
-
-  return { label, hasLifting, hasCardio, liftCount, cardioLabel };
+  return { label: labels.join(" + ") || "Rest / mobility", hasLifting, hasCardio, liftCount, cardioLabel };
 }

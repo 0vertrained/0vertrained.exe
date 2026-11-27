@@ -16,11 +16,11 @@
 // `__raceBuild` may also be an OBJECT: a generated race-plan spec
 // (runPlanGenerator.js, kind "runPlan"). It is expanded on read, and its weeks
 // use plan patches — { run } / { cross } / { clearRuns } — that own running on
-// all seven days, reach into AM/PM sessions, and never touch lifting. The
-// registry-string path (the 50K) is unchanged.
+// scheduled days from the plan start and reach into AM/PM sessions. The pre-race rest and race
+// day replace whole days except when the hybrid block prescribes lifting.
 
 import { generateRunPlan, isRunPlanSpec } from "./runPlanGenerator";
-import { resolveRoadTrailWeek } from "./plans/roadTrailHybrid";
+import { resolveRoadTrailWeek, ROAD_TRAIL_HYBRID } from "./plans/roadTrailHybrid";
 import { applyWeekMoves } from "./weekMoves";
 import { isRunCardio } from "./cardioLog";
 export { isRunCardio } from "./cardioLog";
@@ -155,7 +155,7 @@ export function resolveBuildWeek(config, todayKey) {
   const raceMonday = mondayKeyOf(config.raceDate);
   const todayMonday = mondayKeyOf(todayKey);
   if (!raceMonday || !todayMonday) return null;
-  if (config.startDate && todayMonday < mondayKeyOf(config.startDate)) {
+  if (config.startDate && todayKey < config.startDate) {
     return { phase: "pending", index: null, week: null, totalWeeks: config.weeks.length, startsOn: config.startDate, raceDate: config.raceDate };
   }
   const weeksToRaceWeek = weeksBetweenMondays(todayMonday, raceMonday);
@@ -294,12 +294,19 @@ function applyBuildWeek(program, todayKey) {
   const config = resolveRaceBuildConfig(program?.__raceBuild);
   if (!config) return program;
   const resolved = resolveBuildWeek(config, todayKey);
-  if (!resolved || resolved.phase === "complete" || resolved.phase === "pending" || !resolved.week) return program;
+  // A date can still be pending while its calendar week contains the first runs.
+  // Week one only has patches on or after the chosen start date.
+  const week = resolved?.phase === "pending" && mondayKeyOf(todayKey) === mondayKeyOf(config.startDate)
+    ? config.weeks[0] : resolved?.week;
+  if (!week) return program;
   const next = { ...program };
-  for (const [dayName, patch] of Object.entries(resolved.week.days || {})) {
+  const hybridRacePlan = config.generated && program.__hybridBlock?.id === ROAD_TRAIL_HYBRID.id;
+  for (const [dayName, patch] of Object.entries(week.days || {})) {
     if (!patch || !program[dayName]) continue;
     if (patch.day) {
-      next[dayName] = { ...patch.day };
+      next[dayName] = hybridRacePlan && hasLifting(program[dayName])
+        ? applyPlanPatch(program[dayName], { run: patch.day.cardio, clearRuns: true })
+        : { ...patch.day };
     } else if (patch.run || patch.cross || patch.clearRuns) {
       next[dayName] = applyPlanPatch(program[dayName], patch);
     } else if (Object.prototype.hasOwnProperty.call(patch, "cardio")) {

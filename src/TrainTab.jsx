@@ -135,7 +135,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
   }
 
   if (view === "program") {
-    return <ProgramHome program={program} todayKey={todayKey} onOpenBlock={() => setView("block")} onSaveProgram={onSaveProgram} onBuild={() => setView("build")} onEdit={(day = null) => { setEditDay(day); setView("edit"); }} />;
+    return <ProgramHome program={program} liveProgram={liveProgram} todayKey={todayKey} onOpenBlock={() => setView("block")} onSaveProgram={onSaveProgram} onBuild={() => setView("build")} onEdit={(day = null) => { setEditDay(day); setView("edit"); }} />;
   }
   if (view === "edit") {
     return <ProgramEditor program={program} initialDay={editDay} onSaveProgram={onSaveProgram} onDone={() => setView("program")} onGuard={setLeaveGuard} />;

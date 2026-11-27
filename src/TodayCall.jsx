@@ -115,12 +115,13 @@ export function useDayOps({
 // The call: a five-bar effort meter, one word, the recovery score, one
 // sentence. Until the check-in is answered it sits in pencil; answering inks
 // it in. Below the rule, what today holds and its one primary action.
-export function CallCard({ ops, decision, recommendation, call: sharedCall = null, sessionTitle, exerciseCount = 0, primary = null, isRest = false, finished = null, onOpenRecovery }) {
+export function CallCard({ ops, decision, recommendation, call: sharedCall = null, sessionTitle, exerciseCount = 0, primary = null, isRest = false, upcomingHybridStart = null, onChangeStartDate = null, finished = null, onOpenRecovery }) {
   // The app's one call (sharedCall.js), the same as Recovery's, with the
   // recovery score Recovery shows. A past day keeps its own engine's call.
   const call = sharedCall || describeTodayCall(decision?.call);
   const score = finite(sharedCall ? sharedCall.score : recommendation?.readinessIndex);
   const inked = ops.checkin.complete;
+  const startMessage = upcomingHybridStart ? `Road & Trail Hybrid starts ${upcomingHybridStart}.` : null;
   return (
     <section className={`card ${inked ? "is-ink" : "pencil"}`} aria-labelledby="call" data-section="physique-os" data-ui="today-command-center" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 16px 8px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44 }}>
@@ -144,19 +145,26 @@ export function CallCard({ ops, decision, recommendation, call: sharedCall = nul
       <hr className="hr" />
       {isRest ? (
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-          <Icon name="done" className="good" />
-          <div className="kv grow"><h3 className="t-h">Rest day, protected</h3><p className="t-s c2">Planned in your program. Training counts as done today.</p></div>
+          <Icon name={startMessage ? "train" : "done"} className={startMessage ? "c2" : "good"} />
+          <div className="kv grow">
+            <h3 className="t-h">{startMessage || "Rest day, protected"}</h3>
+            <p className="t-s c2">{startMessage ? "No workout scheduled today." : "Planned in your program. Training counts as done today."}</p>
+          </div>
         </div>
       ) : finished ? (
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="kv grow"><h3 className="t-bs clip">{sessionTitle}</h3><span className="t-s c2">{finished.line}</span></span>
+          <span className="kv grow"><h3 className="t-bs">{sessionTitle}</h3><span className="t-s c2">{finished.line}</span></span>
           <button type="button" className="btn btn-s btn-sm" onClick={finished.onOpen}>Box Score</button>
         </div>
       ) : (
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <h3 className="t-h grow clip">{sessionTitle}</h3>
+          <h3 className="t-h grow">{sessionTitle}</h3>
           {exerciseCount > 0 && <span className="t-s c2">{exerciseCount}{NBSP}exercises</span>}
         </div>
+      )}
+      {!isRest && startMessage && <p className="t-s c2">{startMessage}</p>}
+      {startMessage && onChangeStartDate && (
+        <button type="button" className="btn btn-s btn-sm" style={{ alignSelf: "flex-start" }} onClick={onChangeStartDate}>Change start date</button>
       )}
       {primary && (
         <button type="button" className={`btn ${isRest || primary.quiet ? "btn-s" : "btn-p"} btn-b`} onClick={primary.onGo}>{primary.label}</button>

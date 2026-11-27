@@ -58,6 +58,15 @@ describe("buildTodayDecision", () => {
     expect(out.avoidList.some((a) => /extra workout/i.test(a))).toBe(true);
   });
 
+  it("respects an empty pre-block day even when the athlete is ready to push", () => {
+    const out = buildTodayDecision({
+      recommendation: { readiness: "push" },
+      todayProgram: { type: "Before the block", code: "REST", lifting: [], cardio: null },
+    });
+    expect(out.call).toBe("maintain");
+    expect(out.primaryAction).toMatch(/rest day/i);
+  });
+
   it("includes recovery score in reasons when available", () => {
     const rec = { readiness: "normal", confidence: "high", reasons: [] };
     const recovery = { score: 75, source: "subjective" };

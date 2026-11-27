@@ -102,7 +102,7 @@ function AppInner({ onThemeChange }) {
   // What Today should do when it next shows: start the session or open the
   // run log. The nonce makes the same request twice still count twice.
   const [todayIntent, setTodayIntent] = useState(null);
-  // Progress can open Train on the block.
+  // Today and Progress can open the training block directly.
   const [trainLanding, setTrainLanding] = useState(null);
   // Today and Progress can ask Recovery to open on the week's edition.
   const [editionAsked, setEditionAsked] = useState(false);
@@ -1236,7 +1236,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.today.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.today.isZero
               ? <DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />
-              : <TodayTab key={accountOwner} integrationRevision={integrationRevision} todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} wearableSample={wearableSample} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={currentLoad} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
+              : <TodayTab key={accountOwner} integrationRevision={integrationRevision} todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} wearableSample={wearableSample} setTab={navigateTo} onChangeStartDate={() => { setTrainLanding("block"); navigateTo("Train"); }} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={currentLoad} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
             </div>
           )}
           {tab === "Train" && (

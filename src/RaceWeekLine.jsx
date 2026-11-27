@@ -18,7 +18,7 @@ export function formatPlanDate(dateKey) {
 
 export function hybridWeekLabel(week) {
   if (week.completed) return "Block complete · Recovery";
-  if (!week.weekNumber) return `Starts ${formatPlanDate(week.startMonday)}`;
+  if (!week.weekNumber) return `Starts ${formatPlanDate(week.startDate || week.startMonday)}`;
   return `Week ${week.weekNumber} of ${week.totalWeeks} · ${week.phase}`;
 }
 

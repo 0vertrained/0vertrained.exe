@@ -5,7 +5,7 @@
 // instead of the 50K's registry string):
 //
 //   { kind: "runPlan", v: 1, raceName, distance: "5k"|"10k"|"half",
-//     raceDate, startDate (Monday), runsPerWeek: 3–5, longRunDay, qualityDay,
+//     raceDate, startDate, runsPerWeek: 3–5, longRunDay, qualityDay,
 //     crossTraining: "none"|"walk"|"vest_walk", startLongRunMin,
 //     benchmark: { distance, seconds, date } | null,
 //     benchmarkTest: "auto" | "none" | "YYYY-MM-DD" }
@@ -23,7 +23,7 @@
 // Paces appear only when there is a benchmark (runPaces.js); without one,
 // targets are effort cues.
 //
-// The plan OWNS running while it is active: each week patches all seven days —
+// The plan OWNS running while it is active: each week patches each day from the selected start —
 // a run, a cross-training walk, or `clearRuns` (other runs removed; walks,
 // bike and lifting untouched). Lifting is never modified; conflicts with leg
 // days surface as warnings, never edits (suggest-only, like the rest of the app).
@@ -57,7 +57,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 function parseKey(key) {
   if (typeof key !== "string" || !ISO_RE.test(key)) return null;
   const d = new Date(`${key}T12:00:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return Number.isNaN(d.getTime()) || isoKey(d) !== key ? null : d;
 }
 
 function isoKey(d) {
@@ -120,7 +120,7 @@ export function normalizeRunPlanSpec(raw = {}) {
     raceName,
     distance,
     raceDate: parseKey(r.raceDate) ? r.raceDate : null,
-    startDate: parseKey(r.startDate) ? mondayOfKey(r.startDate) : null,
+    startDate: parseKey(r.startDate) ? r.startDate : null,
     runsPerWeek,
     longRunDay,
     qualityDay,
@@ -147,7 +147,7 @@ export function validateRunPlanSpec(raw) {
     if (spec.raceDate < spec.startDate) {
       errors.push("The race date is before the plan starts.");
     } else {
-      weeks = Math.round(daysBetweenKeys(spec.startDate, mondayOfKey(spec.raceDate)) / 7) + 1;
+      weeks = Math.round(daysBetweenKeys(mondayOfKey(spec.startDate), mondayOfKey(spec.raceDate)) / 7) + 1;
       if (weeks < MIN_PLAN_WEEKS) errors.push(`The race is only ${weeks} week${weeks === 1 ? "" : "s"} out — a plan needs at least ${MIN_PLAN_WEEKS}.`);
       if (weeks > MAX_PLAN_WEEKS) errors.push(`The race is ${weeks} weeks out — start the plan within ${MAX_PLAN_WEEKS} weeks of race day.`);
     }
@@ -467,7 +467,7 @@ function resolveBenchmarkDate(spec, startMonday, preRaceWeeks, firstBuildIndex) 
   if (spec.benchmarkTest === "none") return null;
   const lastPreRaceDay = addDaysKey(startMonday, preRaceWeeks * 7 - 1);
   if (spec.benchmarkTest !== "auto") {
-    return spec.benchmarkTest >= startMonday && spec.benchmarkTest <= lastPreRaceDay ? spec.benchmarkTest : null;
+    return spec.benchmarkTest >= spec.startDate && spec.benchmarkTest <= lastPreRaceDay ? spec.benchmarkTest : null;
   }
   return addDaysKey(startMonday, firstBuildIndex * 7 + dayIndex(spec.qualityDay));
 }
@@ -501,11 +501,12 @@ export function generateRunPlan(rawSpec) {
   for (const pos of buildPositions) seq.push({ phase: "build", pos, cut: pos === 3 });
   for (const pos of [0, 1, 2].slice(3 - lengths.specific)) seq.push({ phase: "specific", pos, peak: pos === 2, cut: false });
 
-  const benchmarkDate = resolveBenchmarkDate(spec, spec.startDate, preRace, lengths.base);
+  const startMonday = mondayOfKey(spec.startDate);
+  const benchmarkDate = resolveBenchmarkDate(spec, startMonday, preRace, lengths.base);
   if (spec.benchmarkTest !== "auto" && spec.benchmarkTest !== "none" && !benchmarkDate) {
     warnings.push("The benchmark test date falls outside the plan's training weeks, so it was left out.");
   }
-  const benchmarkWeek = benchmarkDate ? Math.floor(daysBetweenKeys(spec.startDate, benchmarkDate) / 7) : -1;
+  const benchmarkWeek = benchmarkDate ? Math.floor(daysBetweenKeys(startMonday, benchmarkDate) / 7) : -1;
   const benchmarkDay = benchmarkDate ? weekdayOf(benchmarkDate) : null;
 
   const weeks = [];
@@ -582,13 +583,17 @@ export function generateRunPlan(rawSpec) {
       if (benchmarkDay !== roles.quality) days[roles.quality] = { run: easyRun(E, { ...ctx, strides: 4 }) };
       if (benchmarkDay === roles.long) warnings.push(`The benchmark replaces week ${weekNo}'s long run.`);
       const dayBefore = dayAt(dayIndex(benchmarkDay) - 1);
-      if (dayIndex(benchmarkDay) > 0) {
+      if (dayIndex(benchmarkDay) > 0 && benchmarkDate > spec.startDate) {
         if (dayBefore === roles.long) warnings.push(`Week ${weekNo}'s long run moves out of the way of the benchmark — it's skipped that week.`);
         days[dayBefore] = { clearRuns: true, rest: true };
       }
       days[benchmarkDay] = { run: benchmarkRun(ctx) };
     }
 
+    // Missing patches leave the underlying program intact when viewing earlier days.
+    if (w === 0) {
+      for (const day of DAYS.slice(0, dayIndex(weekdayOf(spec.startDate)))) delete days[day];
+    }
     weeks.push(finishWeek({
       id: `w${weekNo}`,
       index: w,

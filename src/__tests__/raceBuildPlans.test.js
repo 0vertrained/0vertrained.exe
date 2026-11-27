@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROGRAM, PROGRAM_PRESETS } from "../constants";
-import { applyRaceBuild, describeBuildWeek, isRunCardio, resolveRaceBuildConfig, RACE_BUILD_50K } from "../raceBuild";
+import { applyRaceBuild, describeBuildWeek, isRunCardio, resolveBuildWeek, resolveRaceBuildConfig, RACE_BUILD_50K } from "../raceBuild";
 import { getProgramSessions } from "../programSessions";
+import { startRoadTrailHybrid } from "../plans/roadTrailHybrid";
+import { swapDays, WEEK_DAYS } from "../weekMoves";
 import { buildPeriodizationPlan } from "../periodizationPlanner";
 import { buildCoachEvidencePacket } from "../coachEvidence";
 import { seedSupersetPrefsFromProgram } from "../liftLogPrefs";
@@ -45,6 +47,34 @@ describe("before the plan starts", () => {
   });
   it("describes itself as pending", () => {
     expect(describeBuildWeek(program, "2026-10-22")).toMatchObject({ pending: true, startsOn: "2026-10-26", totalWeeks: 12, daysToRace: 86, raceName: "10K race" });
+  });
+});
+
+describe("a midweek generated race-plan start", () => {
+  const program = { ...DEFAULT_PROGRAM, __raceBuild: { ...SPEC, startDate: "2026-10-30" } };
+
+  it("shows the exact pending start while resolving the whole calendar week", () => {
+    const dates = ["2026-10-26", "2026-10-29"];
+    for (const dateKey of dates) {
+      expect(describeBuildWeek(program, dateKey)).toMatchObject({ pending: true, startsOn: "2026-10-30" });
+      const week = applyRaceBuild(program, dateKey);
+      for (const day of ["Monday", "Tuesday", "Wednesday", "Thursday"]) expect(week[day]).toBe(program[day]);
+      expect(week.Saturday.cardio).toMatchObject({ planRole: "long", minutes: 35 });
+    }
+    expect(applyRaceBuild(program, "2026-10-25")).toBe(program);
+    expect(describeBuildWeek(program, "2026-10-30")).toMatchObject({ weekIndex: 0, totalRunMinutes: 35 });
+    expect(describeBuildWeek(program, "2026-11-02").weekIndex).toBe(1);
+  });
+
+  it("preserves a hybrid workout before the independent race-plan start", () => {
+    const hybrid = startRoadTrailHybrid(PROGRAM_PRESETS.roadTrailHybrid.program, "2026-10-28");
+    const both = { ...hybrid, __raceBuild: program.__raceBuild };
+    const live = applyRaceBuild(both, "2026-10-29");
+    const base = applyRaceBuild(hybrid, "2026-10-29");
+    expect(live.Wednesday).toEqual(base.Wednesday);
+    expect(live.Thursday).toEqual(base.Thursday);
+    expect(getProgramSessions(live.Friday).flatMap(s => s.lifting)).toEqual(getProgramSessions(base.Friday).flatMap(s => s.lifting));
+    expect(live.Saturday.cardio.planRole).toBe("long");
   });
 });
 
@@ -135,6 +165,66 @@ describe("AM/PM days (The Double Edition)", () => {
   it("is idempotent on session days too", () => {
     expect(applyRaceBuild(live, "2026-10-26")).toEqual(live);
   });
+});
+
+describe("generated race calendar beside Road & Trail Hybrid", () => {
+  const base = startRoadTrailHybrid(PROGRAM_PRESETS.roadTrailHybrid.program, "2026-11-23");
+  const withRace = (raceDate, runsPerWeek = 4) => ({ ...base, __raceBuild: { ...SPEC, startDate: "2026-10-19", raceDate, runsPerWeek } });
+  const lifts = (day) => getProgramSessions(day).filter(s => s.lifting.length)
+    .map(({ id, timeOfDay, lifting }) => ({ id, timeOfDay, lifting }));
+  const runs = (day) => getProgramSessions(day).map(s => s.cardio).filter(isRunCardio);
+
+  it("retains Friday’s upper-body session when the running calendar rests before Saturday’s race", () => {
+    const date = "2026-11-27";
+    const program = withRace("2026-11-28");
+    const friday = applyRaceBuild(program, date).Friday;
+    const [upper] = lifts(friday);
+    expect(upper).toMatchObject({ id: "am", timeOfDay: "morning" });
+    expect(lifts(friday)).toEqual(lifts(applyRaceBuild(base, date).Friday));
+    expect(runs(friday)).toHaveLength(0);
+    expect(applyRaceBuild(swapDays(program, date, "Monday", "Friday"), date).Monday).toEqual(friday);
+  });
+
+  it("adds a Friday race to the PM slot alongside the scheduled AM lifting", () => {
+    const friday = applyRaceBuild(withRace("2026-11-27"), "2026-11-27").Friday;
+    expect(getProgramSessions(friday).map(s => [s.id, s.lifting.length > 0, s.cardio?.planRole]))
+      .toEqual([["am", true, undefined], ["pm", false, "race"]]);
+  });
+
+  it("permits race-only training before the hybrid starts and resumes its own workouts after the race", () => {
+    const program = startRoadTrailHybrid(withRace("2026-11-27"), "2026-11-30");
+    const friday = applyRaceBuild(program, "2026-11-27").Friday;
+    expect(lifts(friday)).toHaveLength(0);
+    expect(runs(friday)).toMatchObject([{ planRole: "race" }]);
+    const following = applyRaceBuild(program, "2026-11-30").Monday;
+    expect(lifts(following)).toHaveLength(1);
+    expect(runs(following)).toMatchObject([{ type: "Easy road run" }]);
+  });
+
+  it("keeps both hybrid Friday sessions while the separate race plan is upcoming", () => {
+    const program = { ...base, __raceBuild: { ...SPEC, startDate: "2026-11-30" } };
+    const date = "2026-11-27";
+    expect(applyRaceBuild(program, date).Friday).toEqual(applyRaceBuild(base, date).Friday);
+  });
+
+  it.each([[3, "2027-01-14"], [4, "2027-01-16"], [5, "2027-01-17"]])(
+    "keeps the hybrid lifting and follows the %i-run calendar through all eight weeks",
+    (runsPerWeek, raceDate) => {
+      const program = withRace(raceDate, runsPerWeek);
+      const config = resolveRaceBuildConfig(program.__raceBuild);
+      for (const monday of ["2026-11-23", "2026-11-30", "2026-12-07", "2026-12-14", "2026-12-21", "2026-12-28", "2027-01-04", "2027-01-11"]) {
+        const live = applyRaceBuild(program, monday);
+        const expectedBase = applyRaceBuild(base, monday);
+        const { days } = resolveBuildWeek(config, monday).week;
+        for (const day of WEEK_DAYS) {
+          const patch = days[day];
+          const run = patch.run || patch.day?.cardio;
+          expect(lifts(live[day]), monday + " " + day).toEqual(lifts(expectedBase[day]));
+          expect(runs(live[day]), monday + " " + day).toEqual(run ? [run] : []);
+        }
+      }
+    },
+  );
 });
 
 describe("benchmark and race weeks", () => {

@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { ThemeProvider } from "../theme";
 import { DEFAULT_PROGRAM, PROGRAM_PRESETS } from "../constants";
 import { RaceWeekLine, raceWeekCopy } from "../RaceWeekLine";
-import { RacePlanPanel, draftToSpec, nextMondayKey } from "../RacePlanPanel";
+import { RacePlanPanel, draftToSpec } from "../RacePlanPanel";
 import { RaceBlockSection, racePhase } from "../RaceBlockSection";
 import { applyRaceBuild, describeBuildWeek, keepRacePlan } from "../raceBuild";
 import { summarizeProgramDay } from "../programSummary";
@@ -62,9 +62,17 @@ describe("Today race line", () => {
 });
 
 describe("race plan panel", () => {
-  it("starts new plans on the coming Monday", () => {
-    expect(nextMondayKey("2026-10-22")).toBe("2026-10-26"); // Thu → next Mon
-    expect(nextMondayKey("2026-10-26")).toBe("2026-10-26"); // Mon → today
+  it("defaults to today and lets an athlete move an existing race plan to Friday", async () => {
+    const onSave = vi.fn().mockResolvedValue(true);
+    const today = "2026-11-27";
+    const panel = wrap(<RacePlanPanel program={DEFAULT_PROGRAM} todayKey={today} onSave={onSave} />);
+    expect(screen.getByLabelText("Plan start date").value).toBe(today);
+    panel.unmount();
+    wrap(<RacePlanPanel program={{ ...PROGRAM, __raceBuild: { ...SPEC, startDate: "2026-11-30" } }} todayKey={today} onSave={onSave} />);
+    fireEvent.change(screen.getByLabelText("Plan start date"), { target: { value: today } });
+    expect(screen.getByText("Running schedule starts Fri, Nov 27.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Update plan" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ startDate: today, raceDate: SPEC.raceDate })));
   });
 
   it("turns a draft into a clean stored spec", () => {
@@ -74,7 +82,7 @@ describe("race plan panel", () => {
       resultDistance: "5k", resultTime: "27:30", testMode: "date", testDate: "2026-11-26",
     });
     expect(spec).toEqual({
-      kind: "runPlan", v: 1, raceName: "Chilly Willy 10K", distance: "10k", raceDate: "2027-01-16", startDate: "2026-10-26",
+      kind: "runPlan", v: 1, raceName: "Chilly Willy 10K", distance: "10k", raceDate: "2027-01-16", startDate: "2026-10-28",
       runsPerWeek: 4, longRunDay: "Saturday", qualityDay: "Tuesday", crossTraining: "vest_walk", startLongRunMin: 35,
       benchmark: { distance: "5k", seconds: 1650, date: null }, benchmarkTest: "2026-11-26",
     });
@@ -91,7 +99,7 @@ describe("race plan panel", () => {
 
     fireEvent.change(screen.getByLabelText("Race date"), { target: { value: "2027-01-16" } });
     expect(screen.getByText("Week 1 — Base")).toBeTruthy();
-    expect(screen.getByText("Week 12 — Race week")).toBeTruthy();
+    expect(screen.getByText("Week 13 — Race week")).toBeTruthy();
     expect(screen.getByText(/Saturday has heavy leg work on your long-run day/)).toBeTruthy();
     expect(start.getAttribute("aria-disabled")).toBeNull();
   });
@@ -114,8 +122,8 @@ describe("race plan panel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Start plan/ }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     const spec = onSave.mock.calls[0][0];
-    expect(spec).toMatchObject({ kind: "runPlan", raceDate: "2027-01-16", startDate: "2026-10-26", qualityDay: "Tuesday" });
-    expect(generateRunPlan(spec).totalWeeks).toBe(12);
+    expect(spec).toMatchObject({ kind: "runPlan", raceDate: "2027-01-16", startDate: "2026-10-22", qualityDay: "Tuesday" });
+    expect(generateRunPlan(spec).totalWeeks).toBe(13);
   });
 
   it("edits an existing plan and ends it only after confirming", async () => {

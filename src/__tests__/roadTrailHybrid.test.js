@@ -20,6 +20,51 @@ const watchSeconds = workout => (workout.warmup?.goal.seconds || 0) + (workout.c
   workout.blocks.reduce((sum, block) => sum + block.iterations * block.steps.reduce((n, step) => n + step.goal.seconds, 0), 0);
 
 describe("Road & Trail Hybrid", () => {
+  it.each(DAYS.map((day, index) => [day, index]))("starts on %s, with the same partial calendar from either side of the start date", (day, index) => {
+    const start = date(1, index);
+    const selected = startRoadTrailHybrid(template, start, { raceTarget: "trail15k" });
+    expect(describeRoadTrailWeek(selected, shiftDate(start, -1))).toMatchObject({ phase: "Upcoming", weekNumber: 0, startDate: start });
+    expect(describeRoadTrailWeek(selected, start)).toMatchObject({ phase: "Foundation", weekNumber: 1, startMonday: monday, startDate: start });
+    for (const lookup of [monday, start, date(1, 6)]) {
+      const week = applyRaceBuild(selected, lookup);
+      for (const [i, weekday] of DAYS.entries()) {
+        if (i < index) expect(week[weekday]).toMatchObject({ type: "Before the block", code: "REST" });
+        else expect(getProgramSessions(week[weekday])).toEqual(getProgramSessions(template[weekday]));
+      }
+    }
+    expect(describeRoadTrailWeek(selected, date(2))).toMatchObject({ phase: "Build", weekNumber: 2 });
+    expect(describeRoadTrailWeek(selected, date(8, 5))).toMatchObject({ phase: "Race week", raceDate: date(8, 5) });
+  });
+
+  it("reschedules a saved Monday block to Friday without replacing edits, race settings or week moves", () => {
+    const saved = structuredClone(program);
+    saved.__hybridBlock = { id: "roadTrailHybrid", startMonday: "2026-11-30", raceTarget: "trail10k", preference: "saved" };
+    saved.__raceBuild = { kind: "runPlan", raceName: "My race", startDate: "2026-12-07", raceDate: "2027-03-06" };
+    saved.__weekMoves = { "2026-12-07": { Monday: "Tuesday", Tuesday: "Monday" } };
+    saved.Friday.sessions[0].lifting[0].sets = 2;
+    expect(describeRoadTrailWeek(saved, "2026-11-27")).toMatchObject({ startDate: "2026-11-30", weekNumber: 0 });
+    const selected = JSON.parse(JSON.stringify(startRoadTrailHybrid(saved, "2026-11-27")));
+    expect(selected).toEqual({ ...saved, __hybridBlock: { ...saved.__hybridBlock, startDate: "2026-11-27", startMonday: "2026-11-23" } });
+    expect(saved.__hybridBlock.startDate).toBeUndefined();
+    expect(describeRoadTrailWeek(selected, "2026-11-27")).toMatchObject({ raceTarget: "trail10k", raceDate: "2027-01-16" });
+    const watch = key => buildWatchPlan({ program: selected, dateKey: key });
+    expect(watch("2026-11-26")).toMatchObject({ sessions: [], runs: [] });
+    const friday = watch("2026-11-27");
+    expect(friday.sessions.map(s => s.id)).toEqual(["am"]);
+    expect(friday.sessions[0].exercises[0].sets).toHaveLength(2);
+    expect(friday.runs[0]).toMatchObject({ sessionId: "pm", name: "Easy shakeout run" });
+  });
+
+  it("rejects invalid calendar dates and lets an athlete repair a malformed saved start", () => {
+    expect(startRoadTrailHybrid(program, "2027-02-30")).toBe(program);
+    expect(describeRoadTrailWeek(program, "2027-02-30")).toBeNull();
+    for (const marker of [{ startMonday: date(1, 1) }, { startDate: "2027-02-30", startMonday: monday }]) {
+      const saved = { ...program, __hybridBlock: { id: "roadTrailHybrid", ...marker } };
+      expect(describeRoadTrailWeek(saved, monday)).toBeNull();
+      expect(describeRoadTrailWeek(startRoadTrailHybrid(saved, date(1, 4)), date(1, 4))?.weekNumber).toBe(1);
+    }
+  });
+
   it("publishes an opt-in research preset, with a dated progression that survives a save and reload", () => {
     expect(RESEARCH_PRESET_IDS).toContain("roadTrailHybrid");
     expect(PROGRAM_PRESETS.roadTrailHybrid.guide.sources.length).toBeGreaterThanOrEqual(5);

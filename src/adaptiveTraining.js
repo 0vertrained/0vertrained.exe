@@ -1,28 +1,12 @@
 // src/adaptiveTraining.js
 // Suggest-only workout adjustment rules. Pure module: no React, no network, no writes.
 
+import { getProgramSessions } from "./programSessions";
+
 const READINESS = new Set(["push", "normal", "moderate", "pull_back", "rest"]);
 
 function lower(value) {
   return String(value || "").toLowerCase();
-}
-
-function hasIntervals(program) {
-  const text = [program?.type, program?.code, program?.cardio?.type, program?.cardio?.effort, program?.cardio?.notes].map(lower).join(" ");
-  return /interval|speed|tempo|threshold|station|hyrox|high/.test(text);
-}
-
-function hasRun(program) {
-  return !!program?.cardio || /run|hyrox|tempo|interval/.test(lower(program?.type));
-}
-
-function isLegBiased(program) {
-  const text = [program?.type, program?.code, ...(program?.lifting || []).map(ex => ex?.name)].map(lower).join(" ");
-  return /leg|squat|deadlift|lunge|calf|sled|wall ball|hamstring|quad|romanian/.test(text);
-}
-
-function hasLifting(program) {
-  return Array.isArray(program?.lifting) && program.lifting.length > 0;
 }
 
 function loadRatioFromRecommendation(recommendation) {
@@ -37,10 +21,16 @@ function baseSuggestion(mode, title, rationale, changes = [], safetyNotes = []) 
 export function suggestWorkoutAdjustments({ recommendation, todayProgram, recentEntries, settings } = {}) {
   const readiness = READINESS.has(recommendation?.readiness) ? recommendation.readiness : "normal";
   const acwr = loadRatioFromRecommendation(recommendation);
-  const intervalDay = hasIntervals(todayProgram);
-  const runDay = hasRun(todayProgram);
-  const legDay = isLegBiased(todayProgram);
-  const liftDay = hasLifting(todayProgram);
+  const sessions = getProgramSessions(todayProgram);
+  const lifts = sessions.flatMap(session => session.lifting);
+  const cardios = sessions.map(session => session.cardio).filter(Boolean);
+  const dayName = [todayProgram?.type, todayProgram?.code];
+  const cardioText = [...dayName, ...cardios.flatMap(cardio => [cardio.type, cardio.effort, cardio.notes])].map(lower).join(" ");
+  const liftText = [...dayName, ...lifts.map(exercise => exercise?.name)].map(lower).join(" ");
+  const intervalDay = /interval|speed|tempo|threshold|station|hyrox|high/.test(cardioText);
+  const runDay = cardios.length > 0 || /run|hyrox|tempo|interval/.test(lower(todayProgram?.type));
+  const legDay = /leg|squat|deadlift|lunge|calf|sled|wall ball|hamstring|quad|romanian/.test(liftText);
+  const liftDay = lifts.length > 0;
 
   if (!todayProgram) {
     return baseSuggestion(

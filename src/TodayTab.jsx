@@ -47,7 +47,8 @@ import { buildWearableLoadRows } from "./wearableWorkoutLoad";
 import { TRACKING_MODES, completedSetCount, exerciseTargetSummary, isCompletedSet, isExerciseHandled, reconcileExerciseSets, resolveTrackingMode, validateSet } from "./workoutLogging";
 import { isFirstWeekUser, countLoggedDays, buildFirstWeekChecklist, summarizeChecklist, buildFirstWeekCoachCopy, buildBetaFeedbackText, resolveDataMode } from "./firstWeekJourney";
 import { useDayOps, CallCard, FuelSnapshot, DayProgress, CallSheets } from "./TodayCall";
-import { RaceWeekLine } from "./RaceWeekLine";
+import { describeRoadTrailWeek } from "./plans/roadTrailHybrid";
+import { formatPlanDate, RaceWeekLine } from "./RaceWeekLine";
 import { cardioLabel, cardioModality, cardioResultText, hasCardioResult, isRunCardio } from "./cardioLog";
 import { paceCheck, paceCheckText } from "./runPaceCheck";
 import { tomorrowSummary } from "./tomorrowLine";
@@ -217,7 +218,7 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR, onA
   );
 }
 
-export function TodayTab({ integrationRevision = 0, todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, wearableSample = null, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
+export function TodayTab({ integrationRevision = 0, todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onChangeStartDate = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, wearableSample = null, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
   // Broadsheet: below 1440px every wrapper is display:contents and
   // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -488,15 +489,9 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
     }
     if (nextAction.status !== "start" && nextAction.status !== "continue") { ops.setSheet("closeout"); return; }
     if (sessionAwareProgram) {
-      const firstIncomplete = programSessions.find((s) => {
-        const lifts = s.lifting || [];
-        if (!lifts.length) return false;
-        const done = lifts.filter((ex) => {
-          const d = wo.exercises[ex.name];
-          return d?.sets?.length === ex.sets && d.sets.every((x) => x.done);
-        }).length;
-        return done < lifts.length;
-      });
+      const firstIncomplete = programSessions.find(session =>
+        session.lifting.some(exercise => !isExerciseHandled(exercise, wo.exercises[exercise.name] || {}))
+      );
       if (firstIncomplete) setActiveLiftingSessionId(firstIncomplete.id);
     }
     setSessionModeOpen(true);
@@ -549,7 +544,9 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
   } : null;
   const closeIsNext = !isLoggingPast && !primary && Boolean(nextAction) && (nextAction.status === "done" || nextAction.status === "rest");
 
-  // Tomorrow, read from the plan itself rather than today's adjusted copy.
+  const hybridWeek = describeRoadTrailWeek(baseProgram || activeProgram, todayKey);
+  const upcomingHybridStart = hybridWeek?.weekNumber === 0 ? formatPlanDate(hybridWeek.startDate || hybridWeek.startMonday) : null;
+  // Tomorrow comes from the plan itself, before any date-specific adjustments.
   const tomorrow = tomorrowSummary(baseProgram || activeProgram, todayKey);
   const watchLine = watchLiftLine(watchLiftSummary(todayData));
 
@@ -732,7 +729,7 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
           {typeof onOpenEdition === "function" && (
             <LinkRow label="The Sunday Edition is out" sub="Your week, ending on one change" onClick={onOpenEdition} style={{ borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }} />
           )}
-          <CallCard ops={ops} decision={todayDecision} recommendation={dailyRecommendation} call={sharedCall} sessionTitle={sessionTitle} exerciseCount={totalExercises} primary={primary} isRest={todayPlan.isRest} finished={finished} onOpenRecovery={() => setTab?.("Recovery")} />
+          <CallCard ops={ops} decision={todayDecision} recommendation={dailyRecommendation} call={sharedCall} sessionTitle={sessionTitle} exerciseCount={totalExercises} primary={primary} isRest={todayPlan.isRest} upcomingHybridStart={upcomingHybridStart} onChangeStartDate={isLoggingPast ? null : onChangeStartDate} finished={finished} onOpenRecovery={() => setTab?.("Recovery")} />
           <FuelSnapshot ops={ops} onOpenFuel={() => setTab?.("Fuel")} />
           <OuraStressLine enabled={ouraConnected} todayKey={todayKey} body={bod} updateToday={updateToday} fill />
         </>

@@ -23,7 +23,6 @@ import {
   RUNS_PER_WEEK_OPTIONS,
   generateRunPlan,
   isRunPlanSpec,
-  mondayOfKey,
   normalizeRunPlanSpec,
   planProgramWarnings,
   suggestQualityDay,
@@ -34,25 +33,12 @@ import { formatPlanDate } from "./RaceWeekLine";
 
 const RESULT_DISTANCE_IDS = ["5k", "10k", "15k", "half"];
 
-function isoKey(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-/** The Monday a new plan should start on: today if Monday, else next Monday. */
-export function nextMondayKey(todayKey) {
-  const monday = mondayOfKey(todayKey);
-  if (!monday || monday === todayKey) return monday;
-  const d = new Date(`${monday}T12:00:00`);
-  d.setDate(d.getDate() + 7);
-  return isoKey(d);
-}
-
 function initialDraft(program, todayKey) {
   if (isRunPlanSpec(program?.__raceBuild)) {
     const s = normalizeRunPlanSpec(program.__raceBuild);
     const testIsDate = s.benchmarkTest !== "auto" && s.benchmarkTest !== "none";
     return {
-      raceName: s.raceName, distance: s.distance, raceDate: s.raceDate || "", startDate: s.startDate || nextMondayKey(todayKey),
+      raceName: s.raceName, distance: s.distance, raceDate: s.raceDate || "", startDate: s.startDate || todayKey,
       runsPerWeek: s.runsPerWeek, longRunDay: s.longRunDay, qualityDay: s.qualityDay, crossTraining: s.crossTraining,
       startLongRunMin: s.startLongRunMin,
       resultDistance: s.benchmark?.distance || "5k", resultTime: s.benchmark ? formatDuration(s.benchmark.seconds) : "",
@@ -60,7 +46,7 @@ function initialDraft(program, todayKey) {
     };
   }
   return {
-    raceName: "", distance: "10k", raceDate: "", startDate: nextMondayKey(todayKey),
+    raceName: "", distance: "10k", raceDate: "", startDate: todayKey,
     runsPerWeek: 4, longRunDay: "Saturday", qualityDay: suggestQualityDay(program, "Saturday"), crossTraining: "none",
     startLongRunMin: 35, resultDistance: "5k", resultTime: "", testMode: "auto", testDate: "",
   };
@@ -170,7 +156,7 @@ export function RacePlanPanel({ program, todayKey, onSave, onEnd }) {
           <div className="field">
             <label className="lbl" htmlFor="race-start">Start date</label>
             <input id="race-start" className="input" type="date" value={draft.startDate || ""} aria-label="Plan start date" aria-describedby="race-start-hint" onChange={(e) => set("startDate", e.target.value)} />
-            <span id="race-start-hint" className="hint">{view.spec.startDate ? `Plans start on a Monday: ${formatPlanDate(view.spec.startDate)}.` : "Pick a start date."}</span>
+            <span id="race-start-hint" className="hint">{view.spec.startDate ? `Running schedule starts ${formatPlanDate(view.spec.startDate)}.` : "Pick a start date."}</span>
           </div>
         </section>
 
@@ -255,7 +241,7 @@ export function RacePlanPanel({ program, todayKey, onSave, onEnd }) {
               <ul className="lst">{view.warnings.map((w) => <li key={w} className="t-s">{w}</li>)}</ul>
             </div>
           )}
-          <p className="t-s c2">The plan sets your runs on Today each week and replaces your program's own runs while it's active. Your lifting stays exactly as written; walks stay too.</p>
+          <p className="t-s c2">Today uses this plan’s running schedule during race training. {program?.__hybridBlock?.id === "roadTrailHybrid" ? "The hybrid program keeps its scheduled lifts, including on days without a race-plan run." : "Your program supplies the lifting except on the designated pre-race rest day and race day."}</p>
         </section>
       </div>
       <div className="foot foot-tab" style={{ flexDirection: "row", gap: 8 }}>

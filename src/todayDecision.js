@@ -70,8 +70,9 @@ const PRIMARY = {
   push: "Run your planned session and push the top sets.",
 };
 
-function isRestProgramDay(programSummary) {
-  return !programSummary?.hasLifting && !programSummary?.hasCardio && /rest|mobility|off/i.test(programSummary?.label || "");
+function isRestProgramDay(programSummary, code) {
+  return !programSummary.hasLifting && !programSummary.hasCardio &&
+    (code === "REST" || /rest|mobility|off/i.test(programSummary.label));
 }
 
 /**
@@ -99,7 +100,7 @@ export function buildTodayDecision({
 } = {}) {
   const programSummary = summarizeProgramDay(todayProgram);
   const programLabel = todayProgram ? programSummary.label : null;
-  const isRestDay = isRestProgramDay(programSummary);
+  const isRestDay = isRestProgramDay(programSummary, todayProgram?.code);
 
   if (!recommendation) {
     return {

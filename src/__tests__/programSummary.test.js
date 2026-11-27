@@ -25,4 +25,17 @@ describe("summarizeProgramDay", () => {
     expect(out.label).toBe("Easy Run · 2mi · Easy");
     expect(out.hasCardio).toBe(true);
   });
+  it("summarizes all authoritative sessions without counting stale top-level work", () => {
+    const out = summarizeProgramDay({
+      type: "Double session",
+      lifting: [{ name: "Old lift" }], cardio: { type: "Old run" },
+      sessions: [
+        { id: "am", lifting: [{ name: "Bench press" }], cardio: { type: "Easy run", minutes: 20 } },
+        { id: "pm", lifting: [{ name: "Row" }], cardio: { type: "Bike", minutes: 30 } },
+      ],
+    });
+
+    expect(out).toMatchObject({ hasLifting: true, hasCardio: true, liftCount: 2,
+      label: "Double session + Easy run · 20 min + Bike · 30 min" });
+  });
 });

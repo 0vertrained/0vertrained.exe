@@ -37,4 +37,13 @@ describe("adaptiveTraining", () => {
     expect(out.mode).toBe("keep");
     expect(out.safetyNotes.length).toBeGreaterThan(0);
   });
+  it("uses the actual AM and PM workouts for pull-back suggestions", () => {
+    const todayProgram = { type: "Double day", sessions: [
+      { id: "am", lifting: [{ name: "Front squat" }] },
+      { id: "pm", cardio: { type: "Threshold run" } },
+    ] };
+    const out = suggestWorkoutAdjustments({ recommendation: { readiness: "pull_back" }, todayProgram });
+    expect(out.mode).toBe("swap_cardio");
+    expect(out.changes.map(change => change.type)).toEqual(["cardio", "sets", "lower_body", "rpe"]);
+  });
 });

@@ -14,7 +14,7 @@ import { isRunPlanSpec } from "./runPlanGenerator";
 import { applyRaceBuild, isRunCardio, keepRacePlan, mondayKeyOf } from "./raceBuild";
 import { ROAD_TRAIL_TARGETS, startRoadTrailHybrid, describeRoadTrailWeek } from "./plans/roadTrailHybrid";
 import { shiftDate } from "./coachWindows";
-import { weekMovesFor } from "./weekMoves";
+import { weekdayOf, weekMovesFor } from "./weekMoves";
 import { formatPlanDate, hybridWeekLabel } from "./RaceWeekLine";
 import { FoldRow, Icon, LinkRow, Seg } from "./ui/ledger";
 import { AddExerciseSheet } from "./AddExercise";
@@ -129,6 +129,34 @@ function HybridTargetField({ value, onChange }) {
   </label>;
 }
 
+function HybridStartDate({ program, week, todayKey, onSaveProgram, saving, setSaving, editable = false }) {
+  const [draft, setDraft] = useState(null);
+  const start = week.startDate || week.startMonday;
+  const selected = draft ?? start;
+  const upcoming = todayKey < start;
+  if (!onSaveProgram || (!upcoming && !editable)) return null;
+
+  const withStart = date => startRoadTrailHybrid(program, date, { raceTarget: week.raceTarget });
+  const preview = selected && selected !== start && describeRoadTrailWeek(withStart(selected), selected);
+  const save = async date => {
+    if (saving || !date || date === start) return;
+    setSaving(true);
+    try {
+      if (await onSaveProgram(withStart(date), { savedMessage: "Hybrid start date updated" })) setDraft(null);
+    } finally { setSaving(false); }
+  };
+  return <div style={column(6)}>
+    {upcoming && <button type="button" className="btn btn-p" style={{ alignSelf: "start" }} disabled={saving} onClick={() => save(todayKey)}>Start today</button>}
+    {editable && <label className="field"><span className="lbl">Block start date</span>
+      <input type="date" className="input" value={selected} onChange={e => setDraft(e.target.value)} />
+    </label>}
+    {editable && selected !== start && <>
+      <p className="hint">{preview ? `Hybrid target · ${preview.raceName} · ${formatPlanDate(preview.raceDate)}. Logged workouts keep their dates.` : "Choose a start date."}</p>
+      <button type="button" className="btn btn-s" disabled={saving || !preview} onClick={() => save(selected)}>Save start date</button>
+    </>}
+  </div>;
+}
+
 export function RoadTrailBlock({ program, week, todayKey, onOpenProgram, onSaveProgram }) {
   const [selected, setSelected] = useState(null);
   const [draftTarget, setDraftTarget] = useState(null);
@@ -145,8 +173,8 @@ export function RoadTrailBlock({ program, week, todayKey, onOpenProgram, onSaveP
     } finally { setSaving(false); }
   };
   const previewCount = week.totalWeeks + Number(week.completed);
-  const previewWeek = selected ?? (week.completed ? previewCount : week.weekNumber || 1);
-  const dates = Array.from({ length: previewCount }, (_, i) => shiftDate(week.startMonday, i * 7));
+  const previewWeek = Math.min(selected ?? (week.completed ? previewCount : week.weekNumber || 1), previewCount);
+  const dates = Array.from({ length: previewCount }, (_, i) => i === 0 ? (week.startDate || week.startMonday) : shiftDate(week.startMonday, i * 7));
   const preview = applyRaceBuild(program, dates[previewWeek - 1]);
   const sessions = DAYS.flatMap(day => getProgramSessions(preview[day]));
   const sets = sessions.flatMap(session => session.lifting).reduce((sum, lift) => sum + Number(lift.sets || 0), 0);
@@ -159,6 +187,7 @@ export function RoadTrailBlock({ program, week, todayKey, onOpenProgram, onSaveP
         <p className="t-bs">{hybridWeekLabel(week)}</p>
         <p className="t-s c2">Hybrid target · {week.raceName} · {formatPlanDate(week.raceDate)}</p>
       </header>
+      <HybridStartDate program={program} week={week} todayKey={todayKey} onSaveProgram={onSaveProgram} saving={saving} setSaving={setSaving} editable />
       {week.completed && <p className="t-s">Your recovery week stays on the calendar until you start another block or change programs.</p>}
       {isRunPlanSpec(program.__raceBuild) && <p className="t-s c2">{program.__raceBuild.raceName} supplies the runs on its scheduled weeks. Lifting follows the hybrid block.</p>}
       {onSaveProgram && todayKey <= week.raceDate && <div style={column(8)}>
@@ -178,21 +207,19 @@ export function RoadTrailBlock({ program, week, todayKey, onOpenProgram, onSaveP
   );
 }
 
-function matchesPreset(program, id, hybridWeek) {
-  const preset = presetProgram(id);
-  if (preset.__hybridBlock && !hybridWeek) return false;
+function matchesPresetDays(program, preset) {
   return DAYS.every((day) => program?.[day]?.type === preset[day]?.type && samePrescription(program[day], preset[day]));
 }
 
-export function ProgramHome({ program, onSaveProgram, onEdit, onBuild, onOpenBlock, todayKey = getTodayKey() }) {
+export function ProgramHome({ program, liveProgram, onSaveProgram, onEdit, onBuild, onOpenBlock, todayKey = getTodayKey() }) {
   const { confirm, confirmDialog } = useConfirm();
   const current = program || DEFAULT_PROGRAM;
   const hasRacePlan = isRunPlanSpec(program?.__raceBuild);
   const hybridWeek = describeRoadTrailWeek(current, todayKey);
-  const currentId = PRESET_LINEUP.find((id) => matchesPreset(current, id, hybridWeek));
-  const [picked, setPicked] = useState(currentId || (hybridWeek ? "roadTrailHybrid" : RESEARCH_PRESET_IDS[0]));
+  const currentId = hybridWeek ? "roadTrailHybrid" : PRESET_LINEUP.find((id) => !presetProgram(id).__hybridBlock && matchesPresetDays(current, presetProgram(id)));
+  const [picked, setPicked] = useState(currentId || RESEARCH_PRESET_IDS[0]);
   const thisMonday = mondayKeyOf(todayKey);
-  const [startMonday, setStartMonday] = useState(() => todayKey === thisMonday ? thisMonday : shiftDate(thisMonday, 7));
+  const [startDate, setStartDate] = useState(todayKey);
   const [retainRace, setRetainRace] = useState(true);
   const [raceTarget, setRaceTarget] = useState(hybridWeek?.raceTarget || "road10k");
   const original = ORIGINAL_PRESET_IDS.includes(picked);
@@ -203,27 +230,41 @@ export function ProgramHome({ program, onSaveProgram, onEdit, onBuild, onOpenBlo
   };
   const [busy, setBusy] = useState(false);
   const chosen = PROGRAM_PRESETS[picked];
+  const template = presetProgram(picked);
 
   const pickingHybrid = picked === "roadTrailHybrid";
   const restarting = pickingHybrid && currentId === picked && hybridWeek?.completed;
   const currentPick = currentId === picked && !restarting;
-  const validStart = Boolean(startMonday && startMonday >= thisMonday && mondayKeyOf(startMonday) === startMonday);
-  const previewBlock = pickingHybrid && validStart ? startRoadTrailHybrid(presetProgram(picked), startMonday, { raceTarget }) : null;
-  const target = previewBlock && describeRoadTrailWeek(previewBlock, startMonday);
-  const shownWeek = hybridWeek ? applyRaceBuild(current, todayKey) : current;
-  const movedDays = hybridWeek ? weekMovesFor(current, todayKey) : null;
+  const canRestore = currentPick && pickingHybrid && !matchesPresetDays(current, template);
+  const base = pickingHybrid ? startRoadTrailHybrid(template, startDate, { raceTarget }) : template;
+  const validStart = Boolean(base.__hybridBlock?.startDate) && startDate >= thisMonday;
+  const keepExisting = hasRacePlan && !base.__raceBuild && (!pickingHybrid || retainRace);
+  const next = keepExisting ? keepRacePlan(current, base) : base;
+  const target = pickingHybrid && !currentPick && validStart ? describeRoadTrailWeek(next, startDate) : null;
+  const firstDay = target && applyRaceBuild(next, startDate)[weekdayOf(startDate)];
+  const startHint = target ? [
+    startDate === todayKey && "Your block starts today.",
+    startDate !== mondayKeyOf(startDate) && "Week 1 starts partway through the week.",
+    `${target.raceName} on ${formatPlanDate(target.raceDate)}.`,
+  ].filter(Boolean).join(" ") : `Choose ${formatPlanDate(thisMonday)} or later.`;
+  const shownWeek = liveProgram || applyRaceBuild(current, todayKey);
+  const movedDays = weekMovesFor(current, todayKey);
+  const previewWeek = currentPick ? shownWeek : template;
+  const previewLabel = currentPick ? `Your schedule · week of ${formatPlanDate(thisMonday)}` : pickingHybrid ? "Full week 1 template" : "Preset template";
 
+  const canLoad = !busy && (currentPick ? canRestore : !pickingHybrid || validStart);
   const load = async () => {
-    if (!chosen || busy || currentPick || (pickingHybrid && !validStart)) return;
-    const base = previewBlock || presetProgram(picked);
-    const keepExisting = hasRacePlan && !base.__raceBuild && (!pickingHybrid || retainRace);
-    const dateNote = pickingHybrid ? ` Week 1 starts ${formatPlanDate(startMonday)}.` : "";
+    if (!chosen || !canLoad) return;
+    const dateNote = pickingHybrid ? ` Week 1 starts ${formatPlanDate(startDate)}.` : "";
     const raceNote = keepExisting ? " Your race plan stays." : pickingHybrid && current.__raceBuild ? " Your existing race calendar will be replaced." : "";
-    if (!(await confirm({ message: `Switch to "${chosen.name}"? This will replace your current program.${dateNote}${raceNote}`, confirmLabel: "Switch program" }))) return;
+    const prompt = canRestore
+      ? { message: "Restore the original Road & Trail Hybrid workouts? This replaces your exercise edits and keeps your block dates, race target and calendars.", confirmLabel: "Restore workouts" }
+      : { message: `Switch to "${chosen.name}"? This will replace your current program.${dateNote}${raceNote}`, confirmLabel: "Switch program" };
+    if (!(await confirm(prompt))) return;
     setBusy(true);
-    const next = keepExisting ? keepRacePlan(program, base) : base;
+    const saved = canRestore ? { ...current, ...Object.fromEntries(DAYS.map(day => [day, template[day]])) } : next;
     try {
-      if (await onSaveProgram(next)) seedSupersetPrefsFromProgram(next);
+      if (await onSaveProgram(saved)) seedSupersetPrefsFromProgram(saved);
     } finally {
       setBusy(false);
     }
@@ -240,10 +281,28 @@ export function ProgramHome({ program, onSaveProgram, onEdit, onBuild, onOpenBlo
     event.currentTarget.querySelector(`[data-id="${next.id}"]`)?.focus();
   };
 
+  const scheduledWeek = (
+    <section aria-labelledby="program-week" style={column(4)}>
+      <h2 id="program-week" className="t-h">Your week · {formatPlanDate(thisMonday)}</h2>
+      {hybridWeek && <div style={column(6)}>
+        <p className="t-s c2">{hybridWeekLabel(hybridWeek)}</p>
+        {hasRacePlan && <p className="t-s c2">{program.__raceBuild.raceName} supplies the runs during its scheduled weeks. Road &amp; Trail Hybrid supplies the lifting.</p>}
+        <HybridStartDate program={current} week={hybridWeek} todayKey={todayKey} onSaveProgram={onSaveProgram} saving={busy} setSaving={setBusy} />
+        {onOpenBlock && <button type="button" className="btn btn-s btn-sm" style={{ alignSelf: "start" }} onClick={onOpenBlock}>View block and race target</button>}
+      </div>}
+      <ul className="rows">
+        {DAYS.map((day) => (
+          <li key={day}><LinkRow label={`${day} · ${shownWeek[day]?.type || "Rest"}`} sub={dayLine(shownWeek[day])} onClick={() => onEdit?.(movedDays?.[day] || day)} /></li>
+        ))}
+      </ul>
+    </section>
+  );
+
   return (
     <div className="shell" data-screen="train-program">
       {confirmDialog}
       <div className="main" style={{ gap: 16 }}>
+        {hybridWeek && scheduledWeek}
         <p className="t-s c2">Choose a preset to replace your training week.</p>
         <label className="field"><span className="lbl">Plan collection</span>
           <select className="input" value={original ? "original" : "research"} onChange={(event) => chooseCollection(event.target.value)}>
@@ -257,16 +316,16 @@ export function ProgramHome({ program, onSaveProgram, onEdit, onBuild, onOpenBlo
               <span className="kv grow" style={{ gap: 4 }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 8 }}><span className="t-bs grow">{p.name}</span>{p.id === currentId && <span className="tag tag-f">Current</span>}</span>
                 <span className="t-s c2">{firstSentence(p.desc)}</span>
-                {picked === p.id && <WeekStrip program={presetProgram(p.id)} />}
+                {picked === p.id && <><span className="t-ss c2">{previewLabel}</span><WeekStrip program={previewWeek} /></>}
               </span>
             </button>
           ))}
         </div>
         {chosen && (
           <ul className="rows" style={{ borderTop: "1px solid var(--line)" }}>
-            <FoldRow key={picked} title={`${chosen.name}, day by day`} sub={pickingHybrid ? "Week 1 sessions and exercises" : "Every session and exercise"}>
+            <FoldRow key={picked} title={`${chosen.name}, day by day`} sub={previewLabel}>
               <p className="t-s c2">{chosen.desc}</p>
-              <DayByDay program={presetProgram(picked)} />
+              <DayByDay program={previewWeek} />
             </FoldRow>
             {chosen.guide && <FoldRow key={`${picked}-guide`} title="How to train on this plan" sub="Equipment, progression and recovery">
               <div style={column(9)}>
@@ -280,8 +339,8 @@ export function ProgramHome({ program, onSaveProgram, onEdit, onBuild, onOpenBlo
           <p className="t-s">{chosen.guide.audience}</p>
           <HybridTargetField value={raceTarget} onChange={setRaceTarget} />
           <label className="field"><span className="lbl" id="hybrid-start-label">Week 1 start date</span>
-            <input type="date" className="input" value={startMonday} aria-labelledby="hybrid-start-label" min={thisMonday} step="7" onChange={e => setStartMonday(e.target.value)} aria-invalid={!validStart || undefined} aria-describedby="hybrid-start-hint" />
-            <span id="hybrid-start-hint" className="hint">{!validStart ? "Choose this Monday or a later Monday." : startMonday < todayKey ? "Join midweek and skip the sessions already past." : `${target.raceName} on ${formatPlanDate(target.raceDate)}.`}</span>
+            <input type="date" className="input" value={startDate} aria-labelledby="hybrid-start-label" min={thisMonday} onChange={e => setStartDate(e.target.value)} aria-invalid={!validStart || undefined} aria-describedby="hybrid-start-hint" />
+            <span id="hybrid-start-hint" className="hint">{startHint}</span>
           </label>
           {hasRacePlan && <label className="field"><span className="lbl" id="hybrid-calendar-label">Running calendar</span>
             <select className="input" aria-labelledby="hybrid-calendar-label" value={retainRace ? "keep" : "hybrid"} onChange={e => setRetainRace(e.target.value === "keep")}>
@@ -290,27 +349,17 @@ export function ProgramHome({ program, onSaveProgram, onEdit, onBuild, onOpenBlo
             </select>
             <span className="hint">{retainRace ? "Your dated race plan sets the runs during its build. The strength taper follows the Week 1 date above." : "Loading the hybrid runs replaces your dated race plan."}</span>
           </label>}
+          {firstDay && <p className="t-s">{formatPlanDate(startDate)} · {firstDay.type || "Rest"} · {dayLine(firstDay)}</p>}
         </>}
-        <button type="button" className="btn btn-p btn-b" aria-disabled={busy || currentPick || (pickingHybrid && !validStart) || undefined} onClick={load}>
-          {busy ? "Loading…" : currentPick ? `${chosen?.name} is your program` : restarting ? "Start another hybrid block" : `Load ${chosen?.name || "preset"}`}
+        <button type="button" className="btn btn-p btn-b" aria-disabled={!canLoad || undefined} onClick={load}>
+          {busy ? "Loading…" : canRestore ? "Restore original workouts" : currentPick ? `${chosen?.name} is your program` : restarting ? "Start another hybrid block" : `Load ${chosen?.name || "preset"}`}
         </button>
         <div style={{ display: "flex", gap: 8 }}>
           <button type="button" className="btn btn-s" onClick={onBuild} style={{ flex: "1 1 0", minWidth: 0 }}>Build my own</button>
           <button type="button" className="btn btn-s" onClick={() => onEdit?.()} style={{ flex: "1 1 0", minWidth: 0 }}>Edit the week</button>
         </div>
 
-        <section aria-labelledby="program-week" style={column(4)}>
-          <h2 id="program-week" className="t-h">Your week</h2>
-          {hybridWeek && <div style={column(6)}>
-            <p className="t-s c2">{hybridWeekLabel(hybridWeek)}</p>
-            {onOpenBlock && <button type="button" className="btn btn-s btn-sm" style={{ alignSelf: "start" }} onClick={onOpenBlock}>View block and race target</button>}
-          </div>}
-          <ul className="rows">
-            {DAYS.map((day) => (
-              <li key={day}><LinkRow label={`${day} · ${shownWeek[day]?.type || "Rest"}`} sub={dayLine(shownWeek[day])} onClick={() => onEdit?.(movedDays?.[day] || day)} /></li>
-            ))}
-          </ul>
-        </section>
+        {!hybridWeek && scheduledWeek}
       </div>
     </div>
   );

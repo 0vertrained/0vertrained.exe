@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { RESISTANCE_PRESETS } from "../src/plans/resistance.js";
 import { MIXED_PLANS } from "../src/plans/mixed.js";
 import { ROAD_TRAIL_HYBRID, ROAD_TRAIL_TARGETS, ROAD_TRAIL_WEEKS, roadTrailWeekProgram } from "../src/plans/roadTrailHybrid.js";
+import { WEEK_DAYS } from "../src/weekMoves.js";
 import { getProgramSessions, usesProgramSessions } from "../src/programSessions.js";
 
 import { EXERCISES, EQUIPMENT_LABELS, MOVEMENT_LABELS, CARDIO_SESSIONS, exercisePrescription } from "../src/programExerciseLibrary.js";
@@ -26,11 +27,11 @@ function session(dayName, day, title) {
 }
 
 function sessionsInWeek(program) {
-  return Object.entries(program).flatMap(([dayName, day]) =>
-    getProgramSessions(day).map(workout => ({
+  return WEEK_DAYS.flatMap(dayName =>
+    getProgramSessions(program[dayName]).map(workout => ({
       dayName,
       workout,
-      title: usesProgramSessions(day) ? `${workout.label} · ${workout.title}` : workout.title,
+      title: usesProgramSessions(program[dayName]) ? `${workout.label} · ${workout.title}` : workout.title,
     }))
   );
 }
@@ -54,7 +55,7 @@ function raceBlock() {
     return `<tr><th scope="row">${index + 1} · ${html(phase)}</th><td>${sets}</td><td>${minutes} min${race ? " + race" : ""}</td><td>${html(qualityCue || "Rest")}</td><td>${race ? "Race" : long ? `${long.minutes} min` : "Rest"}</td></tr>`;
   });
   return `<h4>Eight weeks to race day</h4>
-<p>Choose <b>${html(targets)}</b> under Hybrid race target, then select your week-one Monday. The hybrid calendar uses your chosen distance for race day on the phone and Apple Watch. In weeks five and six the road plan finishes Saturday’s long run with 20 easy minutes on pavement. Both trail plans keep Saturday on runnable terrain similar to the course.</p>
+<p>Choose <b>${html(targets)}</b> under Hybrid race target, then choose your start date. New blocks default to today. You begin with that weekday’s workouts. Earlier sessions in the first week are skipped, and week two begins the following Monday. The hybrid calendar uses your chosen distance for race day on the phone and Apple Watch. In weeks five and six the road plan finishes Saturday’s long run with 20 easy minutes on pavement. Both trail plans keep Saturday on runnable terrain similar to the course.</p>
 <p>If you already have a dated race plan, choose which running calendar to use when loading this block. Keeping the existing race plan uses its runs during its scheduled weeks. The hybrid lifting taper still follows your chosen start date.</p>
 <table><caption class="sr">Weekly working sets, running minutes, Tuesday quality and Saturday long run</caption><thead><tr><th scope="col">Week</th><th scope="col">Lift sets</th><th scope="col">Run time</th><th scope="col">Tuesday work</th><th scope="col">Saturday</th></tr></thead><tbody>${rows.join("\n")}</tbody></table>
 <p>Run time includes warm-ups, recovery between efforts and cool-downs. Saturday of week eight is race day on the hybrid calendar. Budget your race time in addition to the 85 pre-race minutes. After race week, use the recovery schedule when easy running feels comfortable again. Week one’s sessions are listed below. <a href="#road-trail-research">Read the evidence for lifting, doubles, trails and tapering.</a></p>`;
@@ -66,7 +67,7 @@ function renderPlan(id) {
   const activeDays = new Set(entries.map(({ dayName }) => dayName));
   const { sets, minutes } = weeklyDose(entries);
   const totals = [`${activeDays.size} training days`, entries.length > activeDays.size && `${entries.length} sessions`, sets && `${sets} work sets`, minutes && `${minutes} cardio minutes`].filter(Boolean).join(" · ");
-  const off = Object.keys(program).filter(day => !activeDays.has(day));
+  const off = WEEK_DAYS.filter(day => !activeDays.has(day));
   const links = guide.sources.map(source => `<a href="${html(source.url)}">${html(source.label)}</a>`).join(" · ");
   return `<article id="${id}"><p class="eyebrow">${totals}</p><h3>${html(name)}</h3>
 <p>${html(guide.audience)}</p><p><b>Equipment.</b> ${html(guide.equipment)}</p>

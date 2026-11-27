@@ -1,5 +1,5 @@
 import { samePrescription } from "../programSessions.js";
-import { WEEK_DAYS, weekStartOf } from "../weekMoves.js";
+import { WEEK_DAYS, weekdayOf, weekStartOf } from "../weekMoves.js";
 
 const id = "roadTrailHybrid";
 const easy = "Conversational · RPE 3–4/10";
@@ -131,7 +131,7 @@ export const ROAD_TRAIL_HYBRID = {
   desc: "An eight-week block for experienced lifters and runners targeting a road 10K or runnable 10–15 km trail race. Four heavy bodybuilding sessions, five runs and three double days build toward race week with a cutback and taper.",
   tags: ["Advanced", "Heavy hypertrophy", "Road + trail", "8 weeks"],
   guide: {
-    audience: "Start after at least four recent weeks tolerating roughly three hours across four to five runs, a 60-minute long run and three to four lifting days. Week one combines 197 minutes of running with four gym sessions. Build those capacities separately first if either is new.",
+    audience: "Start after at least four recent weeks tolerating roughly three hours across four to five runs, a 60-minute long run and three to four lifting days. A full first week combines 197 minutes of running with four gym sessions. Build those capacities separately first if either is new.",
     equipment: "A rack with safeties, barbell, adjustable bench, dumbbells, cables and leg machines. Use a measured road loop or track and access to a runnable trail or gradual hill.",
     progression: "Work within each rep range at the listed reps in reserve (RIR). After hitting the top on every set at the target effort on two visits, add the smallest load increment and return to the lower reps. Keep compounds about two reps from failure in the build. Allow about six hours between double sessions when practical.",
     recovery: "Week four reduces running and working sets. Weeks seven and eight taper the workload before Saturday’s race. If soreness changes your stride or key lifts decline twice, remove the Friday shakeout and trim one accessory set per exercise before progressing. Resume easy sessions after the event when recovered and choose the next block when ready.",
@@ -147,22 +147,33 @@ export const ROAD_TRAIL_HYBRID = {
   program: { ...template, __hybridBlock: { id } },
 };
 
-export function startRoadTrailHybrid(program, dateKey, { raceTarget = "road10k" } = {}) {
-  if (program?.__hybridBlock?.id !== id) return program;
-  const startMonday = weekStartOf(dateKey);
+function validDateKey(key) {
+  if (typeof key !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
+  const time = Date.parse(key + "T12:00:00Z");
+  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === key;
+}
+
+export function startRoadTrailHybrid(program, dateKey, { raceTarget = program?.__hybridBlock?.raceTarget } = {}) {
+  const marker = program?.__hybridBlock;
+  if (marker?.id !== id || !validDateKey(dateKey)) return program;
   const target = Object.hasOwn(ROAD_TRAIL_TARGETS, raceTarget) ? raceTarget : "road10k";
-  return startMonday ? { ...program, __hybridBlock: { id, startMonday, raceTarget: target } } : program;
+  return { ...program, __hybridBlock: { ...marker, startDate: dateKey, startMonday: weekStartOf(dateKey), raceTarget: target } };
 }
 
 const dayMs = 86_400_000;
 export function describeRoadTrailWeek(program, dateKey) {
   const marker = program?.__hybridBlock;
-  if (marker?.id !== id || !marker.startMonday) return null;
+  if (marker?.id !== id || !validDateKey(dateKey)) return null;
+  // Existing saved blocks used the first Monday as their only start date.
+  const legacy = !Object.hasOwn(marker, "startDate");
+  const startDate = legacy ? marker.startMonday : marker.startDate;
+  if (!validDateKey(startDate)) return null;
+  const startMonday = weekStartOf(startDate);
+  if (legacy && startMonday !== startDate) return null;
   const monday = weekStartOf(dateKey);
-  if (!monday || weekStartOf(marker.startMonday) !== marker.startMonday) return null;
   // UTC calendar keys keep week changes independent of DST.
-  const start = Date.parse(marker.startMonday);
-  const index = Math.floor((Date.parse(monday) - start) / (7 * dayMs));
+  const start = Date.parse(startMonday);
+  const index = dateKey < startDate ? -1 : Math.floor((Date.parse(monday) - start) / (7 * dayMs));
   const totalWeeks = ROAD_TRAIL_WEEKS.length;
   const completed = index >= totalWeeks;
   const raceTarget = Object.hasOwn(ROAD_TRAIL_TARGETS, marker.raceTarget) ? marker.raceTarget : "road10k";
@@ -170,7 +181,7 @@ export function describeRoadTrailWeek(program, dateKey) {
     raceTarget, raceName: ROAD_TRAIL_TARGETS[raceTarget].name,
     weekNumber: Math.min(totalWeeks + 1, Math.max(0, index + 1)), totalWeeks, completed,
     phase: index < 0 ? "Upcoming" : completed ? "Recovery" : ROAD_TRAIL_WEEKS[index].phase,
-    startMonday: marker.startMonday,
+    startDate, startMonday,
     raceDate: new Date(start + (7 * totalWeeks - 2) * dayMs).toISOString().slice(0, 10),
   };
 }
@@ -213,12 +224,12 @@ function recoveryDay(day) {
   }
   return rest();
 }
-function prescribeWeek(program, weekNumber, raceTarget) {
+function prescribeWeek(program, weekNumber, raceTarget, firstDay = 0) {
   const target = ROAD_TRAIL_TARGETS[raceTarget] ?? ROAD_TRAIL_TARGETS.road10k;
   const next = { ...program };
   const week = ROAD_TRAIL_WEEKS[weekNumber - 1];
-  for (const day of WEEK_DAYS) {
-    if (weekNumber < 1) next[day] = rest("Before the block");
+  for (const [index, day] of WEEK_DAYS.entries()) {
+    if (weekNumber < 1 || index < firstDay) next[day] = rest("Before the block");
     else if (!week) next[day] = recoveryDay(day);
     else if (program[day]) next[day] = trainingDay(day, program[day], week, target);
   }
@@ -229,5 +240,9 @@ export function roadTrailWeekProgram(weekNumber, raceTarget = "road10k") {
 }
 export function resolveRoadTrailWeek(program, dateKey) {
   const current = describeRoadTrailWeek(program, dateKey);
-  return current ? prescribeWeek(program, current.weekNumber, current.raceTarget) : program;
+  if (!current) return program;
+  if (weekStartOf(dateKey) === current.startMonday) {
+    return prescribeWeek(program, 1, current.raceTarget, WEEK_DAYS.indexOf(weekdayOf(current.startDate)));
+  }
+  return prescribeWeek(program, current.weekNumber, current.raceTarget);
 }
