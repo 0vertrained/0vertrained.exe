@@ -1,11 +1,67 @@
 // src/sections/AppleHealthCard.jsx
 // Settings › Integrations, in iPhone app builds that read Apple Health's
 // daily numbers. Turning it on asks iOS once to read them;
-// src/health/useHealthDaily.js does the filling while it's on.
+// src/health/useHealthDaily.js does the filling while it's on. In builds
+// that can also save to Health, a switch below turns saving on
+// (src/health/useHealthWrite.js does the saving).
 
 import { useState } from "react";
 import { nativePlugin } from "../native";
 import { readHealthDailyOn, writeHealthDailyOn } from "../health/healthDailyState";
+import { readHealthWriteOn, writeHealthWriteOn } from "../health/healthWrite";
+import { Switch } from "../ui/ledger";
+
+const DENIED_WORDS = { weight: "weight", food: "food", workouts: "workouts" };
+
+// Saving to Apple Health: your typed weight, each day's food totals, and
+// lifts with your effort rating.
+function SaveToHealth() {
+  const [on, setOn] = useState(() => readHealthWriteOn());
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const toggle = async () => {
+    if (busy) return;
+    setMessage("");
+    if (on) {
+      writeHealthWriteOn(false);
+      setOn(false);
+      setMessage("What’s already in Apple Health stays there.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const status = await nativePlugin("OTHealthWrite")?.enable?.();
+      if (status?.available === false) {
+        setMessage("Apple Health isn’t available on this iPhone.");
+        return;
+      }
+      const denied = Object.keys(DENIED_WORDS).filter((key) => status?.[key] === "denied").map((key) => DENIED_WORDS[key]);
+      writeHealthWriteOn(true);
+      setOn(true);
+      setMessage(denied.length
+        ? `Apple Health didn’t allow saving ${denied.join(" and ")}. Allow it in the Health app under Sharing, Apps, 0VERTRAINED.`
+        : "Today’s numbers go to Apple Health in a moment.");
+    } catch {
+      setMessage("Couldn’t turn this on. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
+      <div className="row" style={{ alignItems: "flex-start" }}>
+        <span className="kv grow">
+          <span id="health-save" className="t-bs">Save to Apple Health</span>
+          <span className="t-s c2">The weight you type, each day’s food totals, and lifts you finish on this iPhone, with how hard they were. Lifts tracked on your watch are saved by the watch; they get your rating.</span>
+        </span>
+        <Switch checked={on} onChange={toggle} labelledBy="health-save" disabled={busy} />
+      </div>
+      {message && <p className="t-s" role="status">{message}</p>}
+    </div>
+  );
+}
 
 const column = { display: "flex", flexDirection: "column", gap: 8 };
 
@@ -58,6 +114,7 @@ export function AppleHealthCard({ wearables = false }) {
         {" "}Only empty fields are filled, and anything you type stays as you typed it. Turning it on asks to read these from Apple Health.
       </p>
       {message && <p className="t-s" role="status">{message}</p>}
+      {nativePlugin("OTHealthWrite") && <SaveToHealth />}
     </section>
   );
 }

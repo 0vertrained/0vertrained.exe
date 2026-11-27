@@ -51,6 +51,7 @@
 		3D77A39D449F765F2EB8B5BB /* DayCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64B325A3E3869E212D1EA303 /* DayCards.swift */; };
 		0DE1D0E9353684A6695FE0BF /* TodayTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5BD495E632C8DBCDE10DB77 /* TodayTimeline.swift */; };
 		304277F21E0CCDF0AC4084C9 /* WatchWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C8F1A6BD14A3DE9D2204B45C /* WatchWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		3AA895BD754AD29B2117139C /* HealthWritePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20ACE88AF6AF5BA4FE107ED1 /* HealthWritePlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -161,6 +162,7 @@
 		51DB2E0A0C74595B9E0092D0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		320E99B6F45E1804730A076F /* WatchWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WatchWidgets.entitlements; sourceTree = "<group>"; };
 		C8F1A6BD14A3DE9D2204B45C /* WatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		20ACE88AF6AF5BA4FE107ED1 /* HealthWritePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthWritePlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -244,6 +246,7 @@
 				EB98C39ECD0FDBC356304F13 /* HealthDailyPlugin.swift */,
 				62E0FBB92F9188757DAEEB6E /* BarcodePlugin.swift */,
 				EA867C705B211CE3B3AD39D8 /* WidgetPlugin.swift */,
+				20ACE88AF6AF5BA4FE107ED1 /* HealthWritePlugin.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -485,6 +488,7 @@
 				B9192DDD082CC473DB2925E2 /* BarcodePlugin.swift in Sources */,
 				FAC58688D4858A5CE537631A /* WidgetPlugin.swift in Sources */,
 				2CA228DD7AD54C6F43A9D265 /* DayCards.swift in Sources */,
+				3AA895BD754AD29B2117139C /* HealthWritePlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

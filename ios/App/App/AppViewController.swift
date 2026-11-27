@@ -20,6 +20,7 @@ class AppViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(HealthDailyPlugin())
         bridge?.registerPluginInstance(BarcodePlugin())
         bridge?.registerPluginInstance(WidgetPlugin())
+        bridge?.registerPluginInstance(HealthWritePlugin())
 
         // Until the page paints, show the launch colour for the phone's
         // appearance, so a dark launch doesn't flash white.

@@ -32,6 +32,8 @@
 	<string>0VERTRAINED uses the camera to scan food barcodes into your food log.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>0VERTRAINED reads your runs, with their heart rate, splits and effort, your cardio fitness, and your steps, weight, sleep, resting heart rate and HRV to fill in your training log.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>When you turn it on, 0VERTRAINED saves your weight, each day's food totals and the lifts you log on this iPhone, with your effort rating, to Health.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
