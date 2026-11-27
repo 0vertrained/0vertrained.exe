@@ -12,6 +12,10 @@ struct WorkoutSummary {
 /// and energy, the app keeps running with the wrist down (so rest taps land on
 /// time), and at the end the workout is saved to Health and Fitness.
 final class WorkoutManager: NSObject, ObservableObject {
+    /// The one workout manager, shared by the app's screens and by the
+    /// Action button's start (StartLiftIntent).
+    static let shared = WorkoutManager()
+
     enum Phase: Equatable {
         case idle, starting, running, ending
     }

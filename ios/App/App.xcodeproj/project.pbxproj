@@ -53,6 +53,7 @@
 		304277F21E0CCDF0AC4084C9 /* WatchWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C8F1A6BD14A3DE9D2204B45C /* WatchWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3AA895BD754AD29B2117139C /* HealthWritePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20ACE88AF6AF5BA4FE107ED1 /* HealthWritePlugin.swift */; };
 		6063706D63D6A61AEC2A4DB7 /* PhotosPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286CEAEFBB05B50256A1A78A /* PhotosPlugin.swift */; };
+		98F3A6BF01D5ED4C72E38AD7 /* StartLiftIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0474A0BF19017D7A7E6CB3E /* StartLiftIntent.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -165,6 +166,7 @@
 		C8F1A6BD14A3DE9D2204B45C /* WatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		20ACE88AF6AF5BA4FE107ED1 /* HealthWritePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthWritePlugin.swift; sourceTree = "<group>"; };
 		286CEAEFBB05B50256A1A78A /* PhotosPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotosPlugin.swift; sourceTree = "<group>"; };
+		F0474A0BF19017D7A7E6CB3E /* StartLiftIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartLiftIntent.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -264,6 +266,7 @@
 				38AC71F5AD351E7CDF4772F7 /* Ledger.swift */,
 				526253225A49CABDC2200ADF /* TodayView.swift */,
 				69C96E1CD618FCBAFD2878FC /* SetLoggerView.swift */,
+				F0474A0BF19017D7A7E6CB3E /* StartLiftIntent.swift */,
 				C86C8E8B50612AEA804D7DF6 /* Assets.xcassets */,
 				87D3413D8AC6F5C4C037E040 /* Info.plist */,
 				1DDBD41B34367BB49A6C50A4 /* WatchApp.entitlements */,
@@ -507,6 +510,7 @@
 				0DEE4BAB0B969F00DB8AF1DF /* Ledger.swift in Sources */,
 				D141DFA9A02021E77D905979 /* TodayView.swift in Sources */,
 				CF6923614FD9B2B006C793AD /* SetLoggerView.swift in Sources */,
+				98F3A6BF01D5ED4C72E38AD7 /* StartLiftIntent.swift in Sources */,
 				D683DD74C45E98DE4F01DB66 /* RunWorkout.swift in Sources */,
 				CF97977C9688BF7FD2F91E91 /* DayCards.swift in Sources */,
 			);

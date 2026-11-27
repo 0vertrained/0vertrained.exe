@@ -3,9 +3,9 @@ import WatchKit
 
 /// One exercise, one set at a time. The set arrives filled the way the phone
 /// would fill it and says from what, so a set done as planned is one tap on
-/// Log set. The crown changes the number with the outline; tap the other
-/// number to move it there. Logging starts the rest, which taps the wrist
-/// when it's over.
+/// Log set, or a double tap of thumb and finger. The crown changes the
+/// number with the outline; tap the other number to move it there. Logging
+/// starts the rest, which taps the wrist when it's over.
 struct SetLoggerView: View {
     @EnvironmentObject private var store: SessionStore
     @EnvironmentObject private var workout: WorkoutManager
@@ -70,6 +70,7 @@ struct SetLoggerView: View {
                 Button("Log set") { log(exercise, current: current) }
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(!isValid(exercise, current: current))
+                    .doubleTapPresses()
             }
         }
         .onAppear {
@@ -190,6 +191,7 @@ struct SetLoggerView: View {
                         key = next
                     }
                     .buttonStyle(PrimaryButtonStyle())
+                    .doubleTapPresses()
                 } else if workout.phase == .running {
                     Text("End the workout from the list when you're done.")
                         .font(.footnote)
@@ -235,9 +237,24 @@ struct RestView: View {
                     Button("Skip") { store.endRest() }
                         .buttonStyle(SecondaryButtonStyle())
                         .accessibilityLabel("Skip the rest")
+                        .doubleTapPresses()
                 }
             }
             .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+extension View {
+    /// Double tap, pinching thumb and finger twice, presses this button:
+    /// the screen's main action, on watches and watchOS versions that have
+    /// it (watchOS 11 and later). Only one button on a screen has it.
+    @ViewBuilder
+    func doubleTapPresses() -> some View {
+        if #available(watchOS 11.0, *) {
+            self.handGestureShortcut(.primaryAction)
+        } else {
+            self
         }
     }
 }
