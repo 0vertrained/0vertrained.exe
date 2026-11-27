@@ -26,6 +26,7 @@ import { buildWearableTrendNotes } from "./recovery/wearableProgressContext";
 import { epley1RM } from "./TodayTab";
 import { ProgressHistory } from "./ProgressHistory";
 import { RaceWeekLine } from "./RaceWeekLine";
+import { PhysiqueSection } from "./sections/PhysiqueSection";
 import { ColumnChart, dayDate } from "./sections/charts";
 
 const lazyNamed = (loader, name) => lazy(() => loader().then((module) => ({ default: module[name] })));
@@ -278,6 +279,11 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
           />
         )}
       </div>
+      <PhysiqueSection
+        data={data}
+        todayKey={todayKey}
+        onSave={updateEntryAtDate ? (measurement, value) => { updateEntryAtDate(todayKey, `body.${measurement.key}`, String(value)); showToast?.(`${measurement.label} measurement saved`); } : null}
+      />
       <section aria-labelledby="protein-title" style={column(8)}>
         <h2 id="protein-title" className="t-h">Protein, last 7{NBSP}days</h2>
         {proteinDays.length === 0 ? (
@@ -422,7 +428,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
   const trends = [
     ["strength", "Strength", review.topLifts.length ? `Heaviest in the last 7 days: ${review.topLifts[0][0]}, ${review.topLifts[0][1]}${NBSP}lb` : "Lifts, sets by muscle, and what is fresh"],
     ["running", "Running", `${Math.round(review.totalMiles * 10) / 10}${NBSP}mi in the last 7 days`],
-    ["body", "Body", review.avgWeight ? `Averaging ${review.avgWeight}${NBSP}lb over the last 7 days` : "Bodyweight, waist and protein"],
+    ["body", "Body", review.avgWeight ? `Averaging ${review.avgWeight}${NBSP}lb over the last 7 days` : "Bodyweight, measurements and protein"],
     ["recovery", "Recovery", parseFloat(review.avgSleep) > 0 ? `Sleep averaging ${review.avgSleep}${NBSP}h a night over the last 7 days` : "Recovery against load, and your patterns"],
     ["history", "History", `${fmtInt(entries.length)} day${entries.length === 1 ? "" : "s"} logged, searchable`],
   ];
