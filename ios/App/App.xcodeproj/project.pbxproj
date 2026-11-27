@@ -53,6 +53,9 @@
 		304277F21E0CCDF0AC4084C9 /* WatchWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C8F1A6BD14A3DE9D2204B45C /* WatchWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3AA895BD754AD29B2117139C /* HealthWritePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20ACE88AF6AF5BA4FE107ED1 /* HealthWritePlugin.swift */; };
 		6063706D63D6A61AEC2A4DB7 /* PhotosPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286CEAEFBB05B50256A1A78A /* PhotosPlugin.swift */; };
+		97EC0E254FF2419EADD9F9A3 /* WhoopBluetoothPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9278E1F6A626480B8F88A239 /* WhoopBluetoothPlugin.swift */; };
+		577F010B1B01427680D52087 /* HeartRateMeasurement.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD33DA199B042D2A4392373 /* HeartRateMeasurement.swift */; };
+		B776AACB700B452CBAC47B47 /* WhoopLiveProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADE0048A9764A078CA8AB67 /* WhoopLiveProtocol.swift */; };
 		98F3A6BF01D5ED4C72E38AD7 /* StartLiftIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0474A0BF19017D7A7E6CB3E /* StartLiftIntent.swift */; };
 /* End PBXBuildFile section */
 
@@ -166,6 +169,9 @@
 		C8F1A6BD14A3DE9D2204B45C /* WatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		20ACE88AF6AF5BA4FE107ED1 /* HealthWritePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthWritePlugin.swift; sourceTree = "<group>"; };
 		286CEAEFBB05B50256A1A78A /* PhotosPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotosPlugin.swift; sourceTree = "<group>"; };
+		9278E1F6A626480B8F88A239 /* WhoopBluetoothPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopBluetoothPlugin.swift; sourceTree = "<group>"; };
+		AFD33DA199B042D2A4392373 /* HeartRateMeasurement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartRateMeasurement.swift; sourceTree = "<group>"; };
+		AADE0048A9764A078CA8AB67 /* WhoopLiveProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopLiveProtocol.swift; sourceTree = "<group>"; };
 		F0474A0BF19017D7A7E6CB3E /* StartLiftIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartLiftIntent.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -252,6 +258,9 @@
 				EA867C705B211CE3B3AD39D8 /* WidgetPlugin.swift */,
 				20ACE88AF6AF5BA4FE107ED1 /* HealthWritePlugin.swift */,
 				286CEAEFBB05B50256A1A78A /* PhotosPlugin.swift */,
+				9278E1F6A626480B8F88A239 /* WhoopBluetoothPlugin.swift */,
+				AFD33DA199B042D2A4392373 /* HeartRateMeasurement.swift */,
+				AADE0048A9764A078CA8AB67 /* WhoopLiveProtocol.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -496,6 +505,9 @@
 				2CA228DD7AD54C6F43A9D265 /* DayCards.swift in Sources */,
 				3AA895BD754AD29B2117139C /* HealthWritePlugin.swift in Sources */,
 				6063706D63D6A61AEC2A4DB7 /* PhotosPlugin.swift in Sources */,
+				97EC0E254FF2419EADD9F9A3 /* WhoopBluetoothPlugin.swift in Sources */,
+				577F010B1B01427680D52087 /* HeartRateMeasurement.swift in Sources */,
+				B776AACB700B452CBAC47B47 /* WhoopLiveProtocol.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

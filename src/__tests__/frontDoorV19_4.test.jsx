@@ -272,6 +272,25 @@ const seedCache = (settings, program = null) => {
   }));
 };
 
+describe("the strap follows the signed-in athlete", () => {
+  it("binds after initial auth, changes on a direct switch and forgets on sign-out", async () => {
+    h.store.settings = { ...PROFILE };
+    const setOwner = vi.fn(async () => {});
+    const getState = vi.fn();
+    vi.stubGlobal("Capacitor", { isNativePlatform: () => true, Plugins: { WhoopBluetooth: { setOwner, getState } } });
+    render(<App />);
+    // Before INITIAL_SESSION the app must not inspect or clear a saved strap.
+    expect(setOwner).not.toHaveBeenCalled();
+    expect(getState).not.toHaveBeenCalled();
+    await waitFor(() => expect(setOwner).toHaveBeenCalledWith({ owner: h.user.id }), WAIT);
+    await act(async () => h.authCb("SIGNED_IN", { user: { id: "user-b" } }));
+    await act(async () => h.authCb("TOKEN_REFRESHED", { user: { id: "user-b" } }));
+    await act(async () => h.authCb("SIGNED_OUT", null));
+    expect(setOwner.mock.calls.map(([payload]) => payload.owner)).toEqual([h.user.id, "user-b", null]);
+    expect(getState).not.toHaveBeenCalled();
+  });
+});
+
 describe("V19.4 review fixes · returns and reads that fail", () => {
   it("a confirmed connection saves quietly: Integrations stays open and the flag is merged into the stored profile", async () => {
     h.store.settings = { ...PROFILE };

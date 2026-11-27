@@ -16,6 +16,8 @@ import { copyToClipboard } from "./clipboard";
 import { APP_VERSION, SUPPORT_EMAIL, buildSupportMailto } from "./appMeta";
 import { nativePlugin } from "./native";
 import { AppleWatchCard } from "./sections/AppleWatchCard";
+import { WhoopBluetoothCard } from "./sections/WhoopBluetoothCard";
+import { useWhoopBluetooth } from "./whoop/bluetooth";
 import { AppleHealthCard } from "./sections/AppleHealthCard";
 import { useNavTransition } from "./ui/navTransition";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
@@ -115,6 +117,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   const { confirm, confirmDialog } = useConfirm();
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
   // Runs on the Apple Watch: only in an iPhone app build that has them.
+  const strap = useWhoopBluetooth();
   const watchRuns = Boolean(nativePlugin("OTRuns"));
   // Daily numbers from Apple Health: only in a build that reads them.
   const healthDaily = Boolean(nativePlugin("OTHealth"));
@@ -602,9 +605,10 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
           </>
         ),
       }} />
+      {strap && <WhoopBluetoothCard key={strap.owner} />}
       <ProviderCard onSync={onSync} {...{
         id: "whoop", name: "Whoop", on: whoopOn, status: whoopStatus, lastSynced: whoopStatus?.lastSynced,
-        about: "Opt-in. Syncs recovery, sleep, strain cycles and workouts. Manual recovery stays first-class, and the recovery score is still computed by the app.",
+        about: "Connect your WHOOP account to sync recovery, sleep, strain cycles and workouts. The strap supplies the signals and the recovery score is still computed by the app.",
         busyNow: whoopBusy, onConnect: handleWhoopConnect, connectLabel: "Connect Whoop", onDisconnect: handleWhoopDisconnect,
         syncs: [["Sync now", 14], ["Sync last 30 days", 30]], message: whoopMsg,
         counts: whoopCounts && (

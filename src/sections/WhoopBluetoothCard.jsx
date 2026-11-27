@@ -1,0 +1,127 @@
+import { useEffect, useRef, useState } from "react";
+import { getWhoopBluetooth, subscribeWhoopBluetooth } from "../whoop/bluetooth";
+
+const FRESH_MS = 15_000;
+const INITIAL = { status: "idle", devices: [], device: null };
+const column = { display: "flex", flexDirection: "column", gap: 8, padding: 12 };
+
+function freshSample(sample) {
+  const age = Date.now() - sample?.timestamp;
+  return Number.isFinite(sample?.bpm) && sample.bpm > 0 && age >= 0 && age < FRESH_MS ? sample : null;
+}
+
+function statusText(state, scanned) {
+  const name = state.device?.name || "WHOOP strap";
+  switch (state.status) {
+    case "scanning": return "Searching nearby…";
+    case "connecting": return `Connecting to ${name}…`;
+    case "connected": return `Connected to ${name}`;
+    case "disconnected": return "Disconnected";
+    case "unavailable": return "Bluetooth unavailable";
+    case "error": return "Connection issue";
+    default:
+      if (scanned && !state.devices?.length) return "No straps found. Keep the strap near your iPhone and try again while the light flashes blue.";
+      return state.savedDevice ? `Saved strap · ${state.savedDevice.name}` : "Ready to pair";
+  }
+}
+
+export function WhoopBluetoothCard() {
+  const [state, setState] = useState(INITIAL);
+  const [sample, setSample] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [scanned, setScanned] = useState(false);
+  const revision = useRef(0);
+  const connected = state.status === "connected";
+  const connecting = state.status === "connecting";
+  const scanning = state.status === "scanning";
+  const devices = state.devices || [];
+
+  function applyState(next) {
+    if (!next?.status) return;
+    revision.current += 1;
+    setState(next);
+    if (next.status !== "connected") setSample(null);
+    else if (freshSample(next.lastSample)) {
+      setSample(previous => previous?.timestamp > next.lastSample.timestamp ? previous : next.lastSample);
+    }
+  }
+
+  useEffect(() => subscribeWhoopBluetooth({
+    onState: applyState,
+    onSample: reading => setSample(freshSample(reading)),
+    onError: () => setError("Couldn’t read the strap connection. Reopen Integrations to try again."),
+  }), []);
+
+  // A connected strap can stop producing measurements when removed. Expire
+  // the last beat even if Bluetooth never reports a disconnection.
+  useEffect(() => {
+    if (!sample) return;
+    const age = Date.now() - sample.timestamp;
+    const delay = Math.max(0, FRESH_MS - age);
+    const timer = setTimeout(() => setSample(current => current === sample ? null : current), delay);
+    return () => clearTimeout(timer);
+  }, [sample]);
+
+  async function action(method, options) {
+    const plugin = getWhoopBluetooth();
+    if (!plugin || busy) return;
+    setBusy(true);
+    setError("");
+    if (method === "scan") setScanned(true);
+    else if (method === "stopScan" || options?.forget) setScanned(false);
+    const before = revision.current;
+    try {
+      const result = await plugin[method](options);
+      if (revision.current === before) applyState(result);
+    } catch (cause) {
+      if (method === "scan") setScanned(false);
+      setError(cause?.message || "Couldn’t reach the strap. Keep it nearby and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card" aria-labelledby="int-whoop-strap" style={column}>
+      <h2 id="int-whoop-strap" className="t-h">WHOOP Bluetooth</h2>
+      <p className="t-s c2">Stream live workout heart rate from your WHOOP 4.0 directly to this iPhone without a WHOOP membership.</p>
+      {!connected && !connecting && !state.savedDevice && (
+        <p className="t-s c2">Take the strap off your wrist and tap the sensor until it flashes blue. Choose Find strap, then select yours.</p>
+      )}
+      <p role="status" className={connected ? "t-ss good" : "t-ss c2"}>{statusText(state, scanned)}</p>
+      {connected && (
+        <p className="t-s" aria-label="Live heart rate">
+          {sample ? <><span className="n-lg">{sample.bpm}</span> bpm</> : "Waiting for a fresh reading…"}
+        </p>
+      )}
+      {state.message && <p className="t-s c2">{state.message}</p>}
+      {error && <p role="alert" className="t-s err">{error}</p>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {connecting || connected ? (
+          <button type="button" className="btn btn-s btn-sm" disabled={busy} onClick={() => action("disconnect")}>
+            {connecting ? "Cancel connection" : "Disconnect strap"}
+          </button>
+        ) : scanning ? (
+          <button type="button" className="btn btn-s btn-sm" disabled={busy} onClick={() => action("stopScan")}>Stop scan</button>
+        ) : (
+          <>
+            {state.savedDevice && <button type="button" className="btn btn-p btn-sm" disabled={busy} onClick={() => action("connect", { id: state.savedDevice.id })}>Reconnect strap</button>}
+            <button type="button" className={state.savedDevice ? "btn btn-s btn-sm" : "btn btn-p btn-sm"} disabled={busy} onClick={() => action("scan")}>Find strap</button>
+            {state.savedDevice && <button type="button" className="btn btn-g btn-sm" disabled={busy} onClick={() => action("disconnect", { forget: true })}>Forget strap</button>}
+          </>
+        )}
+      </div>
+      {!connected && !connecting && devices.length > 0 && (
+        <ul className="rows" aria-label="Nearby straps">
+          {devices.map(device => (
+            <li key={device.id} className="row" style={{ minHeight: 48, gap: 8 }}>
+              <span className="t-bs grow">{device.name || "WHOOP strap"}</span>
+              <button type="button" className="btn btn-s btn-sm" aria-label={`Connect to ${device.name || "WHOOP strap"}`} disabled={busy} onClick={() => action("connect", { id: device.id })}>Connect</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}

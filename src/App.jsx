@@ -36,6 +36,7 @@ import { Flow, Icon, Toast, TopBar } from "./ui/ledger";
 import { NavMain } from "./ui/navTransition";
 import { setUiHaptics } from "./native";
 import { useHealthDaily } from "./health/useHealthDaily";
+import { setWhoopBluetoothOwner } from "./whoop/bluetooth";
 import { useHealthWrite } from "./health/useHealthWrite";
 import { useWidgetCards } from "./widgets/useWidgetCards";
 import { useMorningPlan } from "./reminders/useMorningPlan";
@@ -320,6 +321,9 @@ function AppInner({ onThemeChange }) {
     }
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
+      if (["INITIAL_SESSION", "SIGNED_IN", "TOKEN_REFRESHED", "SIGNED_OUT"].includes(event)) {
+        void setWhoopBluetoothOwner(event === "SIGNED_OUT" ? null : u?.id ?? null);
+      }
       if (event === "INITIAL_SESSION") {
         // Session fully hydrated — safe to load data now
         setUser(u);
@@ -1089,7 +1093,7 @@ function AppInner({ onThemeChange }) {
     </div>
   );
   if (showDemo) return <Suspense fallback={null}><DemoPage signedIn={Boolean(user)} onClose={() => { try { history.replaceState(null, "", window.location.pathname + window.location.search); } catch {} setShowDemo(false); }} /></Suspense>;
-  if (!user && !demoMode) return <AuthScreen onAuthed={u => setUser(u)} />;
+  if (!user && !demoMode) return <AuthScreen onAuthed={u => { void setWhoopBluetoothOwner(u?.id ?? null); setUser(u); }} />;
 
   const yesterdayKey = (() => {
     const d = new Date(); d.setDate(d.getDate() - 1);
@@ -1107,7 +1111,7 @@ function AppInner({ onThemeChange }) {
   // Loading state first, so the tabs show their skeletons, not samples built
   // from the defaults, until the account answers.
   const retryBoot = () => { hasLoadedRef.current = null; setLoaded(false); setAccountUnavailable(null); setBootAttempt((n) => n + 1); };
-  const handleLogout = async () => { if (!demoMode) { const id = user?.id || hasLoadedRef.current; await logOut(); clearCache(id); clearRecoveryDashboardCache(id); clearAlertHistory(id); } setUser(demoMode ? DEMO_USER : null); hasLoadedRef.current = null; };
+  const handleLogout = async () => { if (!demoMode) { const id = user?.id || hasLoadedRef.current; await logOut(); void setWhoopBluetoothOwner(null); clearCache(id); clearRecoveryDashboardCache(id); clearAlertHistory(id); } setUser(demoMode ? DEMO_USER : null); hasLoadedRef.current = null; };
   const firstWeek = loaded && isFirstWeekUser(settings, data);
   const appLoadState = resolveLoadState({ loaded, refreshing });
   const coachEnabled = isCoachEnabled(user?.id);

@@ -3,6 +3,7 @@ import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-li
 import { ThemeProvider } from "../theme";
 import { DEFAULT_SETTINGS } from "../data";
 import { SettingsScreen } from "../SettingsScreen";
+import { setWhoopBluetoothOwner } from "../whoop/bluetooth";
 
 vi.mock("../oura", () => ({
   getOuraAuthUrl: vi.fn(async () => "/api/oura/auth"),
@@ -135,5 +136,35 @@ describe("Apple Watch on Integrations", () => {
     const headings = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
     expect(headings[0]).toBe("Apple Watch");
     expect(await screen.findByRole("button", { name: "Turn on" })).toBeTruthy();
+  });
+});
+
+describe("subscription-free WHOOP Bluetooth on Integrations", () => {
+  afterEach(async () => { await setWhoopBluetoothOwner(null); delete window.Capacitor; });
+
+  it("offers strap discovery alongside the separate account connection in the iPhone app", async () => {
+    const scan = vi.fn();
+    window.Capacitor = { isNativePlatform: () => true, Plugins: { WhoopBluetooth: {
+      setOwner: vi.fn(async () => {}),
+      getState: vi.fn(async () => ({ owner: "athlete", status: "idle", devices: [] })),
+      addListener: vi.fn(async () => ({ remove() {} })),
+      scan,
+    } } };
+    await setWhoopBluetoothOwner("athlete");
+    renderSettings();
+    fireEvent.click(screen.getByRole("button", { name: /^Integrations/ }));
+    const strap = await screen.findByRole("region", { name: "WHOOP Bluetooth" });
+    expect(within(strap).getByRole("button", { name: "Find strap" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Connect Whoop" })).toBeTruthy();
+    expect(scan).not.toHaveBeenCalled();
+  });
+
+  it("keeps account sync available in an iPhone build without the Bluetooth plugin", async () => {
+    window.Capacitor = { isNativePlatform: () => true, Plugins: {} };
+    await setWhoopBluetoothOwner("athlete");
+    renderSettings();
+    fireEvent.click(screen.getByRole("button", { name: /^Integrations/ }));
+    expect(await screen.findByRole("button", { name: "Connect Whoop" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "WHOOP Bluetooth" })).toBeNull();
   });
 });

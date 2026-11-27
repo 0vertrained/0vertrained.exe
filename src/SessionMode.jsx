@@ -17,6 +17,9 @@ import { CascadeSet } from "./CascadeSet";
 import { CurrentSetComposer, LoggedSets } from "./workout/CurrentSetComposer";
 import { proposeSet } from "./workout/setFill";
 import { completeSet } from "./workout/completeSet";
+import { WhoopWorkoutPulse } from "./workout/WhoopWorkoutPulse";
+import { useWhoopBluetooth } from "./whoop/bluetooth";
+import { getTodayKey } from "./constants";
 import { lastSessionSets, buildNextGlance } from "./setGhosts";
 import { getLastPerformance, calcPlateMath, suggestRestSeconds, buildWarmupRamp, priorBestWeight } from "./sessionIntelligence";
 import { getRankedSubstitutions } from "./exerciseSubstitutions";
@@ -149,7 +152,7 @@ function VolumeAfter({ projection }) {
 
 export function SessionMode({
   open,
-  onClose,
+  onClose: closeRunner,
   onFinish = null,
   lifting: configuredLifting,
   workoutData,
@@ -184,6 +187,12 @@ export function SessionMode({
   const [paired, setPaired] = useState(false);
   const [note, setNote] = useState("");
   const cuedRef = useRef(null);
+  const pulse = useRef(null);
+  const strap = useWhoopBluetooth();
+  const onClose = () => {
+    pulse.current?.flush();
+    closeRunner();
+  };
   const hapticsEnabled = settings?.trainingCues?.haptics !== false;
   const restAudioEnabled = settings?.trainingCues?.restAudio === true;
   const lifting = useMemo(() => configuredLifting || [], [configuredLifting]);
@@ -609,6 +618,10 @@ export function SessionMode({
           <span className="t-s c2" style={{ flex: "none" }} aria-label={`Exercise ${idx + 1} of ${lifting.length}`}>{idx + 1} of {lifting.length}</span>
         </TopBar>
         <p className="sr" role="status">{restStatus}</p>
+        {todayKey === getTodayKey() && strap && (
+          <WhoopWorkoutPulse key={strap.owner + todayKey + sessionId} ref={pulse} saved={workoutData?.whoopHeartRate?.[sessionId]}
+            onSave={summary => onUpdate(`workout.whoopHeartRate.${sessionId}`, { ...summary, label: sessionLabel })} />
+        )}
 
         {!online && (
           <p className="banner" data-testid="session-offline-stamp" role="status" style={{ margin: "8px 16px 0" }}>

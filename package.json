@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node scripts/test-suite.mjs",
+    "test:whoop-bluetooth": "sh scripts/test-whoop-bluetooth.sh",
     "quality:gate": "node scripts/quality-gate.mjs",
     "lint": "eslint .",
     "sync:version": "node scripts/sync-version.mjs",

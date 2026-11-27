@@ -71,6 +71,17 @@ ids and secrets, VAPID keys, the token encryption key, the Ollama key, `OURA_SYN
 at the top of each function for what it needs. Apply `supabase/schema.sql`, then the migrations, in the
 Supabase SQL editor.
 
+## Connect a WHOOP 4.0 directly to iPhone
+
+Build the current `ios` branch in Xcode and run it on the iPhone. Open **Profile → Settings → Integrations → WHOOP Bluetooth**.
+Put the charged strap in pairing mode (off wrist, tap the top until the LEDs pulse blue), choose **Find strap**, allow Bluetooth, then select your strap and wait for a live BPM reading. If another app or phone is holding the connection, close that app or disconnect it and try again. On subsequent launches use **Reconnect strap**.
+
+This connection works independently of a WHOOP account or membership. During today's lifting session, **Record HR** starts collecting readings while the workout is open. **Stop recording HR** or exiting the workout saves the average and peak to **Progress → History**. The workout log syncs the summary with your 0VERTRAINED account. Missed readings during backgrounding or disconnection are left out of the average. Sleep, historical strap downloads, and WHOOP's cloud scores are outside this live connection.
+
+If you already use NOOP to collect overnight readings, its optional Apple Health export provides another route. With HealthKit enabled in NOOP and Apple Health turned on in 0VERTRAINED Integrations, 0VERTRAINED can fill missing sleep duration, resting HR and HRV for today and the previous two days when neither wearable cloud integration takes priority. [NOOP iOS HealthKit notes](https://github.com/ryanbr/noop/blob/main/docs/IOS.md)
+
+The iOS plugin uses CoreBluetooth, the Bluetooth Heart Rate service where available, and a WHOOP 4.0 live sensor stream. Its two protocol parsers can be tested with `npm run test:whoop-bluetooth` on a machine with a Swift compiler. A physical strap is needed to verify pairing and live measurements on a given firmware. [WHOOP setup](https://support.whoop.com/s/article/Setting-Up-Your-WHOOP-4-0?language=en_US) · [NOOP hardware notes](https://github.com/ryanbr/noop#strap-support)
+
 ## Replay the training algorithms
 
 Run the replay from a Git checkout with a current Node 22 release. It compares the working tree with the

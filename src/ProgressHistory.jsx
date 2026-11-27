@@ -33,6 +33,7 @@ export function daySummary(day) {
   if (!day) return "Nothing logged";
   const parts = [];
   if (hasLift(day)) { const sets = liftedSets(day); parts.push(sets ? `lifting, ${sets} set${sets === 1 ? "" : "s"}` : "lifting planned, no sets logged"); }
+  if (!hasLift(day) && Object.values(day.workout?.whoopHeartRate || {}).some(record => record?.count > 0)) parts.push("workout heart rate");
   if (runMiles(day)) parts.push(`run, ${runMiles(day)}${NBSP}mi`);
   if (Number.parseFloat(day.nutrition?.calories) > 0) parts.push(`${day.nutrition.calories}${NBSP}kcal${day.nutrition?.protein ? `, ${day.nutrition.protein}${NBSP}g protein` : ""}`);
   if (day.body?.weight) parts.push(`${day.body.weight}${NBSP}lb`);
@@ -56,6 +57,8 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
   const exercises = Object.entries(day.workout?.exercises || {});
   const shown = allLifts ? exercises : exercises.slice(0, 3);
   const watchLine = watchLiftLine(watchLiftSummary(day));
+  const pulse = Object.entries(day.workout?.whoopHeartRate || {}).filter(([, summary]) =>
+    summary?.count > 0 && summary.bpmTotal > 0 && summary.peakBpm > 0);
   const cardio = day.workout?.cardio || {};
   const nutrition = day.nutrition || {};
   const body = day.body || {};
@@ -66,7 +69,7 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
   const figure = (label, value, unit) => (
     <div key={label} className="kv"><span className="t-c c2">{label}</span><span><span className="n">{value}</span> <span className="t-s c2">{unit}</span></span></div>
   );
-  const empty = exercises.length === 0 && !runMiles(day) && !fuelLogged && bodyRows.length === 0 && !day.workout?.notes;
+  const empty = exercises.length === 0 && !pulse.length && !runMiles(day) && !fuelLogged && bodyRows.length === 0 && !day.workout?.notes;
 
   return (
     <div style={column(16)} data-section="day-detail">
@@ -78,6 +81,12 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
       )}
       {empty && <p className="t-b c2">Nothing was logged on this day.</p>}
 
+      {pulse.length > 0 && (
+        <section aria-label="WHOOP workout heart rate" style={column(4)}>
+          <h3 className="t-h">Workout heart rate</h3>
+          {pulse.map(([id, summary]) => <p className="t-s" key={id}>{summary.label || "Workout"} · WHOOP · {Math.round(summary.bpmTotal / summary.count)} bpm average · {summary.peakBpm} bpm peak</p>)}
+        </section>
+      )}
       {exercises.length > 0 && (
         <section aria-label="Lifting" style={column(8)}>
           <div className="sec"><h3 className="t-h">{planned?.type || "Lifting"}</h3><span className="t-s c2">{liftedSets(day)} sets</span></div>

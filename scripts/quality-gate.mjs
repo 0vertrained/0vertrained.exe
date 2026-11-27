@@ -16,6 +16,11 @@ const run = (label, command, args, options = {}) => {
 };
 
 run("tests passed", "npm", ["run", "test"]);
+if (spawnSync("swiftc", ["--version"], { stdio: "ignore" }).status === 0) {
+  run("WHOOP Bluetooth protocol fixtures passed", "npm", ["run", "test:whoop-bluetooth"]);
+} else {
+  console.log("Swift compiler unavailable. Skipping native WHOOP protocol fixtures.");
+}
 // GitHub checks out one commit. Fetch just the frozen baseline when missing.
 // The replay command itself stays offline, including when reading an athlete's backup.
 if (process.env.GITHUB_ACTIONS === "true" && spawnSync("git", ["cat-file", "-e", REPLAY_BASELINE + "^{commit}"]).status !== 0) {
