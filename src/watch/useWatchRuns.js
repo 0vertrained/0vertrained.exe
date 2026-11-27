@@ -67,7 +67,10 @@ export function useWatchRuns({ ready, data, program, updateEntryAtDate, showToas
         const cardio = state?.[fill.dateKey]?.workout?.cardio || {};
         for (const { path, value } of fillWrites(fill)) {
           // Left alone if it was changed since.
-          if (String(cardio[path.split(".").pop()] ?? "") === value) write(fill.dateKey, path, "");
+          const current = cardio[path.split(".").pop()];
+          if (Array.isArray(value)) {
+            if (JSON.stringify(current) === JSON.stringify(value)) write(fill.dateKey, path, null);
+          } else if (String(current ?? "") === value) write(fill.dateKey, path, "");
         }
         // The splits and effort read with the run go with it.
         if (cardio.splits) write(fill.dateKey, "workout.cardio.splits", null);

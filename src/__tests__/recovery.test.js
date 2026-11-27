@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcRecoveryScore, resolveRecovery } from "../recovery";
+import { calcRecoveryScore, resolveRecovery, manualRecoveryForDay } from "../recovery";
 
 describe("calcRecoveryScore — old data compatibility", () => {
   it("scores old data (without new manual fields) identically to before", () => {
@@ -89,5 +89,16 @@ describe("resolveRecovery — source selection", () => {
 
   it("returns null when neither source is available", () => {
     expect(resolveRecovery({})).toBeNull();
+  });
+});
+
+describe("dated manual fallback", () => {
+  it("uses today's recorded sleep and energy first, and still supports older evening logs", () => {
+    const previous = "2026-11-26", day = "2026-11-27";
+    const data = { [previous]: { body: { sleep: 8, soreness: 2, energy: 9 } } };
+    expect(manualRecoveryForDay(data, day, previous)).toEqual(calcRecoveryScore(data[previous], data, previous));
+    data[day] = { body: { sleep: 4, soreness: 8, energy: 2 } };
+    expect(manualRecoveryForDay(data, day, previous)).toEqual(calcRecoveryScore(data[day], data, day));
+    expect(manualRecoveryForDay({}, day, previous)).toBeNull();
   });
 });

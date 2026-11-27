@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { REPLAY_BASELINE } from "../evals/historical-replay.mjs";
 
 const checks = [];
 const run = (label, command, args, options = {}) => {
@@ -15,6 +16,12 @@ const run = (label, command, args, options = {}) => {
 };
 
 run("tests passed", "npm", ["run", "test"]);
+// GitHub checks out one commit. Fetch just the frozen baseline when missing.
+// The replay command itself stays offline, including when reading an athlete's backup.
+if (process.env.GITHUB_ACTIONS === "true" && spawnSync("git", ["cat-file", "-e", REPLAY_BASELINE + "^{commit}"]).status !== 0) {
+  run("historical baseline available", "git", ["fetch", "--no-tags", "--depth=1", "origin", REPLAY_BASELINE]);
+}
+run("historical replay passed", process.execPath, ["--test", "evals/historical-replay.test.mjs", "evals/replay-strength.test.mjs"]);
 // Static analysis. Rule ERRORS fail the gate (no-undef caught two
 // real ReferenceErrors on its first run); warnings inform but don't block.
 run("lint passed", "npm", ["run", "lint"]);

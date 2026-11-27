@@ -20,7 +20,7 @@ import { completeSet } from "./workout/completeSet";
 import { lastSessionSets, buildNextGlance } from "./setGhosts";
 import { getLastPerformance, calcPlateMath, suggestRestSeconds, buildWarmupRamp, priorBestWeight } from "./sessionIntelligence";
 import { getRankedSubstitutions } from "./exerciseSubstitutions";
-import { buildExercisePrescription, buildProgressionDecision, formatPrescription } from "./progressionEngine";
+import { buildExercisePrescription, buildProgressionDecision, formatPrescription, prescriptionWeightAt } from "./progressionEngine";
 import { buildDeloadRecommendation } from "./fatigueManagement";
 import { buildSessionArbitration, buildSessionVolumeProjection } from "./trainingArbitration";
 import { readExerciseNote, writeExerciseNote, readSupersetPref, writeSupersetPref } from "./liftLogPrefs";
@@ -272,10 +272,10 @@ export function SessionMode({
     [allData, progressionExercise, todayKey]
   );
   const bestBefore = useMemo(
-    () => exercise ? priorBestWeight(allData, exercise.name, todayKey) : 0,
-    [allData, exercise, todayKey]
+    () => priorBestWeight(allData, performedName, todayKey),
+    [allData, performedName, todayKey]
   );
-  const workingWeight = Number.parseFloat(sets.find((set) => set.weight)?.weight) || prescription?.targetWeight || null;
+  const workingWeight = Number.parseFloat(sets[activeSetIndex]?.weight) || prescriptionWeightAt(prescription, activeSetIndex) || null;
   const plates = workingWeight ? calcPlateMath(workingWeight) : null;
   const ramp = useMemo(() => workingWeight ? buildWarmupRamp(workingWeight) : null, [workingWeight]);
   const subs = useMemo(() => exercise ? getRankedSubstitutions(exercise.name, { reason: substitutionReason }) : null, [exercise, substitutionReason]);
@@ -362,7 +362,7 @@ export function SessionMode({
 
     // What is on screen is what gets logged: an untouched set takes the
     // source it shows (the target, the set before, or last time).
-    const { set: current } = proposeSet({ set: sets[setIndex], setIndex, sets, exercise, prescription, lastRaw, choice });
+    const { set: current, source } = proposeSet({ set: sets[setIndex], setIndex, sets, exercise, prescription, lastRaw, choice });
     const validation = validateSet(current, exercise);
     if (!validation.valid) {
       setValidationError(validation.message);
@@ -372,13 +372,13 @@ export function SessionMode({
 
     const { completed, nextSets, exerciseComplete, exData: logged } = completeSet({
       exData, sets, setIndex, set: current, exercise, progressionExercise, prescription,
-      data: allData, todayKey, performedName,
+      data: allData, todayKey, performedName, selectedSource: choice || source?.key || "manual",
     });
     saveExercise(logged);
     setValidationError("");
     setChoice(null);
     triggerHaptic(10, hapticsEnabled);
-    if (onPR && completed.weight) onPR(exercise.name, Number.parseFloat(completed.weight) || 0, Number.parseInt(completed.reps, 10) || 0);
+    if (onPR && completed.weight) onPR(performedName, Number.parseFloat(completed.weight) || 0, Number.parseInt(completed.reps, 10) || 0);
 
     const nextGlance = buildNextGlance({
       sets: nextSets,
@@ -444,8 +444,12 @@ export function SessionMode({
     writeSupersetPref(todayName, exercise.name, next);
   };
 
+  const liftLogged = sets.some(set => set.done);
+  const swapNote = "Reopen the logged sets before changing which exercise they belong to.";
   const chooseSubstitution = (substitution) => {
-    saveExercise({ ...exData, sets, performedName: substitution.name, substitutionReason });
+    if (liftLogged) return;
+    saveExercise({ ...exData, sets, progressionDecision: undefined, nextPrescription: undefined,
+      performedName: substitution?.name, substitutionReason: substitution ? substitutionReason : undefined });
     setSheet(null);
   };
 
@@ -544,7 +548,10 @@ export function SessionMode({
     : view === "edit" && rest ? (restOver ? "Rest is over." : `Rest: ${fmtClock(restRemaining)} left`)
     : null;
 
-  const lastLine = last ? `Last time, ${dayMonth(last.date)}: ${last.weight}${NBSP}lb${NBSP}×${NBSP}${last.reps.join(", ")}.` : null;
+  const lastLoads = last?.weights.some(weight => weight !== last.weight)
+    ? last.weights.map((weight, index) => `${weight}${NBSP}lb × ${last.reps[index]}`).join(", ")
+    : last && `${last.weight}${NBSP}lb${NBSP}×${NBSP}${last.reps.join(", ")}`;
+  const lastLine = last ? `Last time, ${dayMonth(last.date)}: ${lastLoads}.` : null;
   const restGlance = rest && rest.exerciseIdx === idx && rest.next
     ? [rest.next.line, rest.next.ghost].filter(Boolean).join(" · ")
     : nextSetIndex >= 0 ? `Next: set ${nextSetIndex + 1} of ${sets.length}` : null;
@@ -579,7 +586,7 @@ export function SessionMode({
     </ul>
   );
 
-  const swapList = subs && (
+  const swapList = subs && (liftLogged ? <p className="t-s c2">{swapNote}</p> : (
     <>
       <Seg label="Why are you swapping?" options={SWAP_REASONS.map(({ value, label }) => ({ value, label }))} value={substitutionReason} onChange={setSubstitutionReason} />
       <p className="t-s c2">{swapReason.ranked}</p>
@@ -593,7 +600,7 @@ export function SessionMode({
         ))}
       </ol>
     </>
-  );
+  ));
 
   return (
     <Flow label={`${sessionLabel} workout session`} onClose={onClose} data-screen="session">
@@ -710,7 +717,9 @@ export function SessionMode({
                     choice={choice}
                     onChoice={setChoice}
                     onAcceptPrescription={(setIndex, nextSet) => {
-                      onUpdate(`workout.exercises.${exercise.name}.progressionDecision`, buildProgressionDecision(prescription, nextSet));
+                      if (!exData.progressionDecision) {
+                        onUpdate(`workout.exercises.${exercise.name}.progressionDecision`, buildProgressionDecision(prescription, nextSet, { setIndex, selectedSource: "target" }));
+                      }
                     }}
                   />
                 )}
@@ -768,12 +777,12 @@ export function SessionMode({
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {exData.performedName && exData.performedName !== exercise.name ? (
             <div className="row" style={{ minHeight: 56 }}>
-              <span className="kv grow"><span className="t-bs">Swapped in today</span><span className="t-s c2">Your program keeps {exercise.name}.</span></span>
-              <button type="button" className="btn btn-s btn-sm" onClick={() => { saveExercise({ ...exData, sets, performedName: undefined, substitutionReason: undefined }); setSheet(null); }}>Undo swap</button>
+              <span className="kv grow"><span className="t-bs">Swapped in today</span><span className="t-s c2">{liftLogged ? swapNote : `Your program keeps ${exercise.name}.`}</span></span>
+              <button type="button" className="btn btn-s btn-sm" disabled={liftLogged} onClick={() => chooseSubstitution(null)}>Undo swap</button>
             </div>
           ) : subs && (
-            <button type="button" className="row" onClick={() => setSheet("swap")}>
-              <span className="kv grow"><span className="t-bs">Swap exercise</span><span className="t-s c2">{subs.subs.length} alternatives for today</span></span>
+            <button type="button" className="row" disabled={liftLogged} onClick={() => setSheet("swap")}>
+              <span className="kv grow"><span className="t-bs">Swap exercise</span><span className="t-s c2">{liftLogged ? swapNote : `${subs.subs.length} alternatives for today`}</span></span>
               <Icon name="next" size="s" className="c2" />
             </button>
           )}

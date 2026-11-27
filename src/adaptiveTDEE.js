@@ -1,7 +1,6 @@
 // src/adaptiveTDEE.js
-// Adaptive TDEE — measure actual energy expenditure from the athlete's
-// own ledger instead of estimating it from a population formula. Method
-// (the MacroFactor-style energy-balance approach):
+// Estimate energy expenditure from explicitly confirmed food logs and the
+// athlete's weight trend.
 //
 //   TDEE ≈ avg daily intake − (Δ trend weight in lb × 3500 kcal/lb) / days
 //
@@ -16,6 +15,8 @@ const KCAL_PER_LB = 3500;
 const WINDOW_DAYS = 28;
 const MIN_SPAN_DAYS = 14;
 const MIN_LOGGED_DAYS = 10;
+const MIN_COVERAGE = 0.55;
+const DAY_MS = 86400000;
 
 const GOAL_KEY = "ovt_energy_goal_v1";
 export const GOAL_RATES = [
@@ -38,43 +39,62 @@ export function writeGoalRate(rate) {
   try { localStorage.setItem(GOAL_KEY, JSON.stringify({ rate, setAt: new Date().toISOString() })); } catch {}
 }
 
-function dayDiff(a, b) {
-  return Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 86400000);
+export function loggedCalories(nutrition) {
+  const raw = nutrition?.calories;
+  if (typeof raw !== "number" && (typeof raw !== "string" || !raw.trim())) return null;
+  const calories = Number(raw);
+  return Number.isFinite(calories) && calories >= 0 ? calories : null;
 }
 
-// Measured TDEE
-export function computeAdaptiveTDEE(data, { windowDays = WINDOW_DAYS } = {}) {
-  if (!data) return { ready: false, note: "No data yet." };
+// The snapshot makes a correction to the total from *any* entry point reopen
+// the day for confirmation. A later confirmation cannot enter an earlier replay.
+export function confirmedCalories(nutrition, asOf) {
+  const calories = loggedCalories(nutrition);
+  const stamp = nutrition?.foodLogConfirmation;
+  if (calories === null || stamp?.calories !== calories || !stamp.confirmedOn) return null;
+  return asOf && stamp.confirmedOn > asOf ? null : calories;
+}
 
-  const trend = buildWeightTrend(data, { windowDays: windowDays + 30 });
-  if (!trend?.ready) {
-    return { ready: false, note: `Needs ${trend?.needed ?? 5} weigh-ins for the weight trend first — log morning weight in Check-in.` };
+export function computeAdaptiveTDEE(data = {}, { windowDays = WINDOW_DAYS, asOf } = {}) {
+  const dates = Object.keys(data || {}).filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day)).sort();
+  const end = asOf ?? dates.at(-1);
+  if (!end) return { ready: false, note: "Log your morning weight and confirm full days of food in Fuel." };
+
+  // Treat YYYY-MM-DD as civil days. UTC midnight arithmetic has no DST hops.
+  const startMs = Date.parse(end) - (windowDays - 1) * DAY_MS;
+  const start = new Date(startMs).toISOString().slice(0, 10);
+  const warmup = new Date(startMs - 30 * DAY_MS).toISOString().slice(0, 10);
+  const recent = Object.fromEntries(dates.filter((day) => day >= warmup && day <= end).map((day) => [day, data[day]]));
+  const trend = buildWeightTrend(recent, { windowDays: windowDays + 30 });
+  const windowPoints = (trend?.points || []).filter((p) => p.date >= start);
+  if (windowPoints.length < 5) {
+    return { ready: false, note: `Log at least 5 morning weigh-ins in the last ${windowDays} days to estimate expenditure.` };
   }
-
-  // Trend points inside the window, calorie days inside the same span.
-  const windowPoints = trend.points.slice(-windowDays);
   const first = windowPoints[0];
-  const last = windowPoints[windowPoints.length - 1];
-  const spanDays = dayDiff(first.date, last.date);
+  const last = windowPoints.at(-1);
+  const spanDays = (Date.parse(last.date) - Date.parse(first.date)) / DAY_MS;
+  const coverageDays = spanDays + 1;
   if (spanDays < MIN_SPAN_DAYS) {
     return { ready: false, note: `Needs ${MIN_SPAN_DAYS}+ days of weigh-in history (${spanDays} so far).` };
   }
 
-  const calorieDays = Object.keys(data)
+  const calorieDays = dates
     .filter(k => k >= first.date && k <= last.date)
-    .map(k => parseFloat(data[k]?.nutrition?.calories))
-    .filter(v => Number.isFinite(v) && v > 500); // <500 kcal logged = partial day, exclude
-  if (calorieDays.length < MIN_LOGGED_DAYS) {
-    return { ready: false, note: `Needs ${MIN_LOGGED_DAYS}+ fully-logged calorie days in the window (${calorieDays.length} so far).` };
+    .map(k => confirmedCalories(data[k]?.nutrition, asOf))
+    .filter(Number.isFinite);
+  const loggedDays = calorieDays.length;
+  const density = Math.round(100 * loggedDays / coverageDays);
+  const required = Math.max(MIN_LOGGED_DAYS, Math.ceil(MIN_COVERAGE * coverageDays));
+  if (loggedDays < required) {
+    return { ready: false, loggedDays, coverageDays, density,
+      note: `Confirm at least ${required} complete food logs across these ${coverageDays} days in Fuel. You have confirmed ${loggedDays}.` };
   }
 
   const avgIntake = calorieDays.reduce((a, b) => a + b, 0) / calorieDays.length;
   const trendDeltaLbs = last.trend - first.trend;
   const tdee = Math.round(avgIntake - (trendDeltaLbs * KCAL_PER_LB) / spanDays);
 
-  // Confidence from logging density: how many of the span's days had calories.
-  const density = calorieDays.length / spanDays;
-  const confidence = density >= 0.8 ? "high" : density >= 0.55 ? "medium" : "low";
+  if (tdee <= 0) return { ready: false, note: "Check your weight and food totals. This period does not support an expenditure estimate." };
 
   return {
     ready: true,
@@ -82,9 +102,10 @@ export function computeAdaptiveTDEE(data, { windowDays = WINDOW_DAYS } = {}) {
     avgIntake: Math.round(avgIntake),
     trendDeltaLbs: Math.round(trendDeltaLbs * 10) / 10,
     spanDays,
-    loggedDays: calorieDays.length,
-    density: Math.round(density * 100),
-    confidence,
+    loggedDays,
+    coverageDays,
+    density,
+    confidence: loggedDays / coverageDays >= 0.8 ? "high" : "medium",
     trendWeight: trend.current.trend,
     actualWeeklyRate: trend.current.weeklyRate,
   };
@@ -94,6 +115,7 @@ export function computeAdaptiveTDEE(data, { windowDays = WINDOW_DAYS } = {}) {
 export function buildEnergyTargets(tdee, goalRate, trendWeight) {
   if (!Number.isFinite(tdee) || !Number.isFinite(goalRate)) return null;
   const calories = Math.round((tdee + (goalRate * KCAL_PER_LB) / 7) / 10) * 10;
+  if (calories <= 0) return null;
   const protein = Number.isFinite(trendWeight) ? Math.round(trendWeight) : null; // 1 g/lb anchor
   return { calories, protein, goalRate };
 }

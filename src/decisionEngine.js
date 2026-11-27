@@ -1,6 +1,7 @@
 // src/decisionEngine.js
 // Deterministic, explainable v0 decision layer. No React, no network, no writes.
 
+import { numericRecoveryScore } from "./recovery/verdictResolver";
 import { summarizeProgramDay } from "./programSummary";
 import { READINESS, CONFIDENCE, SEVERITY } from "./intelligenceTypes";
 import {
@@ -13,18 +14,9 @@ const n = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
 function normalizeRecoveryScore(raw) {
-  if (!raw) return null;
-  if (typeof raw === "number") return clamp(Math.round(raw), 0, 100);
-  if (typeof raw === "object") {
-    const score = n(raw.score ?? raw.recoveryScore ?? raw.value);
-    return score === null ? null : clamp(Math.round(score), 0, 100);
-  }
-  return null;
+  const score = raw && typeof raw === "object" ? raw.score ?? raw.recoveryScore ?? raw.value : raw;
+  return numericRecoveryScore(score);
 }
 
 function normalizeLoad(raw) {

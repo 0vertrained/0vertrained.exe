@@ -2,7 +2,8 @@
 // Conservative bridge from wearable activity/workouts into the existing load model.
 // Manual logs stay canonical; wearable rows fill gaps and annotate source.
 
-import { buildDailyLoads, computeSessionLoad } from "./loadModel";
+import { buildDailyLoads, cardioActivityRefs, getLoggedCardioBlocks } from "./loadModel";
+import { reconcileActivities, sportKind } from "./workout/activityMatching";
 import { normalizeWorkout } from "./whoop/normalization";
 import { normalizeActivity } from "./oura/normalization";
 
@@ -11,66 +12,32 @@ function isoDate(d) {
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
 }
 
-function hasManualWorkout(entry) {
-  return computeSessionLoad(entry).hasWorkout;
+const ZONE_SRPE = { zone_zero_milli: 1, zone_one_milli: 2, zone_two_milli: 4, zone_three_milli: 6, zone_four_milli: 8, zone_five_milli: 9.5 };
+
+function whoopLoad(workout) {
+  const w = normalizeWorkout(workout);
+  if (!w) return null;
+  let load = 0;
+  let minutes = 0;
+  for (const [zone, effort] of Object.entries(ZONE_SRPE)) {
+    const time = (Number(workout.score?.zone_durations?.[zone]) || 0) / 60000;
+    if (time > 0) { load += time * effort; minutes += time; }
+  }
+  const hasZones = load > 0;
+  if (!hasZones) {
+    // Old Whoop records can have strain or energy but no HR-zone samples.
+    const estimatedMinutes = w.kilojoule > 0 ? Math.min(180, Math.max(20, w.kilojoule / 40)) : 0;
+    load = Math.max((w.strain || 0) * 35, estimatedMinutes * 5);
+    minutes = Math.max(0, (Date.parse(workout.end) - Date.parse(workout.start)) / 60000) || 0;
+  }
+  if (!(load > 0)) return null;
+  return { source: "whoop", id: w.id, startTime: workout.start, kind: sportKind(w.sportName),
+    minutes, load, durationSource: minutes > 0 ? "recorded" : null, confidence: hasZones || w.strain > 0 ? "medium" : "low" };
 }
 
-function whoopLoadForDay(day) {
-  const workouts = Array.isArray(day?.workout) ? day.workout : day?.workout ? [day.workout] : [];
-  const normalized = workouts.map(normalizeWorkout).filter(Boolean);
-
-  // Zone-weighted load, on the manual model's exact currency
-  // (load = sRPE × minutes — see loadModel.computeSessionLoad). The old
-  // strain × 35 mapping SUMMED strains across workouts, but Whoop strain is a
-  // logarithmic 0–21 scale and is not additive: on the reporting user's
-  // export, five workouts on one stored day summed to 17.9 strain (→ 626
-  // load) against an actual day-strain of 4.1. Heart-rate-zone minutes ARE
-  // additive, and every synced workout carries score.zone_durations. Weights
-  // are sRPE equivalents per zone (z0 <50% HR ≈ RPE1 easy movement … z5
-  // 90–100% ≈ RPE9.5), so 60 zone-2 minutes ≈ RPE4 × 60 = 240 — directly
-  // comparable to a logged session. Strain-based estimate remains as the
-  // fallback for records without zones (old Whoop payloads, PENDING scores).
-  const ZONE_SRPE = { zone_zero_milli: 1, zone_one_milli: 2, zone_two_milli: 4, zone_three_milli: 6, zone_four_milli: 8, zone_five_milli: 9.5 };
-  let zoneLoad = 0;
-  let zoneMinutes = 0;
-  for (const w of workouts) {
-    const zones = w?.score?.zone_durations;
-    if (!zones || typeof zones !== "object") continue;
-    for (const [key, weight] of Object.entries(ZONE_SRPE)) {
-      const minutes = (Number(zones[key]) || 0) / 60000;
-      if (minutes > 0) { zoneLoad += minutes * weight; zoneMinutes += minutes; }
-    }
-  }
-  if (zoneLoad > 0) {
-    const sports = [...new Set(normalized.map((w) => w.sportName).filter(Boolean))];
-    const sportsLabel = sports.length ? ` — ${sports.join(", ")}` : "";
-    return {
-      load: Math.round(zoneLoad),
-      source: "whoop",
-      confidence: "medium",
-      note: `Whoop HR-zone load filled from ${normalized.length} workout(s)${sportsLabel} (${Math.round(zoneMinutes)} min).`,
-    };
-  }
-
-  const strain = normalized.reduce((sum, w) => sum + (Number(w.strain) || 0), 0);
-  const minutes = normalized.reduce((sum, w) => {
-    if (Number(w.kilojoule) > 0) return sum + Math.min(180, Math.max(20, Number(w.kilojoule) / 40));
-    return sum;
-  }, 0);
-  if (!strain && !minutes) return null;
-  // Conservative mapping: Whoop workout strain is 0-21; use a moderate sRPE-like
-  // factor and cap so it fills missing load without overpowering manual logs.
-  const load = Math.round(Math.max(strain * 35, minutes * 5));
-  return { load, source: "whoop", confidence: strain ? "medium" : "low", note: `Whoop workout load filled from ${normalized.length} workout(s).` };
-}
-
-// Strava is the highest-fidelity gap fill: real per-workout distance,
-// duration, and elevation, versus Whoop's day-level strain and Oura's day-level
-// activity calories. Formulas sit on the existing fill scale (Oura uses
-// miles × 45) and stay conservative: they fill missing days, never outrank a
-// manual log. Notes carry counts only — never activity titles — so nothing
-// Strava-identifying can leak if a load row is ever serialized (see
-// stravaCoachExclusion.test.js).
+// A recorded moving time is the best duration signal. With no reported
+// exertion, use moderate effort; distance/elevation fill older imports that
+// have no usable time. Only non-identifying aggregates leave this function.
 const STRAVA_DAY_LOAD_CAP = 900;
 
 export function stravaLoadForDay(dayActivities) {
@@ -85,9 +52,12 @@ export function stravaLoadForDay(dayActivities) {
     const elevFt = Number(a.elevationFt) || 0;
     miles += m;
     minutes += mins;
-    if (a.kind === "run") load += m * 45 + elevFt * 0.045;
-    else if (a.kind === "ride") load += m * 14 + elevFt * 0.03;
-    else load += mins * 5;
+    if (mins > 0) {
+      const effort = Number(a.effortScore);
+      load += mins * (effort >= 1 && effort <= 10 ? effort : 5);
+    } else if (a.kind === "run" && m > 0) load += m * 45 + elevFt * 0.045;
+    else if (a.kind === "ride" && m > 0) load += m * 14 + elevFt * 0.03;
+
   }
   load = Math.round(Math.min(STRAVA_DAY_LOAD_CAP, load));
   if (!load) return null;
@@ -111,52 +81,91 @@ function ouraLoadForDay(day) {
   return { load, source: "oura", confidence: "low", note: "Oura activity load filled a missing manual workout day." };
 }
 
-export function buildWearableLoadRows({ entries = {}, ouraData = {}, whoopData = {}, stravaByDate = {}, maxDays = 28, asOf = null } = {}) {
-  const manualRows = buildDailyLoads(entries, maxDays, asOf);
-  return manualRows.map((row) => {
-    const manual = entries?.[row.date];
-    const manualHasWorkout = hasManualWorkout(manual);
-    const whoop = whoopLoadForDay(whoopData?.[row.date]);
-    const oura = ouraLoadForDay(ouraData?.[row.date]);
-    const strava = stravaLoadForDay(stravaByDate?.[row.date]);
-    if (manualHasWorkout) {
-      const context = [strava, whoop, oura].filter(Boolean);
-      return {
-        ...row,
-        source: context.length ? "manual+wearable-context" : "manual",
-        confidence: "high",
-        wearableContext: context,
-        notes: context.length ? ["Manual workout used; wearable workout/activity present but not double-counted."] : [],
-      };
+// A reference identifies coverage, not an extra contribution to the manual
+// load. A confirmed import can represent several separate morning/evening runs.
+function manualActivities(entry, row) {
+  const workout = entry?.workout || {};
+  const lifts = (Array.isArray(workout.watchWorkouts) ? workout.watchWorkouts : []).filter(w => w?.seconds > 0)
+    .map(w => ({ kind: "lift", startTime: w.startedAt, minutes: w.seconds / 60 }));
+  if (!lifts.length && row.liftingMin > 0) {
+    for (const session of Object.values(workout.sessionState || {})) {
+      if (!session?.startedAt || !session.completedAt) continue;
+      const minutes = (Date.parse(session.completedAt) - Date.parse(session.startedAt)) / 60000;
+      if (minutes > 0) lifts.push({ kind: "lift", startTime: session.startedAt, minutes });
     }
-    // Fill priority: Strava (real workout with distance) → Whoop (day strain)
-    // → Oura (day activity). Exactly one source is chosen per day, so a run
-    // that both Strava and Whoop captured can never double-count in ACWR —
-    // the runner-up is kept as corroborating context instead.
-    const chosen = strava || whoop || oura;
-    if (!chosen) return { ...row, source: "none", confidence: "low", wearableContext: [], notes: [] };
-    const corroboration = [strava, whoop, oura].filter((c) => c && c !== chosen);
+    if (!lifts.length) lifts.push({ kind: "lift" });
+  }
+  const cardio = getLoggedCardioBlocks(workout).flatMap(cardioActivityRefs);
+  return [...lifts, ...cardio];
+}
+
+function stravaActivity(a) {
+  if (!(a.minutes > 0 || (a.miles > 0 && (a.kind === "run" || a.kind === "ride")))) return null;
+  return { source: "strava", id: a.stravaId || a.id, kind: sportKind(a.sport) || sportKind(a.kind),
+    startTime: a.startTime, minutes: a.minutes, miles: a.miles, durationSource: a.minutes > 0 ? "recorded" : null, confidence: "medium", raw: a };
+}
+
+function distinctRecords(records) {
+  const seen = new Set();
+  return records.filter(r => {
+    const key = (r.id != null ? String(r.id) : null) || (r.startTime && r.kind && r.minutes ? [r.startTime, r.kind, r.minutes].join("|") : null);
+    if (key && seen.has(key)) return false;
+    if (key) seen.add(key);
+    return true;
+  });
+}
+
+export function buildWearableLoadRows({ entries = {}, ouraData = {}, whoopData = {}, stravaByDate = {}, maxDays = 28, asOf = null } = {}) {
+  return buildDailyLoads(entries, maxDays, asOf).map(row => {
+    const manual = manualActivities(entries[row.date], row);
+    const groups = manual.map(activity => [activity]);
+    const strava = distinctRecords((stravaByDate?.[row.date] || []).filter(Boolean).map(stravaActivity).filter(Boolean));
+    const whoopDay = whoopData?.[row.date]?.workout;
+    const whoop = distinctRecords([].concat(whoopDay || []).map(whoopLoad).filter(Boolean));
+    const oura = ouraLoadForDay(ouraData?.[row.date]);
+    const extraStrava = reconcileActivities(groups, strava);
+    const extraWhoop = reconcileActivities(groups, whoop);
+    // Apply the Strava cap once to the contributed activities over the day.
+    const stravaTotal = stravaLoadForDay(extraStrava.map(a => a.raw));
+    const whoopTotal = Math.round(extraWhoop.reduce((n, w) => n + w.load, 0));
+    const extra = [...extraStrava, ...extraWhoop];
+    const context = [];
+    if (strava.length) context.push(stravaLoadForDay(strava.map(a => a.raw)));
+    if (whoop.length) context.push({ source: "whoop", load: Math.round(whoop.reduce((n, w) => n + w.load, 0)), note: "Whoop recorded workout activity." });
+    if (oura) context.push(oura);
+    const contributing = [row.hasWorkout && "manual", stravaTotal && "strava", whoopTotal > 0 && "whoop"].filter(Boolean);
+    const fill = contributing.length ? null : oura;
+    const source = fill ? "oura" : contributing.join("+") || "none";
+    const notes = extra.length ? [`Added ${extra.length} distinct wearable workout${extra.length === 1 ? "" : "s"}.`] : [];
+    if (fill) notes.push(oura.note);
+    if (extra.length < strava.length + whoop.length || (oura && !fill)) {
+      notes.push("Overlapping or unresolved wearable activity is context only and is not double-counted; each workout is counted once.");
+    }
+    const minutes = extra.reduce((sum, a) => sum + (Number(a.minutes) || 0), 0);
+    const durationKinds = new Set([row.durationSource, ...extra.map(a => a.durationSource)].filter(Boolean));
+    const totalMinutes = row.durationMin + Math.round(minutes);
+    const load = row.load + (stravaTotal?.load || 0) + whoopTotal + (fill?.load || 0);
+    const manualConfidence = row.durationSource === "recorded" && !row.rpeEstimated ? "high" : "medium";
     return {
-      ...row,
-      load: chosen.load,
-      hasWorkout: chosen.load > 0,
-      source: chosen.source,
-      confidence: chosen.confidence,
-      wearableContext: [chosen, ...corroboration],
-      notes: [chosen.note, ...(corroboration.length ? ["Other wearable activity on the same day corroborates; counted once."] : [])],
+      ...row, load, hasWorkout: load > 0 || row.hasWorkout,
+      durationMin: totalMinutes,
+      liftingMin: row.liftingMin + Math.round(extra.filter(a => a.kind === "lift").reduce((sum, a) => sum + (a.minutes || 0), 0)),
+      cardioMin: row.cardioMin + Math.round(extra.filter(a => a.kind && a.kind !== "lift").reduce((sum, a) => sum + (a.minutes || 0), 0)),
+      durationSource: durationKinds.size > 1 ? "mixed" : [...durationKinds][0] || null,
+      source: source === "manual" && context.length ? "manual+wearable-context" : source,
+      confidence: extra.length ? (extra.every(a => a.confidence === "low") ? "low" : "medium")
+        : row.hasWorkout ? manualConfidence : "low",
+      wearableContext: context, notes,
     };
   });
 }
 
 export function summarizeWearableLoadSource(rows = []) {
-  const filled = rows.filter((r) => r.source === "whoop" || r.source === "oura" || r.source === "strava").length;
-  const context = rows.filter((r) => r.source === "manual+wearable-context").length;
+  const filled = rows.filter(r => r.source && r.source !== "none" && r.source !== "manual" && r.source !== "manual+wearable-context").length;
+  const context = rows.filter(r => r.source === "manual+wearable-context").length;
   if (!filled && !context) return null;
-  return {
-    filledDays: filled,
-    contextDays: context,
-    label: filled ? `Wearables filled ${filled} missing load day${filled === 1 ? "" : "s"}` : "Wearables available as load context",
-  };
+  return { filledDays: filled, contextDays: context,
+    label: filled ? `Wearables contributed to load on ${filled} day${filled === 1 ? "" : "s"}` : "Wearables available as load context" };
 }
 
 export function todayKeyFromNow(now = new Date()) {

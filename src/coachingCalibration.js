@@ -4,74 +4,115 @@
 // exposes source coverage without requiring a particular wearable, and returns
 // conservative decision authority for the weekly coach.
 
+import { confirmedCalories } from "./adaptiveTDEE";
+import { getTodayKey } from "./constants";
 import { buildCalibrationReport } from "./coachCalibration";
 
 const DAY_MS = 86400000;
+const MIN_READINGS = 3;
 
-const n = (value) => {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : null;
+// Shown alongside the recommendation so athletes can see what the follow-up measures.
+export const WEEKLY_ENDPOINT = {
+  recovery: "Compare average sleep across the two weeks, using at least three nights each. A gain of 12 minutes counts as improvement.",
+  diet_break: "Compare average weight using at least three weigh-ins each week. Staying within 0.25% counts as stable.",
+  calories: "Compare average weight using at least three weigh-ins each week. A decrease of 0.25% to 1% counts toward the fat-loss goal.",
+  activity: "Compare average daily steps with the suggested increase, using at least three recorded days each week.",
+  adherence: "Compare days meeting both food targets, using at least three complete food logs each week. A higher share or at least 80% on target counts.",
+  continue: "Check for at least 80% of complete food logs meeting both original targets, using at least five days.",
+  collect_data: "Look for four weigh-ins over the next seven days.",
+  collect_food: "Look for five confirmed food logs with protein over the next seven days.",
 };
 
-function dayDiff(a, b) {
-  return Math.round((new Date(`${a}T12:00:00`) - new Date(`${b}T12:00:00`)) / DAY_MS);
+function offsetDay(key, days) {
+  return new Date(Date.parse(key + "T12:00:00Z") + days * DAY_MS).toISOString().slice(0, 10);
 }
 
-function avg(values) {
-  const clean = values.filter(Number.isFinite);
-  return clean.length ? clean.reduce((sum, value) => sum + value, 0) / clean.length : null;
+function mean(values) {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
-function snapshotForWindow(data, endKey, days = 7) {
-  const rows = Object.keys(data || {})
-    .filter((key) => key <= endKey && dayDiff(endKey, key) < days)
-    .sort()
-    .map((key) => data[key]);
-  const weights = rows.map((row) => n(row?.body?.weight)).filter(Number.isFinite);
-  const waists = rows.map((row) => n(row?.body?.waist ?? row?.body?.waistInches ?? row?.measurements?.waist)).filter(Number.isFinite);
-  const proteins = rows.map((row) => n(row?.nutrition?.protein)).filter(Number.isFinite);
-  const sleeps = rows.map((row) => n(row?.body?.sleep)).filter(Number.isFinite);
-  const workouts = rows.filter((row) => Object.keys(row?.workout?.exercises || {}).length > 0 || n(row?.workout?.cardio?.miles) > 0).length;
+function snapshotForWindow(data, end, goals = {}, asOf = end) {
+  const rows = [];
+  for (let offset = -6; offset <= 0; offset++) {
+    const key = offsetDay(end, offset);
+    if (key <= asOf && data[key]) rows.push(data[key]);
+  }
+  const values = (read, allowZero = false) => rows.map(read)
+    .filter(value => value != null && String(value).trim() !== "")
+    .map(Number).filter(value => Number.isFinite(value) && (allowZero ? value >= 0 : value > 0));
+  const weights = values(row => row?.body?.weight);
+  const sleeps = values(row => row?.body?.sleep).filter(value => value <= 24);
+  const steps = values(row => row?.activity?.steps, true);
+  const meals = rows.filter(({ nutrition } = {}) => confirmedCalories(nutrition, asOf) != null &&
+    nutrition.protein != null && String(nutrition.protein).trim() !== "" &&
+    Number.isFinite(Number(nutrition.protein)) && Number(nutrition.protein) >= 0);
+  const targetsKnown = Number(goals?.calories) > 0 && Number(goals?.protein) > 0;
+  const hits = targetsKnown ? meals.filter(({ nutrition }) => Math.abs(nutrition.calories - goals.calories) <= goals.calories * 0.1 &&
+    nutrition.protein >= goals.protein * 0.9).length : 0;
   return {
-    weight: avg(weights),
-    waist: waists.length ? waists[waists.length - 1] : null,
-    protein: avg(proteins),
-    sleep: avg(sleeps),
-    workouts,
-    loggedDays: rows.length,
+    weight: mean(weights), weightCount: weights.length, sleep: mean(sleeps), sleepCount: sleeps.length,
+    steps: mean(steps), stepCount: steps.length, nutritionCount: meals.length,
+    adherence: targetsKnown && meals.length ? hits / meals.length : null,
   };
 }
 
-export function collectWeeklyRecommendationSamples(data = {}) {
+export function weeklyRecommendationIntent({ data, review, goals, response }) {
+  const date = review.weekEndKey;
+  const storedGoals = { calories: goals?.calories ?? null, protein: goals?.protein ?? null };
+  return {
+    version: 2, response, recommendationKind: review.recommendation.kind, title: review.recommendation.title,
+    recommendation: { ...review.recommendation }, confidence: review.confidence,
+    recordedOn: date, phase: review.phase, goals: storedGoals, stepsDelta: review.recommendation.changes?.stepsDelta ?? null,
+    baseline: snapshotForWindow(data, date, storedGoals),
+  };
+}
+
+// These are observable endpoints for each recommendation. Enough readings
+// on both sides are required for a change; missing weeks remain unscored.
+function measureOutcome(intent, before, after) {
+  const enough = (field) => before[field] >= MIN_READINGS && after[field] >= MIN_READINGS;
+  switch (intent.recommendationKind) {
+    case "recovery":
+      return enough("sleepCount") ? after.sleep >= before.sleep + 0.2 : null;
+    case "diet_break":
+      return enough("weightCount") ? Math.abs(after.weight / before.weight - 1) <= 0.0025 : null;
+    case "calories": {
+      if (!enough("weightCount") || intent.phase !== "fat_loss") return null;
+      const loss = 1 - after.weight / before.weight;
+      return loss >= 0.0025 && loss <= 0.01;
+    }
+    case "activity":
+      return enough("stepCount") && intent.stepsDelta > 0 ? after.steps >= before.steps + intent.stepsDelta : null;
+    case "adherence":
+      return enough("nutritionCount") && before.adherence != null && after.adherence != null
+        ? after.adherence > before.adherence || after.adherence >= 0.8 : null;
+    case "continue":
+      return after.nutritionCount >= 5 && after.adherence != null ? after.adherence >= 0.8 : null;
+    case "collect_food":
+      return after.nutritionCount >= 5 ? true : null;
+    case "collect_data":
+      return after.weightCount >= 4 ? true : null;
+    default:
+      return null;
+  }
+}
+
+export function collectWeeklyRecommendationSamples(data = {}, { asOf = getTodayKey() } = {}) {
   const samples = [];
-  for (const date of Object.keys(data).sort()) {
-    const response = data[date]?.intelligence?.weeklyCoachReviewResponse;
-    if (!response?.response || !response?.recommendationKind) continue;
-    const futureKeys = Object.keys(data).filter((key) => key > date && dayDiff(key, date) >= 6).sort();
-    const nextEnd = futureKeys[0];
-    if (!nextEnd) continue;
-    const before = response.baseline || snapshotForWindow(data, date);
-    const after = snapshotForWindow(data, nextEnd);
-    const weightDelta = before.weight != null && after.weight != null ? after.weight - before.weight : null;
-    const waistDelta = before.waist != null && after.waist != null ? after.waist - before.waist : null;
-    const sleepDelta = before.sleep != null && after.sleep != null ? after.sleep - before.sleep : null;
-    const executionImproved = after.workouts >= (before.workouts || 0) && (after.protein || 0) >= (before.protein || 0) * 0.95;
-    const goalSignalImproved = response.recommendationKind === "recovery" || response.recommendationKind === "diet_break"
-      ? (sleepDelta != null && sleepDelta >= 0.2) || executionImproved
-      : (weightDelta != null && weightDelta < -0.1) || (waistDelta != null && waistDelta < -0.1) || executionImproved;
-    samples.push({
-      date,
-      response: response.response,
-      recommendationKind: response.recommendationKind,
-      modifiedKind: response.modifiedKind || null,
-      followed: response.response === "approved" || response.response === "modified",
-      before,
-      after,
-      weightDelta,
-      waistDelta,
-      sleepDelta,
-      favorable: Boolean(goalSignalImproved),
-    });
+  for (const date of Object.keys(data).filter(key => /^\d{4}-\d{2}-\d{2}$/.test(key) && key <= asOf).sort()) {
+    const intent = data[date]?.intelligence?.weeklyCoachReviewResponse;
+    if (!["approved", "modified", "rejected"].includes(intent?.response) || !intent.recommendationKind || intent.recordedOn > asOf) continue;
+    const outcomeEnd = offsetDay(date, 7);
+    const before = intent.version === 2 && intent.baseline ? intent.baseline : snapshotForWindow(data, date, intent.goals);
+    const after = snapshotForWindow(data, outcomeEnd, intent.goals, asOf);
+    const execution = ["followed", "skipped"].includes(intent.followThrough) &&
+      intent.followThroughOn >= outcomeEnd && intent.followThroughOn <= asOf ? intent.followThrough : null;
+    const followed = execution === "followed";
+    const ready = outcomeEnd <= asOf;
+    const favorable = ready && followed && intent.response === "approved" ? measureOutcome(intent, before, after) : null;
+    const outcome = !ready ? "pending" : favorable == null ? "unknown" : favorable ? "favorable" : "unfavorable";
+    samples.push({ date, outcomeEnd, response: intent.response, recommendationKind: intent.recommendationKind,
+      modifiedKind: intent.modifiedKind || null, execution, followed, favorable, outcome, before, after });
   }
   return samples;
 }
@@ -90,20 +131,21 @@ function sourceCoverage(wearableTrends) {
   };
 }
 
-export function buildCoachingCalibrationProfile({ data = {}, wearableTrends = null } = {}) {
-  const daily = buildCalibrationReport(data, { windowDays: 90 });
-  const weekly = collectWeeklyRecommendationSamples(data);
+export function buildCoachingCalibrationProfile({ data = {}, wearableTrends = null, asOf = getTodayKey() } = {}) {
+  const daily = buildCalibrationReport(data, { windowDays: 90, asOf });
+  const weekly = collectWeeklyRecommendationSamples(data, { asOf });
   const approved = weekly.filter((sample) => sample.response === "approved");
   const modified = weekly.filter((sample) => sample.response === "modified");
   const rejected = weekly.filter((sample) => sample.response === "rejected");
   const followed = weekly.filter((sample) => sample.followed);
-  const favorable = followed.filter((sample) => sample.favorable);
-  const weeklySuccessRate = followed.length ? Math.round((favorable.length / followed.length) * 100) : null;
+  const scored = followed.filter(sample => sample.favorable != null);
+  const favorable = scored.filter(sample => sample.favorable);
+  const weeklySuccessRate = scored.length ? Math.round((favorable.length / scored.length) * 100) : null;
   const source = sourceCoverage(wearableTrends);
 
   let authority = "observe";
-  if ((daily.sampleCount || 0) >= 8 && followed.length >= 4) authority = "calibrated";
-  else if ((daily.sampleCount || 0) >= 3 || followed.length >= 2) authority = "suggest";
+  if ((daily.sampleCount || 0) >= 8 && scored.length >= 4) authority = "calibrated";
+  else if ((daily.sampleCount || 0) >= 3 || scored.length >= 2) authority = "suggest";
 
   // Rejection-heavy histories make the coach ask for more evidence before
   // repeating the same class of recommendation.
@@ -124,12 +166,13 @@ export function buildCoachingCalibrationProfile({ data = {}, wearableTrends = nu
       : 0;
 
   return {
-    version: 1,
+    version: 2,
     authority,
     daily,
     weekly: {
       sampleCount: weekly.length,
       followedCount: followed.length,
+      evaluatedCount: scored.length,
       approved: approved.length,
       modified: modified.length,
       rejected: rejected.length,
@@ -141,7 +184,7 @@ export function buildCoachingCalibrationProfile({ data = {}, wearableTrends = nu
     falsePositiveGuard,
     confidenceAdjustment,
     summary: authority === "calibrated"
-      ? `Calibrated from ${daily.sampleCount || 0} daily and ${followed.length} weekly follow-through samples.`
+      ? `Calibrated from ${daily.sampleCount || 0} daily and ${scored.length} measured weekly outcomes.`
       : authority === "suggest"
         ? "Personalization is on. Recommendations stay suggestions while more outcomes build up."
         : "Observation mode. The app explains patterns but does not yet treat them as thresholds personal to you.",

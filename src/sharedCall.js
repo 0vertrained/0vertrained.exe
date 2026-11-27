@@ -7,7 +7,7 @@
 
 import { resolveRecoveryContext } from "./recovery/wearableSourceResolver";
 import { buildConservativeBlendContext, applyWearableConfidenceAdjustment, buildBlendExplanation } from "./recovery/conservativeBlending";
-import { buildRecoveryVerdict, describeCall } from "./recovery/verdictResolver";
+import { buildRecoveryVerdict, describeCall, numericRecoveryScore, scoreForRecoveryDay } from "./recovery/verdictResolver";
 import { readCheckin, checkinSeverity } from "./checkinMorning";
 
 // Recovery's calls, least cautious first.
@@ -37,8 +37,13 @@ export function deriveRecoveryVerdict({
   manualBody = {},
   todayBody = {},
   settings = {},
+  todayKey = null,
+  signalDay = recovery?.scoredDay,
+  loadDay = recovery?.scoredDay,
 } = {}) {
-  const resolvedContext = (whoopConnected && ouraGrouped)
+  const freshScore = scoreForRecoveryDay(recovery, todayKey);
+  const currentSignals = !todayKey || signalDay === todayKey;
+  const resolvedContext = (freshScore !== null && whoopConnected && ouraGrouped && (!todayKey || (ouraGrouped[todayKey] && whoopGrouped?.[todayKey])))
     ? resolveRecoveryContext({ ouraData: ouraGrouped, whoopData: whoopGrouped, manualData: manualBody, settings })
     : null;
   const wearableConflicts = resolvedContext?.conflicts || [];
@@ -51,12 +56,18 @@ export function deriveRecoveryVerdict({
   const blendExplanation = buildBlendExplanation(blendContext);
   const checkin = readCheckin(todayBody || {});
   const checkinCaution = { severity: checkinSeverity(checkin), flags: checkin.flags };
-  const verdict = recovery
-    ? buildRecoveryVerdict({ recommendation: blendedRecommendation, recovery, sleepDebt, alerts, trainingLoad, confidence, checkin: checkinCaution })
-    : null;
+  const inputs = {
+    recovery: { score: freshScore },
+    recommendation: freshScore !== null ? blendedRecommendation : null,
+    sleepDebt: currentSignals ? sleepDebt : null,
+    alerts: currentSignals ? alerts : null,
+    trainingLoad: !todayKey || loadDay === todayKey ? trainingLoad : null, confidence, checkin: checkinCaution,
+  };
+  const verdict = buildRecoveryVerdict(inputs);
   return {
     verdict,
     checkin,
+    inputs,
     wearableConflicts,
     blendedRecommendation,
     blendExplanation,
@@ -68,9 +79,8 @@ export function deriveRecoveryVerdict({
  * The same, from what loadRecoveryData returned. Null until a wearable
  * load has scored the night.
  */
-export function recoveryVerdictFromLoad(load, { data = {}, todayKey, yesterdayKey, settings = {} } = {}) {
-  const snapshot = load?.snapshot;
-  if (!load?.connected || !snapshot?.recovery) return null;
+export function recoveryReadFromLoad(load, { data = {}, todayKey, yesterdayKey, settings = {} } = {}) {
+  const snapshot = load?.snapshot || {};
   return deriveRecoveryVerdict({
     recovery: snapshot.recovery,
     sleepDebt: snapshot.sleepDebt,
@@ -78,13 +88,64 @@ export function recoveryVerdictFromLoad(load, { data = {}, todayKey, yesterdayKe
     trainingLoad: snapshot.trainingLoad,
     confidence: snapshot.confidence,
     recommendation: snapshot.recommendation,
-    ouraGrouped: load.ouraGrouped,
-    whoopGrouped: load.whoopGrouped,
-    whoopConnected: load.whoopConnected,
+    todayKey,
+    signalDay: snapshot.signalDay ?? snapshot.recovery?.scoredDay,
+    loadDay: snapshot.loadDay ?? snapshot.recovery?.scoredDay,
+    ouraGrouped: load?.ouraGrouped,
+    whoopGrouped: load?.whoopGrouped,
+    whoopConnected: load?.whoopConnected,
     manualBody: data?.[yesterdayKey]?.body || {},
     todayBody: data?.[todayKey]?.body || {},
     settings,
-  }).verdict;
+  });
+}
+
+export function recoveryVerdictFromLoad(load, options) {
+  return recoveryReadFromLoad(load, options).verdict;
+}
+
+// Store the evidence available when an athlete responds. Only scalar decision
+// inputs cross the backup boundary. Provider streams and load history stay out.
+export function recordRecoveryContext({ asOf, todayCall, wearable = null, read, load, manualScore = null }) {
+  const inputs = read.inputs;
+  const snapshot = load?.snapshot;
+  const zone = snapshot?.trainingLoad?.rolling?.zone;
+  return {
+    version: 1, asOf, todayCall,
+    wearablePresent: Boolean(wearable || load?.connected || load?.whoopConnected),
+    scoredDay: wearable?.scoredDay || null,
+    score: numericRecoveryScore(wearable?.score),
+    manualScore: numericRecoveryScore(manualScore),
+    // Only these two categories can change the call. Replaying a ceiling
+    // needs its date and category, never the underlying workout records.
+    loadZone: zone === "high_risk" || zone === "overreaching" ? zone : null,
+    loadDay: snapshot?.loadDay ?? snapshot?.recovery?.scoredDay ?? null,
+    signalDay: snapshot?.signalDay ?? snapshot?.recovery?.scoredDay ?? null,
+    recommendationLabel: read.blendedRecommendation?.label || null,
+    alerts: (snapshot?.alerts || []).map(({ type, severity }) => ({ type, severity })),
+    sleepDebtHours: snapshot?.sleepDebt?.debtHours ?? null,
+    confidenceLevel: snapshot?.confidence?.level ?? null,
+    checkin: { severity: inputs.checkin.severity, flags: inputs.checkin.flags },
+    // A fast boot score can inform Today before the full wearable verdict loads.
+    verdictAvailable: Boolean(snapshot?.recovery),
+    legacyVerdictAvailable: Boolean(load?.connected && snapshot?.recovery),
+  };
+}
+
+export function replayRecoveryContext(context) {
+  if (context?.version !== 1 || !context.asOf || context.unavailableReason || !TODAY_TO_SHARED[context.todayCall]) return null;
+  const score = scoreForRecoveryDay(context, context.asOf);
+  const currentSignals = (context.signalDay ?? context.scoredDay) === context.asOf;
+  const recoveryVerdict = buildRecoveryVerdict({
+    recovery: { score: context.verdictAvailable === false ? null : score },
+    recommendation: { label: context.recommendationLabel },
+    alerts: currentSignals ? context.alerts : null,
+    sleepDebt: currentSignals ? { debtHours: context.sleepDebtHours } : null,
+    confidence: { level: context.confidenceLevel },
+    trainingLoad: context.loadDay === context.asOf ? { rolling: { zone: context.loadZone } } : null,
+    checkin: context.checkin,
+  });
+  return resolveSharedCall({ todayCall: context.todayCall, recoveryVerdict, score: score ?? context.manualScore });
 }
 
 /**
@@ -109,6 +170,6 @@ export function resolveSharedCall({ todayCall = null, recoveryVerdict = null, sc
     call = today >= recovery ? fromToday : fromRecovery;
     source = today === recovery ? "both" : today > recovery ? "today" : "recovery";
   }
-  const shown = Number.isFinite(Number(score)) && score !== null ? Math.round(Number(score)) : null;
+  const shown = numericRecoveryScore(score);
   return { ...describeCall(call), source, score: shown };
 }

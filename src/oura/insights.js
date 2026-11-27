@@ -4,6 +4,7 @@
 // Data quality assessment, metric baselines, confidence scoring, and
 // human-friendly training recommendations.
 
+import { numericRecoveryScore } from "../recovery/verdictResolver";
 import {
   getSleepDoc, getReadinessDoc,
   recoveryDates, latestRecoveryDay,
@@ -171,7 +172,8 @@ export function calcRecoveryConfidence(quality, recovery) {
  * Get training recommendation based on recovery state
  */
 export function getTrainingRecommendation({ recovery, readiness, quality, loadZone, sleepDebt }) {
-  const score = Number(recovery?.score || 0);
+  const score = numericRecoveryScore(recovery?.score);
+  if (score === null) return null;
   const lowConfidence = quality?.confidence === "low";
   let label;
   let prescription;

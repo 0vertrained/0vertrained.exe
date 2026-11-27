@@ -73,6 +73,21 @@ describe("the session runner", () => {
     }
   });
 
+  it("protects the lift identity of completed sets when reopening exercise options", () => {
+    const lifting = [{ name: "Bench Press", sets: 2, reps: 8 }];
+    for (const performedName of [undefined, "Incline Dumbbell Press"]) {
+      const workout = { exercises: { "Bench Press": { performedName, sets: [done(135, 8)] } } };
+      const { ui, view, updates } = mountRunner({ lifting, workout });
+      fireEvent.click(ui.getByRole("button", { name: /^Exercise options/ }));
+      const options = within(view.container);
+      const swap = options.getByRole("button", { name: performedName ? "Undo swap" : /^Swap exercise/ });
+      expect(swap.disabled).toBe(true);
+      fireEvent.click(swap);
+      expect(updates.mock.calls.some(([path]) => path === "workout.exercises.Bench Press")).toBe(false);
+      view.unmount();
+    }
+  });
+
   it("logs a set done as planned in one tap, then rests without starting the next set", () => {
     const { ui, updates } = mountRunner();
     expect(ui.getByText("Set 1 of 2")).toBeTruthy();

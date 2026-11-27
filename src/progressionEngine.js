@@ -3,7 +3,7 @@
 // The engine is intentionally suggest-only: it reads completed work, requires
 // repeated evidence before calling a stall, and never mutates the program.
 
-import { defaultWeightIncrement, resolveTrackingMode, TRACKING_MODES, validateSet } from "./workoutLogging";
+import { performedExerciseName, defaultWeightIncrement, resolveTrackingMode, TRACKING_MODES, validateSet } from "./workoutLogging";
 import { effectiveE1RM } from "./sessionIntelligence";
 
 const DAY_MS = 86400000;
@@ -31,16 +31,10 @@ export function parseRepRange(value, fallback = { min: 8, max: 12 }) {
   return { min: Math.min(matches[0], matches[1]), max: Math.max(matches[0], matches[1]) };
 }
 
-function performedExercise(entry, plannedName) {
-  const performedName = String(entry?.performedName || plannedName || "").trim();
-  return performedName || plannedName;
-}
-
 function completedSetsForExercise(exercise, sets = []) {
   return sets
-    .filter((set) => set?.done && validateSet(set, exercise).valid)
-    .map((set) => ({
-      ...set,
+    .flatMap((set, slot) => set?.done && validateSet(set, exercise).valid ? [{
+      ...set, slot,
       weight: n(set.weight),
       reps: n(set.reps),
       assistance: n(set.assistance ?? set.weight),
@@ -49,7 +43,7 @@ function completedSetsForExercise(exercise, sets = []) {
       rir: String(set.rir ?? "").trim() === "" ? null : n(set.rir),
       quality: QUALITY_RANK[set.quality] != null ? set.quality : null,
       pain: Boolean(set.pain) || n(set.painScore) > 0,
-    }));
+    }] : []);
 }
 
 function summarizeSession({ date, exercise, sets, plannedName, performedName }) {
@@ -60,6 +54,7 @@ function summarizeSession({ date, exercise, sets, plannedName, performedName }) 
   const weights = completed.map((set) => set.weight);
   const rirs = completed.map((set) => set.rir).filter(Number.isFinite);
   const qualityRank = completed.reduce((worst, set) => Math.max(worst, QUALITY_RANK[set.quality] ?? 0), 0);
+  const mixedWeights = weights.some(weight => weight !== weights[0]);
   const bestE1RM = completed.reduce((best, set) => Math.max(best, effectiveE1RM(set.weight, set.reps, set.rir) || 0), 0);
   return {
     date,
@@ -82,6 +77,7 @@ function summarizeSession({ date, exercise, sets, plannedName, performedName }) 
       : mode === TRACKING_MODES.BODYWEIGHT_REPS
         // "0×10/9/8" read as a 0-lb load.
         ? `${Math.max(...weights, 0) > 0 ? `+${Math.max(...weights, 0)}` : "BW"}×${reps.join("/")}`
+        : mixedWeights ? completed.map(set => `${set.weight}×${set.reps}`).join(" / ")
         : `${Math.max(...weights, 0)}×${reps.join("/")}`,
   };
 }
@@ -94,14 +90,16 @@ export function getExerciseSessions(data, exerciseName, todayKey, { lookbackDays
     if (dateDiff(todayKey, date) > lookbackDays) continue;
     const entries = data[date]?.workout?.exercises || {};
     for (const [plannedName, entry] of Object.entries(entries)) {
-      const performedName = performedExercise(entry, plannedName);
+      const performedName = performedExerciseName(plannedName, entry);
       // A substituted exercise owns its own history. The planned movement does
       // not receive credit for a different movement performed in its slot.
       if (performedName.toLowerCase() !== exerciseName.toLowerCase()) continue;
       const exerciseShape = exercise || { name: performedName, sets: entry?.sets?.length || 1, reps: 8 };
       const session = summarizeSession({ date, exercise: { ...exerciseShape, name: performedName }, sets: entry?.sets || [], plannedName, performedName });
-      if (session) sessions.push(session);
-      break;
+      if (session) {
+        sessions.push(session);
+        break;
+      }
     }
     if (sessions.length >= limit) break;
   }
@@ -173,6 +171,7 @@ function prescriptionBase({ kind, exercise, sessions, range, targetSets, targetW
     repRange: range,
     targetWeight,
     targetReps,
+    targetRir: exercise.rir ?? null,
     confidence: confidenceLabel(sessions.length),
     rationale,
     caution,
@@ -180,8 +179,69 @@ function prescriptionBase({ kind, exercise, sessions, range, targetSets, targetW
   };
 }
 
+// Older stored prescriptions carry one weight for the whole exercise.
+export function prescriptionWeightAt(prescription, index) {
+  if (Array.isArray(prescription?.targetWeights)) return prescription.targetWeights[index] ?? null;
+  return prescription?.targetWeight ?? null;
+}
+
+function effortRange(value) {
+  if (value == null || !/\d/.test(String(value))) return null;
+  const range = parseRepRange(value);
+  return String(value).includes("+") ? { min: range.min, max: Infinity } : range;
+}
+
+function grindingSet(set, effort) {
+  return set.quality === "grind" || set.rir === 0 || (effort && set.rir != null && set.rir < effort.min);
+}
+
+// Distinct loads belong to their set slots. A leading heavier group followed
+// by one lighter group can progress independently. For a changing pyramid,
+// incomplete log or intensity-technique set, repeat the observed pattern.
+function mixedLoadPrescription({ exercise, mode, sessions, range, targetSets, increment }) {
+  const last = sessions[0];
+  const sets = last.sets;
+  const top = sets[0].weight;
+  const split = sets.findIndex(set => set.weight !== top);
+  const lighter = sets[split].weight;
+  const completePattern = sets.length === targetSets && sets.every((set, index) =>
+    set.slot === index && (!set.type || set.type === "straight"));
+  const topAndBackoff = completePattern && lighter < top && sets.slice(split).every(set => set.weight === lighter);
+  const adverse = last.pain || last.worstQuality === "form_break";
+  const effort = effortRange(exercise.rir);
+  const raise = group => !adverse && group.every(set => set.reps >= range.max && (!effort || set.rir != null) && !grindingSet(set, effort));
+  const raiseTop = topAndBackoff && raise(sets.slice(0, split));
+  const raiseBackoff = topAndBackoff && raise(sets.slice(split));
+  const slots = new Map(sets.map(set => [set.slot, set]));
+  const lowest = Math.min(...sets.map(set => set.weight));
+  const targetWeights = [];
+  const targetReps = [];
+  for (let index = 0; index < targetSets; index++) {
+    const set = slots.get(index);
+    const previousWeight = set?.weight ?? lowest;
+    const advancing = index < split ? raiseTop : raiseBackoff;
+    let weight = previousWeight;
+    if (adverse) weight = Math.max(mode === TRACKING_MODES.BODYWEIGHT_REPS ? 0 : Math.min(previousWeight, increment), previousWeight - increment);
+    else if (advancing) weight = previousWeight + increment;
+    targetWeights.push(weight);
+    targetReps.push(advancing || adverse || !set ? range.min : Math.min(range.max, set.reps));
+  }
+  const rationale = adverse ? "Step each load down after the technique or discomfort flag."
+    : topAndBackoff ? "The top and back-off sets keep their own loads. Each group advances after all its sets reach the upper target cleanly."
+    : "Repeat the recorded loads by set. Use the lighter load for an unrecorded set.";
+  return {
+    ...prescriptionBase({ kind: "set_targets", exercise, sessions, range, targetSets, targetReps, rationale,
+      caution: last.pain ? "Stop the movement if pain persists or worsens." : null }),
+    mode, targetWeights,
+  };
+}
+
 export function formatPrescription(prescription) {
   if (!prescription) return "No target yet";
+  if (Array.isArray(prescription.targetWeights)) {
+    return prescription.targetWeights.map((weight, index) =>
+      `${weight} lb × ${prescription.targetReps[index]}`).join(" / ");
+  }
   const reps = Array.isArray(prescription.targetReps) && prescription.targetReps.length
     ? prescription.targetReps.join(" / ")
     : `${prescription.repRange.min}–${prescription.repRange.max}`;
@@ -263,6 +323,9 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
     }), mode };
   }
 
+  if (last.sets.some(set => set.weight !== last.sets[0].weight)) {
+    return mixedLoadPrescription({ exercise, mode, sessions, range, targetSets, increment });
+  }
   const lastWeight = last.weight;
   // A bodyweight movement steps back to bodyweight, never below it,
   // and with nothing added "one step back" means an easier variation. The
@@ -293,8 +356,10 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
     }), mode };
   }
 
-  const grinding = last.minRir === 0 || last.worstQuality === "grind";
-  if (hitUpper && !grinding) {
+  const effort = effortRange(exercise.rir);
+  const grinding = last.sets.some(set => grindingSet(set, effort));
+  const missingEffort = Boolean(effort && !last.allRirLogged);
+  if (hitUpper && !grinding && !missingEffort) {
     const targetWeight = roundToIncrement(lastWeight + increment, increment);
     return { ...prescriptionBase({
       kind: "add_load", exercise, sessions, range, targetSets, targetWeight,
@@ -303,11 +368,12 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
     }), mode };
   }
 
-  if (hitUpper && grinding) {
+  if (hitUpper) {
     return { ...prescriptionBase({
       kind: "hold_for_quality", exercise, sessions, range, targetSets, targetWeight: lastWeight,
       targetReps: Array(targetSets).fill(range.max),
-      rationale: "The rep target was reached, but the final work was a grind. Repeat the load and make the reps cleaner before adding weight.",
+      rationale: missingEffort ? "Repeat this load and log reps in reserve for each set to check the intended effort."
+        : "The rep target was reached, but the final work was a grind. Repeat the load and make the reps cleaner before adding weight.",
     }), mode };
   }
 
@@ -318,20 +384,45 @@ export function buildExercisePrescription({ data, exercise, todayKey, currentSes
   }), mode };
 }
 
-export function buildProgressionDecision(prescription, actualSet, { acceptedAt = new Date().toISOString() } = {}) {
+// The target is kept per logged set so an edit or a replay can score the
+// recorded work independently of which suggestion the athlete selected.
+export function evaluateSetOutcome(target, set) {
+  if (!set?.done || target?.value == null || target.kind === "establish") return "unknown";
+  const actual = target.mode === TRACKING_MODES.TIMED_HOLD ? set.duration
+    : target.mode === TRACKING_MODES.CARRY ? set.distance : set.reps;
+  if (!Number.isFinite(Number(actual)) || Number(actual) <= 0) return "unknown";
+  const weight = target.mode === TRACKING_MODES.ASSISTED_REPS ? set.assistance || set.weight : set.weight;
+  if (target.weight != null) {
+    if ((target.mode === TRACKING_MODES.LOADED_REPS || target.mode === TRACKING_MODES.CARRY) &&
+      (!Number.isFinite(Number(weight)) || Number(weight) <= 0)) return "unknown";
+    if (Math.abs(n(weight) - target.weight) >= 0.01) return "missed";
+  }
+  if (n(actual) < target.value || set.pain || n(set.painScore) > 0 || set.quality === "form_break") return "missed";
+  const effort = effortRange(target.rir);
+  if (!effort) return "met";
+  if (String(set.rir ?? "").trim() === "") return "unknown";
+  const rir = Number(set.rir);
+  if (!Number.isFinite(rir)) return "unknown";
+  return rir >= effort.min && rir <= effort.max ? "met" : "missed";
+}
+
+export function buildProgressionDecision(prescription, actualSet, { setIndex = 0, selectedSource = null, acceptedAt = new Date().toISOString() } = {}) {
   if (!prescription) return null;
-  const actualWeight = n(actualSet?.weight ?? actualSet?.assistance);
-  const targetWeight = n(prescription.targetWeight);
-  const accepted = targetWeight <= 0 || Math.abs(actualWeight - targetWeight) < 0.01;
+  const mode = prescription.mode;
+  const targetWeight = prescriptionWeightAt(prescription, setIndex);
+  const actualWeight = n(mode === TRACKING_MODES.ASSISTED_REPS ? actualSet?.assistance || actualSet?.weight : actualSet?.weight);
+  const matchedLoad = targetWeight == null || Math.abs(actualWeight - targetWeight) < 0.01;
+  const target = { kind: prescription.kind, mode: mode ?? TRACKING_MODES.LOADED_REPS,
+    weight: targetWeight, value: prescription.targetReps?.[setIndex] ?? null, rir: prescription.targetRir ?? null };
   return {
-    version: 1,
-    status: accepted ? "accepted" : "overridden",
-    acceptedAt,
+    version: 2,
+    status: matchedLoad ? "accepted" : "overridden", // Compatibility with older decision records.
+    loadMatched: targetWeight == null ? null : matchedLoad,
+    outcome: evaluateSetOutcome(target, actualSet),
+    target, selectedSource, setIndex, acceptedAt,
     kind: prescription.kind,
     sourceDate: prescription.sourceDate,
-    targetWeight: prescription.targetWeight,
-    targetReps: prescription.targetReps,
-    actualWeight,
+    targetWeight, targetReps: prescription.targetReps, actualWeight,
   };
 }
 
@@ -339,7 +430,7 @@ function allExerciseNames(data) {
   const names = new Set();
   for (const entry of Object.values(data || {})) {
     for (const [plannedName, exercise] of Object.entries(entry?.workout?.exercises || {})) {
-      names.add(performedExercise(exercise, plannedName));
+      names.add(performedExerciseName(plannedName, exercise));
     }
   }
   return [...names];

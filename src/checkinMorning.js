@@ -23,6 +23,8 @@
 
 // Tap rows. Values land on the existing 1–10 scales; three levels is a
 // deliberate ceiling (a 1–10 picker at 6:30 a.m. is friction, not fidelity).
+import { numericRecoveryScore } from "./recovery/verdictResolver";
+
 export const CHECKIN_ROWS = [
   { field: "sleepQuality", label: "SLEPT", options: [
     { value: 3, text: "poorly" }, { value: 6, text: "fine" }, { value: 9, text: "well" },
@@ -141,8 +143,8 @@ export function checkinEvidenceLine(checkin) {
  * disagree, in either direction. Null otherwise (silence is the default).
  */
 export function divergenceNote(checkin, score) {
-  const s = Number(score);
-  if (!checkin || !checkin.complete || !Number.isFinite(s)) return null;
+  const s = numericRecoveryScore(score);
+  if (!checkin?.complete || s === null) return null;
   const severity = checkinSeverity(checkin);
   if (s >= 72 && severity >= 2) {
     return "You feel rougher than your metrics look. Subjective often leads objective by a day — ease into the first sets and let the warm-up cast the deciding vote.";

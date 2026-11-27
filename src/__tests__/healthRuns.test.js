@@ -43,7 +43,7 @@ describe("hasLoggedRun", () => {
 describe("planHealthFills", () => {
   it("fills an empty day and remembers the run", () => {
     const result = planHealthFills({ runs: [run("a", "2026-11-26", 8046.72, 2430)], data: {} });
-    expect(result.fills).toEqual([{ dateKey: "2026-11-26", miles: "5", time: "40:30", pace: "8:06", hr: "", count: 1 }]);
+    expect(result.fills).toEqual([{ dateKey: "2026-11-26", miles: "5", time: "40:30", pace: "8:06", hr: "", count: 1, activityRefs: [{ source: "apple", id: "a", kind: "run", startTime: null, minutes: 40.5, miles: 5 }] }]);
     expect(result.handled).toEqual(["a"]);
   });
 

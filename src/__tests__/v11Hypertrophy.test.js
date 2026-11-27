@@ -118,7 +118,7 @@ function energyFixture({ days = 28, kcal = 3000, dailyLoss = 0 }) {
     const key = d.toISOString().slice(0, 10);
     data[key] = {
       body: { weight: String(185 - dailyLoss * i) },
-      nutrition: { calories: String(kcal) },
+      nutrition: { calories: String(kcal), foodLogConfirmation: { calories: kcal, confirmedOn: key } },
     };
   }
   return data;
@@ -130,6 +130,7 @@ describe("computeAdaptiveTDEE", () => {
     expect(r.ready).toBe(true);
     expect(Math.abs(r.tdee - 3000)).toBeLessThan(60);
     expect(r.confidence).toBe("high");
+    expect(r).toMatchObject({ loggedDays: 28, coverageDays: 28, spanDays: 27, density: 100 });
   });
 
   it("recovers a higher TDEE on a steady cut", () => {
@@ -148,12 +149,46 @@ describe("computeAdaptiveTDEE", () => {
     expect(computeAdaptiveTDEE(sparse).ready).toBe(false);
   });
 
-  it("excludes obviously partial calorie days", () => {
+  it("treats a corrected total as unconfirmed", () => {
     const data = energyFixture({ kcal: 3000 });
     const firstKey = Object.keys(data).sort()[3];
-    data[firstKey].nutrition.calories = "200"; // partial log — must not drag the average
+    data[firstKey].nutrition.calories = "200";
     const r = computeAdaptiveTDEE(data);
-    expect(Math.abs(r.tdee - 3000)).toBeLessThan(60);
+    expect(r).toMatchObject({ tdee: 3000, loggedDays: 27, density: 96 });
+  });
+
+  it("withholds expenditure for a month of unconfirmed 650 kcal meals", () => {
+    const data = energyFixture({ kcal: 650 });
+    for (const day of Object.values(data)) delete day.nutrition.foodLogConfirmation;
+    const estimate = computeAdaptiveTDEE(data);
+    expect(estimate).toMatchObject({ ready: false, loggedDays: 0, coverageDays: 28, density: 0 });
+    expect(estimate.tdee).toBeUndefined();
+  });
+
+  it("uses only complete days and excludes confirmations later than the replay date", () => {
+    const data = energyFixture({ kcal: 2400 });
+    const days = Object.keys(data).sort();
+    for (const date of days.slice(0, 11)) {
+      data[date].nutrition.calories = "950";
+      delete data[date].nutrition.foodLogConfirmation;
+    }
+    data[days[11]].nutrition.foodLogConfirmation.confirmedOn = "2026-06-29";
+    expect(computeAdaptiveTDEE(data, { asOf: "2026-06-28" })).toMatchObject({
+      tdee: 2400, loggedDays: 16, coverageDays: 28, density: 57, confidence: "medium",
+    });
+    delete data[days[12]].nutrition.foodLogConfirmation;
+    expect(computeAdaptiveTDEE(data, { asOf: "2026-06-28" })).toMatchObject({ ready: false, loggedDays: 15 });
+  });
+
+  it("limits infrequent weigh-ins to a calendar window and excludes future entries", () => {
+    const data = energyFixture({ days: 70 });
+    Object.entries(data).forEach(([, day], index) => { if (index % 2) delete day.body.weight; });
+    const r = computeAdaptiveTDEE(data, { asOf: "2026-07-10" });
+    expect(r).toMatchObject({ ready: true, tdee: 3000, spanDays: 26, coverageDays: 27, density: 100 });
+    const stale = computeAdaptiveTDEE(data, { asOf: "2027-01-01" });
+    expect(stale.ready).toBe(false);
+    const before = computeAdaptiveTDEE(data, { asOf: "2026-06-02" });
+    expect(before.ready).toBe(false);
   });
 });
 

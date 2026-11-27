@@ -53,7 +53,7 @@ function whoopHrvToday(whoop, day) {
 function whoopHrvPool(whoop, excludeDay) {
   const out = [];
   for (const d of whoopDates(whoop)) {
-    if (d === excludeDay) continue;
+    if (d >= excludeDay) continue;
     const v = whoopHrvToday(whoop, d);
     if (v) out.push(Math.log(v));
     if (out.length >= 14) break;
@@ -67,7 +67,7 @@ function whoopRhrToday(whoop, day) {
 function whoopRhrPool(whoop, excludeDay) {
   const out = [];
   for (const d of whoopDates(whoop)) {
-    if (d === excludeDay) continue;
+    if (d >= excludeDay) continue;
     const v = whoopRhrToday(whoop, d);
     if (v) out.push(v);
     if (out.length >= 14) break;
@@ -77,6 +77,66 @@ function whoopRhrPool(whoop, excludeDay) {
 function whoopSleepPerf(whoop, day) {
   const v = whoop?.[day]?.sleep?.score?.sleep_performance_percentage;
   return Number.isFinite(v) && v >= 0 && v <= 100 ? v : null;
+}
+
+function whoopHrvScore(whoopData, day) {
+  const wToday = whoopHrvToday(whoopData, day);
+  const wPool = whoopHrvPool(whoopData, day);
+  if (wToday && wPool.length >= 4) {
+    const wBase = trimmedMean(wPool, 0.1);
+    const wSd = flooredSd(trimmedStdDev(wPool, 0.1), SD_FLOOR_LN_HRV).sd;
+    const wz = zScore(Math.log(wToday), wBase, wSd);
+    const anchors = [
+      { z: 0.5, pts: 35 }, { z: -0.5, pts: 30 }, { z: -1.0, pts: 22 },
+      { z: -2.0, pts: 12 }, { z: -3.0, pts: 5 },
+    ];
+    let pts;
+    if (wz >= anchors[0].z) pts = anchors[0].pts;
+    else if (wz <= anchors[anchors.length - 1].z) pts = anchors[anchors.length - 1].pts;
+    else {
+      for (let i = 0; i < anchors.length - 1; i++) {
+        const a = anchors[i], b = anchors[i + 1];
+        if (wz <= a.z && wz >= b.z) { pts = Math.round(b.pts + ((wz - b.z) / (a.z - b.z)) * (a.pts - b.pts)); break; }
+      }
+    }
+    return {
+      score: pts,
+      zScore: wz.toFixed(2),
+      cv: 0,
+      baseline: wBase,
+      sampleCount: wPool.length,
+      confidence: wPool.length >= 7 ? "medium" : "low",
+      source: "whoop recovery HRV (fallback)",
+      detail: `Whoop rmssd z=${wz.toFixed(2)} vs its own ${wPool.length}-day baseline`,
+    };
+  }
+  return null;
+}
+
+function whoopRhrScore(whoopData, day) {
+  const wToday = whoopRhrToday(whoopData, day);
+  const wPool = whoopRhrPool(whoopData, day);
+  if (wToday && wPool.length >= 4) {
+    const wBase = trimmedMean(wPool, 0.1);
+    const wSd = flooredSd(trimmedStdDev(wPool, 0.1), SD_FLOOR_RHR).sd;
+    const wz = wSd > 0 ? (wToday - wBase) / wSd : null;
+    const wDelta = wToday - wBase;
+    let pts = 25;
+    if (wz !== null) {
+      if (wz >= 2) pts = 5; else if (wz >= 1.5) pts = 10; else if (wz >= 1) pts = 15; else if (wz >= 0.5) pts = 20;
+    } else if (wDelta >= 5) pts = 10; else if (wDelta >= 3) pts = 15;
+    return {
+      score: pts,
+      delta: wDelta.toFixed(1),
+      zScore: wz === null ? null : wz.toFixed(2),
+      baseline: Math.round(wBase),
+      sampleCount: wPool.length,
+      confidence: wPool.length >= 7 ? "medium" : "low",
+      source: "whoop recovery RHR (fallback)",
+      detail: `Whoop RHR ${wToday} vs its own ${Math.round(wBase)} baseline`,
+    };
+  }
+  return null;
 }
 
 function hrvBalanceFallbackScore(ouraData, baseline = 0, sampleCount = 0) {
@@ -120,6 +180,8 @@ export function calcHRVScore(ouraData, settings = {}, whoopData = null) {
   }
 
   if (lnRmssdValues.length === 0) {
+    const fromWhoop = whoopHrvScore(whoopData, scoringDay);
+    if (fromWhoop) return fromWhoop;
     const fallback = hrvBalanceFallbackScore(ouraData);
     if (fallback) return fallback;
     return {
@@ -173,36 +235,8 @@ export function calcHRVScore(ouraData, settings = {}, whoopData = null) {
   if (!todayRmssd) {
     // Whoop rung: same-day Whoop rmssd (ms — same unit), z-scored
     // against WHOOP's own leave-one-out history. Oura's pool never touches it.
-    const wToday = whoopHrvToday(whoopData, todayDate);
-    const wPool = whoopHrvPool(whoopData, todayDate);
-    if (wToday && wPool.length >= 4) {
-      const wBase = trimmedMean(wPool, 0.1);
-      const wSd = flooredSd(trimmedStdDev(wPool, 0.1), SD_FLOOR_LN_HRV).sd;
-      const wz = zScore(Math.log(wToday), wBase, wSd);
-      const anchors = [
-        { z: 0.5, pts: 35 }, { z: -0.5, pts: 30 }, { z: -1.0, pts: 22 },
-        { z: -2.0, pts: 12 }, { z: -3.0, pts: 5 },
-      ];
-      let pts;
-      if (wz >= anchors[0].z) pts = anchors[0].pts;
-      else if (wz <= anchors[anchors.length - 1].z) pts = anchors[anchors.length - 1].pts;
-      else {
-        for (let i = 0; i < anchors.length - 1; i++) {
-          const a = anchors[i], b = anchors[i + 1];
-          if (wz <= a.z && wz >= b.z) { pts = Math.round(b.pts + ((wz - b.z) / (a.z - b.z)) * (a.pts - b.pts)); break; }
-        }
-      }
-      return {
-        score: pts,
-        zScore: wz.toFixed(2),
-        cv: 0,
-        baseline: wBase,
-        sampleCount: wPool.length,
-        confidence: wPool.length >= 7 ? "medium" : "low",
-        source: "whoop recovery HRV (fallback)",
-        detail: `Whoop rmssd z=${wz.toFixed(2)} vs its own ${wPool.length}-day baseline`,
-      };
-    }
+    const fromWhoop = whoopHrvScore(whoopData, todayDate);
+    if (fromWhoop) return fromWhoop;
     const fallback = hrvBalanceFallbackScore(ouraData, baseline, lnRmssdValues.length);
     if (fallback) return fallback;
     return {
@@ -298,6 +332,8 @@ export function calcRHRScore(ouraData, whoopData = null) {
   }
 
   if (rhrValues.length === 0) {
+    const fromWhoop = whoopRhrScore(whoopData, scoringDay);
+    if (fromWhoop) return fromWhoop;
     const day = latestRecoveryDay(ouraData);
     const rhrContributor = readinessContributor(ouraData[day], "resting_heart_rate");
     if (rhrContributor !== null) {
@@ -333,28 +369,8 @@ export function calcRHRScore(ouraData, whoopData = null) {
   // when Oura has no reading (the old shim scored the day as exactly-baseline).
   const ouraToday = rhrValue(todaySleep);
   if (!ouraToday) {
-    const wToday = whoopRhrToday(whoopData, scoringDay);
-    const wPool = whoopRhrPool(whoopData, scoringDay);
-    if (wToday && wPool.length >= 4) {
-      const wBase = trimmedMean(wPool, 0.1);
-      const wSd = flooredSd(trimmedStdDev(wPool, 0.1), SD_FLOOR_RHR).sd;
-      const wz = wSd > 0 ? (wToday - wBase) / wSd : null;
-      const wDelta = wToday - wBase;
-      let pts = 25;
-      if (wz !== null) {
-        if (wz >= 2) pts = 5; else if (wz >= 1.5) pts = 10; else if (wz >= 1) pts = 15; else if (wz >= 0.5) pts = 20;
-      } else if (wDelta >= 5) pts = 10; else if (wDelta >= 3) pts = 15;
-      return {
-        score: pts,
-        delta: wDelta.toFixed(1),
-        zScore: wz === null ? null : wz.toFixed(2),
-        baseline: Math.round(wBase),
-        sampleCount: wPool.length,
-        confidence: wPool.length >= 7 ? "medium" : "low",
-        source: "whoop recovery RHR (fallback)",
-        detail: `Whoop RHR ${wToday} vs its own ${Math.round(wBase)} baseline`,
-      };
-    }
+    const fromWhoop = whoopRhrScore(whoopData, scoringDay);
+    if (fromWhoop) return fromWhoop;
   }
   const todayRHR = ouraToday || baseline;
 
@@ -637,10 +653,20 @@ export function calcTempScore(ouraData) {
 /**
  * 4.6: Total Recovery Score (0-100)
  */
-export function calcRecoveryScore(ouraData, settings = {}, whoopData = null) {
-  const hrv = calcHRVScore(ouraData, settings, whoopData);
-  const rhr = calcRHRScore(ouraData, whoopData);
-  const currentDay = latestRecoveryDay(ouraData);
+export function calcRecoveryScore(ouraData = {}, settings = {}, whoopData = null) {
+  ouraData = ouraData || {};
+  const ouraDay = recoveryDates(ouraData)[0];
+  const whoopDay = whoopDates(whoopData).find(day => whoopSleepPerf(whoopData, day) !== null
+    || (whoopHrvToday(whoopData, day) && whoopHrvPool(whoopData, day).length >= 4)
+    || (whoopRhrToday(whoopData, day) && whoopRhrPool(whoopData, day).length >= 4));
+  const whoopOnly = Boolean(whoopDay && (!ouraDay || whoopDay > ouraDay));
+  const currentDay = whoopOnly ? whoopDay : ouraDay || latestRecoveryDay(ouraData);
+  const hrv = whoopOnly
+    ? whoopHrvScore(whoopData, currentDay) || calcHRVScore({}, settings)
+    : calcHRVScore(ouraData, settings, whoopData);
+  const rhr = whoopOnly
+    ? whoopRhrScore(whoopData, currentDay) || calcRHRScore({})
+    : calcRHRScore(ouraData, whoopData);
   const currentSleepDoc = getSleepDoc(ouraData[currentDay]);
   let sleep = calcSleepSubscore(currentSleepDoc, ouraData, currentDay);
   sleep.source = currentSleepDoc ? "raw sleep components" : "missing";
@@ -668,7 +694,7 @@ export function calcRecoveryScore(ouraData, settings = {}, whoopData = null) {
       };
     }
   }
-  const temp = calcTempScore(ouraData);
+  const temp = calcTempScore(whoopOnly ? {} : ouraData);
 
   // Renormalized scoring. The old sum graded a MISSING
   // signal as its worst case: no HRV that night contributed 0/35 and capped
@@ -678,9 +704,9 @@ export function calcRecoveryScore(ouraData, settings = {}, whoopData = null) {
   // rather than scored neutral. If NOTHING reported, the honest answer is null.
   const counted = {
     hrv: hrv.source !== "missing",
-    rhr: rhr.source !== "missing",
+    rhr: rhr.source !== "missing" && rhr.source !== "baseline (no today RHR)",
     sleep: sleep.source !== "missing",
-    temp: temp.source !== "missing",
+    temp: temp.source !== "missing" && temp.deviationDate === currentDay,
   };
   const MAXES = { hrv: 35, rhr: 25, sleep: 25, temp: 15 };
   const rawPts = (counted.hrv ? hrv.score : 0) + (counted.rhr ? rhr.score : 0)
@@ -713,7 +739,8 @@ export function calcRecoveryScore(ouraData, settings = {}, whoopData = null) {
     score: score == null ? null : Math.round(score),
     subscores: { hrv: hrv.score, rhr: rhr.score, sleep: sleep.nightly, temp: temp.score },
     band,
-    scoredDay: currentDay,
+    scoredDay: currentDay || null,
+    source: whoopOnly ? "whoop" : "oura",
     ledger,
     ledgerTotal,
     availableMax,

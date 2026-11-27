@@ -20,6 +20,12 @@ import {
 import { RecoveryLoading, RecoveryManual, RecoveryConnected } from "./RecoveryView";
 import { loadRecoveryData } from "./recoveryLoad";
 import { deriveRecoveryVerdict, resolveSharedCall } from "./sharedCall";
+import { scoreForRecoveryDay } from "./recovery/verdictResolver";
+import { resolveRecovery, manualRecoveryForDay, computeRecoveryBaseline } from "./recovery";
+import { buildDecisionContext, getDailyRecommendation } from "./decisionEngine";
+import { buildTodayDecision } from "./todayDecision";
+import { buildDailyLoads, computeRollingLoads } from "./loadModel";
+import { withAdded } from "./addedExercises";
 import { readRecoveryDashboardCache } from "./recoveryDashboardSessionCache";
 import { readWearableSnapshot, describeSnapshotAge } from "./wearableSnapshotCache";
 import { perfStart, perfMark } from "./perf";
@@ -40,7 +46,7 @@ const formatSyncFreshness = (tokenStatus) => {
   return `${age} · ${tokenStatus.syncStatus || "status unknown"}`;
 };
 
-export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, todayPlan = null, onOpenCheckin = null, onOpenIntegrations = null, openEdition = false, onEditionClosed = null , onLoaded = null, todayCall = null}) {
+export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, todayPlan = null, programDay = null, onOpenCheckin = null, onOpenIntegrations = null, openEdition = false, onEditionClosed = null , onLoaded = null, todayCall = null}) {
   // Hydrate synchronously from the fastest available last-known snapshot:
   //   1) the in-memory session cache (survives tab switches this session), else
   //   2) the persisted, user-scoped, secret-free wearable snapshot (survives a
@@ -58,6 +64,8 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   const [fromSavedSnapshot, setFromSavedSnapshot] = useState(Boolean(persistedSnapshot));
   const [snapshotSavedAt, setSnapshotSavedAt] = useState(persistedSnapshot?.savedAt ?? null);
   const [recovery, setRecovery] = useState(initialCache?.recovery ?? null);
+  const [signalDay, setSignalDay] = useState(initialCache?.signalDay ?? initialCache?.recovery?.scoredDay);
+  const [loadDay, setLoadDay] = useState(initialCache?.loadDay ?? initialCache?.recovery?.scoredDay);
   const [subjectiveRecovery, setSubjectiveRecovery] = useState(initialCache?.subjectiveRecovery ?? null);
   const [hrv, setHrv] = useState(initialCache?.hrv ?? null);
   const [rhr, setRhr] = useState(initialCache?.rhr ?? null);
@@ -106,7 +114,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   const [tokenStatus, setTokenStatus] = useState(initialCache?.tokenStatus ?? null);
   // Whoop display cards — loaded independently of the Oura recovery pipeline
   // so they never touch the recovery score, its cache, or its inputs. Display only.
-  const [whoopConnected, setWhoopConnected] = useState(false);
+  const [whoopConnected, setWhoopConnected] = useState(initialCache?.whoopConnected ?? false);
   const [whoopSummary, setWhoopSummary] = useState(null);
   // Raw grouped maps kept only for the pure source resolver (per-metric
   // source arbitration + conflict detection). Deliberately NOT written into the
@@ -120,6 +128,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   // fresher live data if it happens to land second. `serverHydrateAttempted`
   // keeps the server fetch to a single attempt per mount.
   const liveAppliedRef = useRef(false);
+  const loadRequest = useRef(0);
   // Hands each finished load to the app, which keeps it for Today's call.
   const onLoadedRef = useRef(onLoaded);
   useEffect(() => { onLoadedRef.current = onLoaded; });
@@ -134,7 +143,10 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     if ("connected" in snap) setConnected(snap.connected ?? false);
     if ("tokenStatus" in snap) setTokenStatus(snap.tokenStatus ?? null);
     if ("rawMetrics" in snap) setRawMetrics(snap.rawMetrics ?? {});
-    if ("recovery" in snap) setRecovery(snap.recovery ?? null);
+    setRecovery(snap.recovery ?? null);
+    setSignalDay(snap.signalDay ?? snap.recovery?.scoredDay);
+    setLoadDay(snap.loadDay ?? snap.recovery?.scoredDay);
+    if ("whoopConnected" in snap) setWhoopConnected(snap.whoopConnected);
     if ("hrv" in snap) setHrv(snap.hrv ?? null);
     if ("rhr" in snap) setRhr(snap.rhr ?? null);
     if ("sleep" in snap) setSleep(snap.sleep ?? null);
@@ -155,7 +167,8 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     if ("subjectiveRecovery" in snap) setSubjectiveRecovery(snap.subjectiveRecovery ?? null);
   }, []);
 
-  const manualBody = data?.[yesterdayKey]?.body || {};
+  const morningBody = data?.[todayKey]?.body;
+  const manualBody = getManualRecoveryCompleteness(morningBody || {}).filled ? morningBody : data?.[yesterdayKey]?.body || {};
   const manualSummary = summarizeManualRecovery(manualBody);
   const manualCompleteness = getManualRecoveryCompleteness(manualBody);
 
@@ -170,6 +183,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
       : "Refreshing recovery data in background…";
 
   const loadData = useCallback(async () => {
+    const request = ++loadRequest.current;
     // Either the in-memory session cache or the persisted snapshot means we
     // already have last-known data on screen — refresh quietly instead of
     // dropping back to skeletons.
@@ -179,9 +193,10 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     try {
       perfStart("recovery"); // instrumentation — Settings → About → Diagnostics
       const out = await loadRecoveryData({ data, yesterdayKey, settings, userId, alertHistory });
+      if (request !== loadRequest.current) return;
       setConnected(out.connected);
       setTokenStatus(out.tokenStatus);
-      if (out.connected) {
+      if (out.connected || out.whoopConnected) {
         setOuraGrouped(out.ouraGrouped);
         setProvenance(out.provenance);
         if (out.unloggedFlags) setUnloggedFlags(out.unloggedFlags);
@@ -201,17 +216,19 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     } catch (e) {
       console.error("Recovery dashboard load error:", e);
     } finally {
-      perfMark("recovery", "verdict-ready");
-      logFunnelEvent("first_verdict_rendered"); // funnel terminus; once per session, once per user in the table
-      setLoading(false);
-      setRefreshing(false);
+      if (request === loadRequest.current) {
+        perfMark("recovery", "verdict-ready");
+        logFunnelEvent("first_verdict_rendered"); // funnel terminus; once per session, once per user in the table
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [data, yesterdayKey, settings, userId, hydrateFromSnapshot]);
 
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 60000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); loadRequest.current++; };
   }, [loadData]);
 
   // DB-first hydrate (third tier). When there was no in-memory session cache we
@@ -285,19 +302,6 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     subjectiveRecovery, manualSummary, manualCompleteness, whoop,
   };
 
-  if (!connected) {
-    return (
-      <RecoveryManual
-        view={{
-          ...shared,
-          interpretation: buildRecoveryCoachInterpretation({ connected: false, subjectiveRecovery, manualCompleteness }),
-          // Manual-only reads as a complete, confident setup here, never as broken.
-          qa: buildWearableReadinessQA({ ouraConnected: connected, whoopConnected, events: whoopSyncEvents, conflicts: [], now: new Date() }),
-        }}
-      />
-    );
-  }
-
   const heroMeta = buildRecoveryHeroMeta({ connected, confidence, quality, tokenStatus });
   const changeSummary = buildRecoveryChangeSummary({ hrv, rhr, sleep, temp, sleepDebt, trainingLoad, alerts, quality });
 
@@ -308,16 +312,43 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   // check-in is entered on Today; Recovery reads it off today's entry.
   const todayBody = (todayKey && data?.[todayKey]?.body) || {};
   const {
-    verdict, checkin, wearableConflicts, blendedRecommendation, blendExplanation, resolvedRecommendation,
+    verdict, checkin, wearableConflicts, blendedRecommendation, blendExplanation, resolvedRecommendation, inputs,
   } = deriveRecoveryVerdict({
     recovery, sleepDebt, alerts, trainingLoad, confidence, recommendation,
-    ouraGrouped, whoopGrouped, whoopConnected, manualBody, todayBody, settings,
+    ouraGrouped, whoopGrouped, whoopConnected, manualBody, todayBody, settings, todayKey, signalDay, loadDay,
   });
   // The call on screen is the more cautious of this verdict and Today's, so
   // the two screens always agree.
-  const sharedCall = verdict
-    ? resolveSharedCall({ todayCall: todayCall?.call || null, recoveryVerdict: verdict, score: recovery?.score })
-    : null;
+  const freshScore = scoreForRecoveryDay(recovery, todayKey);
+  const manual = manualRecoveryForDay(data, todayKey, yesterdayKey);
+  const effectiveRecovery = resolveRecovery({ subjective: manual, ouraScore: freshScore, wearableSource: recovery?.source });
+  let engineRead = todayCall;
+  // Recovery can open first, or a new sync can finish while Today is closed.
+  if (!engineRead || engineRead.wearableScore !== freshScore || engineRead.manualScore !== (manual?.score ?? null)) {
+    const dayPlan = programDay ? withAdded(programDay, data?.[todayKey]?.workout) : null;
+    const rolling = inputs.trainingLoad?.rolling || computeRollingLoads(buildDailyLoads(data || {}, 28, todayKey));
+    const personal = effectiveRecovery?.source === "subjective" ? computeRecoveryBaseline(data || {}, yesterdayKey, 30) : null;
+    const daily = getDailyRecommendation(buildDecisionContext({
+      todayProgram: dayPlan, entries: data, settings, todayKey, recovery: effectiveRecovery,
+      personal, trainingLoad: rolling, previousReadiness: todayCall?.readiness,
+    }));
+    const decision = buildTodayDecision({ recommendation: daily, recovery: effectiveRecovery, trainingLoad: rolling, todayProgram: dayPlan, manualBody: todayBody, conflicts: wearableConflicts });
+    engineRead = { call: decision.engineCall || decision.call, subtitle: decision.subtitle, reasons: decision.reasons };
+  }
+  const sharedCall = resolveSharedCall({ todayCall: engineRead.call, recoveryVerdict: verdict, score: effectiveRecovery?.score });
+  if (!connected && !whoopConnected) {
+    return (
+      <RecoveryManual
+        view={{
+          ...shared, sharedCall, subjectiveRecovery: manual,
+          interpretation: buildRecoveryCoachInterpretation({ connected: false, subjectiveRecovery: manual, manualCompleteness }),
+          // Manual-only reads as a complete, confident setup here, never as broken.
+          qa: buildWearableReadinessQA({ ouraConnected: connected, whoopConnected, events: whoopSyncEvents, conflicts: [], now: new Date() }),
+        }}
+      />
+    );
+  }
+
   const coachInterp = buildRecoveryCoachInterpretation({
     recovery, recommendation: resolvedRecommendation, insights, sleepDebt, trainingLoad, alerts,
     confidence, quality, connected, subjectiveRecovery, manualCompleteness,
@@ -348,18 +379,18 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
         view={{
           ...shared,
           data, todayKey, todayName, todayPlan, todayBody, checkin,
-          verdict, sharedCall, todayCall, recovery, trend, provenance, changeSummary, coachInterp,
-          alerts, conflicts: wearableConflicts,
+          verdict, sharedCall, todayCall: engineRead, recovery, trend, provenance, changeSummary, coachInterp,
+          alerts: inputs.alerts || [], conflicts: wearableConflicts,
           recoveryHistory, hrv, rhr, sleep, temp, rawMetrics, sources, baselines, sleepDebt,
           trainingLoad, externalCardio, unloggedFlags,
           // The weekly edition appears on Sunday night, above the call.
           edition: { available: Boolean(editionWindow(new Date()).available && editionRaw), onOpen: () => setShowEdition(true) },
           reconnect: Boolean(tokenStatus?.isExpired),
-          firstSync: settings?.ouraConnected === true,
+          firstSync: settings?.ouraConnected === true || whoopConnected,
           connected, manualOn: Boolean(manualSummary || subjectiveRecovery),
           qa: buildWearableReadinessQA({ ouraConnected: connected, whoopConnected, events: whoopSyncEvents, conflicts: wearableConflicts, now: new Date() }),
           blendExplanation, confidenceExplanation, aggregatedContext,
-          heroMeta, syncFreshness: formatSyncFreshness(tokenStatus), tokenStatus, quality, confidence,
+          heroMeta: recovery?.source === "whoop" ? { ...heroMeta, source: "Whoop biometrics", latestDay: recovery.scoredDay } : heroMeta, syncFreshness: formatSyncFreshness(tokenStatus), tokenStatus, quality, confidence,
           blendedRecommendation, resolvedRecommendation, alertHistory,
         }}
       />

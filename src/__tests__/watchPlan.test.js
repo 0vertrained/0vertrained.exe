@@ -39,6 +39,13 @@ const setEvent = (id, setIndex, values, extra = {}) => JSON.stringify({
 });
 
 describe("buildWatchPlan", () => {
+  it("sends each top and back-off target in its own set slot", () => {
+    const sets = [135, 105, 105].map(weight => ({ weight: String(weight), reps: "8", done: true }));
+    const data = { [LAST_WEEK]: { workout: { exercises: { "Bench Press": { sets } } } } };
+    const plan = buildWatchPlan({ data, program, dateKey: DAY });
+    expect(plan.sessions[0].exercises[0].sets.map(set => Number(set.values.weight))).toEqual([140, 110, 110]);
+  });
+
   it("sends the day's lifting with the runner's numbers for every open set", () => {
     const data = { [LAST_WEEK]: lastWeek };
     const plan = buildWatchPlan({ data, program, dateKey: DAY, sentAt: "2026-11-26T14:00:00.000Z" });

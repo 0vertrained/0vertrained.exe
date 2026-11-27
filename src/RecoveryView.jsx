@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { FoldRow, Icon, Meter, Sheet, Method } from "./ui/ledger";
 import { LineChart, DataTable, dayDate } from "./sections/charts";
-import { describeCall } from "./recovery/verdictResolver";
+import { describeCall, scoreForRecoveryDay, numericRecoveryScore } from "./recovery/verdictResolver";
 import { checkinEvidenceLine, divergenceNote, checkinSummaryLine } from "./checkinMorning";
 import { buildMuscleRecency } from "./muscleVolume";
 import { buildEmptyStateExplanation } from "./recovery/wearableSyncEvents";
@@ -105,7 +105,7 @@ function Call({ verdict, shared = null, recovery, trend, checkin, todayKey, firs
   const stateName = trend?.state?.name || null;
   const calibrating = trend?.state?.key === "calibrating";
   const provisional = Boolean(todayKey) && !checkin.complete;
-  const score = Number.isFinite(Number(recovery?.score)) ? Math.round(Number(recovery.score)) : null;
+  const score = scoreForRecoveryDay(recovery, todayKey);
   const delta = trend?.delta?.label || "steady";
   const state = [
     stateName,
@@ -118,13 +118,17 @@ function Call({ verdict, shared = null, recovery, trend, checkin, todayKey, firs
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <Meter level={call.level} label={`Effort level ${call.level} of 5`} />
         <span className="stamp grow">{call.stamp}</span>
-        <span className="n-lg">{score ?? "—"}</span><span className="t-s c2">/100</span>
+        <span className="n-lg">{shared?.score ?? score ?? "—"}</span><span className="t-s c2">/100</span>
       </div>
       <h2 id="rec-call" className="t-hl">{shared ? shared.headline : verdict.headline}</h2>
       {state && <p className={provisional || calibrating ? "t-ss c2" : "t-ss"}>{state}</p>}
+      {score === null && shared?.score != null && <p className="t-s c2">Score from your check-in.</p>}
+      {score === null && numericRecoveryScore(recovery?.score) !== null && (
+        <p className="t-s c2">Last wearable score was {numericRecoveryScore(recovery.score)}/100{recovery.scoredDay ? ` on ${recovery.scoredDay}` : " (date unavailable)"}. Today’s call uses your check-in and plan.</p>
+      )}
       {recovery?.band === "insufficient_data" && (
         <p className="t-s c2">{firstSync
-          ? "First sync running. Your history usually lands in under a minute. Your first call follows it, and the weekly trend appears after seven mornings."
+          ? "Waiting for today’s wearable signals. Your check-in and plan guide the call until a score arrives."
           : "Not enough data yet: no wearable signals have been reported."}</p>
       )}
     </section>
@@ -144,22 +148,22 @@ function Why({ verdict, shared = null, todayCall = null, trend, checkin, recover
     ...(trend?.evidence || []).slice(0, 2),
     ...(checkinEvidenceLine(checkin) ? [checkinEvidenceLine(checkin)] : []),
   ];
-  const reasons = evidenceLines.length ? evidenceLines : [verdict.deck];
+  const reasons = evidenceLines.length ? evidenceLines : [verdict?.deck || todayReason(todayCall)];
   // Flags raised by the alerts already stand as banners above the reasons.
   const flagged = changeSummary.hasFlags ? changeSummary.rows.filter((row) => row.key !== "alerts" && (row.tone === "warning" || row.tone === "caution")) : [];
-  const diverge = divergenceNote(checkin, recovery?.score);
+  const diverge = divergenceNote(checkin, scoreForRecoveryDay(recovery, todayKey));
   const recency = todayKey ? buildMuscleRecency(data, todayKey) : null;
   const loaded = (recency || []).filter((muscle) => muscle.daysSinceAny !== null && muscle.daysSinceAny <= 1).slice(0, 3);
   const context = [
     todayPlan ? `Today: ${todayPlan}.` : null,
     loaded.length ? `Recently loaded: ${loaded.map((muscle) => `${muscle.label} (${muscle.daysSinceAny === 0 ? "today" : "1d"})`).join(", ")}.` : null,
   ].filter(Boolean).join(" ");
-  const limiter = verdict.limiter;
+  const limiter = verdict?.limiter;
 
   return (
     <section aria-labelledby="rec-why" style={column(8)}>
       <h2 id="rec-why" className="t-h">Why this call</h2>
-      {shared?.source === "today" && (
+      {shared?.source === "today" && verdict && (
         <p className="banner" data-testid="today-caution">
           <Icon name="warn" size="s" />
           <span><b>Today’s read is more cautious, so the call follows it.</b>{todayReason(todayCall) ? ` ${todayReason(todayCall)}` : ""}</span>
@@ -288,7 +292,7 @@ function Load({ trainingLoad, externalCardio, unloggedFlags }) {
       {unloggedFlags.length > 0 && (
         <p className="banner">
           <Icon name="info" size="s" />
-          <span>{unloggedFlags.length} day{unloggedFlags.length === 1 ? "" : "s"} in the last 14 had load that was not logged ({unloggedFlags.map((flag) => `${flag.date.slice(5)}: ${flag.source === "strava" ? `${flag.miles}${NBSP}mi run on Strava` : `strain ${flag.strain}`}`).join(", ")}), so the ratio understates your true load. This is a flag only. Nothing is added for you.</span>
+          <span>{unloggedFlags.length} day{unloggedFlags.length === 1 ? "" : "s"} in the last 14 had device activity without a manual workout entry ({unloggedFlags.map((flag) => `${flag.date.slice(5)}: ${flag.source === "strava" ? `${flag.miles}${NBSP}mi run on Strava` : `strain ${flag.strain}`}`).join(", ")}). The load estimate includes identifiable workouts from your connected devices.</span>
         </p>
       )}
       <Method
@@ -486,7 +490,7 @@ export function RecoveryManual({ view }) {
             <span className="stamp grow">Manual</span>
             <span className="n-lg">{subjectiveRecovery ? subjectiveRecovery.score : "—"}</span><span className="t-s c2">/100</span>
           </div>
-          <h2 id="rec-call" className="t-hl">{subjectiveRecovery ? sentence(subjectiveRecovery.read) : "No check-in yet today."}</h2>
+          <h2 id="rec-call" className="t-hl">{view.sharedCall?.headline || (subjectiveRecovery ? sentence(subjectiveRecovery.read) : "No check-in yet today.")}</h2>
           <p className="t-s c2">{subjectiveRecovery
             ? "From your check-in. It is a complete read on its own. A wearable adds biometrics when one is connected."
             : "Log today’s check-in to see a score. Sleep, sleep quality, soreness, stress, motivation and any illness or injury flag make up the read."}</p>
@@ -520,7 +524,7 @@ export function RecoveryManual({ view }) {
 
 export function RecoveryConnected({ view }) {
   const { verdict, sharedCall, todayCall, recovery, trend, checkin, todayBody, todayKey, todayPlan, data, changeSummary, provenance, alerts, conflicts, recoveryHistory, trainingLoad, externalCardio, unloggedFlags, coachInterp, edition, isBroadsheet, onOpenCheckin, onOpenIntegrations } = view;
-  const score = Number.isFinite(Number(recovery?.score)) ? Math.round(Number(recovery.score)) : null;
+  const score = scoreForRecoveryDay(recovery, todayKey);
   const head = (
     <>
       <Notices refreshingLabel={view.refreshingLabel} demo={view.demo} />
@@ -536,9 +540,9 @@ export function RecoveryConnected({ view }) {
           <Icon name="next" size="s" className="c2" />
         </button>
       )}
-      {verdict && <Call verdict={verdict} shared={sharedCall} recovery={recovery} trend={trend} checkin={checkin} todayKey={todayKey} firstSync={view.firstSync} />}
+      {(verdict || sharedCall) && <Call verdict={verdict} shared={sharedCall} recovery={recovery} trend={score !== null ? trend : null} checkin={checkin} todayKey={todayKey} firstSync={view.firstSync} />}
       <Alerts alerts={alerts} conflicts={conflicts} />
-      {verdict && <Why verdict={verdict} shared={sharedCall} todayCall={todayCall} trend={trend} checkin={checkin} recovery={recovery} data={data} todayKey={todayKey} todayPlan={todayPlan} changeSummary={changeSummary} provenance={provenance} />}
+      {(verdict || sharedCall) && <Why verdict={verdict} shared={sharedCall} todayCall={todayCall} trend={score !== null ? trend : null} checkin={checkin} recovery={recovery} data={data} todayKey={todayKey} todayPlan={todayPlan} changeSummary={score !== null ? changeSummary : { hasFlags: false }} provenance={score !== null ? provenance : null} />}
       {todayKey && <CheckinBanner checkin={checkin} todayBody={todayBody} onOpenCheckin={onOpenCheckin} />}
     </>
   );

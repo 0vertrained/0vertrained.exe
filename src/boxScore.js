@@ -13,6 +13,7 @@
 // Honesty rules: no prior same-name session → no fake deltas ("first Pull
 // day on record — the baseline is set"); every comparison names its basis.
 
+import { performedExerciseName } from "./workoutLogging";
 import { effectiveE1RM } from "./sessionIntelligence";
 import { buildE1RMSeries } from "./e1rmTrend";
 import { mapExerciseToMuscles, buildVolumeReport } from "./muscleVolume";
@@ -34,7 +35,7 @@ function doneStraightSets(exData) {
 
 export function buildBoxScore({ data = {}, todayKey, todayName = null } = {}) {
   const today = data?.[todayKey];
-  const exercises = Object.entries(today?.workout?.exercises || {});
+  const exercises = Object.entries(today?.workout?.exercises || {}).map(([slot, entry]) => [performedExerciseName(slot, entry), entry]);
   const tonnage = dayTonnage(today);
 
   // ── Comparison basis: the most recent prior day with the SAME program-day
@@ -59,18 +60,12 @@ export function buildBoxScore({ data = {}, todayKey, todayName = null } = {}) {
       effectiveE1RM(numOr(s.weight), numOr(s.reps), s.rir) > effectiveE1RM(numOr(best.weight), numOr(best.reps), best.rir) ? s : best
     ));
     const todayBest = effectiveE1RM(numOr(bestSet.weight), numOr(bestSet.reps), bestSet.rir);
-    let priorBest = 0;
-    for (const [k, d] of Object.entries(data)) {
-      if (k >= todayKey) continue;
-      for (const s of doneStraightSets(d?.workout?.exercises?.[name])) {
-        priorBest = Math.max(priorBest, effectiveE1RM(numOr(s.weight), numOr(s.reps), s.rir));
-      }
-    }
+    const series = buildE1RMSeries(data, name, { windowDays: Infinity, through: todayKey });
+    const priorBest = series.reduce((best, point) => point.date < todayKey ? Math.max(best, point.e1rm) : best, 0);
     if (priorBest > 0 && todayBest > priorBest + 0.5) {
       prs.push({ name, e1rm: Math.round(todayBest), priorBest: Math.round(priorBest), set: { weight: numOr(bestSet.weight), reps: numOr(bestSet.reps) } });
     }
     // Direction arrow from the real series (today vs previous point).
-    const series = buildE1RMSeries(data, name);
     if (series.length >= 2 && series[series.length - 1].date === todayKey) {
       const nowV = series[series.length - 1].e1rm;
       const prevV = series[series.length - 2].e1rm;

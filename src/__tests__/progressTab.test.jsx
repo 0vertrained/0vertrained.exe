@@ -109,6 +109,42 @@ describe("Progress screens", () => {
     expect(ui.queryByTestId("bar")).toBeNull();
   });
 
+  it("records an intention today and a separate follow-through on last week's recommendation", () => {
+    const data = logged();
+    const priorDate = keyDaysAgo(7);
+    const prior = { response: "approved", title: "Protect recovery next week", recommendationKind: "recovery", recordedOn: priorDate };
+    data[priorDate].intelligence = { weeklyCoachReviewResponse: prior };
+    const { ui, updateEntryAtDate } = mount({ data });
+    fireEvent.click(ui.getByRole("button", { name: "Open the weekly review" }));
+    fireEvent.click(ui.getByRole("button", { name: "I’ll try it" }));
+    const [date, path, intent] = updateEntryAtDate.mock.calls[0];
+    expect(date).toBe(getTodayKey());
+    expect(path).toBe("intelligence.weeklyCoachReviewResponse");
+    expect(intent).toMatchObject({ response: "approved", goals: { calories: GOALS.calories, protein: GOALS.protein },
+      recordedOn: date, baseline: { weightCount: 7 } });
+    expect(intent.followThrough).toBeUndefined();
+    fireEvent.click(ui.getByRole("button", { name: "I followed it" }));
+    expect(updateEntryAtDate).toHaveBeenLastCalledWith(priorDate, path, { ...prior, followThrough: "followed", followThroughOn: date });
+    fireEvent.click(ui.getByRole("button", { name: "I didn’t follow it" }));
+    expect(updateEntryAtDate).toHaveBeenLastCalledWith(priorDate, path, { ...prior, followThrough: "skipped", followThroughOn: date });
+  });
+
+  it("keeps the selected recommendation and its evidence on screen until the follow-up", () => {
+    const data = logged();
+    const recordedOn = keyDaysAgo(4);
+    const recommendation = { title: "Protect recovery next week", kind: "recovery", summary: "Hold optional cardio.",
+      evidence: ["Sleep fell in your previous week."], authority: "suggest" };
+    data[recordedOn].intelligence = { weeklyCoachReviewResponse: { response: "approved", recordedOn,
+      recommendationKind: recommendation.kind, title: recommendation.title, recommendation, confidence: "medium" } };
+    const { ui } = mount({ data });
+    fireEvent.click(ui.getByRole("button", { name: "Open the weekly review" }));
+    expect(ui.getByRole("heading", { name: "Protect recovery next week." })).toBeTruthy();
+    expect(ui.getByText("Hold optional cardio.")).toBeTruthy();
+    expect(ui.getByText("Sleep fell in your previous week.")).toBeTruthy();
+    expect(ui.queryByRole("button", { name: "I’ll try it" })).toBeNull();
+    expect(ui.queryByRole("button", { name: "I followed it" })).toBeNull();
+  });
+
   it("saves this week's waist from the review, and says what is wrong with a bad entry", () => {
     const { ui, updateEntryAtDate, showToast } = mount();
     fireEvent.click(ui.getByRole("button", { name: "Open the weekly review" }));

@@ -14,6 +14,12 @@ const strictNum = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+// Substitutions stay in the planned slot on disk. Performance belongs to
+// the movement that was actually performed, including in older unswapped logs.
+export function performedExerciseName(plannedName, entry) {
+  return String(entry?.performedName || "").trim() || plannedName;
+}
+
 export const TRACKING_MODES = Object.freeze({
   LOADED_REPS: "loaded_reps",
   BODYWEIGHT_REPS: "bodyweight_reps",

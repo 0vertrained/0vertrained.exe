@@ -1,3 +1,5 @@
+import { performedExerciseName } from "./workoutLogging";
+
 // src/muscleVolume.js
 // Per-muscle weekly volume intelligence. The load model (ACWR) treats
 // training as one global number — correct for injury risk, blind for
@@ -118,7 +120,8 @@ export function buildWeeklyMuscleVolume(data, { weeks = 5 } = {}) {
     const wk = weekStartKey(dateKey);
     if (!byWeek.has(wk)) byWeek.set(wk, emptyWeek());
     const bucket = byWeek.get(wk);
-    for (const [name, ex] of Object.entries(exercises)) {
+    for (const [slot, ex] of Object.entries(exercises)) {
+      const name = performedExerciseName(slot, ex);
       const doneSets = (ex?.sets || []).filter(isHardSet).length;
       if (!doneSets) continue;
       bucket.totalSets += doneSets;
@@ -155,7 +158,8 @@ export function buildMuscleRecency(data, todayKey, { windowDays = 21 } = {}) {
   for (const dateKey of keys) {
     const exercises = data[dateKey]?.workout?.exercises;
     if (!exercises) continue;
-    for (const [name, ex] of Object.entries(exercises)) {
+    for (const [slot, ex] of Object.entries(exercises)) {
+      const name = performedExerciseName(slot, ex);
       if (!(ex?.sets || []).some(s => s.done)) continue;
       const mapped = mapExerciseToMuscles(name);
       if (!mapped) continue;

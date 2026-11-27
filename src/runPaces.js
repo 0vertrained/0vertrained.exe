@@ -127,6 +127,16 @@ export function parseDuration(text) {
   return total > 0 ? total : null;
 }
 
+/** A run's time in seconds: "40:30", "1:05:10", or plain minutes. */
+export function parseRunTime(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const clock = parseDuration(text);
+  if (clock) return clock;
+  const minutes = Number(text);
+  return Number.isFinite(minutes) && minutes > 0 && minutes < 1000 ? Math.round(minutes * 60) : null;
+}
+
 /** 1470 → "24:30", 3730 → "1:02:10". */
 export function formatDuration(seconds) {
   const s = finitePositive(seconds);

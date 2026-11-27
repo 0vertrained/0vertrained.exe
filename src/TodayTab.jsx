@@ -11,7 +11,7 @@ import { perfStart, perfMark } from "./perf";
 import { Icon, LinkRow, Switch } from "./ui/ledger";
 import { copyToClipboard } from "./clipboard";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey } from "./constants";
-import { calcRecoveryScore, resolveRecovery, computeRecoveryBaseline } from "./recovery";
+import { manualRecoveryForDay, resolveRecovery, computeRecoveryBaseline } from "./recovery";
 import { isWhoopConnected, loadWhoopData } from "./whoop";
 import { isStravaConnected, loadStravaActivities, groupStravaByDate, selectStravaLedgerSuggestion } from "./strava/dataLoading";
 import { StravaCardioRow } from "./sections/StravaCardioRow";
@@ -24,7 +24,7 @@ import { suggestWorkoutAdjustments } from "./adaptiveTraining";
 import { computeStillNeeded } from "./fuelNeeds";
 import { MorningCheckin } from "./MorningCheckin";
 import { buildTodayDecision, buildDecisionResponseEntry } from "./todayDecision";
-import { recoveryVerdictFromLoad, resolveSharedCall } from "./sharedCall";
+import { recoveryReadFromLoad, recordRecoveryContext, resolveSharedCall } from "./sharedCall";
 import { getDecisionFeedbackBrief } from "./decisionFeedback";
 import { SessionComplete } from "./SessionComplete";
 import { LoadingShell } from "./ui/primitives";
@@ -206,7 +206,7 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR, onA
         })}
       </ul>
       {lifting.map((ex, i) => (
-        <ExerciseLogger key={ex.name + i} exercise={ex} data={workout.exercises[ex.name] || {}} lastSets={lastSessionSets(allData, ex.name, todayKey)} onChange={(v) => updateToday(`workout.exercises.${ex.name}`, v)} onPR={onPR} />
+        <ExerciseLogger key={ex.name + i} exercise={ex} data={workout.exercises[ex.name] || {}} lastSets={lastSessionSets(allData, workout.exercises[ex.name]?.performedName || ex.name, todayKey)} onChange={(v) => updateToday(`workout.exercises.${ex.name}`, v)} onPR={onPR} />
       ))}
       {onAddExercise && (
         <button type="button" className="btn btn-s btn-b" onClick={onAddExercise} style={{ marginTop: 8 }}><Icon name="plus" size="s" />Add an exercise</button>
@@ -215,7 +215,7 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR, onA
   );
 }
 
-export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
+export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, wearableSample = null, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
   // Broadsheet: below 1440px every wrapper is display:contents and
   // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -254,8 +254,8 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           isStravaConnected().catch(() => false),
         ]);
         const [oura, whoop, strava] = await Promise.all([
-          ouraOn ? loadOuraData(14).catch(() => ({})) : Promise.resolve(null),
-          whoopOn ? loadWhoopData(14).catch(() => ({})) : Promise.resolve(null),
+          ouraOn ? loadOuraData(28).catch(() => ({})) : Promise.resolve(null),
+          whoopOn ? loadWhoopData(28).catch(() => ({})) : Promise.resolve(null),
           // 28 days so Strava fills reach the full acute:chronic window.
           stravaOn ? loadStravaActivities(28).catch(() => []) : Promise.resolve([]),
         ]);
@@ -294,15 +294,15 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
 
   // Recovery score from yesterday
   const yesterdayKey = (() => {
-    const d = new Date(); d.setDate(d.getDate() - 1);
+    const d = new Date(todayKey + "T12:00:00"); d.setDate(d.getDate() - 1);
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   })();
-  const subjectiveRecovery = allData ? calcRecoveryScore(allData[yesterdayKey], allData, yesterdayKey) : null;
-  const recovery = resolveRecovery({ subjective: subjectiveRecovery, ouraScore: ouraRecovery });
+  const subjectiveRecovery = manualRecoveryForDay(allData, todayKey, yesterdayKey);
+  const recovery = resolveRecovery({ subjective: subjectiveRecovery, ouraScore: todayKey === realToday ? ouraRecovery : null, wearableSource: wearableSample?.source });
   // Personal baseline applies to the subjective scorer only — Oura's own readiness
   // is already personalized against the wearer's HRV/RHR baselines.
   const recoveryPersonal = (recovery?.source === "subjective" && allData) ? computeRecoveryBaseline(allData, yesterdayKey, 30) : null;
-  const dailyLoads = allData ? buildWearableLoadRows({ entries: allData, ouraData: ouraGrouped || {}, whoopData: whoopGrouped || {}, stravaByDate: stravaByDate || {}, maxDays: 28 }) : [];
+  const dailyLoads = allData ? buildWearableLoadRows({ entries: allData, ouraData: ouraGrouped || {}, whoopData: whoopGrouped || {}, stravaByDate: stravaByDate || {}, maxDays: 28, asOf: todayKey }) : [];
   const trainingLoad = computeRollingLoads(dailyLoads);
   const dailyRecommendation = getDailyRecommendation(buildDecisionContext({
     todayProgram: p,
@@ -322,19 +322,9 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
     settings,
   });
   const todayFuelNeeds = computeStillNeeded(nut, goals);
-  // Broadsheet telemetry plates. Pure derivations
-  // over data already in scope — the load model from entries, wearable
-  // summaries from the already-fetched grouped maps, tomorrow from the
-  // program. Computed only at the tier; display-only.
-  // Plain derivations, deliberately un-memoized: buildDailyLoads walks 28
-  // keyed lookups and the rest are O(days≤14) — cheaper than the memo
-  // bookkeeping, and the React Compiler handles the rest.
-  const bsLoad = (() => {
-    if (!isBroadsheet) return null;
-    const daily = buildDailyLoads(allData, 28, todayKey);
-    const rolling = computeRollingLoads(daily);
-    return { daily, rolling, zoneInfo: getLoadZoneInfo(rolling.zone) };
-  })();
+  const bsLoad = isBroadsheet
+    ? { daily: dailyLoads, rolling: trainingLoad, zoneInfo: getLoadZoneInfo(trainingLoad.zone) }
+    : null;
   const bsWhoop = isBroadsheet && whoopGrouped ? buildWhoopSummary(whoopGrouped) : null;
   const todayOuraSteps = (() => {
     const activity = normalizeActivity(ouraGrouped?.[todayKey]?.activity);
@@ -347,7 +337,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   })();
   // Aggregated recovery context (enrichment layer). Null when Whoop is
   // not connected, so the decision engine runs its existing Oura-only path.
-  const aggregatedContext = (ouraGrouped && whoopGrouped)
+  const aggregatedContext = (ouraGrouped?.[todayKey] && whoopGrouped?.[todayKey] && ouraRecovery != null && todayKey === realToday)
     ? buildAggregatedRecoveryContext({
         ouraData: ouraGrouped, whoopData: whoopGrouped, manualData: bod,
         recovery, trainingLoad, settings, recommendation: dailyRecommendation,
@@ -357,9 +347,10 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   // at start (and refreshes whenever Recovery is open). Today's call never
   // runs less cautious than it, so the two screens show the same call.
   const isRealToday = todayKey === realToday;
-  const recoveryVerdict = isRealToday
-    ? recoveryVerdictFromLoad(recoveryLoad, { data: allData || {}, todayKey: realToday, yesterdayKey, settings })
+  const recoveryRead = isRealToday
+    ? recoveryReadFromLoad(recoveryLoad, { data: allData || {}, todayKey: realToday, yesterdayKey, settings })
     : null;
+  const recoveryVerdict = recoveryRead?.verdict || null;
   const todayDecision = buildTodayDecision({
     recommendation: dailyRecommendation,
     recovery,
@@ -379,12 +370,12 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
     ? resolveSharedCall({
         todayCall: todayDecision.engineCall || todayDecision.call,
         recoveryVerdict,
-        score: recoveryVerdict ? recoveryLoad?.snapshot?.recovery?.score : recovery?.score,
+        score: recovery?.score,
       })
     : null;
   // Today's own read goes to the app, so Recovery can show the same call.
   const callForApp = isRealToday
-    ? JSON.stringify({ dateKey: realToday, call: todayDecision.engineCall || todayDecision.call, subtitle: todayDecision.engineNote || null, reasons: todayDecision.reasons || [] })
+    ? JSON.stringify({ dateKey: realToday, wearableScore: ouraRecovery ?? null, readiness: dailyRecommendation.readiness, manualScore: subjectiveRecovery?.score ?? null, call: todayDecision.engineCall || todayDecision.call, subtitle: todayDecision.engineNote || null, reasons: todayDecision.reasons || [] })
     : "";
   const onCallRef = useRef(onCall);
   useEffect(() => { onCallRef.current = onCall; });
@@ -396,7 +387,11 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   const decisionResponse = todayData.intelligence?.todayDecisionResponse?.response || null;
   const decisionFeedbackBrief = getDecisionFeedbackBrief(allData || {});
   const recordDecisionResponse = (response) => {
-    updateToday("intelligence.todayDecisionResponse", buildDecisionResponseEntry(todayDecision.call, response));
+    const context = isRealToday ? recordRecoveryContext({
+      asOf: realToday, todayCall: todayDecision.engineCall || todayDecision.call,
+      wearable: wearableSample, load: recoveryLoad, read: recoveryRead, manualScore: subjectiveRecovery?.score,
+    }) : null;
+    updateToday("intelligence.todayDecisionResponse", buildDecisionResponseEntry(todayDecision.call, response, context));
     showToast(`Decision marked: ${response}`);
   };
   useEffect(() => {
@@ -828,6 +823,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
               onApply={(fill) => {
                 applyAtDate("workout.cardio.miles", fill.miles);
                 applyAtDate("workout.cardio.time", fill.time);
+                applyAtDate("workout.cardio.activityRefs", fill.activityRefs);
                 const label = stravaSuggestion.dayLabel === "Today" ? "Today’s cardio"
                   : stravaSuggestion.dayLabel === "Yesterday" ? "Yesterday’s cardio"
                   : `Cardio for ${stravaSuggestion.dayLabel}`;
@@ -869,8 +865,8 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
                   })}
                 </div>
                 <p className="t-c c2">Daily load, last 14 days</p>
-                {(() => { const f = (whoopGrouped || stravaByDate) ? findUnloggedLoadDays(bsLoad.daily, whoopGrouped, { window: 14, stravaByDate }) : []; return f.length > 0 ? (
-                  <p className="t-s c2" style={{ display: "flex", alignItems: "flex-start", gap: 6 }}><Icon name="warn" size="s" /><span>{f.length === 1 ? "1 day" : `${f.length} days`} of wearable or Strava training {f.length === 1 ? "isn't" : "aren't"} logged here, so the ratio reads low.</span></p>
+                {(() => { const f = (whoopGrouped || stravaByDate) ? findUnloggedLoadDays(buildDailyLoads(allData, 28, todayKey), whoopGrouped, { window: 14, stravaByDate }) : []; return f.length > 0 ? (
+                  <p className="t-s c2" style={{ display: "flex", alignItems: "flex-start", gap: 6 }}><Icon name="warn" size="s" /><span>{f.length === 1 ? "1 day" : `${f.length} days`} with imported training {f.length === 1 ? "has" : "have"} no manual workout entry. The load estimate includes identifiable workouts from your connected devices.</span></p>
                 ) : null; })()}
               </>
             ) : (
@@ -1134,7 +1130,7 @@ const ExerciseLogger = memo(function ExerciseLogger({ exercise, data, onChange, 
       return;
     }
     onChange({ ...data, skipped: undefined, sets: sets.map((entry, setIndex) => setIndex === index ? { ...entry, done: true, completedAt: new Date().toISOString() } : entry) });
-    if (onPR && set.weight) onPR(exercise.name, set.weight);
+    if (onPR && set.weight) onPR(name, set.weight);
   };
 
   // Column heads and the two fields each tracking mode logs. Each field keeps

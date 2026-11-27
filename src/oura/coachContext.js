@@ -16,12 +16,13 @@ export function buildOuraCoachContext(ouraData, settings = {}) {
 
   try {
     const rec = calcRecoveryScore(ouraData, settings);
+    if (rec.score == null || !rec.scoredDay) return null;
     const hrv = calcHRVScore(ouraData, settings);
     const rhr = calcRHRScore(ouraData);
     const q = calcOuraDataQuality(ouraData, 7);
 
     const parts = [];
-    parts.push(`Recovery: ${rec.score}/100 (${rec.band.replace(/_/g, " ")})`);
+    parts.push(`Recovery on ${rec.scoredDay}: ${rec.score}/100 (${rec.band.replace(/_/g, " ")})`);
 
     const hrvZ = parseFloat(hrv.zScore);
     if (Number.isFinite(hrvZ)) {

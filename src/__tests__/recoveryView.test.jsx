@@ -85,6 +85,45 @@ describe("Recovery, connected", () => {
     expect(ui.getByTestId("today-caution").textContent).toBe("Today’s read is more cautious, so the call follows it. High soreness (8/10) — pulling the call back.");
   });
 
+  it("explains a connected first sync and shows the plan until a score arrives", () => {
+    const sharedCall = resolveSharedCall({ todayCall: "maintain" });
+    const { ui } = mount({ sharedCall, verdict: null, recovery: { score: null, band: "insufficient_data" }, firstSync: true });
+    const hero = within(ui.getByRole("heading", { name: sharedCall.headline }).closest("section"));
+    expect(hero.getByText(/Waiting for today’s wearable signals/)).toBeTruthy();
+    expect(hero.getByText("—")).toBeTruthy();
+  });
+
+  it("labels a stale score by its date and displays a current check-in as manual", () => {
+    const sharedCall = resolveSharedCall({ todayCall: "push", score: 82 });
+    const { ui } = mount({ sharedCall, todayCall: { call: "push" }, verdict: null, recovery: { score: 0, scoredDay: "2026-11-25" } });
+    const hero = within(ui.getByRole("heading", { name: sharedCall.headline }).closest("section"));
+    expect(hero.getByText("82")).toBeTruthy();
+    expect(hero.getByText("Score from your check-in.")).toBeTruthy();
+    expect(hero.getByText(/Last wearable score was 0\/100 on 2026-11-25/)).toBeTruthy();
+  });
+
+  it("uses trend evidence before the resolver explanation and can explain a manual-only call", () => {
+    const fresh = mount();
+    const why = within(fresh.ui.getByRole("region", { name: "Why this call" }));
+    expect(why.getByText(fresh.view.trend.evidence[0])).toBeTruthy();
+    expect(why.queryByText(fresh.view.verdict.deck)).toBeNull();
+    const noTrend = mount({ trend: null });
+    expect(within(noTrend.ui.getByRole("region", { name: "Why this call" })).getByText(noTrend.view.verdict.deck)).toBeTruthy();
+    const manual = mount({ recovery: null, verdict: null, trend: null, sharedCall: resolveSharedCall({ todayCall: "maintain" }), todayCall: { reasons: ["Follow your planned session."] } });
+    expect(within(manual.ui.getByRole("region", { name: "Why this call" })).getByText("Follow your planned session.")).toBeTruthy();
+  });
+
+  it("compares a complete check-in only with a current score and names recently trained muscles", () => {
+    const checkin = readCheckin({ sleepQuality: 9, soreness: 2, energy: 9, stress: 2 });
+    const data = { "2026-11-26": { workout: { exercises: { Bench: { sets: [{ done: true }] } } } } };
+    const current = mount({ checkin, data, recovery: { score: 0, scoredDay: "2026-11-27" } });
+    const why = within(current.ui.getByRole("region", { name: "Why this call" }));
+    expect(why.getByText(/You feel better than your metrics look/)).toBeTruthy();
+    expect(why.getByText(/Today: Upper B.*Recently loaded: Chest \(1d\)/)).toBeTruthy();
+    const stale = mount({ checkin, data, recovery: { score: 0, scoredDay: "2026-11-26" }, verdict: null, sharedCall: resolveSharedCall({ todayCall: "maintain" }) });
+    expect(stale.ui.queryByText(/than your metrics look/)).toBeNull();
+  });
+
   it("names no other read when the call is Recovery's own", () => {
     const sharedCall = resolveSharedCall({ todayCall: "maintain", recoveryVerdict: { call: "train" }, score: 76 });
     const { ui } = mount({ sharedCall, todayCall: { call: "maintain", reasons: [] } });
@@ -145,6 +184,17 @@ describe("Recovery, connected", () => {
 
   it("puts a lapsed connection and the weekly edition above the call", () => {
     const { ui, view } = mount({ reconnect: true, edition: { available: true, onOpen: vi.fn() } });
+    const order = [
+      ui.getByRole("alert"), ui.getByTestId("sunday-edition-line"),
+      ui.getByRole("heading", { name: view.verdict.headline }), ui.getByText(/Fresh · score down/),
+      ui.getByText("Caution: minor deviation"), ui.getByRole("heading", { name: "Why this call" }),
+      ui.getByTestId("checkin-line"), ui.getByRole("heading", { name: /^Trend,/ }),
+      ui.getByRole("heading", { name: "Drivers" }), ui.getByRole("heading", { name: "Training load" }),
+      ui.getByRole("button", { name: /^Wearables/ }),
+    ];
+    order.slice(1).forEach((node, i) => expect(Boolean(order[i].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true));
+    const why = within(ui.getByRole("region", { name: "Why this call" }));
+    expect(why.getByText(view.verdict.limiter.detail, { exact: false })).toBeTruthy();
     fireEvent.click(within(ui.getByRole("alert")).getByRole("button", { name: "Reconnect Oura" }));
     expect(view.onOpenIntegrations).toHaveBeenCalledTimes(1);
     fireEvent.click(ui.getByTestId("sunday-edition-line"));

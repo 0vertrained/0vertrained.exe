@@ -23,6 +23,9 @@ function twoWeeks({ previousWeight = 191, currentWeight = 190, previousWaist = 3
   const data = {};
   for (let i = -13; i <= -7; i += 1) data[key(i)] = day({ weight: previousWeight, waist: previousWaist, ...previous });
   for (let i = -6; i <= 0; i += 1) data[key(i)] = day({ weight: currentWeight, waist: currentWaist, ...current });
+  for (const [date, entry] of Object.entries(data)) {
+    entry.nutrition.foodLogConfirmation = { calories: Number(entry.nutrition.calories), confirmedOn: date };
+  }
   return data;
 }
 
@@ -61,6 +64,37 @@ const calibrated = { authority: "calibrated", confidenceAdjustment: 0, falsePosi
     });
     expect(["calories", "activity"]).toContain(result.recommendation.kind);
     expect(result.recommendation.changes.caloriesDelta ?? result.recommendation.changes.stepsDelta).not.toBe(0);
+  });
+
+  it("asks for complete food logs before judging adherence or suggesting a cut", () => {
+    const data = twoWeeks({ currentWeight: 190, previousWeight: 190, currentWaist: 38, previousWaist: 38 });
+    for (let i = -6; i <= 0; i++) {
+      if (i < -3) delete data[key(i)].nutrition.foodLogConfirmation;
+      else data[key(i)].nutrition.foodLogConfirmation.confirmedOn = key(1);
+    }
+    const result = buildWeeklyCoachReview({ data, goals, weekEndKey: endKey, settings: { coachingPhase: { phase: "fat_loss" } } });
+    expect(result.currentWindow.nutritionDays).toBe(0);
+    expect(result.recommendation.kind).toBe("collect_food");
+    expect(result.watchouts.join(" ")).not.toMatch(/calorie adherence|protein adherence/i);
+  });
+
+  it("uses completed calendar weeks before the review when counting dieting history", () => {
+    const data = twoWeeks({ currentWeight: 185, previousWeight: 191 });
+    const wearableTrends = { notes: [{ metric: "hrv", trend: "falling", note: "HRV low" },
+      { metric: "sleep", trend: "falling", note: "Sleep low" }, { metric: "rhr", trend: "rising", note: "RHR high" }] };
+    const kind = () => buildWeeklyCoachReview({ data, goals, weekEndKey: endKey, wearableTrends,
+      settings: { coachingPhase: { phase: "fat_loss" } } }).recommendation.kind;
+    for (let i = -41; i < -13; i++) data[key(i)] = day({ calories: 700 });
+    for (let i = 1; i <= 42; i++) {
+      data[key(i)] = day();
+      data[key(i)].nutrition.foodLogConfirmation = { calories: 2400, confirmedOn: key(i) };
+    }
+    expect(kind()).toBe("recovery");
+    for (let i = -41; i < -13; i++) {
+      data[key(i)].nutrition.calories = "2400";
+      data[key(i)].nutrition.foodLogConfirmation = { calories: 2400, confirmedOn: key(i) };
+    }
+    expect(kind()).toBe("diet_break");
   });
 
   it("holds restriction when recovery signals converge", () => {

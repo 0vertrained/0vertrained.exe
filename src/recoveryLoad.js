@@ -7,9 +7,6 @@
 import {
   loadOuraData,
   calcRecoveryScore,
-  calcHRVScore,
-  calcRHRScore,
-  calcTempScore,
   calcTrainingReadiness,
   hrvTrendSlopePerDay,
   rhrTrendSlopePerDay,
@@ -37,10 +34,12 @@ import { getWhoopTokenStatus, loadWhoopData } from "./whoop";
 import { calcRecoveryScore as calcSubjectiveScore } from "./recovery";
 import { loadStravaActivities, groupStravaByDate } from "./strava/dataLoading";
 import { buildDailyLoads, computeRollingLoads, getLoadZoneInfo, findUnloggedLoadDays } from "./loadModel";
+import { buildWearableLoadRows } from "./wearableWorkoutLoad";
 import { buildSignalProvenance } from "./wearables/signalProvenance";
 import { classifyRecoveryState } from "./wearables/recoveryTrend";
 import { writeRecoveryDashboardCache } from "./recoveryDashboardSessionCache";
 import { writeWearableSnapshot } from "./wearableSnapshotCache";
+import { getTodayKey } from "./constants";
 import { perfMark } from "./perf";
 import { postServerSnapshot } from "./wearables/snapshot";
 import { resolveHrvRawDisplay } from "./recovery/hrvRawDisplay";
@@ -110,6 +109,7 @@ const getRawRecoveryMetrics = (ouraData, sleepDebt) => {
  */
 export async function loadRecoveryData({ data, yesterdayKey, settings, userId, alertHistory = {} } = {}) {
   const out = {
+    startedAt: Date.now(),
     connected: false,
     tokenStatus: null,
     whoopConnected: false,
@@ -128,11 +128,11 @@ export async function loadRecoveryData({ data, yesterdayKey, settings, userId, a
     // Whoop joins the batch as the arbitration layer's fallback
     // source. loadWhoopData is single-flighted, so this call collapses with
     // the context-panel effect's — zero additional network.
-    const [tokenStat, oura, whoopForScore, stravaActs, whoopStat] = await Promise.all([
+    const [tokenStat, ouraData, whoopData, stravaActs, whoopStat] = await Promise.all([
       getOuraTokenStatus(),
       loadOuraData(35), // 35d window feeds the trend baseline; scoring pools still slice(0,15)
-      loadWhoopData(14).catch(() => null),
-      loadStravaActivities(14).catch(() => []), // sentinel evidence rung
+      loadWhoopData(28).catch(() => null),
+      loadStravaActivities(28).catch(() => []), // same load window as Today
       getWhoopTokenStatus().catch(() => null), // whether to blend the two wearables
     ]);
     const stravaGrouped = groupStravaByDate(stravaActs || []);
@@ -141,16 +141,16 @@ export async function loadRecoveryData({ data, yesterdayKey, settings, userId, a
     out.connected = isConn;
     out.tokenStatus = isConn ? tokenStat : null;
     out.whoopConnected = Boolean(whoopStat?.connected);
-    out.whoopGrouped = out.whoopConnected ? (whoopForScore || {}) : null;
-    nextSnapshot = { connected: isConn };
+    const oura = isConn ? ouraData || {} : {};
+    const whoopForScore = out.whoopConnected ? whoopData || {} : null;
+    out.whoopGrouped = whoopForScore;
+    nextSnapshot = { connected: isConn, whoopConnected: out.whoopConnected };
 
-    if (isConn) {
-      out.ouraGrouped = oura;
-      const rec = calcRecoveryScore(oura, settings, whoopForScore);
+    if (isConn || out.whoopConnected) {
+      out.ouraGrouped = isConn ? oura : null;
+      const rec = calcRecoveryScore(out.ouraGrouped, settings, out.whoopGrouped);
       out.provenance = buildSignalProvenance(rec, oura, whoopForScore, rec.scoredDay);
-      const hrvMetrics = calcHRVScore(oura, settings);
-      const rhrMetrics = calcRHRScore(oura);
-      const tempMetrics = calcTempScore(oura);
+      const { hrv: hrvMetrics, rhr: rhrMetrics, temp: tempMetrics } = rec.detail;
       const q = calcOuraDataQuality(oura, 14);
       const b = calcMetricBaselines(oura);
       const conf = calcRecoveryConfidence(q, rec);
@@ -197,11 +197,11 @@ export async function loadRecoveryData({ data, yesterdayKey, settings, userId, a
       // Compute training load from workout data (used by the recommendation
       // overlay so a green score can't green-light a load spike).
       let loadModel = null;
-      if (data && Object.keys(data).length >= 7) {
-        const dailyLoads = buildDailyLoads(data, 28);
+      if ([data, oura, whoopForScore, stravaGrouped].some(source => Object.keys(source || {}).length >= 7)) {
+        const dailyLoads = buildWearableLoadRows({ entries: data || {}, ouraData: oura, whoopData: whoopForScore, stravaByDate: stravaGrouped });
         const rolling = computeRollingLoads(dailyLoads);
         loadModel = { dailyLoads, rolling, zoneInfo: getLoadZoneInfo(rolling.zone) };
-        out.unloggedFlags = findUnloggedLoadDays(dailyLoads, whoopForScore, { window: 14, stravaByDate: stravaGrouped });
+        out.unloggedFlags = findUnloggedLoadDays(buildDailyLoads(data || {}, 28), whoopForScore, { window: 14, stravaByDate: stravaGrouped });
       }
 
       // Rec.score can now be null (no signals reported) — the honest
@@ -210,7 +210,8 @@ export async function loadRecoveryData({ data, yesterdayKey, settings, userId, a
       // today's HRV z-score and RHR delta, so its ±0.02 / ±0.5 "trend" bands
       // fired on ordinary single-day noise. Real chronological slopes now.
       const tr = rec.score == null ? null : calcTrainingReadiness(rec.score, hrvTrendSlopePerDay(oura), rhrTrendSlopePerDay(oura), null, sd.debtHours || 0);
-      const reco = rec.score == null ? null : getTrainingRecommendation({ recovery: rec, readiness: tr, quality: q, loadZone: loadModel?.rolling?.zone, sleepDebt: sd });
+      const wearableDebt = rec.scoredDay === latestRecoveryDay(out.ouraGrouped) ? sd : null;
+      const reco = rec.score == null ? null : getTrainingRecommendation({ recovery: rec, readiness: tr, quality: q, loadZone: loadModel?.rolling?.zone, sleepDebt: wearableDebt });
       const insightRows = calcRecoveryInsights({ recovery: rec, hrv: hrvMetrics, rhr: rhrMetrics, sleep: sleepMetric, temp: tempMetrics, quality: q, baselines: b, recommendation: reco });
 
       const alertResult = checkAlerts(oura);
@@ -226,15 +227,18 @@ export async function loadRecoveryData({ data, yesterdayKey, settings, userId, a
       // prior pool — HRV/RHR silently fell to readiness-contributor
       // fallbacks and the plotted values disagreed with what the app
       // actually said on those mornings.
-      const histDates = recoveryDates(oura).slice(0, 7);
-      const histPoints = histDates.map(date => {
+      const histDates = [...new Set([...recoveryDates(out.ouraGrouped), ...Object.keys(out.whoopGrouped || {})])].sort().reverse();
+      const histPoints = [];
+      for (const date of histDates) {
         const ouraUpTo = {};
-        for (const [d, v] of Object.entries(oura)) { if (d <= date) ouraUpTo[d] = v; }
+        for (const [d, v] of Object.entries(out.ouraGrouped || {})) { if (d <= date) ouraUpTo[d] = v; }
         const whoopUpTo = {};
-        for (const [d, v] of Object.entries(whoopForScore || {})) { if (d <= date) whoopUpTo[d] = v; }
+        for (const [d, v] of Object.entries(out.whoopGrouped || {})) { if (d <= date) whoopUpTo[d] = v; }
         const dayRec = calcRecoveryScore(ouraUpTo, settings, whoopUpTo);
-        return { date, value: dayRec?.score || 0 };
-      }).reverse();
+        if (dayRec.scoredDay === date && dayRec.score !== null) histPoints.push({ date, value: dayRec.score });
+        if (histPoints.length === 7) break;
+      }
+      histPoints.reverse();
 
       // Morning Edition — the multi-day state over the daily score.
       // Pure classification: rolling-week HRV against the personal normal
@@ -251,7 +255,10 @@ export async function loadRecoveryData({ data, yesterdayKey, settings, userId, a
       out.editionRaw = { oura, whoop: whoopForScore }; // feeds the Sunday Edition
 
       nextSnapshot = {
-        connected: true,
+        connected: isConn,
+        whoopConnected: out.whoopConnected,
+        signalDay: todayDate || null,
+        loadDay: getTodayKey(),
         tokenStatus: tokenStat,
         rawMetrics: raw,
         recovery: rec,
@@ -277,7 +284,7 @@ export async function loadRecoveryData({ data, yesterdayKey, settings, userId, a
     }
 
     if (data && yesterdayKey) {
-      const subj = calcSubjectiveScore(data[yesterdayKey], data);
+      const subj = calcSubjectiveScore(data[yesterdayKey], data, yesterdayKey);
       nextSnapshot = { ...(nextSnapshot || {}), subjectiveRecovery: subj };
     }
     if (nextSnapshot) {
@@ -291,7 +298,7 @@ export async function loadRecoveryData({ data, yesterdayKey, settings, userId, a
       // hydrate before a live provider refresh. Ownership is server-derived
       // from the Supabase Bearer token; token-like fields are stripped both
       // client- and server-side. Fire-and-forget: never blocks the render.
-      const snapSource = isConn ? "oura" : (nextSnapshot.subjectiveRecovery ? "manual" : null);
+      const snapSource = nextSnapshot.recovery?.source || (nextSnapshot.subjectiveRecovery ? "manual" : null);
       postServerSnapshot(nextSnapshot, { source: snapSource }).catch(() => {});
     }
   out.snapshot = nextSnapshot || null;

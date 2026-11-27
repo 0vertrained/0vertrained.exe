@@ -7,6 +7,7 @@
  * programs, cardio, or nutrition targets itself.
  */
 
+import { confirmedCalories } from "./adaptiveTDEE";
 import { buildStrengthRetentionAlert } from "./progressionEngine";
 
 const CONFIDENCE_ORDER = ["low", "medium", "high"];
@@ -47,9 +48,9 @@ function waistValue(entry) {
   return n(entry?.body?.waist ?? entry?.body?.waistInches ?? entry?.measurements?.waist);
 }
 
-function windowSummary(data, keys, goals) {
+function windowSummary(data, keys, goals, asOf) {
   const rows = keys.map((key) => ({ key, entry: data[key] })).filter((row) => row.entry);
-  const nutritionRows = rows.filter(({ entry }) => n(entry?.nutrition?.calories) > 0);
+  const nutritionRows = rows.filter(({ entry }) => confirmedCalories(entry?.nutrition, asOf) != null && n(entry.nutrition.protein) != null);
   const weightRows = rows.map(({ key, entry }) => ({ key, value: n(entry?.body?.weight) })).filter((row) => Number.isFinite(row.value) && row.value > 0);
   const waistRows = rows.map(({ key, entry }) => ({ key, value: waistValue(entry) })).filter((row) => Number.isFinite(row.value) && row.value > 0);
   const sleepRows = rows.map(({ entry }) => n(entry?.body?.sleep)).filter(Number.isFinite);
@@ -164,17 +165,18 @@ function phaseFromSettings(settings) {
     || "recomposition";
 }
 
-function countDietingWeeks(data, goals) {
-  const keys = Object.keys(data || {}).sort();
-  if (!keys.length) return 0;
+function countDietingWeeks(data, goals, asOf) {
   const target = n(goals?.calories);
   if (!target) return 0;
-  let qualifyingDays = 0;
-  for (const key of keys.slice(-84)) {
-    const calories = n(data[key]?.nutrition?.calories);
-    if (calories > 0 && calories <= target * 1.1) qualifyingDays += 1;
+  let weeks = 0;
+  for (let offset = 0; offset < 84; offset += 7) {
+    const days = keysForWindow(shiftDate(asOf, -offset)).filter(key => {
+      const calories = confirmedCalories(data[key]?.nutrition, asOf);
+      return calories != null && calories <= target * 1.1;
+    });
+    if (days.length >= 5) weeks++;
   }
-  return Math.floor(qualifyingDays / 5);
+  return weeks;
 }
 
 function buildRecommendation({ current, previous, phase, strength, recoveryTrend, confidence, calibrationProfile, goals, dietingWeeks }) {
@@ -212,7 +214,7 @@ function buildRecommendation({ current, previous, phase, strength, recoveryTrend
   }
 
   if (strengthRisk || recoveryRisk || fastLoss) {
-    const shouldDietBreak = dietingWeeks >= 6 && recoveryRisk && (strengthRisk || fastLoss);
+    const shouldDietBreak = phase === "fat_loss" && dietingWeeks >= 6 && recoveryRisk && (strengthRisk || fastLoss);
     return {
       ...base,
       kind: shouldDietBreak ? "diet_break" : "recovery",
@@ -229,6 +231,14 @@ function buildRecommendation({ current, previous, phase, strength, recoveryTrend
         ...(fastLoss ? [`Average weight changed ${round1(weightDelta)} lb (${round1(weeklyRatePct)}%) week over week.`] : []),
       ],
       blockers: ["Do not interpret this as medical clearance; clinician-defined symptom rules still override the app."],
+    };
+  }
+
+  if (current.nutritionDays < 5) {
+    return {
+      ...base, kind: "collect_food", title: "Confirm five days of food logs",
+      summary: "In Fuel, confirm each full day once its calories and protein are logged. Five complete days will give the coach enough evidence to compare intake with your goals.",
+      evidence: [`${current.nutritionDays}/7 complete food logs with protein this week`],
     };
   }
 
@@ -296,14 +306,14 @@ export function buildWeeklyCoachReview({
   const actualWeekEndKey = weekEndKey || dateKey(new Date());
   const weekKeys = keysForWindow(actualWeekEndKey, 7);
   const previousKeys = keysForWindow(shiftDate(weekKeys[0], -1), 7);
-  const current = windowSummary(data, weekKeys, goals);
-  const previous = windowSummary(data, previousKeys, goals);
+  const current = windowSummary(data, weekKeys, goals, actualWeekEndKey);
+  const previous = windowSummary(data, previousKeys, goals, actualWeekEndKey);
   let confidence = confidenceFor(current, previous, wearableTrends);
   confidence = adjustConfidence(confidence, calibrationProfile?.confidenceAdjustment || 0);
   const strength = buildStrengthRetentionAlert({ data, todayKey: actualWeekEndKey });
   const recoveryTrend = recoveryTrendFromWearables(wearableTrends, current);
   const phase = phaseFromSettings(settings);
-  const dietingWeeks = countDietingWeeks(data, goals);
+  const dietingWeeks = phase === "fat_loss" ? countDietingWeeks(data, goals, actualWeekEndKey) : 0;
   const recommendation = buildRecommendation({ current, previous, phase, strength, recoveryTrend, confidence, calibrationProfile, goals, dietingWeeks });
   const observationMode = confidence === "low" || recommendation.authority === "observe";
 
@@ -340,13 +350,13 @@ export function buildWeeklyCoachReview({
 
   const watchouts = [];
   if (current.workoutDays < goalWorkouts) watchouts.push(`Training completion: ${current.workoutDays}/${goalWorkouts}.`);
-  if (current.proteinAdherence < 80) watchouts.push(`Protein adherence: ${current.proteinAdherence}%.`);
-  if (current.calorieAdherence < 80) watchouts.push(`Calorie adherence: ${current.calorieAdherence}%.`);
+  if (current.nutritionDays >= 3 && current.proteinAdherence < 80) watchouts.push(`Protein adherence: ${current.proteinAdherence}%.`);
+  if (current.nutritionDays >= 3 && current.calorieAdherence < 80) watchouts.push(`Calorie adherence: ${current.calorieAdherence}%.`);
   if (current.avgSleep > 0 && current.avgSleep < 7) watchouts.push(`Sleep averaged ${current.avgSleep} hours.`);
   if (strength.status === "watch" || strength.status === "action") watchouts.push(strength.headline);
 
   const fuelRecoveryLinks = [];
-  if (current.proteinAdherence < 70) {
+  if (current.nutritionDays >= 3 && current.proteinAdherence < 70) {
     fuelRecoveryLinks.push(current.avgSoreness >= 6
       ? "Lower protein adherence occurred alongside elevated soreness; treat this as an association, not proof."
       : `Protein intake averaged ${current.avgProtein}g against a ${goalProtein}g target; close the fuel gap before changing training.`);

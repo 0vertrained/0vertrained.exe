@@ -194,6 +194,9 @@ describe("V19.4 front door — a new account reaches a logger", () => {
     expect(await screen.findByRole("heading", { name: "What you logged" }, WAIT)).toBeTruthy();
     expect(screen.getByText("Manual", { selector: ".stamp" })).toBeTruthy();
     expect(screen.queryByTestId("specimen-stamp")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Check in on Today" }));
+    await liveToday();
+    expect(screen.getByRole("heading", { name: "How do you feel?" })).toBeTruthy();
   }, 20000);
 
   it("a wearable setup shows Recovery's sample until it connects, and its one action opens Integrations", async () => {

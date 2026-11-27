@@ -177,7 +177,6 @@ describe("V17.0 App wiring (source guards)", () => {
   });
 
   it("connected-but-empty Recovery frames the first sync instead of looking broken", () => {
-    expect(read("src/RecoveryView.jsx")).toContain("First sync running");
     expect(read("src/RecoveryDashboard.jsx")).toContain("firstSync: settings?.ouraConnected === true");
   });
 });

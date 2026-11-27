@@ -24,6 +24,7 @@ import { mergeOnboardingSettings, resolveOnboardingProgramPreset, buildOnboardin
 import { buildProgramPlan, buildProgramBuilderSettingsPatch } from "./programBuilder";
 import { loadOuraData, calcRecoveryScore as calcOuraRecovery, clearAlertHistory } from "./oura";
 import { loadWhoopData } from "./whoop";
+import { scoreForRecoveryDay } from "./recovery/verdictResolver";
 import { readWearableSnapshot } from "./wearableSnapshotCache";
 import { editionWindow } from "./editionWindow";
 import { perfStart, perfMark } from "./perf";
@@ -185,6 +186,7 @@ function AppInner({ onThemeChange }) {
   };
   // The check-in sits at the top of Today, so land there at the top.
   const openCheckin = () => {
+    setLogDate(null);
     tabScrollPositions.current.Today = 0;
     navigateTo("Today");
     if (tab === "Today") window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
@@ -202,10 +204,20 @@ function AppInner({ onThemeChange }) {
   const [importOpen, setImportOpen]   = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [pendingSaves, setPendingSaves] = useState({});
-  const [ouraRecovery, setOuraRecovery] = useState(null); // biometric recovery score (Oura), if connected
+  const [bootRecovery, setBootRecovery] = useState(null);
   // One call across the app (sharedCall.js): Recovery's latest data load and
   // Today's own read, each tagged with the account it belongs to.
   const [recoveryLoad, setRecoveryLoad] = useState(null);
+  const accountOwner = user?.id ?? null;
+  const currentLoad = recoveryLoad?.owner === accountOwner ? recoveryLoad : null;
+  const currentDayKey = getTodayKey();
+  const bootSample = bootRecovery?.owner === accountOwner ? bootRecovery?.sample : null;
+  const liveSample = currentLoad?.snapshot?.recovery;
+  const wearableSample = currentLoad ? liveSample : bootSample;
+  const ouraRecovery = scoreForRecoveryDay(wearableSample, currentDayKey);
+  const acceptRecoveryLoad = useCallback((out, owner) => {
+    setRecoveryLoad(previous => previous?.owner === owner && previous.startedAt > out.startedAt ? previous : { ...out, owner });
+  }, []);
   const [todayCall, setTodayCall] = useState(null);
   const [showDemo, setShowDemo] = useState(() => typeof window !== "undefined" && /#\/?demo\b/.test(window.location.hash || ""));
   const [, setCacheStatus] = useState({ cached: false }); // track cache status for potential UI feedback
@@ -248,17 +260,13 @@ function AppInner({ onThemeChange }) {
           // The demo decision engine runs on the demo wearable data —
           // same math, seeded inputs.
           const rec = calcOuraRecovery(buildDemoOuraData(), DEMO_SETTINGS, getDemoWhoopData());
-          if (!cancelled) { setOuraRecovery(Number.isFinite(rec?.score) ? rec.score : null); perfMark("boot", "wearable-score-ready"); }
+          if (!cancelled) { setBootRecovery({ owner: accountOwner, sample: rec }); perfMark("boot", "wearable-score-ready"); }
           return;
         }
-        if (!user?.id) { if (!cancelled) setOuraRecovery(null); return; }
+        if (!user?.id) { if (!cancelled) setBootRecovery(null); return; }
         const snap = readWearableSnapshot(user.id);
-        const snapScore = Number.isFinite(snap?.recovery?.score) ? snap.recovery.score : null;
-        const snapIsToday = snap?.savedAt
-          ? new Date(snap.savedAt).toDateString() === new Date().toDateString()
-          : false;
-        if (snapScore != null && snapIsToday) {
-          if (!cancelled) { setOuraRecovery(snapScore); perfMark("boot", "wearable-score-ready"); }
+        if (scoreForRecoveryDay(snap?.recovery, currentDayKey) !== null) {
+          if (!cancelled) { setBootRecovery({ owner: accountOwner, sample: snap.recovery }); perfMark("boot", "wearable-score-ready"); }
           return;
         }
         // Whoop rides along (single-flighted — collapses with
@@ -269,15 +277,15 @@ function AppInner({ onThemeChange }) {
         ]);
         const rec = calcOuraRecovery(oura, settings, whoopForScore);
         if (!cancelled) {
-          setOuraRecovery(Number.isFinite(rec?.score) ? rec.score : null);
+          setBootRecovery({ owner: accountOwner, sample: rec });
           perfMark("boot", "wearable-score-ready");
         }
       } catch {
-        if (!cancelled) setOuraRecovery(null);
+        if (!cancelled) setBootRecovery(null);
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.id, demoMode, settings]);
+  }, [user?.id, accountOwner, currentDayKey, demoMode, settings]);
 
   // Recovery's data, loaded once when the account is ready, so Today shows
   // Recovery's verdict before Recovery is opened. Recovery hands back every
@@ -294,10 +302,10 @@ function AppInner({ onThemeChange }) {
     const yesterday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     import("./recoveryLoad")
       .then(({ loadRecoveryData }) => loadRecoveryData({ ...recoveryInputs.current, yesterdayKey: yesterday, userId: owner ?? undefined }))
-      .then((out) => { if (alive) setRecoveryLoad({ ...out, owner }); })
+      .then((out) => { if (alive) acceptRecoveryLoad(out, owner); })
       .catch(() => {});
     return () => { alive = false; };
-  }, [loaded, accountUnavailable, demoMode, user?.id]);
+  }, [loaded, accountUnavailable, demoMode, user?.id, currentDayKey, acceptRecoveryLoad]);
 
   // Auth bootstrap — wait for INITIAL_SESSION before doing anything else.
   // onAuthStateChange fires synchronously with the current session on subscribe,
@@ -577,6 +585,7 @@ function AppInner({ onThemeChange }) {
   // Race-build overlay: consuming surfaces see the current build week;
   // Train's program screens keep the raw template so edits target the source of truth.
   const liveProgram = useMemo(() => applyRaceBuild(program, todayKey), [program, todayKey]);
+  const recoveryProgram = todayKey === currentDayKey ? liveProgram : applyRaceBuild(program, currentDayKey);
 
   // Debounced per-day save with offline retry queue
   const scheduleSave = useCallback((dateKey, dayPayload) => {
@@ -1174,7 +1183,7 @@ function AppInner({ onThemeChange }) {
             <Suspense fallback={<LoadingShell plan={getSkeletonPlan("Recovery")} />}>
             {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /> : loaded && dayZero.recovery.isZero
               ? <DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} />
-              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={todayKey} todayName={todayName} onOpenCheckin={openCheckin} todayPlan={liveProgram?.[todayName]?.type || null} onOpenIntegrations={() => openSettings("integrations", null, "Recovery")} openEdition={editionAsked} onEditionClosed={() => setEditionAsked(false)} onLoaded={(out) => setRecoveryLoad({ ...out, owner: user?.id ?? null })} todayCall={todayCall && todayCall.owner === (user?.id ?? null) && todayCall.dateKey === getTodayKey() ? todayCall : null} /></>}
+              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard key={accountOwner} data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={currentDayKey} todayName={getDayName()} onOpenCheckin={openCheckin} programDay={recoveryProgram?.[getDayName()] || DEFAULT_PROGRAM[getDayName()]} todayPlan={recoveryProgram?.[getDayName()]?.type || null} onOpenIntegrations={() => openSettings("integrations", null, "Recovery")} openEdition={editionAsked} onEditionClosed={() => setEditionAsked(false)} onLoaded={(out) => acceptRecoveryLoad(out, accountOwner)} todayCall={todayCall && todayCall.owner === (user?.id ?? null) && todayCall.dateKey === getTodayKey() ? todayCall : null} /></>}
             </Suspense>
             </ErrorBoundary>
           </div>
@@ -1190,7 +1199,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.today.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.today.isZero
               ? <DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />
-              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={recoveryLoad && recoveryLoad.owner === (user?.id ?? null) ? recoveryLoad : null} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
+              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} wearableSample={wearableSample} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={currentLoad} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
             </div>
           )}
           {tab === "Train" && (
@@ -1206,7 +1215,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.fuel.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.fuel.isZero
               ? <DayZeroSpecimen tab="Fuel" onAction={() => setShowTutorial(true)} />
-              : <><BaselineBanner tab="Fuel" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><FuelTab settings={settings} todayData={todayData} updateToday={updateToday} showToast={showToast} todayKey={todayKey} loaded={loaded} data={data} onPatchSettings={handlePatchSettings} /></>}
+              : <><BaselineBanner tab="Fuel" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><FuelTab settings={settings} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} todayKey={todayKey} loaded={loaded} data={data} onPatchSettings={handlePatchSettings} /></>}
             </div>
           )}
           {tab === "Progress" && (

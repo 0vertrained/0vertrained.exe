@@ -4,8 +4,8 @@
 // progression decision taken at the exercise's first logged set is kept, and
 // once every set is in, next time's prescription is worked out.
 
-import { buildExercisePrescription, buildProgressionDecision } from "../progressionEngine";
-import { validateSet } from "../workoutLogging";
+import { buildExercisePrescription, buildProgressionDecision, evaluateSetOutcome } from "../progressionEngine";
+import { defaultWeightIncrement, resolveTrackingMode, validateSet } from "../workoutLogging";
 
 export function completeSet({
   exData = {},
@@ -15,14 +15,27 @@ export function completeSet({
   exercise,
   progressionExercise = exercise,
   prescription = null,
+  selectedSource = null,
   data = {},
   todayKey,
   performedName = exercise?.name,
   completedAt = new Date().toISOString(),
 }) {
   const completed = { ...set, done: true, completedAt };
+  const decision = buildProgressionDecision(prescription, completed, { acceptedAt: completedAt, setIndex, selectedSource });
+  if (decision) {
+    completed.progressionTarget = { ...decision.target, plan: {
+      name: performedName, sets: progressionExercise.sets, reps: progressionExercise.reps,
+      trackingMode: resolveTrackingMode(progressionExercise), weightIncrement: defaultWeightIncrement(progressionExercise),
+      rir: progressionExercise.rir ?? null,
+    } };
+    completed.targetSource = selectedSource;
+  }
   const nextSets = sets.map((item, index) => index === setIndex ? completed : item);
-  const progressionDecision = exData.progressionDecision || buildProgressionDecision(prescription, completed, { acceptedAt: completedAt });
+  const chosen = exData.progressionDecision;
+  const progressionDecision = chosen?.target && chosen.setIndex === setIndex
+    ? { ...chosen, outcome: evaluateSetOutcome(chosen.target, completed) }
+    : chosen || decision;
   const exerciseComplete = nextSets.every((item) => item.done && validateSet(item, exercise).valid);
   const generatedNext = exerciseComplete
     ? buildExercisePrescription({ data, exercise: progressionExercise, todayKey, currentSession: { date: todayKey, sets: nextSets, performedName } })

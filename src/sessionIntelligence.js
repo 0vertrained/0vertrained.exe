@@ -5,6 +5,8 @@
 // hint, and (3) plate math for a target weight. No side effects, no writes,
 // no changes to the decision engine — purely presentational, so unit-testable.
 
+import { performedExerciseName } from "./workoutLogging";
+
 // Estimated 1RM (canonical home; TodayTab re-exports for compat)
 // Epley formula, capped at 12 reps where the estimate stops being meaningful.
 export function epley1RM(weight, reps) {
@@ -41,7 +43,7 @@ export function getLastPerformance(data, exerciseName, todayKey, lookbackDays = 
   for (const key of keys) {
     const exercises = data[key]?.workout?.exercises || {};
     for (const [plannedName, ex] of Object.entries(exercises)) {
-      const performedName = String(ex?.performedName || plannedName);
+      const performedName = performedExerciseName(plannedName, ex);
       if (performedName.toLowerCase() !== exerciseName.toLowerCase()) continue;
       const sets = (ex?.sets || []).filter(s => s.done && (parseFloat(s.weight) || 0) > 0);
       if (sets.length > 0) {
@@ -52,6 +54,7 @@ export function getLastPerformance(data, exerciseName, todayKey, lookbackDays = 
         return {
           date: key,
           weight,
+          weights: sets.map(s => parseFloat(s.weight)),
           reps,
           rirs,
           setsCompleted: sets.length,
@@ -77,10 +80,12 @@ const LOWER_BODY_HINTS = ["squat", "deadlift", "leg", "lunge", "rdl", "hip thrus
 export function priorBestWeight(data, exerciseName, todayKey) {
   let best = 0;
   for (const [dateKey, day] of Object.entries(data || {})) {
-    if (dateKey === todayKey) continue;
-    for (const set of day?.workout?.exercises?.[exerciseName]?.sets || []) {
-      const weight = parseFloat(set.weight) || 0;
-      if (weight > best) best = weight;
+    if (dateKey >= todayKey) continue;
+    for (const [plannedName, entry] of Object.entries(day?.workout?.exercises || {})) {
+      if (performedExerciseName(plannedName, entry).toLowerCase() !== exerciseName.toLowerCase()) continue;
+      for (const set of entry?.sets || []) {
+        if (set?.done) best = Math.max(best, parseFloat(set.weight) || 0);
+      }
     }
   }
   return best;

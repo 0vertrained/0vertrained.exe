@@ -5,6 +5,8 @@ import {
   buildStrengthRetentionAlert,
   getExerciseSessions,
   parseRepRange,
+  formatPrescription,
+  evaluateSetOutcome,
 } from "../progressionEngine";
 import { buildDeloadRecommendation } from "../fatigueManagement";
 import { buildSessionArbitration, buildSessionVolumeProjection } from "../trainingArbitration";
@@ -102,6 +104,41 @@ describe("V18.2 adaptive progression", () => {
     };
     expect(getExerciseSessions(data, "Barbell Bench Press", "2026-07-20", { exercise: { name: "Barbell Bench Press", sets: 3, reps: 10 } })).toHaveLength(0);
     expect(getExerciseSessions(data, "Machine Chest Press", "2026-07-20", { exercise: { name: "Machine Chest Press", sets: 3, reps: 10 } })).toHaveLength(1);
+  });
+
+  it("advances the top load and back-off load independently and fills by slot", () => {
+    const bench = { name: "Bench Press", sets: 3, reps: 8, rir: "1–2", weightIncrement: 5 };
+    const mixed = [...session(135, [8]), ...session(105, [8, 8])];
+    const prescribe = sets => buildExercisePrescription({
+      data: { "2026-07-13": liftEntry(bench.name, sets) }, exercise: bench, todayKey: "2026-07-20",
+    });
+    const target = prescribe(mixed);
+    expect(target.targetWeight).toBeNull();
+    expect(target.targetWeights).toEqual([140, 110, 110]);
+    expect(formatPrescription(target)).toBe("140 lb × 8 / 110 lb × 8 / 110 lb × 8");
+    expect(prescribe([{ ...mixed[0], rir: "0" }, ...mixed.slice(1)]).targetWeights).toEqual([135, 110, 110]);
+    expect(prescribe([mixed[0], mixed[1], { ...mixed[2], reps: "6" }]).targetWeights).toEqual([140, 105, 105]);
+    expect(prescribe([{ ...mixed[0], pain: true }, ...mixed.slice(1)]).targetWeights).toEqual([130, 100, 100]);
+
+    const matchedWeight = { weight: "110", reps: "1", rir: "2", done: true };
+    const score = set => buildProgressionDecision(target, { ...matchedWeight, ...set }, { setIndex: 1 });
+    expect(score({})).toMatchObject({ status: "accepted", outcome: "missed", targetWeight: 110 });
+    expect(score({ reps: "8", rir: "" }).outcome).toBe("unknown");
+    expect(score({ reps: "8", rir: "0" }).outcome).toBe("missed");
+    expect(score({ reps: "8", rir: "2" }).outcome).toBe("met");
+    expect(evaluateSetOutcome(score({}).target, { ...matchedWeight, done: false })).toBe("unknown");
+  });
+
+  it("does not promote ambiguous pyramids, nonstraight sets or incomplete patterns", () => {
+    const press = { name: "Bench Press", sets: 3, reps: 8 };
+    const prescribe = sets => buildExercisePrescription({
+      data: { "2026-07-13": liftEntry(press.name, sets) }, exercise: press, todayKey: "2026-07-20",
+    });
+    const pyramid = [...session(105, [8]), ...session(135, [8]), ...session(105, [8])];
+    expect(prescribe(pyramid).targetWeights).toEqual([105, 135, 105]);
+    const mixed = [...session(135, [8]), ...session(105, [8, 8])];
+    expect(prescribe([{ ...mixed[0], type: "partial" }, ...mixed.slice(1)]).targetWeights).toEqual([135, 105, 105]);
+    expect(prescribe([{ ...mixed[1], done: false }, mixed[0], mixed[2]]).targetWeights).toEqual([105, 135, 105]);
   });
 
   it("records accepted versus overridden targets", () => {

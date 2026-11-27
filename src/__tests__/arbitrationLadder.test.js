@@ -61,6 +61,19 @@ describe("arbitration ladder", () => {
     expect(rec.ledger.find((l) => l.key === "sleep").counted).toBe(true);
   });
 
+  it("dates Whoop-only readings and keeps a newer activity-only day from advancing the score", () => {
+    const { oura, whoop } = fixtures();
+    const fresh = calcRecoveryScore({}, {}, whoop);
+    expect(fresh).toMatchObject({ scoredDay: iso(0), source: "whoop" });
+    expect(fresh.score).toBeGreaterThan(0);
+    expect(fresh.detail.hrv.source).toContain("whoop");
+    expect(fresh.detail.rhr.source).toContain("whoop");
+    delete oura[iso(0)];
+    expect(calcRecoveryScore(oura, {}, whoop).score).toBe(fresh.score);
+    const singleNight = { [iso(-1)]: { sleep: { score: { sleep_performance_percentage: 0 } } }, [iso(0)]: { cycle: { score: { strain: 10 } } } };
+    expect(calcRecoveryScore(null, {}, singleNight)).toMatchObject({ score: 0, scoredDay: iso(-1) });
+  });
+
   it("backward compatible: two-argument calls behave as pure-oura", () => {
     const { oura } = fixtures();
     const a = calcRecoveryScore(oura, {});

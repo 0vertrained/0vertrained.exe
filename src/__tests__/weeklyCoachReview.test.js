@@ -22,7 +22,7 @@ function dayKey(offset = 0) {
 
 // Helper to build a sample day
 function sampleDay(overrides = {}) {
-  return {
+  const day = {
     workout: {
       exercises: {},
       cardio: { miles: "0" },
@@ -50,6 +50,8 @@ function sampleDay(overrides = {}) {
     },
     ...overrides,
   };
+  day.nutrition.foodLogConfirmation = { calories: Number(day.nutrition.calories), confirmedOn: dayKey(0) };
+  return day;
 }
 
 // Helper to create decision response

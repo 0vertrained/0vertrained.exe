@@ -1,5 +1,5 @@
 // src/EnergyIntelligence.jsx
-// Adaptive TDEE block for Fuel → Plan. Shows the MEASURED expenditure
+// Adaptive TDEE block for Fuel → Plan. Shows estimated expenditure
 // (from your own intake-vs-trend ledger, adaptiveTDEE.js), lets you pick a
 // goal rate, and computes advisory calorie/protein targets plus a weekly
 // drift check. Advisory display only — updating the actual macro goals stays
@@ -8,12 +8,14 @@
 import { useMemo, useState } from "react";
 import { Icon, Method } from "./ui/ledger";
 import { computeAdaptiveTDEE, buildEnergyTargets, buildDriftCheck, readGoalRate, writeGoalRate, GOAL_RATES } from "./adaptiveTDEE";
+import { getTodayKey } from "./constants";
 
 const NBSP = " ";
 
 export function EnergyIntelligence({ data, settings }) {
   const [goalRate, setGoalRate] = useState(() => readGoalRate());
-  const tdee = useMemo(() => computeAdaptiveTDEE(data), [data]);
+  const today = getTodayKey();
+  const tdee = useMemo(() => computeAdaptiveTDEE(data, { asOf: today }), [data, today]);
   const targets = tdee.ready && goalRate !== null ? buildEnergyTargets(tdee.tdee, goalRate, tdee.trendWeight) : null;
   const drift = tdee.ready && goalRate !== null ? buildDriftCheck(goalRate, tdee.actualWeeklyRate) : null;
   const currentGoal = parseFloat(settings?.goals?.calories);
@@ -32,15 +34,15 @@ export function EnergyIntelligence({ data, settings }) {
     <section aria-labelledby="energy-title" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <h2 id="energy-title" className="t-h">What you burn</h2>
       <div className="kv" style={{ gap: 4 }}>
-        <p><span className="n-lg">{tdee.tdee.toLocaleString()}</span> <span className="t-b c2">kcal a day, measured</span></p>
-        <p className="t-s c2">{tdee.spanDays} days, {tdee.loggedDays} of them logged. Confidence: {tdee.confidence}.</p>
+        <p><span className="n-lg">{tdee.tdee.toLocaleString()}</span> <span className="t-b c2">kcal a day, estimated</span></p>
+        <p className="t-s c2">{tdee.loggedDays} of {tdee.coverageDays} food logs confirmed ({tdee.density}% coverage).</p>
       </div>
       <Method
         testId="method-tdee"
-        method={`From your own log: ${tdee.avgIntake.toLocaleString()} kcal average intake, weight trend ${tdee.trendDeltaLbs > 0 ? "+" : ""}${tdee.trendDeltaLbs}${NBSP}lb over ${tdee.spanDays} days. This is not a formula estimate.`}
+        method={`Your confirmed food logs averaged ${tdee.avgIntake.toLocaleString()} kcal a day. Your smoothed weight changed by ${tdee.trendDeltaLbs > 0 ? "+" : ""}${tdee.trendDeltaLbs}${NBSP}lb over ${tdee.spanDays} days.`}
         detail={
           <>
-            Formula calculators (Mifflin, Katch) guess your burn from height and weight, and are often off by 300 kcal or more. This number is measured: if you ate {tdee.avgIntake.toLocaleString()} kcal a day and your weight trend moved {tdee.trendDeltaLbs > 0 ? "up" : "down"} {Math.abs(tdee.trendDeltaLbs)}{NBSP}lb, the energy balance puts your true burn at about {tdee.tdee.toLocaleString()}. It sharpens every week you log intake and weigh-ins, and it takes in what formulas cannot see: your daily movement, your training and your metabolism.
+            The estimate adjusts your average intake for the change between your first and last smoothed weigh-ins. It assumes the confirmed days represent your usual intake. Differences on other days and changes in water weight can affect the result.
           </>
         }
       />
@@ -69,7 +71,6 @@ export function EnergyIntelligence({ data, settings }) {
           <span><span className="t-ss">{drift.onTrack ? "On track." : "Drift check."}</span> {drift.note}</span>
         </div>
       )}
-      <p className="t-s c2">Measured from your smoothed weight trend and logged intake. It is advice only and never changes your goals or your logs.</p>
     </section>
   );
 }

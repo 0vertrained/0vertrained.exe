@@ -4,6 +4,7 @@
 // says which it is, so a set done as planned is logged in one tap. Nothing
 // here is stored: the stored set stays empty until it is edited or logged.
 
+import { prescriptionWeightAt } from "../progressionEngine";
 import { TRACKING_MODES, resolveTrackingMode } from "../workoutLogging";
 
 const NBSP = " ";
@@ -70,9 +71,10 @@ function targetValues(prescription, setIndex, mode) {
   const reps = Array.isArray(prescription.targetReps) && prescription.targetReps.length
     ? prescription.targetReps[Math.min(setIndex, prescription.targetReps.length - 1)]
     : null;
-  if (prescription.targetWeight != null) {
-    if (mode === TRACKING_MODES.ASSISTED_REPS) values.assistance = String(prescription.targetWeight);
-    else values.weight = String(prescription.targetWeight);
+  const weight = prescriptionWeightAt(prescription, setIndex);
+  if (weight != null) {
+    if (mode === TRACKING_MODES.ASSISTED_REPS) values.assistance = String(weight);
+    else values.weight = String(weight);
   }
   if (reps != null) {
     if (mode === TRACKING_MODES.TIMED_HOLD) values.duration = String(reps);

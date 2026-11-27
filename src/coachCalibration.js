@@ -6,6 +6,7 @@
 // scoring. Honest by construction — surfaces sample sizes, requires a minimum
 // n before claiming anything, and labels results as association, not proof.
 
+import { getTodayKey } from "./constants";
 import { calcRecoveryScore } from "./recovery";
 
 const MIN_SAMPLES = 3;
@@ -19,17 +20,18 @@ function nextDayKey(dateKey) {
 // Collect (call, response, nextDayRecoveryScore) samples from entries.
 // Next-day recovery uses the same canonical manual scorer the app already
 // uses (calcRecoveryScore) — no new scoring introduced here.
-export function collectCalibrationSamples(data) {
+export function collectCalibrationSamples(data, { asOf = getTodayKey() } = {}) {
   if (!data) return [];
   const samples = [];
   for (const dateKey of Object.keys(data)) {
     const resp = data[dateKey]?.intelligence?.todayDecisionResponse;
     if (!resp?.response || !resp?.decisionCall) continue;
     const nk = nextDayKey(dateKey);
+    if (nk > asOf) continue;
     const nextDay = data[nk];
-    if (!nextDay) continue;
+    if (!["sleep", "soreness", "energy"].some(key => Number(nextDay?.body?.[key]) > 0)) continue;
     const rec = calcRecoveryScore(nextDay, data, nk);
-    if (!rec || !Number.isFinite(Number(rec.score))) continue;
+    if (!rec || !Number.isFinite(rec.score)) continue;
     samples.push({
       date: dateKey,
       call: resp.decisionCall,
@@ -41,10 +43,10 @@ export function collectCalibrationSamples(data) {
   return samples.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function buildCalibrationReport(data, { windowDays = 60 } = {}) {
-  const all = collectCalibrationSamples(data);
+export function buildCalibrationReport(data, { windowDays = 60, asOf = getTodayKey() } = {}) {
+  const all = collectCalibrationSamples(data, { asOf });
   const cutoff = (() => {
-    const d = new Date();
+    const d = new Date(asOf + "T12:00:00");
     d.setDate(d.getDate() - windowDays);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();

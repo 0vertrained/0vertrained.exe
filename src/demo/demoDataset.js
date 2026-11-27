@@ -124,6 +124,11 @@ export function buildDemoEntries(days = 140) {
       water: String(Math.round(goals.water * (isToday ? 0.5 : 0.8 + r() * 0.25))),
       plannedMeals: {},
     };
+    if (!isToday && i % 5 !== 0) {
+      day.nutrition.foodLogConfirmation = {
+        calories: Number(day.nutrition.calories), confirmedOn: key, confirmedAt: new Date(key + "T21:00:00").toISOString(),
+      };
+    }
 
     // ── Body: downtrend + soreness the day after lower sessions ──
     weight -= 0.036 + (r() - 0.5) * 0.12;

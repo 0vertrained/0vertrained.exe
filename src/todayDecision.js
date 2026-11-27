@@ -125,7 +125,7 @@ export function buildTodayDecision({
   const readiness = recommendation.readiness || "normal";
   const recoveryScore = recovery?.score ?? null;
   const hasRecovery = recoveryScore !== null;
-  const recoverySource = recovery?.source === "oura" ? "oura" : "subjective";
+  const recoverySource = ["oura", "whoop"].includes(recovery?.source) ? recovery.source : "subjective";
   const hasProgram = todayProgram !== null;
   const programName = programLabel || "your planned session";
 
@@ -284,7 +284,7 @@ export function buildTodayDecision({
   // ── Reasons ────────────────────────────────────────────────────────────────
   const reasons = [];
   if (hasRecovery) {
-    reasons.push(`Recovery ${recoveryScore}/100 via ${recoverySource === "oura" ? "Oura" : "check-in"}`);
+    reasons.push(`Recovery ${recoveryScore}/100 via ${recoverySource === "whoop" ? "Whoop" : recoverySource === "oura" ? "Oura" : "check-in"}`);
   }
   // Name the limiting factor explicitly when recovery looks good but the call
   // was still held back by load — the "why isn't this a push?" answer.
@@ -301,7 +301,7 @@ export function buildTodayDecision({
 
   // ── Source transparency badges ─────────────────────────────────────────────
   const sourceBadges = [];
-  if (hasRecovery) sourceBadges.push(recoverySource === "oura" ? "Oura" : "Check-in");
+  if (hasRecovery) sourceBadges.push(recoverySource === "whoop" ? "Whoop" : recoverySource === "oura" ? "Oura" : "Check-in");
   if (acwr !== null) sourceBadges.push("Load");
   if (hasProgram) sourceBadges.push("Program");
   if (soreness !== null || illness) sourceBadges.push("Manual check-in");
@@ -361,7 +361,7 @@ export function isValidDecisionResponse(response) {
  * @param {string} response - User response ("followed", "modified", "ignored", "skipped")
  * @returns {object} Record to store
  */
-export function buildDecisionResponseEntry(decisionCall, response) {
+export function buildDecisionResponseEntry(decisionCall, response, recoveryContext = null) {
   if (!isValidDecisionResponse(response)) {
     throw new Error(`Invalid decision response: ${response}`);
   }
@@ -370,5 +370,6 @@ export function buildDecisionResponseEntry(decisionCall, response) {
     decisionCall,
     response,
     recordedAt: new Date().toISOString(),
+    ...(recoveryContext ? { recoveryContext } : {}),
   };
 }

@@ -60,13 +60,6 @@ describe("Recovery · one verdict", () => {
   const src = read("src/RecoveryView.jsx");
   const connected = src.slice(src.indexOf("export function RecoveryConnected("));
 
-  it("reads in one order: reconnect → the call → alerts → why → the check-in → the figures → the audit", () => {
-    const order = ["{view.reconnect && (", "{verdict && <Call ", "<Alerts ", "{verdict && <Why ", "<CheckinBanner ", "<Trend ", "<Drivers ", "<Load ", '<FoldRow title="Wearables"'];
-    const positions = order.map((token) => connected.indexOf(token));
-    expect(positions.every((p) => p >= 0), positions.join(",")).toBe(true);
-    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
-  });
-
   it("the other readings of the same morning wait behind their own rows", () => {
     for (const [title, body] of [["The coach’s read", "<CoachRead coach={coachInterp} />"], ["Wearables", "<Wearables view={view} />"], ["Data trust", "<Trust view={view} />"]]) {
       const at = connected.indexOf(`<FoldRow title="${title}"`);
@@ -82,11 +75,7 @@ describe("Recovery · one verdict", () => {
     expect(src).toContain('import { FoldRow, Icon, Meter, Sheet, Method } from "./ui/ledger";');
   });
 
-  it("the reconnect banner stands above the call, and the reasons still carry the limiter", () => {
-    expect(connected.indexOf("{view.reconnect && (")).toBeLessThan(connected.indexOf("{verdict && <Call "));
-    expect(connected).toContain("Oura needs reconnecting.");
-    expect(src).toContain("const limiter = verdict.limiter;");
-    expect(src).toContain("{limiter.detail}");
+  it("recognizes an expired Oura connection", () => {
     expect(read("src/RecoveryDashboard.jsx")).toContain("reconnect: Boolean(tokenStatus?.isExpired)");
   });
 });

@@ -23,7 +23,7 @@ export function CalibrationReport({ data, wearableTrends = null }) {
   const profile = useMemo(() => buildCoachingCalibrationProfile({ data, wearableTrends }), [data, wearableTrends]);
   const figures = [
     ["Daily samples", report.sampleCount || 0],
-    ["Weekly outcomes", profile.weekly.followedCount],
+    ["Measured weekly outcomes", profile.weekly.evaluatedCount],
     ["Favorable", profile.weekly.successRate == null ? "—" : `${profile.weekly.successRate}%`],
   ];
 
@@ -31,6 +31,7 @@ export function CalibrationReport({ data, wearableTrends = null }) {
     <div style={column(8)}>
       <div className="sec"><h3 className="t-ss">How the calls have held up</h3><span className="tag tag-f">{AUTHORITY[profile.authority] || sentence(profile.authority)}</span></div>
       <p className="t-b">{profile.summary}</p>
+      {profile.weekly.followedCount > 0 && <p className="t-s c2">{profile.weekly.followedCount} confirmed followed · {profile.weekly.evaluatedCount} with enough measurements in the following seven days.</p>}
       <p className="t-s c2">{profile.sourceCoverage.note}</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
         {figures.map(([label, value]) => <span key={label} className="kv"><span className="t-c c2">{label}</span><span className="n-md">{value}</span></span>)}

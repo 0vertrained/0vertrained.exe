@@ -92,7 +92,9 @@ describe("StravaCardioRow", () => {
 describe("Strava never reaches coach payloads", () => {
   const entries = {
     "2026-07-08": {
-      workout: { exercises: {}, cardio: { miles: "5.1", time: "41:30", pace: "8:08" }, notes: "" },
+      workout: { exercises: {}, cardio: { miles: "5.1", time: "41:30", pace: "8:08",
+        activityRefs: [{ source: "strava", id: "private-import-reference", kind: "run", minutes: 41.5 }],
+      }, notes: "" },
       nutrition: { calories: "3200", protein: "205" },
       body: { weight: "208", sleep: "7.5", energy: "8", soreness: "3" },
     },
@@ -108,6 +110,7 @@ describe("Strava never reaches coach payloads", () => {
     });
     const serialized = JSON.stringify(slice);
     expect(serialized).not.toMatch(/strava/i);
+    expect(serialized).not.toContain("private-import-reference");
     expect(serialized).not.toMatch(/Secret Morning Run/);
   });
 

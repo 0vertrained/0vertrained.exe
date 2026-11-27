@@ -9,7 +9,7 @@
 import { DEFAULT_PROGRAM, getDayName } from "./constants";
 import { applyRaceBuild } from "./raceBuild";
 import { getProgramSessions } from "./programSessions";
-import { METERS_PER_MILE, parseDuration } from "./runPaces";
+import { METERS_PER_MILE, parseDuration, parseRunTime } from "./runPaces";
 import { normalizeRace } from "./raceResults";
 
 const EASY = /easy|long|recovery|zone\s*2|aerobic|base/i;
@@ -27,15 +27,7 @@ export function isEasyRunPlan(cardio) {
   return EASY.test(text) && !HARD.test(text);
 }
 
-/** A run's time in seconds: "40:30", "1:05:10", or plain minutes. */
-export function parseRunTime(value) {
-  const text = String(value ?? "").trim();
-  if (!text) return null;
-  const clock = parseDuration(text);
-  if (clock) return clock;
-  const minutes = Number(text);
-  return Number.isFinite(minutes) && minutes > 0 && minutes < 1000 ? Math.round(minutes * 60) : null;
-}
+export { parseRunTime } from "./runPaces";
 
 function parsePace(value) {
   const text = String(value ?? "").replace(/\s*\/\s*mi(le)?$/i, "").trim();

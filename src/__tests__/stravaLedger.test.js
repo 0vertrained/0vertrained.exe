@@ -51,18 +51,19 @@ describe("strava dataLoading mapping", () => {
 });
 
 describe("stravaLoadForDay", () => {
-  it("scores runs on the existing fill scale (miles×45 + elevation bump)", () => {
+  it("prefers recorded moving time and falls back to distance when time is absent", () => {
     const day = stravaLoadForDay([run()]);
     expect(day.source).toBe("strava");
     expect(day.confidence).toBe("medium");
-    expect(day.load).toBe(Math.round(5.1 * 45 + 200 * 0.045));
+    expect(day.load).toBe(Math.round(41.5 * 5));
+    expect(stravaLoadForDay([{ ...run(), minutes: 0 }]).load).toBe(Math.round(5.1 * 45 + 200 * 0.045));
   });
 
-  it("scores rides and other sports on their own factors, summed per day", () => {
+  it("sums measured durations across rides and other sports", () => {
     const ride = run({ sport_type: "Ride", distance_m: 32187, elevation_m: 0, duration_sec: 3600 }); // 20 mi
     const yoga = run({ sport_type: "Yoga", distance_m: 0, elevation_m: 0, duration_sec: 1800 }); // 30 min
     const day = stravaLoadForDay([ride, yoga]);
-    expect(day.load).toBe(Math.round(20 * 14 + 30 * 5));
+    expect(day.load).toBe((60 + 30) * 5);
   });
 
   it("caps the day and never carries activity titles in the note", () => {
@@ -100,7 +101,7 @@ describe("buildWearableLoadRows with Strava", () => {
     expect(day.wearableContext.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("never outranks a manual workout — Strava becomes context", () => {
+  it("adds a distinct Strava run to a manually logged lift", () => {
     const date = "2026-07-08";
     const rows = buildWearableLoadRows({
       entries: { [date]: manualDay },
@@ -109,8 +110,9 @@ describe("buildWearableLoadRows with Strava", () => {
       asOf: new Date(`${date}T18:00:00`),
     });
     const day = rows.find((r) => r.date === date);
-    expect(day.source).toBe("manual+wearable-context");
-    expect(day.confidence).toBe("high");
+    expect(day.source).toBe("manual+strava");
+    expect(day.load).toBe(18 + stravaLoadForDay([run()]).load);
+    expect(day.confidence).toBe("medium");
     expect(day.wearableContext.some((c) => c.source === "strava")).toBe(true);
   });
 });

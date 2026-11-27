@@ -4,7 +4,7 @@
 // rarely needed details (set type, how it felt, the pain flag) behind More.
 // LoggedSets is the list above it: each logged set on one line, open to edit.
 import { useState } from "react";
-import { formatPrescription } from "../progressionEngine";
+import { evaluateSetOutcome, formatPrescription } from "../progressionEngine";
 import { CascadeSet } from "../CascadeSet";
 import { Icon, Seg, Switch } from "../ui/ledger";
 import { defaultWeightIncrement, displaySet } from "../workoutLogging";
@@ -70,13 +70,18 @@ export function LoggedSets({ exercise, sets, activeIndex = -1, freshIndex = -1, 
       {logged.map(({ set, index }) => {
         const fresh = index === freshIndex;
         const line = displaySet(set, exercise);
+        const outcome = set.progressionTarget && set.progressionTarget.kind !== "establish"
+          ? { met: "Target met", missed: "Outside target", unknown: "Target unassessed" }[evaluateSetOutcome(set.progressionTarget, set)] : null;
         return (
           <li key={index}>
-            <button type="button" className="row" aria-current={index === activeIndex ? "true" : undefined} aria-label={`Set ${index + 1}, logged: ${line}${index === recordIndex ? ", a personal record" : ""}. Open to edit.`} onClick={() => onSelect(index)}>
+            <button type="button" className="row" aria-current={index === activeIndex ? "true" : undefined} aria-label={`Set ${index + 1}, logged: ${line}${outcome ? `, ${outcome}` : ""}${index === recordIndex ? ", a personal record" : ""}. Open to edit.`} onClick={() => onSelect(index)}>
               <Icon name="done" className="good" />
               <span className={`t-bs${fresh ? " mo-write" : ""}`}>Set {index + 1}</span>
               {index === recordIndex && <span className={`tag tag-e${fresh ? " mo-stamp mo-foil" : ""}`} style={fresh ? { "--d": "260ms" } : undefined}>PR</span>}
-              <span className={`n grow${fresh ? " mo-write" : ""}`} style={{ textAlign: "right" }}>{line}</span>
+              <span className="kv grow" style={{ textAlign: "right" }}>
+                <span className={`n${fresh ? " mo-write" : ""}`}>{line}</span>
+                {outcome && <span className="t-s c2">{outcome}</span>}
+              </span>
               <Icon name="next" size="s" className="c2" />
             </button>
           </li>

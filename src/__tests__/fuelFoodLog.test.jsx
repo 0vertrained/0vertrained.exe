@@ -24,15 +24,19 @@ function mountFuel({ nutrition = { calories: "0", protein: "0", carbs: "0", fats
   let latestSettings = null;
   function Harness() {
     const [day, setDay] = useState({ nutrition });
+    const [pastDays, setPastDays] = useState(data);
     const [settings, setSettings] = useState({ goals: GOALS, savedFoods });
     latest = day;
     latestSettings = settings;
     const updateToday = (path, value) => setDay((prev) => setPath(prev, path.split("."), value));
+    const updateEntryAtDate = (date, path, value) => setPastDays((prev) => ({
+      ...prev, [date]: setPath(prev[date], path.split("."), value),
+    }));
     const onPatchSettings = async (patch) => { setSettings((prev) => ({ ...prev, ...patch })); return { ok: true }; };
     return (
       <ThemeProvider>
         <ShellProvider>
-          <FuelTab settings={settings} todayData={day} updateToday={updateToday} showToast={showToast} todayKey={TODAY} loaded data={{ ...data, [TODAY]: day }} onPatchSettings={onPatchSettings} />
+          <FuelTab settings={settings} todayData={day} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} todayKey={TODAY} loaded data={{ ...pastDays, [TODAY]: day }} onPatchSettings={onPatchSettings} />
         </ShellProvider>
       </ThemeProvider>
     );
@@ -45,6 +49,24 @@ const foodsSection = (ui) => ui.getByRole("heading", { name: "Today’s food" })
 const startsWith = (text) => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
 
 describe("Fuel's food log", () => {
+  it("confirms, reopens and corrects the selected day's full food log independently", () => {
+    const date = "2026-11-25";
+    const { ui, day } = mountFuel({ nutrition: { calories: "2250" }, data: { [date]: { nutrition: { calories: "2500" } } } });
+    fireEvent.click(ui.getByRole("button", { name: "Log food" }));
+    fireEvent.click(ui.getByRole("button", { name: "Mark food log complete" }));
+    expect(day().nutrition.foodLogConfirmation).toMatchObject({ calories: 2250 });
+    const picker = ui.getByLabelText("Date to confirm");
+    fireEvent.change(picker, { target: { value: date } });
+    fireEvent.click(ui.getByRole("button", { name: "Mark food log complete" }));
+    expect(ui.getByText(/Confirmed full day · 2,500 kcal/)).toBeTruthy();
+    fireEvent.click(ui.getByRole("button", { name: "Reopen food log" }));
+    expect(ui.getByRole("button", { name: "Mark food log complete" })).toBeTruthy();
+    fireEvent.change(picker, { target: { value: TODAY } });
+    expect(ui.getByText(/Confirmed full day · 2,250 kcal/)).toBeTruthy();
+    fireEvent.click(ui.getByRole("button", { name: /^Add by hand/ }));
+    fireEvent.change(ui.getByRole("spinbutton", { name: "Calories (kcal)" }), { target: { value: "2300" } });
+    expect(ui.getByRole("button", { name: "Mark food log complete" })).toBeTruthy();
+  });
   it("keeps a logged food under Today's food, and Undo takes it off again", () => {
     const { ui, showToast, day } = mountFuel();
     expect(within(foodsSection(ui)).getByText(/Nothing logged yet/)).toBeTruthy();

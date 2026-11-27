@@ -10,7 +10,7 @@
 //     what marks it as plan-followed, keeping "did I follow the plan" the
 //     athlete's statement rather than an import's.
 //   · One tap fills miles + time via the existing updateToday write path;
-//     pace derives from the existing autofill effect. No new persistence.
+//     pace derives from the existing autofill effect. Local activity references retain the import identity.
 //   · Editing after confirm is just editing manual fields — provenance flips.
 //   · Dismiss is per-day, remembered locally, and never nags again.
 //   · Disappears on its own the moment manual cardio exists.
@@ -50,6 +50,10 @@ export function buildCardioFillFromActivities(activities) {
   return {
     miles: miles > 0 ? String(miles) : "",
     time: formatMinutesAsTime(minutes),
+    // Keep identity and timing locally alongside the fill so overlapping
+    // recordings from other services can be reconciled after confirmation.
+    activityRefs: used.map(a => ({ source: "strava", id: a.stravaId || a.id, startTime: a.startTime,
+      kind: a.kind === "other" ? null : a.kind, minutes: a.minutes, miles: a.miles })),
     count: used.length,
     titles: used.map((a) => a.title).filter(Boolean),
   };

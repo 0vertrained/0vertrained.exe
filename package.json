@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "sync:version": "node scripts/sync-version.mjs",
     "prebuild": "node scripts/sync-version.mjs",
+    "replay:algorithms": "node scripts/replay-algorithms.mjs",
     "eval:coach": "node scripts/coach-eval.mjs"
   },
   "dependencies": {

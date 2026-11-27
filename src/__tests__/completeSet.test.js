@@ -4,7 +4,7 @@
 // and next time's prescription only once every set is in.
 import { describe, expect, it } from "vitest";
 import { completeSet } from "../workout/completeSet";
-import { buildExercisePrescription } from "../progressionEngine";
+import { buildExercisePrescription, buildProgressionDecision } from "../progressionEngine";
 import { reconcileExerciseSets } from "../workoutLogging";
 
 const exercise = { name: "Bench Press", sets: 2, reps: "6-8" };
@@ -24,11 +24,23 @@ describe("completeSet", () => {
       exercise, prescription, data: {}, todayKey, completedAt: "2026-11-26T15:00:00.000Z",
     });
     expect(result.completed).toMatchObject({ weight: "185", reps: "8", done: true, completedAt: "2026-11-26T15:00:00.000Z" });
+    expect(result.completed.progressionTarget.plan).toMatchObject({ name: "Bench Press", sets: 2, reps: "6-8" });
     expect(result.nextSets[1].done).not.toBe(true);
     expect(result.exerciseComplete).toBe(false);
     expect(result.exData.skipped).toBeUndefined();
     expect(result.exData.progressionDecision).toBeTruthy();
     expect(result.exData.nextPrescription).toBeUndefined();
+  });
+
+  it("scores a chosen target when the athlete actually logs the set", () => {
+    const prescription = { kind: "add_reps", targetWeight: 185, targetReps: [8, 8], targetRir: "1-2" };
+    const chosen = buildProgressionDecision(prescription, { weight: "185" }, { selectedSource: "target" });
+    const initial = start({ progressionDecision: chosen });
+    const result = completeSet({ ...initial, prescription, exercise, todayKey, setIndex: 0,
+      set: { weight: "185", reps: "7", rir: "2" }, selectedSource: "target" });
+    expect(chosen.outcome).toBe("unknown");
+    expect(result.exData.progressionDecision).toMatchObject({ selectedSource: "target", loadMatched: true, outcome: "missed" });
+    expect(result.completed.progressionTarget).toMatchObject({ value: 8, rir: "1-2", plan: { sets: 2, reps: "6-8" } });
   });
 
   it("keeps the decision from the first set and adds next time once every set is in", () => {

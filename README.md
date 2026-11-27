@@ -71,6 +71,44 @@ ids and secrets, VAPID keys, the token encryption key, the Ollama key, `OURA_SYN
 at the top of each function for what it needs. Apply `supabase/schema.sql`, then the migrations, in the
 Supabase SQL editor.
 
+## Replay the training algorithms
+
+Run the replay from a Git checkout with a current Node 22 release. It compares the working tree with the
+pre-change `ios` commit `b39cdcbf41dc03a1647dd39e345088b15c5169aa`. Both versions run locally on the same
+dated entries. If a shallow checkout lacks the baseline, fetch it once with
+`git fetch origin b39cdcbf41dc03a1647dd39e345088b15c5169aa`.
+
+```bash
+npm run replay:algorithms
+npm run replay:algorithms -- --input ~/Downloads/athlete_data_2026-10-18.json
+npm run --silent replay:algorithms -- --input ~/Downloads/athlete_data_2026-10-18.json --through 2026-10-11 --json > replay.json
+```
+
+The first command uses one fictional athlete over 42 days. The fixture includes 15 comparable lifting sets,
+four captured recovery decisions, four weekly reviews and a day with two workouts and overlapping device
+records. It exercises specific changes. Evaluating training benefit would require outcomes from athletes
+who actually trained under each prescription.
+
+For your own history, open **Profile → Your data → Export full backup (JSON)** and substitute that file's path.
+The replay reads the backup locally. The default cutoff is the last dated entry or import. `--through` sets an
+inclusive cutoff, including follow-ups after the last logged day. Run in the athlete’s time zone (for example,
+`TZ=America/Denver npm run replay:algorithms`) for timestamped sets near midnight. `--json` includes day-by-day and
+per-exercise comparisons. The normal backup contains daily entries. For a local dataset with separate device
+records, the runner also accepts an object with `entries` and a `wearables` object containing date-keyed
+`stravaByDate`, `whoopData` and `ouraData` maps.
+
+| Comparison | How to read it |
+| --- | --- |
+| Strength | The old engine, current engine and repeating the last session each propose a load for the same set slot. Mean absolute error measures distance in pounds from the load the athlete chose. Rep attainment uses only attempts at the exact suggested load. Effort needs both a recorded target and logged reps in reserve. The comparison covers completed, loaded straight sets. Older backups can lack a saved plan, so the replay then infers the prescription shape from a prior session. |
+| Recovery | Both resolvers start with the saved Today call and the same captured morning inputs. This isolates how each version combines the call and the wearable verdict. Older decisions without a usable snapshot have no paired result. |
+| Training load | Each pair shows end-of-day load and minutes reconstructed from the sessions available in that input. Session identifiers and start times help distinguish a duplicate import from a second workout. Sparse backups can leave session identity or duration uncertain. |
+| Fuel | Each pair shows whether the available intake and weight history supports an expenditure estimate as of that date. The current engine needs enough confirmed whole-day food logs. Partial days and legacy logs awaiting confirmation can therefore yield fewer estimates. |
+| Weekly coaching | The following seven calendar days form the outcome window. **Pending** means it has yet to close. **Unknown** means follow-through or enough relevant measurements are missing, or the recommendation cannot be scored. Only assessable outcomes enter the favorable rate. |
+
+A backup preserves the current values of past entries. When an older measurement or import lacks its original
+recording timestamp, the replay can place it on its logged date but cannot reconstruct when the app first saw
+it or recover its value before a later edit.
+
 ## Status
 
 In active development toward a beta, by one person. Copyright © Rami. The source is published to be read;

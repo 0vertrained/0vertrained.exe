@@ -21,6 +21,8 @@ import { FoodSearch, fetchUsdaBarcode } from "./FoodSearch";
 import { LoadingShell } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
 import { EnergyIntelligence } from "./EnergyIntelligence";
+import { confirmedCalories, loggedCalories } from "./adaptiveTDEE";
+import { getTodayKey } from "./constants";
 import { addFoodToDay, dayFoods, makeFoodItem, recentFoods, removeFoodFromDay, savedFoods, setFoodServings, toggleSavedFood } from "./foodLog";
 import { FoodEditSheet, SaveMealSheet, ScannedFoodSheet, TodayFoods, YourFoods } from "./FoodLog.jsx";
 import { barcodeScanner, scanFood } from "./barcode";
@@ -56,7 +58,35 @@ function Target({ label, now, goal, unit, compact = false }) {
   );
 }
 
-export function FuelTab({ settings, todayData, updateToday, showToast, todayKey, loaded, data, onPatchSettings = null }) {
+function FoodLogConfirmation({ todayKey, nutrition, data, onConfirm, canSelectDate }) {
+  const [date, setDate] = useState(todayKey);
+  const selected = date === todayKey ? nutrition : data?.[date]?.nutrition;
+  const calories = loggedCalories(selected);
+  const complete = confirmedCalories(selected) !== null;
+  const toggle = () => {
+    if (calories === null) return;
+    onConfirm(date, complete ? null : { calories, confirmedOn: getTodayKey(), confirmedAt: new Date().toISOString() });
+  };
+  return (
+    <section aria-labelledby="food-log-complete" className="kv" style={{ gap: 8 }}>
+      <h2 id="food-log-complete" className="t-h">Full-day food log</h2>
+      {canSelectDate && (
+        <label className="field">
+          <span className="lbl">Date to confirm</span>
+          <input className="input n" type="date" value={date} max={getTodayKey()} onChange={(event) => setDate(event.target.value || todayKey)} />
+        </label>
+      )}
+      <p className="t-s c2" aria-live="polite">{calories === null ? "Enter a calorie total for this day before confirming." : complete
+        ? `Confirmed full day · ${fmt(calories)} kcal. This day can contribute to your energy estimate.`
+        : `${fmt(calories)} kcal logged. Confirm once you have included everything you ate and drank that day.`}</p>
+      <button type="button" className="btn btn-s" disabled={calories === null} onClick={toggle}>
+        {complete ? "Reopen food log" : "Mark food log complete"}
+      </button>
+    </section>
+  );
+}
+
+export function FuelTab({ settings, todayData, updateToday, updateEntryAtDate, showToast, todayKey, loaded, data, onPatchSettings = null }) {
   // today: what is needed · log: search and add · plan: meals and recipes ·
   // targets: what you burn and the calorie target that follows from it.
   const [fuelView, setFuelView] = useState("today");
@@ -299,6 +329,16 @@ export function FuelTab({ settings, todayData, updateToday, showToast, todayKey,
           </div>
         )}
       </section>
+      <FoodLogConfirmation key={todayKey} todayKey={todayKey} nutrition={nut} data={data} canSelectDate={Boolean(updateEntryAtDate)}
+        onConfirm={(date, confirmation) => {
+          if (date === todayKey) {
+            nutRef.current = { ...nutRef.current, foodLogConfirmation: confirmation };
+            updateToday("nutrition.foodLogConfirmation", confirmation);
+          } else {
+            updateEntryAtDate(date, "nutrition.foodLogConfirmation", confirmation);
+          }
+        }}
+      />
     </>
   );
 

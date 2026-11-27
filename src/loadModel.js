@@ -7,6 +7,10 @@
 //     responsive to spikes and free of the window-exit artifacts of rolling means.
 //   • Monotony & strain (Foster) as additional overtraining signals.
 
+import { formatDuration, parseRunTime } from "./runPaces";
+import { reconcileActivities, sportKind } from "./workout/activityMatching";
+import { watchLiftSummary } from "./watch/liftSummary";
+
 const MIN_PER_SET = 3;             // working set incl. rest, minutes (estimate)
 const DEFAULT_PACE_SEC = 9 * 60;   // fallback running pace when none logged (sec/mi)
 
@@ -15,7 +19,7 @@ function paceToSecPerMile(paceStr) {
   if (typeof paceStr !== "string") return null;
   const clean = paceStr.replace(/\/?mi.*$/i, "").replace(/min.*$/i, "").trim();
   const m = clean.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
+  if (!m || Number(m[2]) >= 60) return null;
   const sec = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
   return sec > 0 ? sec : null;
 }
@@ -48,14 +52,43 @@ function cardioEffort(c) {
 export function getLoggedCardioBlocks(wo) {
   const sessionBlocks = Object.values(wo?.cardioSessions || {})
     .filter((c) => c && ((parseFloat(c.miles) || 0) > 0 || String(c.time || "").trim() !== ""));
-  if (sessionBlocks.length) return sessionBlocks;
-  return wo?.cardio ? [wo.cardio] : [];
+  if (!sessionBlocks.length) return wo?.cardio ? [wo.cardio] : [];
+  const plain = wo.cardio;
+  // An athlete can accept an import before later logging the same scheduled
+  // run. Count the scheduled work and any distinct imported components.
+  if (!Array.isArray(plain?.activityRefs) || !plain.activityRefs.length || cardioDuration(plain).minutes <= 0) return sessionBlocks;
+  const groups = sessionBlocks.flatMap(cardioActivityRefs).map(ref => [ref]);
+  const refs = plain.activityRefs.filter(Boolean);
+  const extra = reconcileActivities(groups, refs);
+  if (extra.length === refs.length) return [...sessionBlocks, plain];
+  return sessionBlocks.concat(extra.map(ref => ({
+    ...plain, activityRefs: [ref], miles: ref.miles || 0, time: formatDuration(ref.minutes * 60),
+  })));
+}
+
+export function cardioActivityRefs(block) {
+  const duration = cardioDuration(block);
+  if (duration.minutes <= 0) return [];
+  if (Array.isArray(block.activityRefs) && block.activityRefs.length) return block.activityRefs.filter(Boolean);
+  return [{ kind: sportKind(block.type) || "cardio", startTime: block.startTime ?? block.startedAt,
+    minutes: duration.source === "recorded" ? duration.minutes : 0, miles: Number(block.miles) || 0 }];
+}
+
+// Prefer the athlete's recorded duration, including stationary cardio. Legacy
+// distance-only runs still get a duration estimate.
+export function cardioDuration(block) {
+  const seconds = parseRunTime(block?.time);
+  if (seconds > 0) return { minutes: seconds / 60, source: "recorded" };
+  const miles = Number(block?.miles);
+  if (!(miles > 0) || !Number.isFinite(miles)) return { minutes: 0, source: null };
+  const pace = paceToSecPerMile(block?.pace);
+  return { minutes: miles * (pace || DEFAULT_PACE_SEC) / 60, source: pace ? "distance-and-pace" : "estimated" };
 }
 
 export function computeSessionLoad(dayData) {
   const empty = {
     volume: 0, rpe: 0, sessionRpe: 0, rpeEstimated: true,
-    durationMin: 0, liftingMin: 0, cardioMin: 0,
+    durationMin: 0, durationSource: null, liftingMin: 0, cardioMin: 0,
     load: 0, exerciseCount: 0, cardioMiles: 0, hasWorkout: false,
   };
   if (!dayData || !dayData.workout) return empty;
@@ -75,38 +108,31 @@ export function computeSessionLoad(dayData) {
     if (setCount > 0) { volume += exVolume; exerciseCount++; doneSets += setCount; }
   }
 
-  const cardioBlocks = getLoggedCardioBlocks(wo);
-  const cardioMiles = cardioBlocks.reduce((sum, c) => sum + (parseFloat(c?.miles) || 0), 0);
-  const hasLift = exerciseCount > 0;
-  const hasWorkout = hasLift || cardioMiles > 0;
-  if (!hasWorkout) return empty;
-
-  // Duration = the common currency. Lifting time from set count; running time
-  // from distance × pace. Summed, both modalities contribute on equal footing.
-  const liftingMin = doneSets * MIN_PER_SET;
-  const cardioMin = cardioBlocks.reduce((sum, c) => {
-    const miles = parseFloat(c?.miles) || 0;
-    if (miles <= 0) return sum;
-    const paceSec = paceToSecPerMile(c?.pace) || DEFAULT_PACE_SEC;
-    return sum + (miles * paceSec) / 60;
-  }, 0);
-  const durationMin = liftingMin + cardioMin;
-
+  const watchLift = watchLiftSummary(dayData);
+  const hasLift = exerciseCount > 0 || watchLift != null;
+  const liftingMin = watchLift ? watchLift.seconds / 60 : doneSets * MIN_PER_SET;
   const { rpe: dayRpe, estimated } = resolveSessionRpe(wo, hasLift);
-  // Internal load in arbitrary units. ACWR is invariant to this scale, so there
-  // are no magic normalization constants here — it is literally RPE × minutes.
-  // A run with an effort score of its own (Apple's, read with the run from
-  // the watch) counts at that effort; everything else at the day's RPE.
   let rawLoad = dayRpe * liftingMin;
-  let scoredRun = false;
-  for (const c of cardioBlocks) {
-    const miles = parseFloat(c?.miles) || 0;
-    if (miles <= 0) continue;
-    const minutes = (miles * (paceToSecPerMile(c?.pace) || DEFAULT_PACE_SEC)) / 60;
-    const own = cardioEffort(c);
-    if (own != null) scoredRun = true;
-    rawLoad += (own ?? dayRpe) * minutes;
+  const durationSources = new Set();
+  if (hasLift) durationSources.add(watchLift ? "recorded" : "estimated");
+  let cardioMin = 0;
+  let cardioMiles = 0;
+  let cardioSessionCount = 0;
+  let estimatedEffort = hasLift && estimated;
+  for (const block of getLoggedCardioBlocks(wo)) {
+    const duration = cardioDuration(block);
+    if (duration.minutes <= 0) continue;
+    cardioSessionCount++;
+    cardioMin += duration.minutes;
+    cardioMiles += Math.max(0, Number(block.miles) || 0);
+    durationSources.add(duration.source);
+    const own = cardioEffort(block);
+    if (own == null && estimated) estimatedEffort = true;
+    const effort = own ?? (estimated ? resolveSessionRpe({ cardio: block }, false).rpe : dayRpe);
+    rawLoad += effort * duration.minutes;
   }
+  const durationMin = liftingMin + cardioMin;
+  if (durationMin <= 0) return empty;
   const load = Math.round(rawLoad);
   const sessionRpe = durationMin > 0 ? Math.round((rawLoad / durationMin) * 10) / 10 : dayRpe;
 
@@ -114,16 +140,16 @@ export function computeSessionLoad(dayData) {
     volume: Math.round(volume),
     rpe: sessionRpe,
     sessionRpe,
-    // Estimated unless something was rated: the session, or a run's effort.
-    rpeEstimated: estimated && !scoredRun,
+    rpeEstimated: estimatedEffort,
+    durationSource: durationSources.size > 1 ? "mixed" : [...durationSources][0],
     durationMin: Math.round(durationMin),
     liftingMin: Math.round(liftingMin),
     cardioMin: Math.round(cardioMin),
     load,
     exerciseCount,
     cardioMiles,
-    cardioSessionCount: cardioBlocks.length,
-    hasWorkout,
+    cardioSessionCount,
+    hasWorkout: true,
   };
 }
 
@@ -272,7 +298,7 @@ export function findUnloggedLoadDays(dailyLoads, whoopGrouped, { window = 14, st
     }
     const acts = stravaByDate?.[d.date];
     if (Array.isArray(acts) && acts.length) {
-      const meters = acts.reduce((a, x) => a + (Number(x.distance_m ?? x.distance) || 0), 0);
+      const meters = acts.reduce((a, x) => a + (Number(x.distance_m ?? x.distance) || (Number(x.miles) || 0) * 1609.344), 0);
       if (meters >= 4800) flags.push({ date: d.date, source: "strava", miles: Number((meters / 1609.34).toFixed(1)) });
     }
   }

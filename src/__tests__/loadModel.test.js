@@ -109,3 +109,28 @@ describe("computeRollingLoads (EWMA-ACWR + monotony)", () => {
     expect(out.strain).toBeGreaterThan(0);
   });
 });
+
+describe("recorded workout duration", () => {
+  it("counts a time-only indoor ride at its recorded effort", () => {
+    const out = computeSessionLoad({ workout: { rpe: 6, cardio: { type: "Indoor ride", time: "40:00" } } });
+    expect(out).toMatchObject({ hasWorkout: true, load: 240, durationMin: 40, durationSource: "recorded" });
+  });
+
+  it("uses observed time even if the pace field disagrees or is blank", () => {
+    for (const pace of ["", "9:00"]) {
+      expect(computeSessionLoad({ workout: { rpe: 6, cardio: { miles: "5", time: "1:00:00", pace } } }))
+        .toMatchObject({ durationMin: 60, load: 360 });
+    }
+  });
+
+  it("uses captured Watch lifting duration and plain minutes on old cardio entries", () => {
+    const workout = { rpe: 4, watchWorkouts: [{ id: "a", seconds: 1800 }], cardio: { time: "20" } };
+    expect(computeSessionLoad({ workout })).toMatchObject({ liftingMin: 30, cardioMin: 20, load: 200 });
+  });
+
+  it("keeps invalid duration out of the load and estimates distance-only records", () => {
+    expect(computeSessionLoad({ workout: { cardio: { time: "2:99" } } }).hasWorkout).toBe(false);
+    expect(computeSessionLoad({ workout: { cardio: { time: "-10", miles: 2 } } }))
+      .toMatchObject({ durationSource: "estimated", cardioMin: 18 });
+  });
+});

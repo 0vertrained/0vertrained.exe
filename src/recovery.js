@@ -161,13 +161,22 @@ export function computeRecoveryBaseline(data, refDateKey = null, days = PERSONAL
   return { mean: Math.round(m * 10) / 10, sd: Math.round(sd * 100) / 100, n };
 }
 
+// A morning check-in belongs to the morning on which the athlete entered it.
+// Older diaries logged recovery the previous evening, so fall back to that day.
+export function manualRecoveryForDay(data, day, previousDay) {
+  const body = data?.[day]?.body;
+  const currentInput = [body?.sleep, body?.soreness, body?.energy].some(value => Number.parseFloat(value) > 0);
+  const dayKey = currentInput ? day : previousDay;
+  return calcRecoveryScore(data?.[dayKey], data, dayKey);
+}
+
 // Single recovery entry point for the decision layer: prefer biometric (Oura)
 // recovery when present, otherwise the subjective score. This is what unifies
 // the two same-named scorers — callers no longer pick a source ad hoc.
-export function resolveRecovery({ subjective = null, ouraScore = null } = {}) {
+export function resolveRecovery({ subjective = null, ouraScore = null, wearableSource = "oura" } = {}) {
   if (Number.isFinite(ouraScore)) {
     const s = Math.max(0, Math.min(100, Math.round(ouraScore)));
-    return { score: s, read: getRead(s), color: getColor(s), source: "oura", confidence: "high", components: subjective?.components || null };
+    return { score: s, read: getRead(s), color: getColor(s), source: wearableSource === "whoop" ? "whoop" : "oura", confidence: "high", components: subjective?.components || null };
   }
   if (subjective) return { ...subjective, source: subjective.source || "subjective" };
   return null;

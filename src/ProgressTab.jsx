@@ -349,7 +349,7 @@ export function ProgressTab({  data, settings, program, loaded, updateEntryAtDat
 
   // ── Weekly review ──
   const reviewScreen = [
-    <WeeklyCoachingReview key="review" review={coachReview} week={review} limiter={limiter} updateEntryAtDate={updateEntryAtDate} showToast={showToast} />,
+    <WeeklyCoachingReview key="review" data={data} goals={goals} weeklySamples={calibrationProfile.weekly.samples} review={coachReview} week={review} limiter={limiter} updateEntryAtDate={updateEntryAtDate} showToast={showToast} />,
     <Fragment key="rest">
       <section aria-labelledby="targets-title" style={column(4)}>
         <h2 id="targets-title" className="t-h">Weekly targets</h2>

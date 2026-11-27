@@ -71,9 +71,11 @@ export function runFill(runs) {
 
 /** The log writes a fill makes, one per field it has a value for. */
 export function fillWrites(fill) {
-  return ["miles", "time", "pace", "hr"]
+  const writes = ["miles", "time", "pace", "hr"]
     .filter((field) => fill?.[field])
     .map((field) => ({ path: `workout.cardio.${field}`, value: fill[field] }));
+  if (fill.activityRefs?.length) writes.push({ path: "workout.cardio.activityRefs", value: fill.activityRefs });
+  return writes;
 }
 
 /**
@@ -96,7 +98,9 @@ export function planHealthFills({ runs = [], data = {}, handled = [] } = {}) {
     const entry = data[dateKey] || defaultDay();
     if (hasLoggedRun(entry.workout)) continue;
     const fill = runFill(dayRuns);
-    if (fill) fills.push({ dateKey, ...fill, count: dayRuns.length });
+    if (fill) fills.push({ dateKey, ...fill, count: dayRuns.length,
+      activityRefs: dayRuns.map(r => ({ source: "apple", id: r.id, kind: "run", startTime: r.start || null,
+        minutes: positive(r.seconds) / 60, miles: positive(r.meters) / METERS_PER_MILE })) });
   }
   return { fills, handled: [...handled, ...looked].slice(-HANDLED_LIMIT) };
 }

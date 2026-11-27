@@ -49,11 +49,11 @@ describe("The kit's Method (mounted)", () => {
 });
 
 describe("V17.1 the sweep (source guards)", () => {
-  it("TDEE defends itself: ledger method + measured-vs-formula expandable", () => {
+  it("TDEE explains its estimate and how confirmed food logs contribute", () => {
     const src = read("src/EnergyIntelligence.jsx");
     expect(src).toContain('testId="method-tdee"');
-    expect(src).toContain("not a formula estimate");
-    expect(src).toMatch(/Mifflin/);
+    expect(src).toContain("kcal a day, estimated");
+    expect(src).toContain("confirmed days represent your usual intake");
   });
 
   it("Training load: the ratio is explained, and the term of art stays behind the button", () => {

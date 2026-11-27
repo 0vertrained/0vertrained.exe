@@ -6,6 +6,7 @@
 // intensity-technique sets (drop/myo/rest-pause/partial) are excluded from
 // e1RM because they intentionally distort the load-rep relationship.
 
+import { performedExerciseName } from "./workoutLogging";
 import { effectiveE1RM } from "./sessionIntelligence";
 
 const MIN_SESSIONS = 6;   // below this, "trend" is noise
@@ -18,19 +19,20 @@ function isStraightSet(s) {
 }
 
 // Best e1RM per calendar day for one exercise.
-export function buildE1RMSeries(data, exerciseName, { windowDays = 180 } = {}) {
+export function buildE1RMSeries(data, exerciseName, { windowDays = 180, through = null } = {}) {
   if (!data || !exerciseName) return [];
   return Object.keys(data)
+    .filter(date => !through || date <= through)
     .sort()
     .slice(-windowDays)
     .map(date => {
-      const ex = data[date]?.workout?.exercises?.[exerciseName];
-      if (!ex?.sets) return null;
       let best = 0;
-      for (const s of ex.sets) {
-        if (!s.done || !isStraightSet(s)) continue;
-        const est = effectiveE1RM(s.weight, s.reps, s.rir);
-        if (est && est > best) best = est;
+      for (const [slotName, entry] of Object.entries(data[date]?.workout?.exercises || {})) {
+        if (performedExerciseName(slotName, entry).toLowerCase() !== exerciseName.toLowerCase()) continue;
+        for (const s of entry?.sets || []) {
+          if (!s.done || !isStraightSet(s)) continue;
+          best = Math.max(best, effectiveE1RM(s.weight, s.reps, s.rir) || 0);
+        }
       }
       return best > 0 ? { date, e1rm: best } : null;
     })
@@ -65,7 +67,7 @@ export function buildLiftIntelligence(data, { topN = 6, minSessions = MIN_SESSIO
   if (!data) return { ready: false, lifts: [] };
   const names = new Set();
   for (const day of Object.values(data)) {
-    for (const n of Object.keys(day?.workout?.exercises || {})) names.add(n);
+    for (const [slot, entry] of Object.entries(day?.workout?.exercises || {})) names.add(performedExerciseName(slot, entry));
   }
   const lifts = [...names]
     .map(name => {

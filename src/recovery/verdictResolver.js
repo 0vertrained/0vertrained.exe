@@ -118,6 +118,17 @@ const RESOLVED_PRESCRIPTION = {
  *   recommendation } — `recommendation` is the input shallow-merged with the
  *   resolved label + prescription so downstream echoes stay consistent.
  */
+export function numericRecoveryScore(value) {
+  if (typeof value !== "number" && !(typeof value === "string" && value.trim())) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n) : null;
+}
+
+export function scoreForRecoveryDay(recovery, day) {
+  if (day && recovery?.scoredDay !== day) return null;
+  return numericRecoveryScore(recovery?.score);
+}
+
 export function buildRecoveryVerdict({
   recommendation = null,
   recovery = null,
@@ -127,9 +138,10 @@ export function buildRecoveryVerdict({
   confidence = null,
   checkin = null, // { severity: 0–3, flags: [] } from checkinMorning
 } = {}) {
-  const score = recovery && Number.isFinite(Number(recovery.score)) ? Math.round(Number(recovery.score)) : null;
+  const score = numericRecoveryScore(recovery?.score);
+  if (score === null) recommendation = null;
   const baseLabel = String(recommendation?.label || "").trim().toLowerCase();
-  let call = LABEL_TO_CALL[baseLabel] || (score === null ? "train" : score >= 85 ? "push" : score >= 70 ? "train" : score >= 55 ? "capped" : score >= 40 ? "easy" : "recover");
+  let call = LABEL_TO_CALL[baseLabel] || (score === null ? "push" : score >= 85 ? "push" : score >= 70 ? "train" : score >= 55 ? "capped" : score >= 40 ? "easy" : "recover");
   const baseCall = call;
 
   const alertList = Array.isArray(alerts) ? alerts : [];
@@ -137,7 +149,7 @@ export function buildRecoveryVerdict({
   const warningAlerts = alertList.filter((a) => a?.severity === "warning");
   const debt = num(sleepDebt?.debtHours);
   const zone = trainingLoad?.rolling?.zone || null;
-  const lowConfidence = String(confidence?.level || "").toLowerCase() === "low";
+  const lowConfidence = score !== null && String(confidence?.level || "").toLowerCase() === "low";
 
   // Gather limiters most-severe-first. The first one wins the LimiterRule.
   const limiters = [];
@@ -213,6 +225,8 @@ export function buildRecoveryVerdict({
   }
 
   const limiter = limiters[0] || null;
+  // Without a measured score, only an actual limiter can constrain Today.
+  if (score === null && !limiter) return null;
   const copy = COPY[call] || COPY.train;
   const demoted = call !== baseCall;
 

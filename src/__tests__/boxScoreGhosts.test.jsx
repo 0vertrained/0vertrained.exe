@@ -89,6 +89,19 @@ describe("V17.5 Box Score — headline priority and honest math", () => {
     "2026-07-13": day({ Bench: { sets: [S(185, 8), S(185, 8)] } }),
   };
 
+  it("credits the performed movement across substitutions and dated history", () => {
+    const data = {
+      "2026-07-06": day({ "Barbell Row": { sets: [S(100, 5)] } }),
+      "2026-07-13": day({ "Lat Pulldown": { sets: [S(170, 5)] } }),
+      "2026-07-20": day({ "Barbell Row": { performedName: "Lat Pulldown", sets: [S(160, 5)] } }),
+    };
+    const report = buildBoxScore({ data, todayKey: "2026-07-20" });
+    expect(report.prs).toHaveLength(0);
+    expect(report.arrows).toMatchObject([{ name: "Lat Pulldown", dir: "↘" }]);
+    const next = { ...data, "2026-07-27": day({ "Lat Pulldown": { sets: [S(180, 5)] } }) };
+    expect(buildBoxScore({ data: next, todayKey: "2026-07-27" }).prs[0]).toMatchObject({ name: "Lat Pulldown", priorBest: 198 });
+  });
+
   it("a genuine e1RM PR wins the headline and names the prior best", () => {
     const data = { ...base, "2026-07-20": day({ Bench: { sets: [S(205, 8)] } }) };
     const b = buildBoxScore({ data, todayKey: "2026-07-20", todayName: "Push" });
