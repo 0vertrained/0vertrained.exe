@@ -13,6 +13,7 @@
 
 import { Flow, Icon, TopBar } from "./ui/ledger";
 import { watchLiftLine } from "./watch/liftSummary";
+import { effortWord } from "./effort";
 
 const NBSP = " ";
 const fmt = (value) => Math.round(value).toLocaleString("en-US");
@@ -61,7 +62,27 @@ function RangeMark({ label, sets, range }) {
   );
 }
 
-export function SessionComplete({ boxScore, finisher, onDismiss, dateKey = "", sessionName = "" }) {
+// How hard the session was, 1 to 10. It sets the session's load, and with
+// Save to Apple Health on it goes to Health with the workout.
+function EffortRating({ value, onChange }) {
+  const chosen = Number.parseFloat(value);
+  const current = Number.isFinite(chosen) && chosen >= 1 && chosen <= 10 ? Math.round(chosen) : null;
+  return (
+    <section aria-labelledby="box-effort" data-testid="box-effort" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="kv">
+        <h3 id="box-effort" className="t-h">How hard was it?</h3>
+        <p className="t-s c2">{current ? `${current}, ${effortWord(current)}. It sets this session’s training load.` : "1 is easy, 10 is all out. It sets this session’s training load."}</p>
+      </div>
+      <div className="chips" role="group" aria-labelledby="box-effort">
+        {Array.from({ length: 10 }, (_, index) => index + 1).map((score) => (
+          <button key={score} type="button" className="chip n-s" aria-pressed={current === score} aria-label={`${score}, ${effortWord(score)}`} onClick={() => onChange(score)} style={{ minWidth: 44, justifyContent: "center" }}>{score}</button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function SessionComplete({ boxScore, finisher, onDismiss, dateKey = "", sessionName = "", effort = "", onEffort = null }) {
   const b = boxScore || {};
   const lifts = b.lifts || [];
   const compare = b.tonnageCompare || null;
@@ -148,6 +169,8 @@ export function SessionComplete({ boxScore, finisher, onDismiss, dateKey = "", s
                 )}
               </section>
             )}
+
+            {onEffort && <EffortRating value={effort} onChange={onEffort} />}
 
             {finisher && (
               <div className="banner" style={{ alignItems: "center" }}>

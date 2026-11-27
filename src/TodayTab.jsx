@@ -636,6 +636,8 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           boxScore={boxScore || buildBoxScore({ data: allData, todayKey, todayName: sessionTitle })}
           dateKey={todayKey}
           sessionName={sessionTitle}
+          effort={wo.rpe}
+          onEffort={(score) => updateToday("workout.rpe", String(score))}
           finisher={hasPlannedCardio && !cardioLogged && activeCardioSession?.cardio ? {
             label: `${activeCardioSession.cardio.type} · ${activeCardioSession.cardio.miles} mi`,
             onLog: () => {
