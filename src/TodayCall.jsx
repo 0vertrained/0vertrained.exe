@@ -19,13 +19,8 @@ import { describeTodayCall } from "./recovery/verdictResolver";
 import { TrainingAdjustmentInline } from "./sections/TrainingAdjustmentInline";
 import { buildTomorrowOutlook } from "./uiStability";
 import { Bar, Icon, LinkRow, Meter, Seg, Sheet } from "./ui/ledger";
-import strengthPhoto from "./assets/training/strength.webp";
-import trackPhoto from "./assets/training/track.webp";
-import corePhoto from "./assets/training/core.webp";
-import "./todaySessionPhoto.css";
 
 const NBSP = "\u00a0";
-const SESSION_PHOTOS = { strength: strengthPhoto, track: trackPhoto, core: corePhoto };
 const finite = (value) => {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
@@ -126,7 +121,6 @@ export function CallCard({ ops, decision, recommendation, call: sharedCall = nul
   const call = sharedCall || describeTodayCall(decision?.call);
   const score = finite(sharedCall ? sharedCall.score : recommendation?.readinessIndex);
   const inked = ops.checkin.complete;
-  const photo = call.call === "recover" ? null : SESSION_PHOTOS[primary?.art];
   return (
     <section className={`card ${inked ? "is-ink" : "pencil"}`} aria-labelledby="call" data-section="physique-os" data-ui="today-command-center" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 16px 8px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44 }}>
@@ -159,16 +153,9 @@ export function CallCard({ ops, decision, recommendation, call: sharedCall = nul
           <button type="button" className="btn btn-s btn-sm" onClick={finished.onOpen}>Box Score</button>
         </div>
       ) : (
-        <div className={photo ? "today-session-photo-row" : undefined}>
-          <div className={photo ? "kv" : "today-session-title"}>
-            <h3 className="t-h">{sessionTitle}</h3>
-            {exerciseCount > 0 && <span className="t-s c2">{exerciseCount}{NBSP}exercises</span>}
-          </div>
-          {photo && (
-            <div className="today-session-photo" aria-hidden="true">
-              <img src={photo} alt="" decoding="async" />
-            </div>
-          )}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <h3 className="t-h grow clip">{sessionTitle}</h3>
+          {exerciseCount > 0 && <span className="t-s c2">{exerciseCount}{NBSP}exercises</span>}
         </div>
       )}
       {primary && (

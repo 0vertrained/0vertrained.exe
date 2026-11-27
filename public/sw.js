@@ -53,9 +53,7 @@ async function networkWithTimeout(request, timeoutMs) {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  // Safari seeks through a movie with byte ranges. The browser handles those
-  // requests directly since Cache Storage cannot store a partial response.
-  if (request.method !== "GET" || request.headers.has("range")) return;
+  if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/") || url.pathname.startsWith("/.netlify/")) return;
 

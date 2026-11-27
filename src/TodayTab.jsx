@@ -29,7 +29,7 @@ import { getDecisionFeedbackBrief } from "./decisionFeedback";
 import { SessionComplete } from "./SessionComplete";
 import { LoadingShell } from "./ui/primitives";
 import { getSkeletonPlan } from "./uiStability";
-import { buildTodayPlan, buildNextAction, sessionPhotoFor } from "./todaySummary";
+import { buildTodayPlan, buildNextAction } from "./todaySummary";
 import { CascadeSet } from "./CascadeSet";
 import { GhostChip } from "./GhostChip";
 import { lastSessionSets, firstEmptyIndex, ghostForSet } from "./setGhosts";
@@ -541,17 +541,11 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
   const nextDay = shiftDay(1);
   // The one primary action on the call card, from the same ladder as before:
   // start, continue, cardio, then closing out the day.
-  const plannedCardio = activeCardioSession?.cardio;
-  const nextIsRun = isRunCardio(plannedCardio);
-  const sessionArt = sessionPhotoFor(
-    nextAction?.status === "cardio" ? [] : plannedLifting,
-    cardioLogged ? null : plannedCardio
-  );
   const primary = isLoggingPast ? null
     : !nextAction ? null
-    : nextAction.status === "start" ? { label: "Start session", art: sessionArt, onGo: runNextAction }
-    : nextAction.status === "continue" ? { label: "Resume session", art: sessionArt, onGo: runNextAction }
-    : nextAction.status === "cardio" ? { label: nextIsRun ? "Start run" : "Start cardio", art: sessionArt, onGo: runNextAction }
+    : nextAction.status === "start" ? { label: "Start session", onGo: runNextAction }
+    : nextAction.status === "continue" ? { label: "Resume session", onGo: runNextAction }
+    : nextAction.status === "cardio" ? { label: isRunCardio(activeCardioSession?.cardio) ? "Start run" : "Start cardio", onGo: runNextAction }
     : null;
   // Once the lifting is done the card names it and offers the Box Score, and
   // closing out the day becomes the next thing to do.

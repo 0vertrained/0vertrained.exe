@@ -14,7 +14,6 @@
 import { Flow, Icon, TopBar } from "./ui/ledger";
 import { watchLiftLine } from "./watch/liftSummary";
 import { effortWord } from "./effort";
-import { FinishFilm } from "./sections/FinishFilm";
 
 const NBSP = " ";
 const fmt = (value) => Math.round(value).toLocaleString("en-US");
@@ -101,14 +100,11 @@ export function SessionComplete({ boxScore, finisher, onDismiss, dateKey = "", s
         <TopBar title="The Box Score" close="Close" onClose={onDismiss} />
         <div className="main" style={{ gap: 20 }}>
           <div className="mo-print" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <header className="box-score-head">
-              <div className="box-score-heading">
-                {(dateKey || sessionName) && <p className="t-s c2">{[dayLabel(dateKey), sessionName].filter(Boolean).join(" · ")}</p>}
-                <h2 className="t-xl">{b.headline || "Session logged."}</h2>
-                {lifts.length > 0 && <p className="t-s c2">{b.liftsDone} of {lifts.length}{NBSP}exercises done.</p>}
-                {b.watch && <p className="t-s c2" data-testid="box-watch">On your watch: {watchLiftLine(b.watch)}.</p>}
-              </div>
-              {b.liftsDone > 0 && <FinishFilm />}
+            <header style={{ borderTop: "3px solid var(--ink)", paddingTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+              {(dateKey || sessionName) && <p className="t-s c2">{[dayLabel(dateKey), sessionName].filter(Boolean).join(" · ")}</p>}
+              <h2 className="t-xl">{b.headline || "Session logged."}</h2>
+              {lifts.length > 0 && <p className="t-s c2">{b.liftsDone} of {lifts.length}{NBSP}exercises done.</p>}
+              {b.watch && <p className="t-s c2" data-testid="box-watch">On your watch: {watchLiftLine(b.watch)}.</p>}
             </header>
 
             {(b.prs || []).map((pr, index) => (
