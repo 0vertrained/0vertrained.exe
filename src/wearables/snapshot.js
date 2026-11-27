@@ -20,8 +20,9 @@ import {
   emptySnapshotResult,
 } from "./snapshotSanitize";
 
-async function getAccessToken() {
+async function getAccessToken(owner) {
   const { data: { session } } = await supabase.auth.getSession();
+  if (owner && session?.user?.id !== owner) return null;
   return session?.access_token || null;
 }
 
@@ -108,17 +109,18 @@ export async function fetchServerSnapshotStatus() {
  * { ok } / { skipped } / { error } and never throws so it can't break a render.
  *
  * @param {object} snapshot - already-rendered display-safe dashboard values
- * @param {{ source?: string }} [opts]
+ * @param {{ source?: string, owner?: string, signal?: AbortSignal }} [opts]
  */
-export async function postServerSnapshot(snapshot, { source = null } = {}) {
+export async function postServerSnapshot(snapshot, { source = null, owner, signal } = {}) {
   if (isDemoMode()) return { ok: true, demo: true };
   if (!snapshot || typeof snapshot !== "object") return { skipped: true };
   try {
-    const token = await getAccessToken();
-    if (!token) return { skipped: true };
+    const token = await getAccessToken(owner);
+    if (!token || signal?.aborted) return { skipped: true };
     const safe = toDisplaySafeSnapshot(snapshot);
     const r = await fetch("/api/wearable/snapshot", {
       method: "POST",
+      signal,
       headers: {
         "accept": "application/json",
         "content-type": "application/json",
@@ -130,6 +132,7 @@ export async function postServerSnapshot(snapshot, { source = null } = {}) {
     if (!r.ok) return { error: `status ${r.status}` };
     return { ok: true };
   } catch (e) {
+    if (signal?.aborted) return { skipped: true };
     console.error("postServerSnapshot error:", e);
     return { error: e.message };
   }

@@ -5,7 +5,9 @@
 // when the app opens and each time it comes back. In a browser, or while
 // it's off, it does nothing.
 
-import { useEffect, useRef, useState } from "react";
+import { APP_FOREGROUND_EVENT } from "../integrations/appForeground";
+import { useDeviceToggle } from "./useDeviceToggle";
+import { useEffect, useRef } from "react";
 import { isNativeApp, nativePlugin } from "../native";
 import { HEALTH_DAILY_EVENT, readHealthDailyOn } from "./healthDailyState";
 
@@ -13,17 +15,11 @@ import { HEALTH_DAILY_EVENT, readHealthDailyOn } from "./healthDailyState";
 export const HEALTH_DAILY_DAYS = 3;
 
 // `ready`: the account's own data is loaded, so writes land on real days.
-export function useHealthDaily({ ready, data, wearables, updateEntryAtDate }) {
+export function useHealthDaily({ owner, ready, data, wearables, updateEntryAtDate }) {
   const native = isNativeApp() && Boolean(nativePlugin("OTHealth"));
-  const [on, setOn] = useState(() => readHealthDailyOn());
+  const on = useDeviceToggle(HEALTH_DAILY_EVENT, readHealthDailyOn, owner, native && ready);
   const latest = useRef({ data, wearables, updateEntryAtDate });
   useEffect(() => { latest.current = { data, wearables, updateEntryAtDate }; });
-
-  useEffect(() => {
-    const sync = () => setOn(readHealthDailyOn());
-    window.addEventListener(HEALTH_DAILY_EVENT, sync);
-    return () => window.removeEventListener(HEALTH_DAILY_EVENT, sync);
-  }, []);
 
   useEffect(() => {
     if (!native || !ready || !on) return undefined;
@@ -48,13 +44,12 @@ export function useHealthDaily({ ready, data, wearables, updateEntryAtDate }) {
       }
     };
     void fill();
-    const onVisible = () => { if (document.visibilityState === "visible") void fill(); };
-    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener(APP_FOREGROUND_EVENT, fill);
     return () => {
       cancelled = true;
-      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(APP_FOREGROUND_EVENT, fill);
     };
-  }, [native, ready, on]);
+  }, [native, ready, on, owner]);
 }
 
 export default useHealthDaily;

@@ -4,9 +4,10 @@
 // sends today's plan back with those events marked as seen. In a browser, or
 // before the account's data is in, it does nothing.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { DAYS, getTodayKey } from "../constants";
+import { APP_FOREGROUND_EVENT } from "../integrations/appForeground";
 import { useWatchBridge } from "../watch/useWatchBridge";
 
 const upper = { type: "Upper B", lifting: [{ name: "Bench Press", sets: 3, reps: 8 }], cardio: null };
@@ -115,6 +116,17 @@ describe("useWatchBridge", () => {
     watch.addListener.mock.calls[0][1]();
     await waitFor(() => expect(watch.ack).toHaveBeenCalledWith({ ids: ["delayed"] }));
     expect(result.current[today].workout.exercises["Bench Press"].sets[0].watchEventID).toBe("delayed");
+  });
+
+  it("drains a late offline set on foreground even if WatchConnectivity missed its notification", async () => {
+    const inbox = [];
+    const watch = installWatch(inbox);
+    const { result } = renderHook(() => useApp(true, "A"));
+    await act(async () => {});
+    inbox.push(JSON.stringify({ ...JSON.parse(eventFor(getTodayKey(), "late", 0)), owner: "A" }));
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    await waitFor(() => expect(watch.ack).toHaveBeenCalledWith({ ids: ["late"], owner: "A" }));
+    expect(result.current[getTodayKey()].workout.exercises["Bench Press"].sets[0].watchEventID).toBe("late");
   });
 
   it("drains again when the phone hears from the watch", async () => {

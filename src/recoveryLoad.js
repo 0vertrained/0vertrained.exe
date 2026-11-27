@@ -102,12 +102,13 @@ const getRawRecoveryMetrics = (ouraData, sleepDebt) => {
 
 /**
  * Load and score recovery for one account.
- * @returns {Promise<object>} { connected, tokenStatus, whoopConnected,
+ * Returns null when the read was cancelled or connection status could not be verified.
+ * @returns {Promise<object|null>} { connected, tokenStatus, whoopConnected,
  *   whoopGrouped, ouraGrouped, provenance, unloggedFlags, editionRaw,
  *   snapshot, savedAt }. `snapshot` has the shape the caches keep (and that
  *   Recovery hydrates from); `savedAt` is set once the caches were written.
  */
-export async function loadRecoveryData({ data, yesterdayKey, settings, userId, alertHistory = {} } = {}) {
+export async function loadRecoveryData({ data, yesterdayKey, settings, userId, alertHistory = {}, signal } = {}) {
   const out = {
     startedAt: Date.now(),
     connected: false,
@@ -121,6 +122,7 @@ export async function loadRecoveryData({ data, yesterdayKey, settings, userId, a
     snapshot: null,
     savedAt: null,
   };
+  if (signal?.aborted) return null;
   let nextSnapshot;
     // One status call, fired in parallel with the data query (the query
     // needs no status — a disconnected user simply gets an empty result, at
@@ -135,6 +137,12 @@ export async function loadRecoveryData({ data, yesterdayKey, settings, userId, a
       loadStravaActivities(28).catch(() => []), // same load window as Today
       getWhoopTokenStatus().catch(() => null), // whether to blend the two wearables
     ]);
+    if (signal?.aborted) return null;
+    // Losing the network during launch must not replace a saved verdict with
+    // a newly timestamped "disconnected" snapshot.
+    const statuses = [tokenStat, whoopStat];
+    const verified = statuses.filter(status => status && !["error", "unauthenticated", "not_configured"].includes(status.syncStatus));
+    if (verified.length < statuses.length && !verified.some(status => status.connected)) return null;
     const stravaGrouped = groupStravaByDate(stravaActs || []);
     perfMark("recovery", "oura-ready");
     const isConn = Boolean(tokenStat?.connected);
@@ -299,7 +307,7 @@ export async function loadRecoveryData({ data, yesterdayKey, settings, userId, a
       // from the Supabase Bearer token; token-like fields are stripped both
       // client- and server-side. Fire-and-forget: never blocks the render.
       const snapSource = nextSnapshot.recovery?.source || (nextSnapshot.subjectiveRecovery ? "manual" : null);
-      postServerSnapshot(nextSnapshot, { source: snapSource }).catch(() => {});
+      postServerSnapshot(nextSnapshot, { source: snapSource, owner: userId, signal }).catch(() => {});
     }
   out.snapshot = nextSnapshot || null;
   return out;

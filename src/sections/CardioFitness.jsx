@@ -5,22 +5,39 @@
 
 import { useEffect, useState } from "react";
 import { nativePlugin } from "../native";
-import { readWatchRunsOn } from "../watch/watchRunsState";
+import { APP_FOREGROUND_EVENT } from "../integrations/appForeground";
+import { useDeviceToggle } from "../health/useDeviceToggle";
+import { WATCH_RUNS_EVENT, readWatchRunsOn } from "../watch/watchRunsState";
 import { cardioFitnessTrend } from "../runProgress";
 import { LineChart, shortDate } from "./charts";
 
 const NBSP = "\u00a0";
 
-export function CardioFitness() {
-  const [points, setPoints] = useState(null);
+export function CardioFitness({ owner }) {
+  const [reading, setReading] = useState(null);
+  const on = useDeviceToggle(WATCH_RUNS_EVENT, readWatchRunsOn, owner, owner !== null && Boolean(nativePlugin("OTRuns")));
   useEffect(() => {
     const plugin = nativePlugin("OTRuns");
-    if (typeof plugin?.cardioFitness !== "function" || !readWatchRunsOn()) return undefined;
+    if (typeof plugin?.cardioFitness !== "function" || !on) return undefined;
     let alive = true;
-    plugin.cardioFitness({ days: 365 }).then((result) => { if (alive) setPoints(result?.points || []); }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-  const trend = cardioFitnessTrend(points || []);
+    let running = false;
+    const refresh = async () => {
+      if (running) return;
+      running = true;
+      try {
+        const result = await plugin.cardioFitness({ days: 365 });
+        if (alive) setReading({ owner, points: result?.points || [] });
+      } catch { /* Try again when Progress returns to the foreground. */ }
+      finally { running = false; }
+    };
+    void refresh();
+    window.addEventListener(APP_FOREGROUND_EVENT, refresh);
+    return () => {
+      alive = false;
+      window.removeEventListener(APP_FOREGROUND_EVENT, refresh);
+    };
+  }, [on, owner]);
+  const trend = on && reading?.owner === owner && cardioFitnessTrend(reading?.points || []);
   if (!trend) return null;
   const { latest, change, since } = trend;
   const moved = change == null ? "" : change === 0 ? `, level with ${shortDate(since)}` : `, ${change > 0 ? "up" : "down"} ${Math.abs(change)} since ${shortDate(since)}`;

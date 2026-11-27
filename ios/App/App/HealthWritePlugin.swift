@@ -78,7 +78,7 @@ public class HealthWritePlugin: CAPPlugin, CAPBridgedPlugin {
             quantity: HKQuantity(unit: .pound(), doubleValue: pounds),
             start: at,
             end: at,
-            metadata: Self.sync("weight.\(key)")
+            metadata: Self.sync("weight.\(key)", call)
         )
         save([sample], call)
     }
@@ -101,10 +101,10 @@ public class HealthWritePlugin: CAPPlugin, CAPBridgedPlugin {
                     quantity: HKQuantity(unit: part.unit, doubleValue: amount),
                     start: at,
                     end: at,
-                    metadata: Self.sync(sync)
+                    metadata: Self.sync(sync, call)
                 ))
             } else {
-                cleared.append((type: HKQuantityType(part.id), sync: "ovt.\(sync)"))
+                cleared.append((type: HKQuantityType(part.id), sync: Self.identifier(sync, call)))
             }
         }
         let toSave = samples
@@ -142,7 +142,7 @@ public class HealthWritePlugin: CAPPlugin, CAPBridgedPlugin {
                 call.resolve(["saved": false, "rated": false])
                 return
             }
-            builder.addMetadata(Self.sync("lift.\(id)")) { _, _ in
+            builder.addMetadata(Self.sync("lift.\(id)", call)) { _, _ in
                 builder.endCollection(withEnd: end) { ended, _ in
                     guard ended else {
                         call.resolve(["saved": false, "rated": false])
@@ -178,12 +178,19 @@ public class HealthWritePlugin: CAPPlugin, CAPBridgedPlugin {
         let start = Date(timeIntervalSince1970: startMs / 1000)
         let end = Date(timeIntervalSince1970: endMs / 1000)
         Task {
-            try? await self.health.requestAuthorization(toShare: Self.shareTypes, read: [HKObjectType.workoutType()])
             let near = NSCompoundPredicate(andPredicateWithSubpredicates: [
                 HKQuery.predicateForWorkouts(with: .traditionalStrengthTraining),
                 HKQuery.predicateForSamples(withStart: start.addingTimeInterval(-600), end: end.addingTimeInterval(600), options: [])
             ])
-            let found = await self.workouts(near)
+            let owner = call.getString("owner")
+            let candidates = await self.workouts(near)
+            let found = candidates.filter { workout in
+                guard let recorded = workout.metadata?["OTAthleteOwner"] as? String else {
+                    // Pre-account Watch workouts belong to the original pairing.
+                    return call.getString("prefix") == nil
+                }
+                return recorded == owner
+            }
             let best = found.max { Self.overlap($0, start, end) < Self.overlap($1, start, end) }
             guard let workout = best, Self.overlap(workout, start, end) > 0 else {
                 call.resolve(["rated": false])
@@ -263,11 +270,17 @@ public class HealthWritePlugin: CAPPlugin, CAPBridgedPlugin {
 
     /// Health's sync identifier and a version that only goes up, so a newer
     /// save replaces an older one with the same identifier.
-    private static func sync(_ identifier: String) -> [String: Any] {
-        [
-            HKMetadataKeySyncIdentifier: "ovt.\(identifier)",
+    private static func identifier(_ name: String, _ call: CAPPluginCall) -> String {
+        "\(call.getString("prefix") ?? "ovt").\(name)"
+    }
+
+    private static func sync(_ name: String, _ call: CAPPluginCall) -> [String: Any] {
+        var metadata: [String: Any] = [
+            HKMetadataKeySyncIdentifier: identifier(name, call),
             HKMetadataKeySyncVersion: NSNumber(value: Int64(Date().timeIntervalSince1970 * 1000))
         ]
+        if let owner = call.getString("owner") { metadata["OTAthleteOwner"] = owner }
+        return metadata
     }
 
     private static let dayFormatter: DateFormatter = {

@@ -2,6 +2,7 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 import { ThemeProvider } from "../theme";
 import { DEFAULT_SETTINGS } from "../data";
+import { disconnectOura } from "../oura";
 import { SettingsScreen } from "../SettingsScreen";
 import { setWhoopBluetoothOwner } from "../whoop/bluetooth";
 
@@ -83,6 +84,18 @@ describe("V19.4 Integrations landing", () => {
     expect(notice.getAttribute("role")).toBe("status");
     const oura = within(screen.getByRole("heading", { level: 2, name: "Oura" }).closest("section"));
     expect(await oura.findByText(/^Connected · /)).toBeTruthy();
+  });
+
+  it("keeps the connection visible and offers a retry when unlinking fails", async () => {
+    disconnectOura.mockResolvedValueOnce({ error: "temporarily unavailable" });
+    const { onPatch } = renderLanding({ settings: { ...DEFAULT_SETTINGS, ouraConnected: true } });
+    const oura = within(screen.getByRole("region", { name: "Oura" }));
+    await oura.findByText(/^Connected · /);
+    fireEvent.click(oura.getByRole("button", { name: "Disconnect" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Confirm" })).getByRole("button", { name: "Disconnect" }));
+    expect(await oura.findByText(/Couldn’t finish disconnecting Oura/)).toBeTruthy();
+    expect(oura.getByRole("button", { name: "Disconnect" })).toBeTruthy();
+    expect(onPatch).not.toHaveBeenCalledWith({ ouraConnected: false });
   });
 
   it("persists the confirmed connection through the quiet patch, not the closing Save", async () => {

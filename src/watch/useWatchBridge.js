@@ -8,6 +8,7 @@
 // is simply read again on the next drain.
 
 import { useEffect, useRef, useState } from "react";
+import { APP_FOREGROUND_EVENT } from "../integrations/appForeground";
 import { getTodayKey } from "../constants";
 import { isNativeApp, nativePlugin } from "../native";
 
@@ -24,6 +25,7 @@ export function useWatchBridge({ ready, owner = null, builderPreferences, data, 
   const seen = useRef([]);
   const [seenVersion, setSeenVersion] = useState(0);
   const lastSent = useRef("");
+  const [wake, setWake] = useState(0);
   // Days as this hook last wrote them, until React's data catches up. An
   // entry is used only while the day it was built on is still the one in
   // state, so a second drain never works from a day missing the first one's
@@ -35,7 +37,6 @@ export function useWatchBridge({ ready, owner = null, builderPreferences, data, 
     written.current = {};
     lastSent.current = "";
   }, [owner]);
-
 
   useEffect(() => {
     if (!native || !ready) return undefined;
@@ -99,11 +100,11 @@ export function useWatchBridge({ ready, owner = null, builderPreferences, data, 
     void drain();
     let listener = null;
     try { listener = watch.addListener?.("watchEvent", () => { void drain(); }); } catch { listener = null; }
-    const onVisible = () => { if (document.visibilityState === "visible") void drain(); };
-    document.addEventListener("visibilitychange", onVisible);
+    const resume = () => { setWake(value => value + 1); void drain(); };
+    window.addEventListener(APP_FOREGROUND_EVENT, resume);
     return () => {
       cancelled = true;
-      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(APP_FOREGROUND_EVENT, resume);
       Promise.resolve(listener).then((handle) => handle?.remove?.()).catch(() => {});
     };
   }, [native, ready, owner]);
@@ -129,7 +130,7 @@ export function useWatchBridge({ ready, owner = null, builderPreferences, data, 
       }
     }, SEND_DELAY_MS);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [native, ready, owner, builderPreferences, data, program, todayKey, wearableScore, readiness, seenVersion]);
+  }, [native, ready, owner, builderPreferences, data, program, todayKey, wearableScore, readiness, seenVersion, wake]);
 }
 
 export default useWatchBridge;

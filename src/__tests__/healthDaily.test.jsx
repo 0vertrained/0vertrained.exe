@@ -3,11 +3,12 @@
 // fill in, and sleep, resting heart rate and HRV too when there's no Oura or
 // Whoop. Empty fields are filled and kept current; typed numbers stay.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { planHealthDailyFills } from "../health/healthDaily";
 import { useHealthDaily } from "../health/useHealthDaily";
 import { readHealthDailyOn, writeHealthDailyOn } from "../health/healthDailyState";
+import { APP_FOREGROUND_EVENT } from "../integrations/appForeground";
 import { AppleHealthCard } from "../sections/AppleHealthCard";
 
 const DAY = "2026-11-26";
@@ -89,6 +90,36 @@ describe("useHealthDaily", () => {
     await waitFor(() => expect(result.current[DAY]?.activity?.steps).toBe("8123"));
     expect(plugin.daily).toHaveBeenCalledWith({ days: 3 });
     expect(result.current[DAY].body).toMatchObject({ weight: "190.2", sleep: "7.4", restingHeartRate: "52", hrv: "61" });
+  });
+
+  it("refreshes on native foreground and discards an in-flight read after switching athletes", async () => {
+    const plugin = installHealth([]);
+    const write = vi.fn();
+    let complete;
+    localStorage.setItem("ovt-health-daily-on", "1");
+    localStorage.setItem("0vt.watch.legacyOwner.v1", "A");
+    const { rerender } = renderHook(({ owner, ready }) =>
+      useHealthDaily({ owner, ready, data: {}, updateEntryAtDate: write }), { initialProps: { owner: "A", ready: false } });
+    expect(plugin.daily).not.toHaveBeenCalled();
+    rerender({ owner: "A", ready: true });
+    await act(async () => {});
+    expect(plugin.daily).toHaveBeenCalledTimes(1);
+    plugin.daily.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    expect(plugin.daily).toHaveBeenCalledTimes(2);
+    rerender({ owner: "B", ready: true });
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    await act(async () => complete({ days: [health] }));
+    expect(plugin.daily).toHaveBeenCalledTimes(2);
+    expect(write).not.toHaveBeenCalled();
+    act(() => writeHealthDailyOn(true, "B"));
+    await waitFor(() => expect(plugin.daily).toHaveBeenCalledTimes(3));
+    act(() => writeHealthDailyOn(false, "B"));
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    expect(plugin.daily).toHaveBeenCalledTimes(3);
+    expect(readHealthDailyOn("A")).toBe(true);
+    expect(plugin.enable).not.toHaveBeenCalled();
   });
 
   it("does nothing in a browser", async () => {

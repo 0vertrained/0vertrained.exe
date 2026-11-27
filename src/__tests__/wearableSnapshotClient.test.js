@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { supabase } from "../supabaseClient";
 import {
   fetchServerSnapshot,
   fetchServerSnapshotStatus,
@@ -30,6 +31,17 @@ describe("wearables/snapshot client", () => {
   it("skips the server POST when there is no token, without throwing", async () => {
     const res = await postServerSnapshot({ recovery: { score: 80 } }, { source: "oura" });
     expect(res).toEqual({ skipped: true });
+  });
+
+  it("drops a stale refresh if the session changes or the caller cancels", async () => {
+    vi.spyOn(supabase.auth, "getSession").mockResolvedValue({ data: { session: { user: { id: "current" }, access_token: "token" } } });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const snapshot = { recovery: { score: 80 } };
+    expect(await postServerSnapshot(snapshot, { owner: "previous" })).toEqual({ skipped: true });
+    const controller = new AbortController();
+    controller.abort();
+    expect(await postServerSnapshot(snapshot, { owner: "current", signal: controller.signal })).toEqual({ skipped: true });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("skips the POST for a non-object snapshot", async () => {

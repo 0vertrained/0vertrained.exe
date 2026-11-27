@@ -248,14 +248,16 @@ export async function consumeProviderOAuthState(supabaseUrl, serviceKey, { provi
   return row.user_id || null;
 }
 
-export async function getConnectedAccount(supabaseUrl, serviceKey, userId, provider) {
+export async function getConnectedAccount(supabaseUrl, serviceKey, userId, provider, { strict = false } = {}) {
   if (!supabaseUrl || !serviceKey || !userId || !provider) return null;
   const r = await fetch(
     `${supabaseUrl}/rest/v1/connected_accounts?user_id=eq.${encodeURIComponent(userId)}&provider=eq.${encodeURIComponent(provider)}&select=${CONNECTED_ACCOUNT_SELECT}&limit=1`,
     { headers: serviceHeaders(serviceKey) }
   );
+  if (strict && !r.ok && r.status !== 404) throw new Error("Could not read provider connection");
   if (!r.ok) return null;
-  return (await r.json().catch(() => []))?.[0] || null;
+  const rows = strict ? await r.json() : await r.json().catch(() => []);
+  return rows?.[0] || null;
 }
 
 export function decryptAccountTokens(account, env = process.env) {
@@ -292,7 +294,8 @@ export async function deleteProviderData(supabaseUrl, serviceKey, userId, provid
     await fetch(`${supabaseUrl}/rest/v1/activity_streams?activity_id=eq.${encodeURIComponent(id)}`, { method: "DELETE", headers });
   }
   await fetch(`${supabaseUrl}/rest/v1/activities?user_id=eq.${encodeURIComponent(userId)}&source_provider=eq.${encodeURIComponent(provider)}`, { method: "DELETE", headers });
-  await fetch(`${supabaseUrl}/rest/v1/connected_accounts?user_id=eq.${encodeURIComponent(userId)}&provider=eq.${encodeURIComponent(provider)}`, { method: "DELETE", headers });
+  const accountDelete = await fetch(`${supabaseUrl}/rest/v1/connected_accounts?user_id=eq.${encodeURIComponent(userId)}&provider=eq.${encodeURIComponent(provider)}`, { method: "DELETE", headers });
+  if (!accountDelete.ok) throw new Error("Provider disconnect failed");
   return true;
 }
 
@@ -333,9 +336,9 @@ export function tokenEncryptionConfigured(env = process.env) {
   return Boolean(stableEncryptionKey(env.TOKEN_ENCRYPTION_KEY || env.CONNECTED_ACCOUNT_ENCRYPTION_KEY));
 }
 
-// Tolerant legacy read: any failure (including the table having been dropped
-// by migration_v31) reads as "no legacy row". Never throws.
-export async function readLegacyTokenRow(supabaseUrl, serviceKey, userId, provider) {
+// Legacy installations may have already dropped this table. Status checks
+// distinguish that case from an outage before updating connection state.
+export async function readLegacyTokenRow(supabaseUrl, serviceKey, userId, provider, { strict = false } = {}) {
   const spec = LEGACY_TOKEN_TABLES[provider];
   if (!spec || !supabaseUrl || !serviceKey || !userId) return null;
   try {
@@ -343,9 +346,12 @@ export async function readLegacyTokenRow(supabaseUrl, serviceKey, userId, provid
       `${supabaseUrl}/rest/v1/${spec.table}?user_id=eq.${encodeURIComponent(userId)}&select=${spec.select}&limit=1`,
       { headers: serviceHeaders(serviceKey) }
     );
+    if (strict && !r.ok && r.status !== 404) throw new Error("Could not read legacy provider connection");
     if (!r.ok) return null;
-    return (await r.json().catch(() => []))?.[0] || null;
-  } catch {
+    const rows = strict ? await r.json() : await r.json().catch(() => []);
+    return rows?.[0] || null;
+  } catch (error) {
+    if (strict) throw error;
     return null;
   }
 }
@@ -398,6 +404,8 @@ export async function resolveProviderTokens(supabaseUrl, serviceKey, { userId, p
   }
 
   const account = await getConnectedAccount(supabaseUrl, serviceKey, userId, provider).catch(() => null);
+  // A revoked or disabled account takes precedence over any surviving legacy row.
+  if (account?.status && account.status !== "connected") return { ok: false, reason: "not_connected" };
   if (account) {
     let tokens;
     try { tokens = decryptAccountTokens(account, env); } catch { /* fall through to legacy */ }
@@ -443,17 +451,18 @@ export async function resolveProviderTokens(supabaseUrl, serviceKey, { userId, p
 // reports honestly even when the encryption key is missing.
 export async function getProviderConnectionSummary(supabaseUrl, serviceKey, userId, provider, env = process.env) {
   const encryptionConfigured = tokenEncryptionConfigured(env);
-  const account = await getConnectedAccount(supabaseUrl, serviceKey, userId, provider).catch(() => null);
+  const account = await getConnectedAccount(supabaseUrl, serviceKey, userId, provider, { strict: true });
   if (account) {
     return {
-      connected: true,
+      connected: !account.status || account.status === "connected" || account.status === "needs_reauth",
+      needsReauth: account.status === "needs_reauth",
       source: "encrypted",
       expiresAt: account.expires_at || null,
       hasRefreshToken: Boolean(account.refresh_token_ciphertext),
       tokenEncryptionConfigured: encryptionConfigured,
     };
   }
-  const legacy = await readLegacyTokenRow(supabaseUrl, serviceKey, userId, provider);
+  const legacy = await readLegacyTokenRow(supabaseUrl, serviceKey, userId, provider, { strict: true });
   if (legacy) {
     return {
       connected: true,

@@ -100,6 +100,9 @@ final class WorkoutManager: NSObject, ObservableObject {
                 guard error != nil else { return }
                 DispatchQueue.main.async { self?.problem = "Heart rate isn't being recorded for this workout." }
             }
+            if let owner = SessionStore.shared.athleteOwner {
+                builder.addMetadata(["OTAthleteOwner": owner]) { _, _ in }
+            }
             startDate = start
             phase = .running
         } catch {

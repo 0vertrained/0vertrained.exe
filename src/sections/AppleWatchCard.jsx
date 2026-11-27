@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { nativePlugin } from "../native";
-import { readWatchRunsOn, writeWatchRunsOn } from "../watch/watchRunsState";
+import { clearWatchSchedule, readWatchRunsOn, writeWatchRunsOn } from "../watch/watchRunsState";
 
 const column = { display: "flex", flexDirection: "column", gap: 8 };
 
@@ -15,8 +15,8 @@ const BLOCKED = {
   restricted: "This iPhone doesn’t allow apps to add workouts to the watch.",
 };
 
-export function AppleWatchCard() {
-  const [on, setOn] = useState(() => readWatchRunsOn());
+export function AppleWatchCard({ owner }) {
+  const [on, setOn] = useState(() => readWatchRunsOn(owner));
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -38,7 +38,7 @@ export function AppleWatchCard() {
       const next = await nativePlugin("OTRuns")?.enable?.();
       setStatus(next || null);
       if (next?.scheduling === "authorized" || (next?.supported === false && next?.health)) {
-        writeWatchRunsOn(true);
+        writeWatchRunsOn(true, owner);
         setOn(true);
         setMessage(next.scheduling === "authorized" ? "This week’s supported cardio sessions are on their way to the Workout app." : "Apple Health workout import is on.");
       } else {
@@ -52,10 +52,10 @@ export function AppleWatchCard() {
   };
 
   const turnOff = async () => {
-    writeWatchRunsOn(false);
+    writeWatchRunsOn(false, owner);
     setOn(false);
     setMessage("Workout scheduling and Health import are off.");
-    try { await nativePlugin("OTRuns")?.clear?.(); } catch { /* removed next time it's turned off */ }
+    try { await clearWatchSchedule(nativePlugin("OTRuns"), { force: true }); } catch { /* removed next time it's turned off */ }
   };
 
   return (

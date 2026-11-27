@@ -5,6 +5,21 @@ import Capacitor
 /// from the offline page. The page reaches it as Capacitor.Plugins.OTDevice.
 @objc(DevicePlugin)
 public class DevicePlugin: CAPPlugin, CAPBridgedPlugin {
+    private var activationObserver: NSObjectProtocol?
+
+    override public func load() {
+        activationObserver = NotificationCenter.default.addObserver(forName: UIScene.didActivateNotification,
+                                                                     object: nil, queue: .main) { [weak self] note in
+            guard let self, let scene = note.object as? UIWindowScene,
+                  self.bridge?.viewController?.viewIfLoaded?.window?.windowScene === scene else { return }
+            self.notifyListeners("foreground", data: [:])
+        }
+    }
+
+    deinit {
+        if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
+    }
+
     public let identifier = "DevicePlugin"
     public let jsName = "OTDevice"
     public let pluginMethods: [CAPPluginMethod] = [

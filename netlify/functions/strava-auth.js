@@ -75,7 +75,15 @@ async function refreshStravaToken(account) {
     expiresAt,
     scopes: account.scopes_granted || [],
   });
-  if (record) await upsertConnectedAccount(supabaseUrl, serviceKey, { ...record, connected_at: account.connected_at || new Date().toISOString() });
+  if (!tokenData.access_token || !record) throw new Error("Incomplete Strava token refresh");
+  // PATCH only the credentials. A refresh must never recreate a link an
+  // athlete deleted or change its activity-import timestamp.
+  const saved = await updateConnectedAccount(supabaseUrl, serviceKey, account.user_id, PROVIDERS.STRAVA, {
+    access_token_ciphertext: record.access_token_ciphertext,
+    refresh_token_ciphertext: record.refresh_token_ciphertext,
+    expires_at: expiresAt,
+  });
+  if (!saved) throw new Error("Could not save the refreshed Strava credentials");
   return { accessToken: tokenData.access_token, expiresAt };
 }
 
@@ -172,7 +180,8 @@ async function syncStrava(userId, days = 30) {
 
   await storeRaw(supabaseUrl, serviceKey, userId, "activities", { days, activities: all });
   const stored = await upsertActivities(supabaseUrl, serviceKey, all.map(a => activityRow(userId, a)));
-  await updateConnectedAccount(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA, { last_sync_at: new Date().toISOString(), status: "connected" });
+  if (stored !== all.length) return { error: "Could not save Strava activities", status: 502 };
+  await updateConnectedAccount(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA, { last_sync_at: new Date().toISOString() });
   await logSyncEvent(supabaseUrl, serviceKey, {
     userId,
     source: PROVIDERS.STRAVA,
@@ -243,15 +252,31 @@ async function handleStatus(req) {
   if (!envReady()) return json({ connected: false, syncStatus: "not_configured" });
   const userId = await resolveUserIdFromBearer(req);
   if (!userId) return json({ error: "Not authenticated" }, 401);
-  const account = await getConnectedAccount(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, userId, PROVIDERS.STRAVA);
+  let account;
+  try {
+    account = await getConnectedAccount(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, userId, PROVIDERS.STRAVA, { strict: true });
+  } catch {
+    return json({ error: "Token status unavailable" }, 502);
+  }
   if (!account) return json({ connected: false, syncStatus: "never" });
-  const expiresAtMs = account.expires_at ? new Date(account.expires_at).getTime() : 0;
+  let expiresAt = account.expires_at;
+  let syncStatus = account.last_sync_at ? "synced" : "never";
+  if (account.status === "connected" && !(Date.parse(expiresAt) > Date.now() + TOKEN_NEAR_EXPIRY_MS)) {
+    try {
+      const refreshed = await refreshStravaToken(account);
+      if (refreshed) expiresAt = refreshed.expiresAt;
+      else syncStatus = "refresh_failed";
+    } catch (error) {
+      syncStatus = [400, 401, 403].includes(error.status) ? "refresh_failed" : "refresh_pending";
+    }
+  }
+  if (account.status === "needs_reauth") syncStatus = "refresh_failed";
   return json({
-    connected: account.status === "connected",
-    expiresAt: account.expires_at,
-    isExpired: expiresAtMs ? expiresAtMs <= Date.now() : false,
+    connected: account.status === "connected" || account.status === "needs_reauth",
+    expiresAt,
+    isExpired: syncStatus === "refresh_failed",
     lastSynced: account.last_sync_at,
-    syncStatus: account.last_sync_at ? "synced" : "never",
+    syncStatus,
     scopes: account.scopes_granted || [],
     aiEligible: !!account.ai_eligible,
     aiExclusionReason: account.ai_exclusion_reason || null,
@@ -290,7 +315,11 @@ async function handleDisconnect(req) {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const userId = await resolveUserIdFromBearer(req);
   if (!userId) return json({ error: "Not authenticated" }, 401);
-  await deleteProviderData(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, userId, PROVIDERS.STRAVA);
+  try {
+    await deleteProviderData(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, userId, PROVIDERS.STRAVA);
+  } catch {
+    return json({ error: "Strava disconnect failed" }, 502);
+  }
   await logSyncEvent(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { userId, source: PROVIDERS.STRAVA, eventType: "oauth_disconnected", status: "success", message: "Strava disconnected." });
   return json({ ok: true });
 }
@@ -445,7 +474,8 @@ async function handleWebhook(req, pathSecret = "") {
       await deleteProviderData(supabaseUrl, serviceKey, userId, PROVIDERS.STRAVA);
       await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "deauthorized_purged", status: "success", message: "Athlete revoked access on Strava; tokens and imported data deleted." });
     } catch {
-      await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "deauthorize_purge_failed", status: "error", message: "Deauthorization received but purge failed; retry via disconnect." }).catch(() => null);
+      await logSyncEvent(supabaseUrl, serviceKey, { userId, source: PROVIDERS.STRAVA, eventType: "deauthorize_purge_failed", status: "error", message: "Deauthorization received but purge failed." }).catch(() => null);
+      return json({ error: "Could not finish removing the Strava connection" }, 503);
     }
     return json({ ok: true });
   }

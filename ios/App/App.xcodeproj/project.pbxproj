@@ -66,6 +66,7 @@
 		97EC0E254FF2419EADD9F9A3 /* WhoopBluetoothPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9278E1F6A626480B8F88A239 /* WhoopBluetoothPlugin.swift */; };
 		577F010B1B01427680D52087 /* HeartRateMeasurement.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD33DA199B042D2A4392373 /* HeartRateMeasurement.swift */; };
 		B776AACB700B452CBAC47B47 /* WhoopLiveProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADE0048A9764A078CA8AB67 /* WhoopLiveProtocol.swift */; };
+		867C83895985512BB353DD7E /* WhoopPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9879DFA8C453EAAFC341D5 /* WhoopPairing.swift */; };
 		CD89A201ED904E00B0000001 /* WhoopHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD89A201ED904E00A0000001 /* WhoopHistoryStore.swift */; };
 		CD89A201ED904E00B0000000 /* WhoopHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD89A201ED904E00A0000000 /* WhoopHistory.swift */; };
 		98F3A6BF01D5ED4C72E38AD7 /* StartLiftIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0474A0BF19017D7A7E6CB3E /* StartLiftIntent.swift */; };
@@ -194,6 +195,7 @@
 		9278E1F6A626480B8F88A239 /* WhoopBluetoothPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopBluetoothPlugin.swift; sourceTree = "<group>"; };
 		AFD33DA199B042D2A4392373 /* HeartRateMeasurement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartRateMeasurement.swift; sourceTree = "<group>"; };
 		AADE0048A9764A078CA8AB67 /* WhoopLiveProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopLiveProtocol.swift; sourceTree = "<group>"; };
+		8A9879DFA8C453EAAFC341D5 /* WhoopPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopPairing.swift; sourceTree = "<group>"; };
 		CD89A201ED904E00A0000001 /* WhoopHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopHistoryStore.swift; sourceTree = "<group>"; };
 		CD89A201ED904E00A0000000 /* WhoopHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoopHistory.swift; sourceTree = "<group>"; };
 		F0474A0BF19017D7A7E6CB3E /* StartLiftIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartLiftIntent.swift; sourceTree = "<group>"; };
@@ -286,6 +288,7 @@
 				9278E1F6A626480B8F88A239 /* WhoopBluetoothPlugin.swift */,
 				AFD33DA199B042D2A4392373 /* HeartRateMeasurement.swift */,
 				AADE0048A9764A078CA8AB67 /* WhoopLiveProtocol.swift */,
+				8A9879DFA8C453EAAFC341D5 /* WhoopPairing.swift */,
 				CD89A201ED904E00A0000001 /* WhoopHistoryStore.swift */,
 				CD89A201ED904E00A0000000 /* WhoopHistory.swift */,
 			);
@@ -545,6 +548,7 @@
 				97EC0E254FF2419EADD9F9A3 /* WhoopBluetoothPlugin.swift in Sources */,
 				577F010B1B01427680D52087 /* HeartRateMeasurement.swift in Sources */,
 				B776AACB700B452CBAC47B47 /* WhoopLiveProtocol.swift in Sources */,
+				867C83895985512BB353DD7E /* WhoopPairing.swift in Sources */,
 				CD89A201ED904E00B0000001 /* WhoopHistoryStore.swift in Sources */,
 				CD89A201ED904E00B0000000 /* WhoopHistory.swift in Sources */,
 			);

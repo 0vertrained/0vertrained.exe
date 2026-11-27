@@ -63,6 +63,7 @@ function synced(at) {
 }
 const statusLine = (on, status, lastSynced) => {
   if (!on) return <p className="t-ss c2">Not connected</p>;
+  if (status?.syncStatus === "refresh_pending") return <p className="t-ss c2">Connected · Sync is delayed. The app will retry on a later open.</p>;
   if (status?.isExpired) return <p className="t-ss caution">Sign-in expired. Reconnect to resume syncing. Last {synced(lastSynced)}.</p>;
   return <p className="t-ss good">Connected · {synced(lastSynced)}</p>;
 };
@@ -114,14 +115,19 @@ const NBSP = "\u00a0";
 // OAuth return land on Integrations); notice is the one status line shown
 // there ({ tone: "ok" | "error", text }); onPatch persists a connection flag
 // quietly, without the full Save path's close + toast.
-export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange, currentTheme, initialSection = null, notice = null, onPatch = null, loggedDays = 0, currentTab = "Settings", backLabel = null }) {
+export function SettingsScreen({ owner, integrationRevision = 0, settings, onSave, onClose, busy, onThemeChange, currentTheme, initialSection = null, notice = null, onPatch = null, loggedDays = 0, currentTab = "Settings", backLabel = null }) {
   const { confirm, confirmDialog } = useConfirm();
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
   // Runs on the Apple Watch: only in an iPhone app build that has them.
   const strap = useWhoopBluetooth();
-  const watchRuns = Boolean(nativePlugin("OTRuns"));
+  const watchRuns = owner !== null && Boolean(nativePlugin("OTRuns"));
   // Daily numbers from Apple Health: only in a build that reads them.
-  const healthDaily = Boolean(nativePlugin("OTHealth"));
+  const healthDaily = owner !== null && Boolean(nativePlugin("OTHealth"));
   const [goals, setGoals]     = useState({ ...settings.goals });
   const [supps, setSupps]     = useState([...settings.supplements]);
   const [newSupp, setNewSupp] = useState("");
@@ -293,7 +299,7 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section]);
+  }, [section, owner, integrationRevision]);
 
   const handleStravaConnect = async () => {
     setStravaMsg("");
@@ -319,12 +325,19 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   const handleStravaDisconnect = async () => {
     if (!(await confirm({ message: "Disconnect Strava? This removes imported Strava activities.", confirmLabel: "Disconnect", destructive: true }))) return;
     setStravaBusy(true);
-    await disconnectStrava();
-    await refreshStravaStatus();
-    setStravaCounts(null);
-    onSave({ ...settings, stravaConnected: false });
-    setStravaMsg("Disconnected.");
+    const result = await disconnectStrava();
+    if (!mounted.current) return;
     setStravaBusy(false);
+    if (result?.error) {
+      setStravaMsg("Couldn’t finish disconnecting Strava. Try again.");
+      return;
+    }
+    setStravaStatus({ connected: false });
+    setStravaCounts(null);
+    setStravaEvents([]);
+    setStravaMsg("Disconnected.");
+    if (onPatch) onPatch({ stravaConnected: false });
+    else onSave({ ...settings, stravaConnected: false });
   };
 
   const handleWhoopConnect = async () => {
@@ -357,13 +370,19 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   const handleWhoopDisconnect = async () => {
     if (!(await confirm({ message: "Disconnect Whoop? This removes stored Whoop data.", confirmLabel: "Disconnect", destructive: true }))) return;
     setWhoopBusy(true);
-    await disconnectWhoop();
-    const status = await refreshWhoopStatus();
-    setWhoopCounts(null);
-    onSave({ ...settings, whoopConnected: false });
-    setWhoopMsg("Disconnected.");
+    const result = await disconnectWhoop();
+    if (!mounted.current) return;
     setWhoopBusy(false);
-    void status;
+    if (result?.error) {
+      setWhoopMsg("Couldn’t finish disconnecting Whoop. Try again.");
+      return;
+    }
+    setWhoopStatus({ connected: false });
+    setWhoopCounts(null);
+    setWhoopEvents([]);
+    setWhoopMsg("Disconnected.");
+    if (onPatch) onPatch({ whoopConnected: false });
+    else onSave({ ...settings, whoopConnected: false });
   };
 
   const refreshOuraStatus = async () => {
@@ -407,13 +426,19 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   const handleOuraDisconnect = async () => {
     if (!(await confirm({ message: "Disconnect Oura? This removes stored Oura data.", confirmLabel: "Disconnect", destructive: true }))) return;
     setOuraBusy(true);
-    await disconnectOura();
-    const status = await refreshOuraStatus();
-    setOuraCounts(null);
-    onSave({ ...settings, ouraConnected: false });
-    setOuraMsg("Disconnected.");
+    const result = await disconnectOura();
+    if (!mounted.current) return;
     setOuraBusy(false);
-    void status;
+    if (result?.error) {
+      setOuraMsg("Couldn’t finish disconnecting Oura. Try again.");
+      return;
+    }
+    setOuraStatus({ connected: false });
+    setOuraCounts(null);
+    setOuraEvents([]);
+    setOuraMsg("Disconnected.");
+    if (onPatch) onPatch({ ouraConnected: false });
+    else onSave({ ...settings, ouraConnected: false });
   };
 
   const updateGoal = (key, val) => {
@@ -476,9 +501,11 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
   const macroKcal = ["protein", "carbs", "fats"].every((key) => Number(goals[key]) > 0)
     ? Math.round(Number(goals.protein) * 4 + Number(goals.carbs) * 4 + Number(goals.fats) * 9)
     : null;
-  const ouraOn = Boolean(ouraStatus?.connected || settings.ouraConnected);
-  const stravaOn = Boolean(stravaStatus?.connected || settings.stravaConnected);
-  const whoopOn = Boolean(whoopStatus?.connected);
+  const connectionShown = (status, saved) => status && status.syncStatus !== "error"
+    ? Boolean(status.connected) : Boolean(status?.connected || saved);
+  const ouraOn = connectionShown(ouraStatus, settings.ouraConnected);
+  const stravaOn = connectionShown(stravaStatus, settings.stravaConnected);
+  const whoopOn = connectionShown(whoopStatus, settings.whoopConnected);
   const titles = { home: "Settings", supps: "Supplements", diet: "Dietary restrictions", integrations: "Integrations", account: "Account", about: "Help and about" };
 
   const foot = (
@@ -582,11 +609,12 @@ export function SettingsScreen({ settings, onSave, onClose, busy, onThemeChange,
 
   const integrationsPage = (
     <>
+      <p className="t-s c2">Connected accounts refresh when you open the app. Use Sync now to request another update.</p>
       {notice?.text && (
         <p role="status" data-testid="integrations-notice" className={notice.tone === "error" ? "banner caution" : "banner"}>{notice.text}</p>
       )}
-      {watchRuns && <AppleWatchCard />}
-      {healthDaily && <AppleHealthCard wearables={Boolean(settings.ouraConnected || settings.whoopConnected)} />}
+      {watchRuns && <AppleWatchCard key={`watch-${owner}`} owner={owner} />}
+      {healthDaily && <AppleHealthCard key={`health-${owner}`} owner={owner} wearables={Boolean(settings.ouraConnected || settings.whoopConnected)} />}
       <ProviderCard onSync={onSync} {...{
         id: "oura", name: "Oura", on: ouraOn, status: ouraStatus, lastSynced: ouraStatus?.lastSynced || ouraCounts?.lastSynced,
         about: "HRV-based recovery, sleep, resting heart rate and body temperature.",

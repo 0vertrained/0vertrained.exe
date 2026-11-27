@@ -5,13 +5,22 @@
 // Security: getOuraAuthUrl calls /api/oura/auth with Bearer token, no userId query string.
 
 import { supabase } from "../supabaseClient";
-import { memoizeAsync } from "../asyncMemo";
+import { createCloudProvider } from "../integrations/cloudProvider";
+import { invalidateOuraData } from "./dataLoading";
 import { isDemoMode } from "../demoData";
+
+export const ouraCloud = createCloudProvider({
+  defaultDays: 14,
+  status: "/api/oura/status",
+  sync: "/api/oura/sync",
+  disconnect: "/api/oura/disconnect",
+}, invalidateOuraData);
 
 /**
  * Build Oura OAuth authorize URL
  */
 export async function getOuraAuthUrl() {
+  if (isDemoMode()) return null;
   // Ask the server to build the Oura URL after verifying the current Supabase JWT.
   // Do not send userId in the query string; OAuth ownership must be derived server-side.
   // The OAuth client id is not needed in the browser; keeping this server-side
@@ -34,59 +43,17 @@ export async function getOuraAuthUrl() {
 /**
  * Check if Oura is connected (tokens exist). Token table reads stay server-side.
  */
-// Memoized (60s TTL + single-flight): a cold boot fired this probe
-// from App, TodayTab, and RecoveryDashboard within the same second — each a
-// full /api/oura/status function invocation (bearer verify + summary +
-// possible token self-heal server-side). Presence cannot meaningfully flap
-// inside a minute; disconnectOura invalidates immediately when it does change.
-const isOuraConnectedMemo = memoizeAsync(isOuraConnectedProbe, 60_000);
 export async function isOuraConnected() {
   if (isDemoMode()) return true;
-  return isOuraConnectedMemo();
-}
-
-async function isOuraConnectedProbe() {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) return false;
-    const r = await fetch("/api/oura/status", {
-      headers: {
-        "accept": "application/json",
-        "authorization": `Bearer ${token}`,
-      },
-    });
-    if (!r.ok) return false;
-    const data = await r.json();
-    return !!data?.connected;
-  } catch (e) {
-    console.error("isOuraConnected error:", e);
-    return false;
-  }
+  return (await ouraCloud.status(60_000)).connected;
 }
 
 /**
  * Disconnect Oura — delete tokens and data
  */
 export async function disconnectOura() {
-  isOuraConnectedMemo.invalidate();
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    if (!userId) return { error: "Not authenticated" };
-    const r = await fetch("/api/oura/disconnect", {
-      method: "POST",
-      headers: {
-        "accept": "application/json",
-        "authorization": `Bearer ${session.access_token}`,
-      },
-    });
-    if (!r.ok) return { error: "Disconnect failed" };
-    return { ok: true };
-  } catch (e) {
-    console.error("Disconnect error:", e);
-    return { error: e.message };
-  }
+  if (isDemoMode()) return { ok: true };
+  return ouraCloud.disconnect();
 }
 
 /**
@@ -133,43 +100,14 @@ export async function getOuraTokenStatus() {
     };
   }
 
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) {
-      return {
-        connected: false,
-        expiresAt: null,
-        isExpired: false,
-        lastSynced: null,
-        syncStatus: "unauthenticated",
-      };
-    }
-    const r = await fetch("/api/oura/status", {
-      headers: {
-        "accept": "application/json",
-        "authorization": `Bearer ${token}`,
-      },
-    });
-    if (!r.ok) throw new Error(`Oura status failed: ${r.status}`);
-    const data = await r.json();
-    return {
-      connected: !!data?.connected,
-      expiresAt: data?.expiresAt || null,
-      isExpired: !!data?.isExpired,
-      lastSynced: data?.lastSynced || null,
-      syncStatus: data?.syncStatus || "never",
-    };
-  } catch (e) {
-    console.error("getOuraTokenStatus error:", e);
-    return {
-      connected: false,
-      expiresAt: null,
-      isExpired: false,
-      lastSynced: null,
-      syncStatus: "error",
-    };
-  }
+  const data = await ouraCloud.status();
+  return {
+    connected: !!data.connected,
+    expiresAt: data.expiresAt || null,
+    isExpired: !!data.isExpired,
+    lastSynced: data.lastSynced || null,
+    syncStatus: data.syncStatus || "never",
+  };
 }
 
 /**
@@ -181,25 +119,7 @@ export async function getOuraTokenStatus() {
  */
 export async function syncOuraNow(days = 14) {
   if (isDemoMode()) return { ok: true, synced: 0, counts: {}, demo: true };
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) return { error: "Not authenticated" };
-    const qs = Number.isFinite(Number(days)) ? `?days=${encodeURIComponent(Math.round(Number(days)))}` : "";
-    const r = await fetch(`/api/oura/sync${qs}`, {
-      method: "POST",
-      headers: {
-        "accept": "application/json",
-        "authorization": `Bearer ${token}`,
-      },
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) return { error: data?.error || "Sync failed" };
-    return data;
-  } catch (e) {
-    console.error("syncOuraNow error:", e);
-    return { error: e.message };
-  }
+  return ouraCloud.syncNow(days);
 }
 
 /**

@@ -15,8 +15,8 @@ const DENIED_WORDS = { weight: "weight", food: "food", workouts: "workouts" };
 
 // Saving to Apple Health: your typed weight, each day's food totals, and
 // lifts with your effort rating.
-function SaveToHealth() {
-  const [on, setOn] = useState(() => readHealthWriteOn());
+function SaveToHealth({ owner }) {
+  const [on, setOn] = useState(() => readHealthWriteOn(owner));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -24,7 +24,7 @@ function SaveToHealth() {
     if (busy) return;
     setMessage("");
     if (on) {
-      writeHealthWriteOn(false);
+      writeHealthWriteOn(false, owner);
       setOn(false);
       setMessage("What’s already in Apple Health stays there.");
       return;
@@ -37,7 +37,7 @@ function SaveToHealth() {
         return;
       }
       const denied = Object.keys(DENIED_WORDS).filter((key) => status?.[key] === "denied").map((key) => DENIED_WORDS[key]);
-      writeHealthWriteOn(true);
+      writeHealthWriteOn(true, owner);
       setOn(true);
       setMessage(denied.length
         ? `Apple Health didn’t allow saving ${denied.join(" and ")}. Allow it in the Health app under Sharing, Apps, 0VERTRAINED.`
@@ -65,8 +65,8 @@ function SaveToHealth() {
 
 const column = { display: "flex", flexDirection: "column", gap: 8 };
 
-export function AppleHealthCard({ wearables = false }) {
-  const [on, setOn] = useState(() => readHealthDailyOn());
+export function AppleHealthCard({ owner, wearables = false }) {
+  const [on, setOn] = useState(() => readHealthDailyOn(owner));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -79,7 +79,7 @@ export function AppleHealthCard({ wearables = false }) {
         setMessage("Apple Health isn’t available on this iPhone.");
         return;
       }
-      writeHealthDailyOn(true);
+      writeHealthDailyOn(true, owner);
       setOn(true);
       setMessage("Today’s numbers will fill in on Today in a moment.");
     } catch {
@@ -90,7 +90,7 @@ export function AppleHealthCard({ wearables = false }) {
   };
 
   const turnOff = () => {
-    writeHealthDailyOn(false);
+    writeHealthDailyOn(false, owner);
     setOn(false);
     setMessage("Numbers already filled in stay in your log.");
   };
@@ -114,7 +114,7 @@ export function AppleHealthCard({ wearables = false }) {
         {" "}Only empty fields are filled, and anything you type stays as you typed it. Turning it on asks to read these from Apple Health.
       </p>
       {message && <p className="t-s" role="status">{message}</p>}
-      {nativePlugin("OTHealthWrite") && <SaveToHealth />}
+      {nativePlugin("OTHealthWrite") && <SaveToHealth owner={owner} />}
     </section>
   );
 }

@@ -134,6 +134,31 @@ describe("native WHOOP strap in Integrations", () => {
     expect(screen.getByText(/No readings saved for this window/)).toBeTruthy();
   });
 
+  it("shows automatic reconnect and history running without opening a connection from Settings", async () => {
+    const { plugin, update } = install({ ...idle, savedDevice: strap, autoReconnect: true,
+      status: "connecting", device: strap });
+    plugin.readHistory = vi.fn(async () => ({ owner: "athlete", records: [] }));
+    await setWhoopBluetoothOwner("athlete");
+    render(<WhoopBluetoothCard />);
+    await act(async () => {});
+    expect(screen.getByText(/Your iPhone reconnects to this strap/)).toBeTruthy();
+    expect(plugin.connect).not.toHaveBeenCalled();
+    act(() => update({ status: "connected", historyAvailable: true, history: { status: "syncing", records: 3 } }));
+    expect(screen.getByText(/Receiving stored readings/)).toBeTruthy();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "View stored readings" })));
+    expect(screen.getByText(/No readings saved for this window/)).toBeTruthy();
+    plugin.readHistory.mockImplementation(async ({ owner, from }) => ({
+      owner, records: [{ timestamp: from, bpm: 67, onWrist: true }],
+    }));
+    await act(async () => update({ history: { status: "complete", records: 3, lastSyncAt: Date.now() } }));
+    expect(screen.getByText("67 bpm average · 67 bpm peak")).toBeTruthy();
+    expect(screen.getByText(/Last completed sync/)).toBeTruthy();
+    act(() => update({ status: "idle", device: null, autoReconnect: false }));
+    expect(screen.getByText("Automatic reconnect paused")).toBeTruthy();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Reconnect strap" })));
+    expect(plugin.connect).toHaveBeenCalledWith({ id: strap.id, owner: "athlete" });
+  });
+
   it("removes listeners even if the native bridge resolves after unmount", async () => {
     const { plugin } = install();
     const resolve = [];

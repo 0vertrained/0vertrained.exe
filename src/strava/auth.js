@@ -1,6 +1,13 @@
 import { supabase } from "../supabaseClient";
-import { invalidateStravaConnected } from "./dataLoading";
+import { createCloudProvider } from "../integrations/cloudProvider";
 import { isDemoMode } from "../demoData";
+
+export const stravaCloud = createCloudProvider({
+  defaultDays: 30,
+  status: "/api/strava/status",
+  sync: "/api/strava/sync",
+  disconnect: "/api/strava/disconnect",
+});
 
 async function getAccessToken() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -26,20 +33,17 @@ export async function getStravaAuthUrl() {
 
 export async function getStravaTokenStatus() {
   if (isDemoMode()) return { connected: false, syncStatus: "demo" };
-  const data = await authedJson("/api/strava/status");
-  return data?.error ? { connected: false, syncStatus: "error" } : data;
+  return stravaCloud.status();
 }
 
 export async function syncStravaNow(days = 30) {
   if (isDemoMode()) return { ok: true, synced: 0, demo: true };
-  const qs = Number.isFinite(Number(days)) ? `?days=${encodeURIComponent(Math.round(Number(days)))}` : "";
-  return await authedJson(`/api/strava/sync${qs}`, { method: "POST" });
+  return stravaCloud.syncNow(days);
 }
 
 export async function disconnectStrava() {
-  invalidateStravaConnected();
   if (isDemoMode()) return { ok: true };
-  return await authedJson("/api/strava/disconnect", { method: "POST" });
+  return stravaCloud.disconnect();
 }
 
 export async function getStravaSyncCounts() {

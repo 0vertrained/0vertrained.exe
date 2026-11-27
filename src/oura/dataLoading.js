@@ -4,7 +4,8 @@
 // Handles loading Oura data from Supabase.
 
 import { supabase } from "../supabaseClient";
-import { DEMO_OURA_DATA, isDemoMode } from "../demoData";
+import { createWearableDataReads } from "../integrations/wearableDataReads";
+import { DEMO_OURA_DATA } from "../demoData";
 
 // Data_types the browser actually consumes. Raw `heartrate` payloads
 // are time-series (~288 samples/day) whose ONLY client consumer was an
@@ -14,29 +15,12 @@ import { DEMO_OURA_DATA, isDemoMode } from "../demoData";
 // summaries stay: the source resolver reads them and they are tiny.
 const CLIENT_DATA_TYPES = ["sleep", "readiness", "activity", "spo2"];
 
-// Keyed single-flight: a cold boot had App, TodayTab, and (on tab
-// open) RecoveryDashboard racing identical 14-day fetches. Concurrent callers
-// with the SAME window now share one request; different windows (7/14/30)
-// stay independent. No result caching — the next call after settle refetches.
-const inFlightByDays = new Map();
+const reads = createWearableDataReads(fetchOuraData, () => DEMO_OURA_DATA);
+export const loadOuraData = reads.load;
+export const invalidateOuraData = reads.invalidate;
 
-/**
- * Load normalized Oura data for the last N days
- */
-export async function loadOuraData(days = 14) {
-  if (isDemoMode()) return DEMO_OURA_DATA;
-  const existing = inFlightByDays.get(days);
-  if (existing) return existing;
-  const request = fetchOuraData(days).finally(() => { inFlightByDays.delete(days); });
-  inFlightByDays.set(days, request);
-  return request;
-}
-
-async function fetchOuraData(days) {
+async function fetchOuraData(days, userId) {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    if (!userId) return {};
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     const startDateStr = startDate.toISOString().split("T")[0];

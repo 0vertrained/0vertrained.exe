@@ -66,8 +66,6 @@ public class HealthDailyPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         Task {
-            // iOS shows its sheet only for what it hasn't asked about yet.
-            try? await self.health.requestAuthorization(toShare: [], read: Self.readTypes)
             let perMinute = HKUnit.count().unitDivided(by: .minute())
             let steps = await self.dailyStatistics(.stepCount, sum: true, unit: .count(), from: start, to: end)
             let restingHr = await self.dailyStatistics(.restingHeartRate, sum: false, unit: perMinute, from: start, to: end)

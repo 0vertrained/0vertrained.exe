@@ -5,8 +5,8 @@
 // (owner-readable via RLS). It never reads whoop_tokens — tokens are server-held.
 
 import { supabase } from "../supabaseClient";
+import { createWearableDataReads } from "../integrations/wearableDataReads";
 import { getDemoWhoopData } from "../demoData";
-import { isDemoMode } from "../demoData";
 
 /**
  * Load Whoop data for the last N days, grouped by date then data_type.
@@ -27,15 +27,9 @@ import { isDemoMode } from "../demoData";
  * beats shorter, latest update wins ties. Every sleep row is retained in
  * `day.sleepAll` (main first) so nap-aware surfaces can still read them.
  */
-const inFlightByDays = new Map();
-
-export async function loadWhoopData(days = 14) {
-  const existing = inFlightByDays.get(days);
-  if (existing) return existing;
-  const request = fetchWhoopData(days).finally(() => { inFlightByDays.delete(days); });
-  inFlightByDays.set(days, request);
-  return request;
-}
+const reads = createWearableDataReads(fetchWhoopData, getDemoWhoopData);
+export const loadWhoopData = reads.load;
+export const invalidateWhoopData = reads.invalidate;
 
 // Compare two Whoop records for single-per-day selection; positive when `a`
 // outranks `b`. Field-by-field priority rather than a collapsed numeric rank:
@@ -117,13 +111,8 @@ export function groupWhoopRows(rows) {
   return grouped;
 }
 
-async function fetchWhoopData(days) {
-  if (isDemoMode()) return getDemoWhoopData();
+async function fetchWhoopData(days, userId) {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    if (!userId) return {};
-
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     const startDateStr = startDate.toISOString().split("T")[0];

@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { summarizeManualRecovery, getManualRecoveryCompleteness } from "./manualRecovery";
 import { isDemoMode } from "./demoData";
-import { loadStravaActivities } from "./strava/dataLoading"; // display context
+import { isStravaConnected, loadStravaActivities } from "./strava/dataLoading"; // display context
 import { buildRecoveryChangeSummary, buildRecoveryCoachInterpretation, buildRecoveryHeroMeta } from "./recoverySummary";
 import { logFunnelEvent } from "./funnel";
 import { editionWindow } from "./sundayEdition";
@@ -46,7 +46,7 @@ const formatSyncFreshness = (tokenStatus) => {
   return `${age} · ${tokenStatus.syncStatus || "status unknown"}`;
 };
 
-export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, todayPlan = null, programDay = null, onOpenCheckin = null, onOpenIntegrations = null, openEdition = false, onEditionClosed = null , onLoaded = null, todayCall = null}) {
+export function RecoveryDashboard({ integrationRevision = 0, data, settings = {}, yesterdayKey, appLoaded, userId, todayKey = null, todayName = null, todayPlan = null, programDay = null, onOpenCheckin = null, onOpenIntegrations = null, openEdition = false, onEditionClosed = null , onLoaded = null, todayCall = null}) {
   // Hydrate synchronously from the fastest available last-known snapshot:
   //   1) the in-memory session cache (survives tab switches this session), else
   //   2) the persisted, user-scoped, secret-free wearable snapshot (survives a
@@ -102,7 +102,12 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (isDemoMode() || settings?.stravaConnected !== true) return;
+      if (isDemoMode()) return;
+      if (!await isStravaConnected().catch(() => false)) {
+        if (alive) setExternalCardio(null);
+        return;
+      }
+      if (!alive) return;
       const acts = await loadStravaActivities(7).catch(() => []);
       if (!alive) return;
       const runMiles = Math.round(acts.reduce((sum, a) => sum + (a.kind === "run" ? (Number(a.miles) || 0) : 0), 0) * 10) / 10;
@@ -110,7 +115,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
       setExternalCardio(acts.length ? { runMiles, minutes, count: acts.length } : null);
     })();
     return () => { alive = false; };
-  }, [settings?.stravaConnected]);
+  }, [userId, settings?.stravaConnected, integrationRevision]);
   const [tokenStatus, setTokenStatus] = useState(initialCache?.tokenStatus ?? null);
   // Whoop display cards — loaded independently of the Oura recovery pipeline
   // so they never touch the recovery score, its cache, or its inputs. Display only.
@@ -129,6 +134,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   // keeps the server fetch to a single attempt per mount.
   const liveAppliedRef = useRef(false);
   const loadRequest = useRef(0);
+  const loadController = useRef(null);
   // Hands each finished load to the app, which keeps it for Today's call.
   const onLoadedRef = useRef(onLoaded);
   useEffect(() => { onLoadedRef.current = onLoaded; });
@@ -184,6 +190,9 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
 
   const loadData = useCallback(async () => {
     const request = ++loadRequest.current;
+    loadController.current?.abort();
+    const controller = new AbortController();
+    loadController.current = controller;
     // Either the in-memory session cache or the persisted snapshot means we
     // already have last-known data on screen — refresh quietly instead of
     // dropping back to skeletons.
@@ -192,8 +201,8 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
     else setLoading(true);
     try {
       perfStart("recovery"); // instrumentation — Settings → About → Diagnostics
-      const out = await loadRecoveryData({ data, yesterdayKey, settings, userId, alertHistory });
-      if (request !== loadRequest.current) return;
+      const out = await loadRecoveryData({ data, yesterdayKey, settings, userId, alertHistory, signal: controller.signal });
+      if (!out || request !== loadRequest.current) return;
       setConnected(out.connected);
       setTokenStatus(out.tokenStatus);
       if (out.connected || out.whoopConnected) {
@@ -214,7 +223,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
       // The app keeps the latest load, so Today shows the same call.
       onLoadedRef.current?.(out);
     } catch (e) {
-      console.error("Recovery dashboard load error:", e);
+      if (!controller.signal.aborted) console.error("Recovery dashboard load error:", e);
     } finally {
       if (request === loadRequest.current) {
         perfMark("recovery", "verdict-ready");
@@ -228,8 +237,12 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 60000);
-    return () => { clearInterval(interval); loadRequest.current++; };
-  }, [loadData]);
+    return () => {
+      clearInterval(interval);
+      loadRequest.current++;
+      loadController.current?.abort();
+    };
+  }, [loadData, integrationRevision]);
 
   // DB-first hydrate (third tier). When there was no in-memory session cache we
   // may be starting cold or from the localStorage snapshot; fetch the server's
@@ -272,8 +285,8 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
           loadWhoopData(14).catch(() => ({})),
           getWhoopSyncEvents(20).catch(() => ({ events: [] })),
         ]);
-        if (!alive) return;
-        const conn = Boolean(whoopStat?.connected);
+        if (!alive || !whoopStat || ["error", "unauthenticated", "not_configured"].includes(whoopStat.syncStatus)) return;
+        const conn = Boolean(whoopStat.connected);
         setWhoopConnected(conn);
         perfMark("recovery", "whoop-ready");
         if (conn) {
@@ -290,7 +303,7 @@ export function RecoveryDashboard({ data, settings = {}, yesterdayKey, appLoaded
       }
     })();
     return () => { alive = false; };
-  }, [userId]);
+  }, [userId, integrationRevision]);
 
   if (loading) return <RecoveryLoading />;
 

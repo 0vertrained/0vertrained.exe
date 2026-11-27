@@ -70,8 +70,8 @@ export function setWhoopBluetoothOwner(owner) {
   return binding.ready;
 }
 
-// Reading state is passive. Only an athlete action in Settings starts a scan
-// or connection. Each subscriber owns its listeners, never the sensor itself.
+// Reading state is passive. Native iOS handles reconnecting a saved strap on
+// app open. Each subscriber owns its listeners, never the sensor itself.
 export function subscribeWhoopBluetooth({ onState, onSample, onError } = {}) {
   const plugin = getWhoopBluetooth();
   if (!plugin) return () => {};

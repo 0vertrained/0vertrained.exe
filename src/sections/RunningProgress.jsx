@@ -23,7 +23,7 @@ function paceChange(recent, earlier) {
 }
 
 /** Races, predicted times, easy pace and heart rate, from the logged runs. */
-export function RunningProgress({ data = {}, program = null, todayKey }) {
+export function RunningProgress({ owner, data = {}, program = null, todayKey }) {
   const runs = useMemo(() => loggedRuns(data, program, { todayKey, days: 56 }), [data, program, todayKey]);
   const results = useMemo(() => raceResults(data), [data]);
   const bests = personalBests(results);
@@ -34,7 +34,7 @@ export function RunningProgress({ data = {}, program = null, todayKey }) {
 
   return (
     <>
-      <CardioFitness />
+      <CardioFitness key={owner} owner={owner} />
       {(easy || heart) && (
         <section aria-labelledby="easy-title" style={column(8)}>
           <h2 id="easy-title" className="t-h">Easy runs</h2>

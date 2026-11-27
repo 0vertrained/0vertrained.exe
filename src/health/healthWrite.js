@@ -6,6 +6,8 @@
 // lifts the watch tracked, which the watch already saved. Each write is
 // remembered by what it said, so a day is saved again only when it changed.
 
+import { readDeviceToggle, writeDeviceToggle, deviceHealthKey } from "./deviceHealthStorage";
+
 const ON_KEY = "ovt-health-write-on";
 const SAVED_KEY = "ovt-health-saved";
 // Today and the two days before: late edits to those still reach Health.
@@ -16,26 +18,17 @@ const RATE_TRIES = 3;
 // Fired on window when the setting changes, so the app picks it up at once.
 export const HEALTH_WRITE_EVENT = "ovt:health-write";
 
-let unsaved = null;
-
-export function readHealthWriteOn() {
-  try { return localStorage.getItem(ON_KEY) === "1"; } catch { return unsaved === true; }
+export function readHealthWriteOn(owner) {
+  return readDeviceToggle(ON_KEY, owner);
 }
 
-export function writeHealthWriteOn(on) {
-  unsaved = Boolean(on);
-  try {
-    if (on) localStorage.setItem(ON_KEY, "1");
-    else localStorage.removeItem(ON_KEY);
-  } catch {
-    // Kept in `unsaved` instead.
-  }
-  try { window.dispatchEvent(new Event(HEALTH_WRITE_EVENT)); } catch { /* no window */ }
+export function writeHealthWriteOn(on, owner) {
+  writeDeviceToggle(ON_KEY, owner, on, HEALTH_WRITE_EVENT);
 }
 
-export function readSaved() {
+export function readSaved(owner) {
   try {
-    const saved = JSON.parse(localStorage.getItem(SAVED_KEY) || "{}");
+    const saved = JSON.parse(localStorage.getItem(deviceHealthKey(SAVED_KEY, owner)) || "{}");
     return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
   } catch {
     return {};
@@ -43,10 +36,10 @@ export function readSaved() {
 }
 
 /** Keeps what was saved for the last two weeks of days. */
-export function writeSaved(saved, todayKey) {
+export function writeSaved(saved, todayKey, owner) {
   const oldest = shift(todayKey, -14);
   const kept = Object.fromEntries(Object.entries(saved || {}).filter(([key]) => (key.match(/\d{4}-\d{2}-\d{2}/)?.[0] || "") >= oldest));
-  try { localStorage.setItem(SAVED_KEY, JSON.stringify(kept)); } catch { /* saved again next time */ }
+  try { localStorage.setItem(deviceHealthKey(SAVED_KEY, owner), JSON.stringify(kept)); } catch { /* saved again next time */ }
 }
 
 function shift(dateKey, days) {
@@ -127,17 +120,20 @@ export function planHealthWrites({ data = {}, todayKey, saved = {}, days = WRITE
 }
 
 /** Sends one write. Resolves whether Health has it now. */
-export async function sendHealthWrite(plugin, write) {
-  if (write.kind === "weight") return (await plugin.saveWeight({ date: write.date, pounds: write.pounds }))?.saved === true;
+export async function sendHealthWrite(plugin, write, owner) {
+  const prefix = deviceHealthKey("ovt", owner);
+  const scope = prefix === "ovt" ? {} : { prefix };
+  const athlete = owner ? { ...scope, owner } : scope;
+  if (write.kind === "weight") return (await plugin.saveWeight({ ...scope, date: write.date, pounds: write.pounds }))?.saved === true;
   if (write.kind === "food") {
     const { date, calories, protein, carbs, fat } = write;
-    return (await plugin.saveFood({ date, calories, protein, carbs, fat }))?.saved === true;
+    return (await plugin.saveFood({ ...scope, date, calories, protein, carbs, fat }))?.saved === true;
   }
   if (write.kind === "lift") {
-    const result = await plugin.saveLift({ id: write.id, start: write.start, end: write.end, ...(write.effort ? { effort: write.effort } : {}) });
+    const result = await plugin.saveLift({ ...athlete, id: write.id, start: write.start, end: write.end, ...(write.effort ? { effort: write.effort } : {}) });
     return result?.saved === true;
   }
-  if (write.kind === "rate") return (await plugin.rateWorkout({ start: write.start, end: write.end, effort: write.effort }))?.rated === true;
+  if (write.kind === "rate") return (await plugin.rateWorkout({ ...athlete, start: write.start, end: write.end, effort: write.effort }))?.rated === true;
   return false;
 }
 

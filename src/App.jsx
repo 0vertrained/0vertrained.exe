@@ -37,6 +37,7 @@ import { BottomNav, QuickActionSheet, QUICK_ACTIONS, COACH_ACTION, TABS_ORDER } 
 import { Flow, Icon, Toast, TopBar } from "./ui/ledger";
 import { NavMain } from "./ui/navTransition";
 import { setUiHaptics } from "./native";
+import { useAppIntegrationSync } from "./integrations/useAppIntegrationSync";
 import { useHealthDaily } from "./health/useHealthDaily";
 import { setWhoopBluetoothOwner } from "./whoop/bluetooth";
 import { useHealthWrite } from "./health/useHealthWrite";
@@ -213,6 +214,8 @@ function AppInner({ onThemeChange }) {
   // Today's own read, each tagged with the account it belongs to.
   const [recoveryLoad, setRecoveryLoad] = useState(null);
   const accountOwner = user?.id ?? null;
+  const integrationAccountReady = accountReady && !demoMode && Boolean(accountOwner) && loadedOwner === accountOwner;
+  const integrationRevision = useAppIntegrationSync({ owner: accountOwner, ready: integrationAccountReady });
   const currentLoad = recoveryLoad?.owner === accountOwner ? recoveryLoad : null;
   const currentDayKey = getTodayKey();
   const bootSample = bootRecovery?.owner === accountOwner ? bootRecovery?.sample : null;
@@ -299,18 +302,18 @@ function AppInner({ onThemeChange }) {
   useEffect(() => { recoveryInputs.current = { data, settings }; });
   useEffect(() => {
     if (!loaded || accountUnavailable) return undefined;
-    if (!demoMode && !user?.id) return undefined;
-    let alive = true;
+    if (!demoMode && !integrationAccountReady) return undefined;
+    const controller = new AbortController();
     const owner = user?.id ?? null;
     const d = new Date();
     d.setDate(d.getDate() - 1);
     const yesterday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     import("./recoveryLoad")
-      .then(({ loadRecoveryData }) => loadRecoveryData({ ...recoveryInputs.current, yesterdayKey: yesterday, userId: owner ?? undefined }))
-      .then((out) => { if (alive) acceptRecoveryLoad(out, owner); })
+      .then(({ loadRecoveryData }) => loadRecoveryData({ ...recoveryInputs.current, yesterdayKey: yesterday, userId: owner ?? undefined, signal: controller.signal }))
+      .then((out) => { if (out && !controller.signal.aborted) acceptRecoveryLoad(out, owner); })
       .catch(() => {});
-    return () => { alive = false; };
-  }, [loaded, accountUnavailable, demoMode, user?.id, currentDayKey, acceptRecoveryLoad]);
+    return () => controller.abort();
+  }, [loaded, accountUnavailable, integrationAccountReady, demoMode, user?.id, currentDayKey, acceptRecoveryLoad, integrationRevision]);
 
   // Auth bootstrap — wait for INITIAL_SESSION before doing anything else.
   // onAuthStateChange fires synchronously with the current session on subscribe,
@@ -770,12 +773,11 @@ function AppInner({ onThemeChange }) {
     setPendingSaves(previous => ({ ...previous, ...days }));
     return true;
   };
-  const watchAccountReady = accountReady && !demoMode && Boolean(accountOwner) && loadedOwner === accountOwner;
-  useWatchBridge({ owner: accountOwner, builderPreferences: settings?.programBuilder, ready: watchAccountReady, data, program, wearableScore: ouraRecovery, readiness: customReadiness, updateEntryAtDate, stageDays: stageWatchDays });
-  useWatchRuns({ owner: accountOwner, ready: watchAccountReady, data, program, updateEntryAtDate, showToast });
-  useHealthDaily({ ready: accountReady && !demoMode && Boolean(user?.id), data, wearables: Boolean(settings?.ouraConnected || settings?.whoopConnected), updateEntryAtDate });
+  useWatchBridge({ owner: accountOwner, builderPreferences: settings?.programBuilder, ready: integrationAccountReady, data, program, wearableScore: ouraRecovery, readiness: customReadiness, updateEntryAtDate, stageDays: stageWatchDays });
+  useWatchRuns({ owner: accountOwner, ready: integrationAccountReady, data, program, updateEntryAtDate, showToast });
+  useHealthDaily({ owner: accountOwner, ready: integrationAccountReady, data, wearables: Boolean(settings?.ouraConnected || settings?.whoopConnected), updateEntryAtDate });
   useWidgetCards({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, wearableScore: ouraRecovery, readiness: customReadiness });
-  useHealthWrite({ ready: accountReady && !demoMode && Boolean(user?.id), data });
+  useHealthWrite({ owner: accountOwner, ready: integrationAccountReady, data });
   useMorningPlan({ ready: accountReady && !demoMode && Boolean(user?.id), program });
   // The app's light taps on controls follow the runner's haptics setting.
   const uiHapticsOn = settings?.trainingCues?.haptics !== false;
@@ -1218,7 +1220,7 @@ function AppInner({ onThemeChange }) {
             <Suspense fallback={<LoadingShell plan={getSkeletonPlan("Recovery")} />}>
             {accountUnavailable ? <AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /> : loaded && dayZero.recovery.isZero
               ? <DayZeroSpecimen tab="Recovery" onAction={() => openSettings("integrations")} />
-              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard key={accountOwner} data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={currentDayKey} todayName={getDayName()} onOpenCheckin={openCheckin} programDay={recoveryProgram?.[getDayName()] || DEFAULT_PROGRAM[getDayName()]} todayPlan={recoveryProgram?.[getDayName()]?.type || null} onOpenIntegrations={() => openSettings("integrations", null, "Recovery")} openEdition={editionAsked} onEditionClosed={() => setEditionAsked(false)} onLoaded={(out) => acceptRecoveryLoad(out, accountOwner)} todayCall={todayCall && todayCall.owner === (user?.id ?? null) && todayCall.dateKey === getTodayKey() ? todayCall : null} /></>}
+              : <><BaselineBanner tab="Recovery" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><RecoveryDashboard key={accountOwner} integrationRevision={integrationRevision} data={data} settings={settings} yesterdayKey={yesterdayKey} appLoaded={loaded} userId={user?.id} todayKey={currentDayKey} todayName={getDayName()} onOpenCheckin={openCheckin} programDay={recoveryProgram?.[getDayName()] || DEFAULT_PROGRAM[getDayName()]} todayPlan={recoveryProgram?.[getDayName()]?.type || null} onOpenIntegrations={() => openSettings("integrations", null, "Recovery")} openEdition={editionAsked} onEditionClosed={() => setEditionAsked(false)} onLoaded={(out) => acceptRecoveryLoad(out, accountOwner)} todayCall={todayCall && todayCall.owner === (user?.id ?? null) && todayCall.dateKey === getTodayKey() ? todayCall : null} /></>}
             </Suspense>
             </ErrorBoundary>
           </div>
@@ -1234,7 +1236,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.today.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.today.isZero
               ? <DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />
-              : <TodayTab todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} wearableSample={wearableSample} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={currentLoad} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
+              : <TodayTab key={accountOwner} integrationRevision={integrationRevision} todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} wearableSample={wearableSample} setTab={navigateTo} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={currentLoad} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
             </div>
           )}
           {tab === "Train" && (
@@ -1257,7 +1259,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.progress.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.progress.isZero
               ? <DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} />
-              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onOpenEdition={openEdition} onOpenBlock={() => { setTrainLanding("block"); navigateTo("Train"); }} /></>}
+              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab owner={integrationAccountReady ? accountOwner : null} data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onOpenEdition={openEdition} onOpenBlock={() => { setTrainLanding("block"); navigateTo("Train"); }} /></>}
             </div>
           )}
           </>)}
@@ -1293,7 +1295,7 @@ function AppInner({ onThemeChange }) {
       </div>
       <input ref={fileRef} type="file" accept=".json" aria-label="Import data from JSON file" style={{ display:"none" }} onChange={importFile} />
       {exportModal && <ExportModal modal={exportModal} onClose={() => setExportModal(null)} showToast={showToast} />}
-      {settingsOpen && accountReady && <Suspense fallback={null}><SettingsScreen settings={settings} onSave={handleSaveSettings} onPatch={handlePatchSettings} onClose={() => setSettingsOpen(false)} busy={settingsBusy} onThemeChange={handleThemeChange} currentTheme={themeId} initialSection={settingsLanding.section} notice={settingsLanding.notice} backLabel={settingsLanding.from} loggedDays={countLoggedDays(data)} currentTab={tab} /></Suspense>}
+      {settingsOpen && accountReady && <Suspense fallback={null}><SettingsScreen key={accountOwner} owner={integrationAccountReady ? accountOwner : null} integrationRevision={integrationRevision} settings={settings} onSave={handleSaveSettings} onPatch={handlePatchSettings} onClose={() => setSettingsOpen(false)} busy={settingsBusy} onThemeChange={handleThemeChange} currentTheme={themeId} initialSection={settingsLanding.section} notice={settingsLanding.notice} backLabel={settingsLanding.from} loggedDays={countLoggedDays(data)} currentTab={tab} /></Suspense>}
       {importOpen  && <ImportModal onImport={importFromText} onClose={() => setImportOpen(false)} />}
       {/* Coach stays always-mounted (it manages its own open/close animation and
           in-flight request state); lazy just moves its code out of the entry

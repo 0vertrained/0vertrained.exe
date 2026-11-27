@@ -19,11 +19,12 @@ function statusText(state, scanned) {
     case "scanning": return "Searching nearby…";
     case "connecting": return `Connecting to ${name}…`;
     case "connected": return `Connected to ${name}`;
-    case "disconnected": return "Disconnected";
+    case "disconnected": return state.autoReconnect ? "Waiting for your saved strap" : "Disconnected";
     case "unavailable": return "Bluetooth unavailable";
     case "error": return "Connection issue";
     default:
       if (scanned && !state.devices?.length) return "No straps found. Keep the strap near your iPhone and try again while the light flashes blue.";
+      if (state.savedDevice && state.autoReconnect === false) return "Automatic reconnect paused";
       return state.savedDevice ? `Saved strap · ${state.savedDevice.name}` : "Ready to pair";
   }
 }
@@ -106,6 +107,10 @@ export function WhoopBluetoothCard() {
     <section className="card" aria-labelledby="int-whoop-strap" style={column}>
       <h2 id="int-whoop-strap" className="t-h">WHOOP Bluetooth</h2>
       <p className="t-s c2">Connect your WHOOP 4.0 directly to this iPhone for heart rate{history ? " and stored readings" : ""} without a WHOOP membership.</p>
+      {state.savedDevice && state.autoReconnect === true &&
+        <p className="t-s c2">Your iPhone reconnects to this strap when you open 0VERTRAINED. Disconnect strap pauses automatic reconnect.</p>}
+      {state.savedDevice && state.autoReconnect === false &&
+        <p className="t-s c2">Choose Reconnect strap to resume automatic reconnect.</p>}
       {!connected && !connecting && !state.savedDevice && (
         <p className="t-s c2">Take the strap off your wrist and tap the sensor until it flashes blue. Choose Find strap, then select yours.</p>
       )}
@@ -129,6 +134,7 @@ export function WhoopBluetoothCard() {
         ) : (
           <>
             {state.savedDevice && <button type="button" className="btn btn-p btn-sm" disabled={busy} onClick={() => action("connect", { id: state.savedDevice.id })}>Reconnect strap</button>}
+            {state.savedDevice && state.autoReconnect === true && <button type="button" className="btn btn-s btn-sm" disabled={busy} onClick={() => action("disconnect")}>Pause automatic reconnect</button>}
             <button type="button" className={state.savedDevice ? "btn btn-s btn-sm" : "btn btn-p btn-sm"} disabled={busy} onClick={() => action("scan")}>Find strap</button>
             {state.savedDevice && <button type="button" className="btn btn-g btn-sm" disabled={busy} onClick={() => action("disconnect", { forget: true })}>Forget strap</button>}
           </>
@@ -147,7 +153,9 @@ export function WhoopBluetoothCard() {
       {history && plugin?.readHistory && (
         <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
           <h3 className="t-bs">Overnight and phone-free recordings</h3>
-          <p className="t-s c2">After wearing the strap away from your phone, bring it nearby and keep this screen open to sync. Once this iPhone saves a block of readings, the strap can free that space.</p>
+          <p className="t-s c2">{typeof state.autoReconnect === "boolean"
+            ? "Open 0VERTRAINED with your strap nearby to import stored readings. You can use other screens while the app stays open."
+            : "After wearing the strap away from your phone, bring it nearby and keep this screen open to sync."} Once this iPhone saves a block of readings, the strap can free that space.</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="button" className="btn btn-p btn-sm" disabled={busy || syncing || !state.historyAvailable}
               onClick={() => action("startHistorySync")}>{syncing ? "Syncing strap history…" : "Sync strap history"}</button>

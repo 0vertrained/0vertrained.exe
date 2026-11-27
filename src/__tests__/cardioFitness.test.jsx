@@ -3,8 +3,9 @@
 // from the watch are on in the iPhone app: the latest estimate, how it moved
 // over about three months, and the year as a line.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { cardioFitnessTrend } from "../runProgress";
+import { APP_FOREGROUND_EVENT } from "../integrations/appForeground";
 import { CardioFitness } from "../sections/CardioFitness";
 import { writeWatchRunsOn } from "../watch/watchRunsState";
 
@@ -36,6 +37,21 @@ describe("CardioFitness", () => {
     expect(plugin.cardioFitness).toHaveBeenCalledWith({ days: 365 });
     expect(screen.getByText("VO2 max from your Apple Watch, Nov 20, up 1.4 since Sep 2.")).toBeTruthy();
     expect(screen.getByRole("img", { name: /^Line chart of cardio fitness over 4 estimates/ })).toBeTruthy();
+  });
+
+  it("refreshes an enabled athlete’s estimate on foreground and hides it when access changes", async () => {
+    const plugin = { cardioFitness: vi.fn().mockResolvedValueOnce({ points: [] }).mockResolvedValue({ points: POINTS }) };
+    window.Capacitor = { isNativePlatform: () => true, Plugins: { OTRuns: plugin } };
+    writeWatchRunsOn(true, "A");
+    const { rerender } = render(<CardioFitness owner="A" />);
+    await act(async () => {});
+    expect(screen.queryByRole("heading")).toBeNull();
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    expect(await screen.findByRole("heading", { name: "Cardio fitness" })).toBeTruthy();
+    rerender(<CardioFitness owner="B" />);
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(plugin.cardioFitness).toHaveBeenCalledTimes(2);
   });
 
   it("stays out of the way with runs off, or in a browser", async () => {

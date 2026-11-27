@@ -5,9 +5,10 @@
 // saved again only when it changed, and weight Health filled in isn't sent
 // back.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { planHealthWrites, readSaved, recordWrite, writeHealthWriteOn } from "../health/healthWrite";
 import { useHealthWrite } from "../health/useHealthWrite";
+import { APP_FOREGROUND_EVENT } from "../integrations/appForeground";
 import { AppleHealthCard } from "../sections/AppleHealthCard";
 
 const TODAY = "2026-11-26";
@@ -98,6 +99,31 @@ describe("useHealthWrite", () => {
     await waitFor(() => expect(plugin.saveWeight).toHaveBeenCalledTimes(2));
     expect(plugin.saveFood).toHaveBeenCalledTimes(1);
     expect(plugin.saveLift).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a failed write on foreground with unchanged data, preserving each athlete’s save", async () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 26, 18) });
+    const plugin = installWrite();
+    const data = { [TODAY]: { body: { weight: "182.4" } } };
+    plugin.saveWeight.mockRejectedValueOnce(new Error("Health store locked"));
+    writeHealthWriteOn(true, "A");
+    const { rerender } = renderHook(({ owner }) => useHealthWrite({ owner, ready: true, data }), { initialProps: { owner: "A" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4500); });
+    expect(readSaved("A")).toEqual({});
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    await act(async () => { await vi.advanceTimersByTimeAsync(4500); });
+    expect(readSaved("A")).toEqual({ ["weight." + TODAY]: "182.4" });
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    await act(async () => { await vi.advanceTimersByTimeAsync(4500); });
+    expect(plugin.saveWeight).toHaveBeenCalledTimes(2);
+    rerender({ owner: "B" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4500); });
+    expect(plugin.saveWeight).toHaveBeenCalledTimes(2);
+    expect(readSaved("B")).toEqual({});
+    act(() => writeHealthWriteOn(true, "B"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(4500); });
+    expect(plugin.saveWeight).toHaveBeenLastCalledWith({ date: TODAY, pounds: 182.4, prefix: "ovt.athlete.B" });
+    expect(plugin.enable).not.toHaveBeenCalled();
   });
 
   it("does nothing while it's off", async () => {

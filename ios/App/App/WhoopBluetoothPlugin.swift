@@ -3,7 +3,7 @@ import CoreBluetooth
 import UIKit
 import Capacitor
 
-/// User-initiated foreground streaming and import of the strap’s on-device history.
+/// Foreground streaming and import for the signed-in athlete's selected strap.
 @objc(WhoopBluetoothPlugin)
 public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManagerDelegate, CBPeripheralDelegate {
     public let identifier = "WhoopBluetoothPlugin"
@@ -20,7 +20,8 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
     private let eventID = CBUUID(string: WhoopLiveProtocol.eventUUID)
     private let dataID = CBUUID(string: WhoopLiveProtocol.dataUUID)
     private let responseID = CBUUID(string: WhoopLiveProtocol.responseUUID)
-    private let savedKey = "ot.whoopBluetooth.selected.v1"
+    private let pairings = WhoopPairings(defaults: .standard)
+    private var pairing: WhoopPairing?
 
     private var owner: String?
     private var central: CBCentralManager?
@@ -28,7 +29,11 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
     private var names: [UUID: String] = [:]
     private var active: CBPeripheral?
     private var pendingID: UUID?
-    private var resumeOnForeground: (owner: String, id: UUID)?
+    private var reconnectWork: DispatchWorkItem?
+    private var reconnectFailures = 0
+    private var automaticConnection = false
+    private var automaticHistory = false
+    private var historyNeedsReconnect = false
     private var cancelling: Set<UUID> = []
     private var status = "idle"
     private var message: String?
@@ -76,36 +81,65 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
     public override func load() {
         NotificationCenter.default.addObserver(self, selector: #selector(didEnterBackground),
                                                name: UIApplication.didEnterBackgroundNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(willEnterForeground),
-                                               name: UIApplication.willEnterForegroundNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(becameActive),
+                                               name: UIApplication.didBecomeActiveNotification, object: nil)
     }
 
     @objc private func didEnterBackground() {
+        cancelRetry()
         if status == "scanning" {
             stopScanning()
             setStatus("idle")
         } else if status == "connected" || status == "connecting" {
-            if status == "connected", let owner, let active {
-                resumeOnForeground = (owner, active.identifier)
-            }
             endConnection(stopVendor: true)
             setStatus("disconnected", "Heart rate paused while the app is in the background.")
         }
     }
 
-    @objc private func willEnterForeground() {
-        guard let resume = resumeOnForeground else { return }
-        resumeOnForeground = nil
-        guard owner == resume.owner, active == nil, pendingID == nil else { return }
-        pendingID = resume.id
+    @objc private func becameActive() {
+        if status == "connected" { refreshSavedStrap() }
+        else { resumeSavedStrap() }
+    }
+
+    private func cancelRetry() {
+        reconnectWork?.cancel()
+        reconnectWork = nil
+    }
+
+    private var automaticTarget: UUID? {
+        guard owner != nil else { return nil }
+        return pairing?.automaticTarget(foreground: UIApplication.shared.applicationState == .active,
+                                        authorized: CBManager.authorization == .allowedAlways)
+    }
+
+    private func resumeSavedStrap() {
+        guard let id = automaticTarget, active == nil, pendingID == nil, status != "scanning" else { return }
+        cancelRetry()
+        pendingID = id
+        automaticConnection = true
         setStatus("connecting", "Reconnecting to your WHOOP…")
         prepareBluetooth()
     }
 
+    private func scheduleRetry() {
+        guard let owner, let id = automaticTarget, central?.state == .poweredOn, reconnectWork == nil else { return }
+        let delay = WhoopPairings.retryDelay(failures: reconnectFailures)
+        reconnectFailures = min(reconnectFailures + 1, 4)
+        reconnectWork = after(delay) { [weak self] in
+            guard let self else { return }
+            self.reconnectWork = nil
+            if self.owner == owner, self.pairing?.id == id { self.resumeSavedStrap() }
+        }
+    }
+
     private var saved: [String: String]? {
-        guard let owner, let stored = UserDefaults.standard.dictionary(forKey: savedKey) as? [String: String],
-              stored["owner"] == owner, let id = stored["id"], let name = stored["name"] else { return nil }
-        return ["id": id, "name": name]
+        pairing.map { ["id": $0.id.uuidString, "name": $0.name] }
+    }
+
+    private func savePairing(_ value: WhoopPairing?) {
+        guard let owner else { return }
+        pairing = value
+        pairings.save(value, owner: owner)
     }
 
     private func row(_ id: UUID) -> [String: String] {
@@ -118,6 +152,7 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
             "owner": owner as Any? ?? NSNull(), "status": status, "message": message as Any? ?? NSNull(),
             "devices": devices.keys.map(row).sorted { ($0["name"] ?? "", $0["id"] ?? "") < ($1["name"] ?? "", $1["id"] ?? "") },
             "device": device as Any? ?? NSNull(), "savedDevice": saved as Any? ?? NSNull(),
+            "autoReconnect": pairing?.reconnect ?? false,
             "lastSample": lastSample as Any? ?? NSNull(),
             "batteryPercent": batteryPercent as Any? ?? NSNull(), "batteryAt": batteryAt as Any? ?? NSNull(),
             "lastReadingAt": lastReadingAt as Any? ?? NSNull(), "lastLiveAt": lastLiveAt as Any? ?? NSNull(),
@@ -137,19 +172,21 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
         DispatchQueue.main.async {
             let next = call.getString("owner").flatMap { $0.isEmpty ? nil : $0 }
             if next != self.owner || next == nil {
-                self.resumeOnForeground = nil
+                self.cancelRetry()
+                self.reconnectFailures = 0
                 self.stopScanning()
                 self.endConnection(stopVendor: true)
                 self.devices.removeAll()
                 self.names.removeAll()
                 self.owner = next
-                if next == nil || self.saved == nil { UserDefaults.standard.removeObject(forKey: self.savedKey) }
+                self.pairing = next.flatMap { self.pairings.load(owner: $0) }
                 self.historyStatus = "idle"
                 self.historyMessage = nil
                 self.imported = 0
                 self.unsupported = 0
                 self.restoreReadings(id: self.saved?["id"])
                 self.setStatus("idle")
+                self.resumeSavedStrap()
             }
             call.resolve(self.snapshot)
         }
@@ -178,6 +215,7 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
                 return
             }
             self.stopScanning()
+            self.cancelRetry()
             self.devices.removeAll()
             self.names.removeAll()
             self.setStatus("scanning")
@@ -209,6 +247,12 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
                 return
             }
             self.stopScanning()
+            self.cancelRetry()
+            if var saved = self.pairing, saved.id == id {
+                saved.reconnect = true
+                self.savePairing(saved)
+            }
+            self.automaticConnection = false
             self.restoreReadings(id: id.uuidString)
             self.pendingID = id
             self.setStatus("connecting", "Connecting to your WHOOP…")
@@ -219,12 +263,15 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
 
     @objc func disconnect(_ call: CAPPluginCall) {
         authorized(call) {
-            self.resumeOnForeground = nil
+            self.cancelRetry()
             self.stopScanning()
             self.endConnection(stopVendor: true)
             if call.getBool("forget") == true {
-                UserDefaults.standard.removeObject(forKey: self.savedKey)
+                self.savePairing(nil)
                 self.restoreReadings(id: nil)
+            } else if var saved = self.pairing {
+                saved.reconnect = false
+                self.savePairing(saved)
             }
             self.setStatus("idle")
             call.resolve(self.snapshot)
@@ -248,9 +295,12 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
         cacheReadings()
         if transfer != nil {
             historyStatus = "interrupted"
-            historyMessage = "Sync paused. Reconnect and sync again to pick up stored readings."
+            historyMessage = "Sync paused. Saved blocks are on this iPhone."
         }
         resetTransfer()
+        automaticHistory = false
+        historyNeedsReconnect = false
+        automaticConnection = false
         batterySequence = nil
         responseDecoder = WhoopLiveFrameDecoder()
         eventDecoder = WhoopLiveFrameDecoder()
@@ -291,8 +341,10 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
     }
 
     private func failed(_ detail: String) {
+        let retry = pairing.map { $0.id == active?.identifier || $0.id == pendingID } ?? false
         endConnection()
         setStatus("error", detail)
+        if retry { scheduleRetry() }
     }
 
     private func prepareBluetooth() {
@@ -308,15 +360,19 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
         case .poweredOn:
             if status == "scanning", !central.isScanning { startScan(central) }
             else if status == "connecting", active == nil { startConnection(central) }
-            else if status == "unavailable" { setStatus("idle") }
+            else if status == "unavailable" {
+                setStatus("idle")
+                resumeSavedStrap()
+            }
             return
         case .unknown: return
         case .resetting: message = "Bluetooth is restarting. Try again when it’s ready."
-        case .poweredOff: message = "Turn on Bluetooth in iPhone Settings, then try again."
+        case .poweredOff: message = "Turn on Bluetooth in iPhone Settings to reach your strap."
         case .unauthorized: message = "Allow Bluetooth for 0VERTRAINED in iPhone Settings."
         case .unsupported: message = "This device does not support a Bluetooth strap connection."
         @unknown default: message = "Bluetooth is unavailable."
         }
+        cancelRetry()
         clearConnection()
         devices.removeAll()
         names.removeAll()
@@ -378,6 +434,13 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
         p.delegate = self
         central.connect(p, options: nil)
         timer?.cancel()
+        // CoreBluetooth keeps a request for a known peripheral pending until
+        // it returns within range. A foreground reconnect can wait for it.
+        if !automaticConnection { startDiscoveryTimeout() }
+    }
+
+    private func startDiscoveryTimeout() {
+        timer?.cancel()
         timer = after(55) { [weak self] in
             guard let self, self.status == "connecting" else { return }
             self.failed("No heart rate received. Wear the strap snugly, wake it, and check the iPhone pairing prompt.")
@@ -386,7 +449,9 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard peripheral === active else { return }
-        setStatus("connecting", "Waiting for heart rate. Accept the iPhone pairing prompt if shown.")
+        startDiscoveryTimeout()
+        setStatus("connecting", automaticConnection ? "Restoring your WHOOP connection…"
+                  : "Waiting for heart rate. Accept the iPhone pairing prompt if shown.")
         peripheral.discoverServices([hrService, strapService])
     }
 
@@ -396,8 +461,10 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
             return
         }
         guard p === active else { return }
+        let retry = p.identifier == automaticTarget
         clearConnection()
-        setStatus("disconnected", detail)
+        setStatus("disconnected", retry ? "Your iPhone will reconnect when the strap is nearby." : detail)
+        if retry { scheduleRetry() }
     }
 
     public func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -466,7 +533,7 @@ public final class WhoopBluetoothPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralM
             standardSource = nil
             startVendorIfNeeded()
         } else if characteristic.uuid == responseID, error == nil, characteristic.isNotifying {
-            batterySequence = send(26, [0])
+            requestBatteryIfDue()
             historyReady()
         } else if characteristic.uuid == dataID {
             guard error == nil, characteristic.isNotifying, let command else {
@@ -577,14 +644,14 @@ extension WhoopBluetoothPlugin {
     private static var now: Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
 
     private var historyAvailable: Bool {
-        active?.state == .connected && command != nil && vendorData?.isNotifying == true && vendorResponse?.isNotifying == true
+        !historyNeedsReconnect && active?.state == .connected && command != nil
+            && vendorData?.isNotifying == true && vendorResponse?.isNotifying == true
     }
 
     private func rememberSelection(_ peripheral: CBPeripheral) {
-        guard let owner else { return }
-        var selected = row(peripheral.identifier)
-        selected["owner"] = owner
-        UserDefaults.standard.set(selected, forKey: savedKey)
+        let selected = WhoopPairing(id: peripheral.identifier, name: row(peripheral.identifier)["name"] ?? "WHOOP", reconnect: true)
+        if selected != pairing { savePairing(selected) }
+        reconnectFailures = 0
     }
 
     private func historyReady() {
@@ -592,14 +659,39 @@ extension WhoopBluetoothPlugin {
         timer?.cancel()
         rememberSelection(active)
         setStatus("connected")
+        refreshSavedStrap()
+    }
+
+    private func requestBatteryIfDue() {
+        guard transfer == nil, vendorResponse?.isNotifying == true, batterySequence == nil,
+              WhoopPairings.historyDue(now: Self.now, lastCompleted: batteryAt) else { return }
+        batterySequence = send(26, [0])
+    }
+
+    private func refreshSavedStrap() {
+        guard let id = automaticTarget, id == active?.identifier, status == "connected", transfer == nil else { return }
+        requestBatteryIfDue()
+        if historyAvailable, WhoopPairings.historyDue(now: Self.now, lastCompleted: lastSyncAt) {
+            beginHistory(automatic: true)
+        }
     }
 
     private func restoreReadings(id: String?) {
         cachedAt = 0
         let defaults = UserDefaults.standard
         let prefix = owner.map { "ot.whoopBluetooth." + WhoopHistoryStore.key($0) }
-        lastSyncAt = prefix.flatMap { (defaults.object(forKey: $0 + ".lastSync") as? NSNumber)?.int64Value }
         let saved = prefix.flatMap { key in id.flatMap { defaults.dictionary(forKey: key + "." + $0) } }
+        lastSyncAt = (saved?["lastSyncAt"] as? NSNumber)?.int64Value
+        // Previous versions saved the last successful import against the owner.
+        if lastSyncAt == nil, id != nil, id == pairing?.id.uuidString, let prefix {
+            lastSyncAt = (defaults.object(forKey: prefix + ".lastSync") as? NSNumber)?.int64Value
+            if let lastSyncAt, let id {
+                var values = saved ?? [:]
+                values["lastSyncAt"] = NSNumber(value: lastSyncAt)
+                defaults.set(values, forKey: prefix + "." + id)
+                defaults.removeObject(forKey: prefix + ".lastSync")
+            }
+        }
         batteryPercent = (saved?["batteryPercent"] as? NSNumber)?.intValue
         batteryAt = (saved?["batteryAt"] as? NSNumber)?.int64Value
         lastLiveAt = (saved?["lastLiveAt"] as? NSNumber)?.int64Value
@@ -620,6 +712,7 @@ extension WhoopBluetoothPlugin {
         guard let owner, let id = active?.identifier else { return }
         var values: [String: NSNumber] = [:]
         if let lastLiveAt { values["lastLiveAt"] = NSNumber(value: lastLiveAt) }
+        if let lastSyncAt { values["lastSyncAt"] = NSNumber(value: lastSyncAt) }
         if let batteryAt, let batteryPercent {
             values["batteryAt"] = NSNumber(value: batteryAt)
             values["batteryPercent"] = NSNumber(value: batteryPercent)
@@ -645,9 +738,9 @@ extension WhoopBluetoothPlugin {
 
     private func handleResponse(_ frame: Data) {
         guard frame.count >= 13, frame[4] == 36 else { return }
-        if let seq = batterySequence, let value = WhoopHistoryReading.battery(frame, sequence: seq) {
+        if let seq = batterySequence, frame[6] == 26, frame[7] == seq {
             batterySequence = nil
-            updateBattery(value)
+            if let value = WhoopHistoryReading.battery(frame, sequence: seq) { updateBattery(value) }
         }
         guard transfer != nil,
               (frame[6] == 22 && frame[7] == historySequence) || (frame[6] == 23 && frame[7] == ackSequence) else { return }
@@ -660,18 +753,24 @@ extension WhoopBluetoothPlugin {
         authorized(call) {
             if self.transfer != nil { call.resolve(self.snapshot); return }
             guard self.historyAvailable else { call.reject("Connect to your WHOOP 4.0 history channel first."); return }
-            self.transfer = WhoopHistoryTransfer()
-            self.transferID = UUID()
-            self.historyStatus = "syncing"
-            self.historyMessage = nil
-            self.imported = 0
-            self.unsupported = 0
-            self.historySequence = self.send(22, [0])
-            self.lastProgress = ProcessInfo.processInfo.systemUptime
-            self.watchHistory()
-            self.notifyListeners("state", data: self.snapshot)
+            self.beginHistory(automatic: false)
             call.resolve(self.snapshot)
         }
+    }
+
+    private func beginHistory(automatic: Bool) {
+        guard historyAvailable, transfer == nil, let request = send(22, [0]) else { return }
+        automaticHistory = automatic
+        transfer = WhoopHistoryTransfer()
+        transferID = UUID()
+        historyStatus = "syncing"
+        historyMessage = nil
+        imported = 0
+        unsupported = 0
+        historySequence = request
+        lastProgress = ProcessInfo.processInfo.systemUptime
+        watchHistory()
+        notifyListeners("state", data: snapshot)
     }
 
     private func watchHistory() {
@@ -698,6 +797,14 @@ extension WhoopBluetoothPlugin {
         resetTransfer()
         historyStatus = "error"
         historyMessage = detail
+        if automaticHistory {
+            // A late END on the same connection must never acknowledge a new
+            // transfer. Keep live workout HR running until the next connection.
+            historyNeedsReconnect = true
+            historyMessage = "Stored readings will retry after reconnecting. Live heart rate is still available."
+            notifyListeners("state", data: snapshot)
+            return
+        }
         // A local timeout does not cancel the strap's transfer. Close this
         // connection so a subsequent attempt cannot receive its late END.
         failed(detail)
@@ -752,7 +859,7 @@ extension WhoopBluetoothPlugin {
                 resetTransfer()
                 historyStatus = "complete"
                 lastSyncAt = Self.now
-                UserDefaults.standard.set(lastSyncAt, forKey: "ot.whoopBluetooth." + WhoopHistoryStore.key(owner) + ".lastSync")
+                cacheReadings()
                 notifyListeners("state", data: snapshot)
             default: break
             }

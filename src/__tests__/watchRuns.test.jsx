@@ -9,6 +9,7 @@ import { useState } from "react";
 import { DEFAULT_PROGRAM, getTodayKey } from "../constants";
 import { useWatchRuns } from "../watch/useWatchRuns";
 import { readHandledRuns, readWatchRunsOn, writeWatchRunsOn } from "../watch/watchRunsState";
+import { APP_FOREGROUND_EVENT } from "../integrations/appForeground";
 import { AppleWatchCard } from "../sections/AppleWatchCard";
 
 function setPath(object, [key, ...rest], value) {
@@ -60,6 +61,32 @@ describe("useWatchRuns", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(plugin.recentRuns).not.toHaveBeenCalled();
     expect(plugin.schedule).not.toHaveBeenCalled();
+  });
+
+  it("imports newly arrived Watch cardio on foreground without asking for access again", async () => {
+    const today = getTodayKey();
+    const runs = [];
+    const plugin = installRuns({ runs });
+    writeWatchRunsOn(true);
+    const { result } = renderHook(() => useApp(vi.fn()));
+    await act(async () => {});
+    runs.push({ id: "offline-run", date: today, meters: 8046.72, seconds: 2430 });
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    await waitFor(() => expect(result.current[today]?.workout?.cardio?.miles).toBe("5"));
+    expect(plugin.recentRuns).toHaveBeenCalledTimes(2);
+    expect(plugin.enable).not.toHaveBeenCalled();
+  });
+
+  it("clears the previous athlete's scheduled workouts once when the active athlete has opted out", async () => {
+    const plugin = installRuns();
+    writeWatchRunsOn(true, "A");
+    renderHook(() => useWatchRuns({ owner: "B", ready: true, data: {}, program: DEFAULT_PROGRAM, updateEntryAtDate: vi.fn() }));
+    await waitFor(() => expect(plugin.clear).toHaveBeenCalledOnce());
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    await act(async () => {});
+    expect(plugin.clear).toHaveBeenCalledOnce();
+    expect(plugin.recentRuns).not.toHaveBeenCalled();
+    expect(readWatchRunsOn("A")).toBe(true);
   });
 
   it("sends the week's runs once it's on", async () => {

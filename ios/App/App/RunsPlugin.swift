@@ -109,13 +109,7 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.resolve(["runs": activities])
             }
         }
-        Task {
-            // Heart rate was added after runners first said yes. iOS shows
-            // its sheet only for what it hasn't asked about, so this asks
-            // once for heart rate and is silent after that.
-            try? await self.health.requestAuthorization(toShare: [], read: Self.readTypes)
-            self.health.execute(query)
-        }
+        self.health.execute(query)
     }
 
     /// id: a run's Health workout id, from recentRuns. Resolves { distance,
@@ -132,7 +126,6 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         Task {
-            try? await self.health.requestAuthorization(toShare: [], read: Self.readTypes)
             guard let workout = await self.workout(id) else {
                 call.resolve([:])
                 return
@@ -176,7 +169,6 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
         let days = max(7, min(call.getInt("days") ?? 365, 730))
         let start = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date()
         Task {
-            try? await self.health.requestAuthorization(toShare: [], read: Self.readTypes)
             let unit = HKUnit(from: "ml/kg*min")
             let samples = await self.quantitySamples(.vo2Max, predicate: HKQuery.predicateForSamples(withStart: start, end: nil, options: .strictStartDate))
             var order: [String] = []

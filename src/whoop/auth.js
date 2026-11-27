@@ -8,8 +8,16 @@
 // • The browser NEVER reads whoop_tokens; ownership is server-derived.
 
 import { supabase } from "../supabaseClient";
-import { memoizeAsync } from "../asyncMemo";
+import { createCloudProvider } from "../integrations/cloudProvider";
+import { invalidateWhoopData } from "./dataLoading";
 import { isDemoMode } from "../demoData";
+
+export const whoopCloud = createCloudProvider({
+  defaultDays: 14,
+  status: "/api/whoop/status",
+  sync: "/api/whoop/sync",
+  disconnect: "/api/whoop/disconnect",
+}, invalidateWhoopData);
 
 async function getAccessToken() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -22,6 +30,7 @@ async function getAccessToken() {
  * Returns the URL string, or null if not configured / not authenticated.
  */
 export async function getWhoopAuthUrl() {
+  if (isDemoMode()) return null;
   const token = await getAccessToken();
   if (!token) return null;
   try {
@@ -44,30 +53,9 @@ export async function getWhoopAuthUrl() {
  * Whoop is opt-in; connection state lives server-side. Token table reads never
  * happen in the browser — we ask /api/whoop/status.
  */
-// Memoized (60s TTL + single-flight) — see isOuraConnected rationale.
-const isWhoopConnectedMemo = memoizeAsync(isWhoopConnectedProbe, 60_000);
 export async function isWhoopConnected() {
-  if (isDemoMode()) return true; // demo shows the full wearable story
-  return isWhoopConnectedMemo();
-}
-
-async function isWhoopConnectedProbe() {
-  try {
-    const token = await getAccessToken();
-    if (!token) return false;
-    const r = await fetch("/api/whoop/status", {
-      headers: {
-        "accept": "application/json",
-        "authorization": `Bearer ${token}`,
-      },
-    });
-    if (!r.ok) return false;
-    const data = await r.json();
-    return !!data?.connected;
-  } catch (e) {
-    console.error("isWhoopConnected error:", e);
-    return false;
-  }
+  if (isDemoMode()) return true;
+  return (await whoopCloud.status(60_000)).connected;
 }
 
 /**
@@ -84,42 +72,14 @@ export async function getWhoopTokenStatus() {
       syncStatus: "ok",
     };
   }
-  try {
-    const token = await getAccessToken();
-    if (!token) {
-      return {
-        connected: false,
-        expiresAt: null,
-        isExpired: false,
-        lastSynced: null,
-        syncStatus: "unauthenticated",
-      };
-    }
-    const r = await fetch("/api/whoop/status", {
-      headers: {
-        "accept": "application/json",
-        "authorization": `Bearer ${token}`,
-      },
-    });
-    if (!r.ok) throw new Error(`Whoop status failed: ${r.status}`);
-    const data = await r.json();
-    return {
-      connected: !!data?.connected,
-      expiresAt: data?.expiresAt || null,
-      isExpired: !!data?.isExpired,
-      lastSynced: data?.lastSynced || null,
-      syncStatus: data?.syncStatus || "never",
-    };
-  } catch (e) {
-    console.error("getWhoopTokenStatus error:", e);
-    return {
-      connected: false,
-      expiresAt: null,
-      isExpired: false,
-      lastSynced: null,
-      syncStatus: "error",
-    };
-  }
+  const data = await whoopCloud.status();
+  return {
+    connected: !!data.connected,
+    expiresAt: data.expiresAt || null,
+    isExpired: !!data.isExpired,
+    lastSynced: data.lastSynced || null,
+    syncStatus: data.syncStatus || "never",
+  };
 }
 
 /**
@@ -131,24 +91,7 @@ export async function getWhoopTokenStatus() {
  */
 export async function syncWhoopNow(days = 14) {
   if (isDemoMode()) return { ok: true, synced: 0, counts: {}, demo: true };
-  try {
-    const token = await getAccessToken();
-    if (!token) return { error: "Not authenticated" };
-    const qs = Number.isFinite(Number(days)) ? `?days=${encodeURIComponent(Math.round(Number(days)))}` : "";
-    const r = await fetch(`/api/whoop/sync${qs}`, {
-      method: "POST",
-      headers: {
-        "accept": "application/json",
-        "authorization": `Bearer ${token}`,
-      },
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) return { error: data?.error || "Sync failed" };
-    return data;
-  } catch (e) {
-    console.error("syncWhoopNow error:", e);
-    return { error: e.message };
-  }
+  return whoopCloud.syncNow(days);
 }
 
 /**
@@ -217,21 +160,6 @@ export async function getWhoopSyncEvents(limit = 20) {
  * Disconnect Whoop — deletes tokens + data + any pending oauth state server-side.
  */
 export async function disconnectWhoop() {
-  isWhoopConnectedMemo.invalidate();
-  try {
-    const token = await getAccessToken();
-    if (!token) return { error: "Not authenticated" };
-    const r = await fetch("/api/whoop/disconnect", {
-      method: "POST",
-      headers: {
-        "accept": "application/json",
-        "authorization": `Bearer ${token}`,
-      },
-    });
-    if (!r.ok) return { error: "Disconnect failed" };
-    return { ok: true };
-  } catch (e) {
-    console.error("disconnectWhoop error:", e);
-    return { error: e.message };
-  }
+  if (isDemoMode()) return { ok: true };
+  return whoopCloud.disconnect();
 }

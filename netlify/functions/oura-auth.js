@@ -317,7 +317,7 @@ async function handleStatus(req) {
   try {
     const summary = await getProviderConnectionSummary(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, userId, PROVIDERS.OURA);
     tokenData = summary.connected
-      ? { expires_at: summary.expiresAt, refresh_token: summary.hasRefreshToken, token_encryption_configured: summary.tokenEncryptionConfigured }
+      ? { expires_at: summary.expiresAt, refresh_token: summary.hasRefreshToken, token_encryption_configured: summary.tokenEncryptionConfigured, needsReauth: summary.needsReauth }
       : null;
   } catch {
     return json({ error: "Token status unavailable" }, 502);
@@ -355,7 +355,10 @@ async function handleStatus(req) {
   // stored tokens (handled inside refreshOuraAccessToken) — we never return tokens.
   let expiresAt = tokenData?.expires_at || null;
   let isExpired = expiresAt ? new Date(expiresAt) <= new Date() : false;
-  if (tokenData) {
+  if (tokenData?.needsReauth) {
+    isExpired = true;
+    syncStatus = "refresh_failed";
+  } else if (tokenData) {
     const remainingMs = expiresAt ? new Date(expiresAt).getTime() - Date.now() : -Infinity;
     const needsRefresh = remainingMs <= TOKEN_NEAR_EXPIRY_MS;
     if (needsRefresh && tokenData.refresh_token) {
@@ -363,10 +366,13 @@ async function handleStatus(req) {
       // encrypted store (with one-shot legacy migration) — no plaintext flows
       // through the status handler.
       const refreshed = await refreshOuraAccessToken(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, userId);
-      if (refreshed) {
+      if (refreshed.accessToken) {
         // Refresh succeeded and rotated tokens were persisted — report healthy.
         expiresAt = refreshed.expiresAt || expiresAt;
         isExpired = false;
+      } else if (refreshed.retryable) {
+        isExpired = false;
+        syncStatus = "refresh_pending";
       } else {
         // Refresh genuinely failed — the user must reconnect. Do not claim
         // disconnected: the token row still exists.
@@ -425,16 +431,17 @@ async function handleDisconnect(req) {
         return json({ error: "Disconnect failed" }, 502);
       }
     }
-    // Best-effort cleanup for the provider-standard mirror. Do not fail legacy
-    // disconnect if the migration has not been applied yet.
-    await fetch(`${SUPABASE_URL}/rest/v1/connected_accounts?user_id=eq.${encodeURIComponent(userId)}&provider=eq.oura`, {
+    // The encrypted account is the active token store. Only a missing table is
+    // harmless on legacy installations.
+    const accountDelete = await fetch(`${SUPABASE_URL}/rest/v1/connected_accounts?user_id=eq.${encodeURIComponent(userId)}&provider=eq.oura`, {
       method: "DELETE",
       headers: {
         "authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         "apikey": SUPABASE_SERVICE_ROLE_KEY,
         "Prefer": "return=minimal",
       },
-    }).catch(() => null);
+    });
+    if (!accountDelete.ok && accountDelete.status !== 404) throw new Error("Account deletion failed");
   } catch {
     await logSyncEvent(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       userId, source: "oura", eventType: "disconnect", status: "failed",
@@ -473,6 +480,7 @@ async function buildOuraUpserts({ userId, accessToken, days = 14 }) {
     spo2: "daily_spo2",
   };
   const upserts = [];
+  const fetchFailures = [];
   for (const [dataType, endpoint] of Object.entries(dataTypes)) {
     try {
       const params = endpoint === "heartrate"
@@ -486,6 +494,7 @@ async function buildOuraUpserts({ userId, accessToken, days = 14 }) {
       });
       if (!r.ok) {
         console.warn(`Oura user sync skipped ${dataType}:`, r.status);
+        fetchFailures.push({ dataType, status: r.status });
         continue;
       }
       const payload = await r.json();
@@ -508,15 +517,16 @@ async function buildOuraUpserts({ userId, accessToken, days = 14 }) {
         });
       }
     } catch (e) {
+      fetchFailures.push({ dataType, error: true });
       console.warn(`Oura user sync error ${dataType}:`, e?.message || e);
     }
   }
-  return { upserts, safeDays, startDate, endDate };
+  return { upserts, fetchFailures, safeDays, startDate, endDate };
 }
 
 // Exchange the stored refresh token for a new access token, persist the rotated
 // tokens immediately, and log a token_refresh event. Returns { accessToken,
-// expiresAt } on success or null on failure. The refresh token itself is never
+// expiresAt } on success or { retryable } on failure. The refresh token itself is never
 // returned. Shared by /status (self-heal) and the manual-sync path
 // (getUsableOuraAccessToken).
 //
@@ -530,7 +540,7 @@ async function refreshOuraAccessToken(supabaseUrl, serviceKey, userId) {
   const OURA_CLIENT_SECRET = process.env.OURA_CLIENT_SECRET;
   if (!OURA_CLIENT_ID || !OURA_CLIENT_SECRET) {
     console.error("Oura refresh: credentials not configured");
-    return null;
+    return { retryable: true };
   }
   const resolved = await resolveProviderTokens(supabaseUrl, serviceKey, { userId, provider: PROVIDERS.OURA });
   if (!resolved.ok || !resolved.refreshToken) {
@@ -540,7 +550,7 @@ async function refreshOuraAccessToken(supabaseUrl, serviceKey, userId) {
         ? "Token refresh blocked: TOKEN_ENCRYPTION_KEY is not configured."
         : "Token refresh failed: no refresh token on file.",
     });
-    return null;
+    return { retryable: !resolved.ok };
   }
   try {
     const body = new URLSearchParams({
@@ -556,12 +566,12 @@ async function refreshOuraAccessToken(supabaseUrl, serviceKey, userId) {
     });
     if (!refreshRes.ok) {
       console.error("Oura token refresh failed:", refreshRes.status);
-      return null;
+      return { retryable: ![400, 401, 403].includes(refreshRes.status) };
     }
     const refreshed = await refreshRes.json();
     const accessToken = refreshed.access_token;
     const newRefresh = refreshed.refresh_token || resolved.refreshToken;
-    if (!accessToken) return null;
+    if (!accessToken) return { retryable: true };
     const expiresIn = refreshed.expires_in || 3600;
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
     // Persist immediately before using it so a rotated refresh token is never lost.
@@ -579,14 +589,14 @@ async function refreshOuraAccessToken(supabaseUrl, serviceKey, userId) {
       // refresh token is now stale. Report failure so the UI surfaces a
       // reconnect rather than pretending health.
       await logSyncEvent(supabaseUrl, serviceKey, { userId, source: "oura", eventType: "token_refresh", status: "failed", message: `Refreshed but storage failed (${persisted.reason}).` });
-      return null;
+      return { retryable: true };
     }
     await logSyncEvent(supabaseUrl, serviceKey, { userId, source: "oura", eventType: "token_refresh", status: "success", message: "Oura access token refreshed." });
     return { accessToken, expiresAt };
   } catch (e) {
     console.error("Oura token refresh error:", e?.message || "error");
     await logSyncEvent(supabaseUrl, serviceKey, { userId, source: "oura", eventType: "token_refresh", status: "failed", message: e?.message || "Token refresh failed." });
-    return null;
+    return { retryable: true };
   }
 }
 
@@ -609,7 +619,7 @@ async function getUsableOuraAccessToken(supabaseUrl, serviceKey, userId) {
   if (!OURA_CLIENT_ID || !OURA_CLIENT_SECRET) return { error: "Oura not configured", status: 500 };
 
   const refreshed = await refreshOuraAccessToken(supabaseUrl, serviceKey, userId);
-  if (!refreshed) return { error: "Token refresh failed", status: 502 };
+  if (!refreshed.accessToken) return { error: "Token refresh failed", status: 502 };
   return { accessToken: refreshed.accessToken };
 }
 
@@ -648,26 +658,28 @@ async function handleCounts(req) {
 async function runOuraSyncForUser(supabaseUrl, serviceKey, userId, requestedDays = 14, logLabel = "Manual Oura sync", eventLabel = "Manual sync") {
   const token = await getUsableOuraAccessToken(supabaseUrl, serviceKey, userId);
   if (token.error) return { error: token.error, status: token.status || 502 };
-  const { upserts, safeDays, startDate, endDate } = await buildOuraUpserts({ userId, accessToken: token.accessToken, days: requestedDays });
+  const { upserts, fetchFailures, safeDays, startDate, endDate } = await buildOuraUpserts({ userId, accessToken: token.accessToken, days: requestedDays });
   const result = upserts.length > 0
     ? await storeOuraDataBatches(supabaseUrl, serviceKey, upserts, logLabel)
     : { stored: 0, failures: [] };
   const counts = countRowsByType(upserts);
-  const status = result.failures.length === 0 ? "success" : result.stored > 0 ? "partial" : "failed";
+  const failures = [...fetchFailures, ...result.failures];
+  const status = failures.length === 0 ? "success" : result.stored > 0 ? "partial" : "failed";
   await logSyncEvent(supabaseUrl, serviceKey, {
     userId, source: "oura", eventType: "sync", status, counts,
-    message: status === "success" ? `${eventLabel}: ${result.stored} record(s) stored over ${safeDays} days.` : `${eventLabel}: ${result.stored} stored, ${result.failures.length} type(s) failed.`,
+    message: status === "success" ? `${eventLabel}: ${result.stored} record(s) stored over ${safeDays} days.` : `${eventLabel}: ${result.stored} stored, ${failures.length} type(s) failed.`,
     days: safeDays,
   });
   return {
-    ok: result.failures.length === 0,
+    ok: failures.length === 0,
+    failures,
     synced: upserts.length,
     stored: result.stored,
     counts,
     days: safeDays,
     start_date: startDate,
     end_date: endDate,
-    failed_types: result.failures.map(f => f.dataType),
+    failed_types: failures.map(f => f.dataType),
   };
 }
 

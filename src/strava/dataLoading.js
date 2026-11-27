@@ -13,8 +13,7 @@
 
 import { supabase } from "../supabaseClient";
 import { isDemoMode, getDemoStravaActivities } from "../demoData";
-import { memoizeAsync } from "../asyncMemo";
-import { getStravaTokenStatus } from "./auth";
+import { stravaCloud } from "./auth";
 
 const RUN_SPORTS = new Set(["run", "trailrun", "virtualrun", "walk", "hike", "snowshoe"]);
 const RIDE_SPORTS = new Set(["ride", "virtualride", "mountainbikeride", "gravelride", "handcycle", "velomobile"]);
@@ -155,20 +154,10 @@ export async function loadStravaActivities(days = 28) {
 }
 
 /** Server-verified connection check, mirroring isOuraConnected/isWhoopConnected. */
-// Memoized (60s TTL + single-flight) — see isOuraConnected rationale.
-const isStravaConnectedMemo = memoizeAsync(async () => {
-  try {
-    const status = await getStravaTokenStatus();
-    return Boolean(status?.connected);
-  } catch {
-    return false;
-  }
-}, 60_000);
 export async function isStravaConnected() {
-  if (isDemoMode()) return true; // demo shows the full wearable story
-  return isStravaConnectedMemo();
+  if (isDemoMode()) return true;
+  return (await stravaCloud.status(60_000)).connected;
 }
-export function invalidateStravaConnected() { isStravaConnectedMemo.invalidate(); }
 
 /** Attribution deep link — required by the Strava API Agreement wherever an activity renders. */
 export function stravaActivityUrl(activity) {

@@ -344,7 +344,7 @@ async function handleStatus(req) {
   try {
     const summary = await getProviderConnectionSummary(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, userId, PROVIDERS.WHOOP);
     tokenData = summary.connected
-      ? { expires_at: summary.expiresAt, refresh_token: summary.hasRefreshToken, token_encryption_configured: summary.tokenEncryptionConfigured }
+      ? { expires_at: summary.expiresAt, refresh_token: summary.hasRefreshToken, token_encryption_configured: summary.tokenEncryptionConfigured, needsReauth: summary.needsReauth }
       : null;
   } catch {
     return json({ error: "Token status unavailable" }, 502);
@@ -377,17 +377,23 @@ async function handleStatus(req) {
   // stored tokens (handled inside refreshAccessToken) — we never return tokens.
   let expiresAt = tokenData?.expires_at || null;
   let isExpired = expiresAt ? new Date(expiresAt) <= new Date() : false;
-  if (tokenData) {
+  if (tokenData?.needsReauth) {
+    isExpired = true;
+    syncStatus = "refresh_failed";
+  } else if (tokenData) {
     const remainingMs = expiresAt ? new Date(expiresAt).getTime() - Date.now() : -Infinity;
     const needsRefresh = remainingMs <= TOKEN_NEAR_EXPIRY_MS;
     if (needsRefresh && tokenData.refresh_token) {
       // RefreshAccessToken resolves its own refresh token from the
       // encrypted store — no plaintext flows through the status handler.
-      const refreshed = await refreshAccessToken(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, userId);
-      if (refreshed) {
+      const refreshed = await refreshWhoopCredentials(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, userId);
+      if (refreshed.accessToken) {
         // Refresh succeeded and rotated tokens were persisted — report healthy.
         expiresAt = refreshed.expiresAt || expiresAt;
         isExpired = false;
+      } else if (refreshed.retryable) {
+        isExpired = false;
+        syncStatus = "refresh_pending";
       } else {
         // Refresh genuinely failed — the user must reconnect. Do not claim
         // disconnected: the token row still exists.
@@ -442,12 +448,13 @@ async function handleDisconnect(req) {
         return json({ error: "Disconnect failed" }, 502);
       }
     }
-    // Best-effort cleanup for the provider-standard mirror. Do not fail legacy
-    // disconnect if the migration has not been applied yet.
-    await fetch(`${SUPABASE_URL}/rest/v1/connected_accounts?user_id=eq.${encodeURIComponent(userId)}&provider=eq.whoop`, {
+    // The encrypted account is the active token store. Only a missing table is
+    // harmless on legacy installations.
+    const accountDelete = await fetch(`${SUPABASE_URL}/rest/v1/connected_accounts?user_id=eq.${encodeURIComponent(userId)}&provider=eq.whoop`, {
       method: "DELETE",
       headers: serviceHeaders(SUPABASE_SERVICE_ROLE_KEY, { "Prefer": "return=minimal" }),
-    }).catch(() => null);
+    });
+    if (!accountDelete.ok && accountDelete.status !== 404) throw new Error("Account deletion failed");
   } catch {
     await logSyncEvent(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       userId, source: "whoop", eventType: "disconnect", status: "failed",
@@ -534,6 +541,7 @@ async function handleSync(req) {
 
   return json({
     ok: summary.failures.length === 0,
+    status: syncStatus,
     connected: true,
     synced: summary.synced,
     stored: summary.stored,
@@ -618,11 +626,16 @@ export async function logSyncEvent(supabaseUrl, serviceKey, { userId, source, ev
 
 // Token refresh
 export async function refreshAccessToken(supabaseUrl, serviceKey, userId) {
+  const result = await refreshWhoopCredentials(supabaseUrl, serviceKey, userId);
+  return result.accessToken ? result : null;
+}
+
+async function refreshWhoopCredentials(supabaseUrl, serviceKey, userId) {
   const WHOOP_CLIENT_ID = process.env.WHOOP_CLIENT_ID;
   const WHOOP_CLIENT_SECRET = process.env.WHOOP_CLIENT_SECRET;
   if (!WHOOP_CLIENT_ID || !WHOOP_CLIENT_SECRET) {
     console.error("Whoop refresh: credentials not configured");
-    return null;
+    return { retryable: true };
   }
   // Resolve the refresh token from the encrypted store (one-shot legacy
   // migration). Resolution fails BEFORE the provider call when the encryption
@@ -636,7 +649,7 @@ export async function refreshAccessToken(supabaseUrl, serviceKey, userId) {
         ? "Token refresh blocked: TOKEN_ENCRYPTION_KEY is not configured."
         : "Token refresh failed: no refresh token on file.",
     });
-    return null;
+    return { retryable: !resolved.ok };
   }
   const refreshToken = resolved.refreshToken;
   try {
@@ -654,14 +667,14 @@ export async function refreshAccessToken(supabaseUrl, serviceKey, userId) {
     });
     if (!r.ok) {
       console.error("Whoop token refresh failed:", r.status);
-      return null;
+      return { retryable: ![400, 401, 403].includes(r.status) };
     }
     const data = await r.json();
     const newAccess = data.access_token;
     // Whoop rotates the refresh token on refresh; persist the new one if given.
     const newRefresh = data.refresh_token || refreshToken;
     const expiresAt = new Date(Date.now() + (data.expires_in || 3600) * 1000).toISOString();
-    if (!newAccess) return null;
+    if (!newAccess) return { retryable: true };
 
     // Persist immediately before using it so a rotated refresh token is never lost.
     // Encrypted-only. A failed store after a Whoop rotation means the
@@ -680,7 +693,7 @@ export async function refreshAccessToken(supabaseUrl, serviceKey, userId) {
         userId, source: "whoop", eventType: "token_refresh", status: "failed",
         message: `Refreshed but storage failed (${persisted.reason}).`,
       });
-      return null;
+      return { retryable: true };
     }
     await logSyncEvent(supabaseUrl, serviceKey, {
       userId, source: "whoop", eventType: "token_refresh", status: "success",
@@ -696,7 +709,7 @@ export async function refreshAccessToken(supabaseUrl, serviceKey, userId) {
       userId, source: "whoop", eventType: "token_refresh", status: "failed",
       message: e?.message || "Token refresh failed.",
     });
-    return null;
+    return { retryable: true };
   }
 }
 

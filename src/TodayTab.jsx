@@ -217,7 +217,7 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR, onA
   );
 }
 
-export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, wearableSample = null, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
+export function TodayTab({ integrationRevision = 0, todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, wearableSample = null, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
   // Broadsheet: below 1440px every wrapper is display:contents and
   // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -271,7 +271,7 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
       }
     })();
     return () => { alive = false; };
-  }, [loaded, settings?.ouraConnected, settings?.whoopConnected, settings?.stravaConnected]);
+  }, [loaded, settings?.ouraConnected, settings?.whoopConnected, settings?.stravaConnected, integrationRevision]);
 
   const stravaSuggestion = selectStravaLedgerSuggestion({
     stravaByDate,
