@@ -15,7 +15,7 @@ import { normalizeRace } from "./raceResults";
 
 const EASY = /easy|long|recovery|zone\s*2|aerobic|base/i;
 const HARD = /tempo|threshold|interval|repeat|race|benchmark|progression|fartlek|hill|speed|vo2/i;
-const EASY_STEPS = new Set(["run", "warmup", "cooldown"]);
+const EASY_STEPS = new Set(["run", "steady", "warmup", "cooldown"]);
 
 /** Whether a planned run is an easy one: every part easy, or named that way. */
 export function isEasyRunPlan(cardio) {

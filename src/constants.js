@@ -1,4 +1,5 @@
 import { RESISTANCE_PRESETS } from "./plans/resistance";
+import { ROAD_TRAIL_HYBRID } from "./plans/roadTrailHybrid";
 import { MIXED_PLANS } from "./plans/mixed";
 
 export const DEFAULT_PROGRAM = {
@@ -252,6 +253,7 @@ const BODYWEIGHT = "bodyweight_reps";
 export const PROGRAM_PRESETS = {
   ...RESISTANCE_PRESETS,
   ...MIXED_PLANS,
+  [ROAD_TRAIL_HYBRID.id]: ROAD_TRAIL_HYBRID,
   hybrid: {
     id: "hybrid",
     name: "Hybrid Athlete",
@@ -710,7 +712,7 @@ export const PROGRAM_PRESETS = {
 // The 50K preset stays defined but unlisted: its race build drives the
 // race-plan resolver's tests. A loaded preset is copied into the account's
 // program, so removing a preset never changes anyone already on it.
-export const RESEARCH_PRESET_IDS = ["foundation", "upperLowerGrowth", "barbellStrength", "bodyweightStrength", "cardioBase", "balancedHybrid"];
+export const RESEARCH_PRESET_IDS = ["foundation", "upperLowerGrowth", "barbellStrength", "bodyweightStrength", "cardioBase", "balancedHybrid", ROAD_TRAIL_HYBRID.id];
 export const ORIGINAL_PRESET_IDS = ["hybrid", "bodybuilding", "calisthenics", "running", "doubleEdition"];
 export const PRESET_LINEUP = [...RESEARCH_PRESET_IDS, ...ORIGINAL_PRESET_IDS];
 

@@ -64,7 +64,7 @@ function secondsToPace(secs) {
 }
 
 // Progress tab
-export function ProgressTab({ owner, data, settings, program, loaded, updateEntryAtDate, showToast, onOpenDay, onOpenEdition = null, onOpenBlock = null }) {
+export function ProgressTab({ owner, data, settings, program, baseProgram = program, loaded, updateEntryAtDate, showToast, onOpenDay, onOpenEdition = null, onOpenBlock = null }) {
   // Train links straight to the block ("program") and to history; Back from
   // either returns there.
   // home | strength | running | body | recovery | review | history
@@ -138,7 +138,7 @@ export function ProgressTab({ owner, data, settings, program, loaded, updateEntr
     return (
       <ProgressHistory
         data={data}
-        program={program}
+        program={baseProgram}
         goals={goals}
         selectedDay={selectedDay}
         onSelectDay={setSelectedDay}
@@ -219,7 +219,7 @@ export function ProgressTab({ owner, data, settings, program, loaded, updateEntr
         <RunningVolumeFigure data={data} settings={settings} />
       </Suspense>
       <Suspense fallback={loading("races and easy pace")}>
-        <RunningProgress owner={owner} data={data} program={program} todayKey={todayKey} />
+        <RunningProgress owner={owner} data={data} program={baseProgram} todayKey={todayKey} />
       </Suspense>
     </Fragment>,
     <Fragment key="runs">

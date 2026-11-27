@@ -53,7 +53,7 @@ import { paceCheck, paceCheckText } from "./runPaceCheck";
 import { tomorrowSummary } from "./tomorrowLine";
 import { watchLiftLine, watchLiftSummary } from "./watch/liftSummary";
 import { RaceLine, RaceSheet, likelyRaceDistance } from "./RaceResult";
-import { normalizeRace, personalBests, raceLabel, raceMiles, racePace, raceResults } from "./raceResults";
+import { normalizeRace, personalBests, raceBestKey, raceLabel, raceMiles, racePace, raceResults } from "./raceResults";
 import { formatDuration, formatPace, parseRunTime } from "./runPaces";
 import { isRunPlanSpec } from "./runPlanGenerator";
 import { movedFrom } from "./weekMoves";
@@ -577,12 +577,15 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
     const loggedRun = Number.parseFloat(logged?.miles) > 0 || String(logged?.time || "").trim() !== "";
     const planRace = planned?.planRole === "race" || planned?.planRole === "benchmark";
     if (!race && !loggedRun && !planRace) return null;
-    const best = race ? bests[race.distance] : null;
+    const best = race ? bests[raceBestKey(race)] : null;
     return (
       <RaceLine
         race={race}
         isBest={Boolean(best && best.dateKey === todayKey && best.seconds === race.seconds)}
-        onOpen={() => setRaceSheet({ path, race, defaultDistance: likelyRaceDistance({ planned, spec: raceSpec, miles: logged?.miles }) })}
+        onOpen={() => setRaceSheet({
+          path, race, defaultDistance: likelyRaceDistance({ planned, spec: raceSpec, miles: logged?.miles }),
+          defaultSurface: planned?.raceSurface || "road", defaultTime: formatDuration(parseRunTime(logged?.time)),
+        })}
       />
     );
   };
@@ -597,13 +600,14 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
     const logged = blockAt(path);
     const others = { ...(allData || {}) };
     delete others[todayKey];
-    const before = personalBests(raceResults(others))[result.distance];
+    const before = personalBests(raceResults(others))[raceBestKey(result)];
     updateToday(`${path}.race`, result);
+    if (!logged.modality) updateToday(`${path}.modality`, "run");
     if (!(Number.parseFloat(logged.miles) > 0)) updateToday(`${path}.miles`, String(raceMiles(result.distance)));
     if (!String(logged.time || "").trim()) updateToday(`${path}.time`, formatDuration(result.seconds));
     if (!String(logged.pace || "").trim()) updateToday(`${path}.pace`, formatPace(racePace(result)));
     showToast?.(before && result.seconds < before.seconds
-      ? `New ${raceLabel(result.distance)} PR: ${formatDuration(result.seconds)}, ${formatDuration(before.seconds - result.seconds)} faster`
+      ? `New ${raceLabel(result.distance, result.surface)} ${result.surface === "trail" ? "best" : "PR"}: ${formatDuration(result.seconds)}, ${formatDuration(before.seconds - result.seconds)} faster`
       : "Race saved");
   };
 
@@ -640,6 +644,8 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
         open={Boolean(raceSheet)}
         race={raceSheet?.race || null}
         defaultDistance={raceSheet?.defaultDistance || "5k"}
+        defaultSurface={raceSheet?.defaultSurface}
+        defaultTime={raceSheet?.defaultTime}
         dateKey={todayKey}
         spec={raceSpec}
         onSave={saveRace}

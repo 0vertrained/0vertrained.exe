@@ -5,13 +5,17 @@
 // keeps an active race plan. Train owns the top bar and which screen shows.
 
 import { useEffect, useState } from "react";
-import { DEFAULT_PROGRAM, DAYS, PROGRAM_PRESETS, PRESET_LINEUP, ORIGINAL_PRESET_IDS, RESEARCH_PRESET_IDS, presetProgram } from "./constants";
+import { DEFAULT_PROGRAM, DAYS, PROGRAM_PRESETS, PRESET_LINEUP, ORIGINAL_PRESET_IDS, RESEARCH_PRESET_IDS, presetProgram, getTodayKey } from "./constants";
 import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
 import { seedSupersetPrefsFromProgram } from "./liftLogPrefs";
-import { buildSplitSessionsFromLegacy, getProgramSessions, usesProgramSessions } from "./programSessions";
+import { buildSplitSessionsFromLegacy, getProgramSessions, samePrescription, usesProgramSessions } from "./programSessions";
 import { useConfirm } from "./ui/ConfirmDialog";
 import { isRunPlanSpec } from "./runPlanGenerator";
-import { isRunCardio, keepRacePlan } from "./raceBuild";
+import { applyRaceBuild, isRunCardio, keepRacePlan, mondayKeyOf } from "./raceBuild";
+import { ROAD_TRAIL_TARGETS, startRoadTrailHybrid, describeRoadTrailWeek } from "./plans/roadTrailHybrid";
+import { shiftDate } from "./coachWindows";
+import { weekMovesFor } from "./weekMoves";
+import { formatPlanDate, hybridWeekLabel } from "./RaceWeekLine";
 import { FoldRow, Icon, LinkRow, Seg } from "./ui/ledger";
 import { AddExerciseSheet } from "./AddExercise";
 import { buildCardio, CARDIO_SESSIONS, exercisePrescription } from "./programExerciseLibrary";
@@ -88,6 +92,7 @@ function SessionList({ session }) {
   return (
     <div style={column(2)}>
       {(session.label || session.title) && <p className="t-ss">{[session.label, session.title].filter(Boolean).join(" · ")}</p>}
+      {session.emphasis && <p className="t-ss c2">{session.emphasis}</p>}
       {(session.lifting || []).map((ex, i) => (
         <p key={`${ex.name}-${i}`} className="t-s" style={{ display: "flex", gap: 8 }}>
           <span className="grow">{ex.name}{ex.restSeconds && <small className="t-ss c2" style={{ display: "block" }}>{[ex.rir != null && `${ex.rir} reps in reserve`, `${ex.restSeconds} s rest`].filter(Boolean).join(" · ")}</small>}</span><span className="n-s c2">{ex.sets}×{ex.repMin && ex.repMin < ex.reps ? `${ex.repMin}–` : ""}{ex.reps}{targetUnit(ex)}</span>
@@ -116,26 +121,80 @@ function DayByDay({ program }) {
   );
 }
 
-// Cloud JSON objects may return keys in a different order. Compare actual
-// prescriptions so an edited week can be reset to the original preset.
-function samePrescription(left, right) {
-  if (left === right) return true;
-  if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
-  const keys = Object.keys(left);
-  return Array.isArray(left) === Array.isArray(right) && keys.length === Object.keys(right).length &&
-    keys.every(key => Object.hasOwn(right, key) && samePrescription(left[key], right[key]));
+function HybridTargetField({ value, onChange }) {
+  return <label className="field"><span className="lbl">Hybrid race target</span>
+    <select className="input" value={value} onChange={event => onChange(event.target.value)}>
+      {Object.entries(ROAD_TRAIL_TARGETS).map(([id, goal]) => <option key={id} value={id}>{goal.name}</option>)}
+    </select>
+  </label>;
 }
-function matchesPreset(program, id) {
+
+export function RoadTrailBlock({ program, week, todayKey, onOpenProgram, onSaveProgram }) {
+  const [selected, setSelected] = useState(null);
+  const [draftTarget, setDraftTarget] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const target = draftTarget || week.raceTarget;
+  const changeTarget = async () => {
+    if (saving || target === week.raceTarget) return;
+    setSaving(true);
+    try {
+      const marker = { ...program.__hybridBlock, raceTarget: target };
+      if (await onSaveProgram({ ...program, __hybridBlock: marker }, { savedMessage: "Hybrid race target updated" })) {
+        setDraftTarget(null);
+      }
+    } finally { setSaving(false); }
+  };
+  const previewCount = week.totalWeeks + Number(week.completed);
+  const previewWeek = selected ?? (week.completed ? previewCount : week.weekNumber || 1);
+  const dates = Array.from({ length: previewCount }, (_, i) => shiftDate(week.startMonday, i * 7));
+  const preview = applyRaceBuild(program, dates[previewWeek - 1]);
+  const sessions = DAYS.flatMap(day => getProgramSessions(preview[day]));
+  const sets = sessions.flatMap(session => session.lifting).reduce((sum, lift) => sum + Number(lift.sets || 0), 0);
+  const minutes = sessions.reduce((sum, session) => sum + Number(session.cardio?.minutes || 0), 0);
+  const miles = sessions.reduce((sum, session) => sum + (session.cardio?.minutes ? 0 : Number(session.cardio?.miles || 0)), 0);
+  return (
+    <div className="shell"><div className="main" style={column(16)}>
+      <header className="kv" style={{ gap: 4 }}>
+        <h2 className="t-xl">Road &amp; Trail Hybrid</h2>
+        <p className="t-bs">{hybridWeekLabel(week)}</p>
+        <p className="t-s c2">Hybrid target · {week.raceName} · {formatPlanDate(week.raceDate)}</p>
+      </header>
+      {week.completed && <p className="t-s">Your recovery week stays on the calendar until you start another block or change programs.</p>}
+      {isRunPlanSpec(program.__raceBuild) && <p className="t-s c2">{program.__raceBuild.raceName} supplies the runs on its scheduled weeks. Lifting follows the hybrid block.</p>}
+      {onSaveProgram && todayKey <= week.raceDate && <div style={column(8)}>
+        <HybridTargetField value={target} onChange={setDraftTarget} />
+        {target !== week.raceTarget && <button type="button" className="btn btn-s" disabled={saving} onClick={changeTarget}>{saving ? "Saving…" : "Save race target"}</button>}
+      </div>}
+      <label className="field"><span className="lbl">Preview a training week</span>
+        <select className="input" value={previewWeek} onChange={e => setSelected(Number(e.target.value))}>
+          {dates.map((date, i) => <option key={date} value={i + 1}>{i < week.totalWeeks ? `Week ${i + 1} · ${describeRoadTrailWeek(program, date).phase}` : "Post-race recovery"} · {formatPlanDate(date)}</option>)}
+        </select>
+      </label>
+      <p className="t-s">{sets} working sets{minutes > 0 && ` · ${minutes} min cardio`}{miles > 0 && ` · ${Number(miles.toFixed(2))} mi by distance`}</p>
+      <DayByDay program={preview} />
+      <a className="t-s" href="/training-guide.html#roadTrailHybrid" target="_blank" rel="noreferrer">Read the plan and its research ↗</a>
+      <button type="button" className="btn btn-s" onClick={onOpenProgram}>Open program</button>
+    </div></div>
+  );
+}
+
+function matchesPreset(program, id, hybridWeek) {
   const preset = presetProgram(id);
+  if (preset.__hybridBlock && !hybridWeek) return false;
   return DAYS.every((day) => program?.[day]?.type === preset[day]?.type && samePrescription(program[day], preset[day]));
 }
 
-export function ProgramHome({ program, onSaveProgram, onEdit, onBuild }) {
+export function ProgramHome({ program, onSaveProgram, onEdit, onBuild, onOpenBlock, todayKey = getTodayKey() }) {
   const { confirm, confirmDialog } = useConfirm();
   const current = program || DEFAULT_PROGRAM;
   const hasRacePlan = isRunPlanSpec(program?.__raceBuild);
-  const currentId = PRESET_LINEUP.find((id) => matchesPreset(current, id));
-  const [picked, setPicked] = useState(currentId || RESEARCH_PRESET_IDS[0]);
+  const hybridWeek = describeRoadTrailWeek(current, todayKey);
+  const currentId = PRESET_LINEUP.find((id) => matchesPreset(current, id, hybridWeek));
+  const [picked, setPicked] = useState(currentId || (hybridWeek ? "roadTrailHybrid" : RESEARCH_PRESET_IDS[0]));
+  const thisMonday = mondayKeyOf(todayKey);
+  const [startMonday, setStartMonday] = useState(() => todayKey === thisMonday ? thisMonday : shiftDate(thisMonday, 7));
+  const [retainRace, setRetainRace] = useState(true);
+  const [raceTarget, setRaceTarget] = useState(hybridWeek?.raceTarget || "road10k");
   const original = ORIGINAL_PRESET_IDS.includes(picked);
   const presets = (original ? ORIGINAL_PRESET_IDS : RESEARCH_PRESET_IDS).map((id) => PROGRAM_PRESETS[id]);
   const chooseCollection = (value) => {
@@ -145,13 +204,24 @@ export function ProgramHome({ program, onSaveProgram, onEdit, onBuild }) {
   const [busy, setBusy] = useState(false);
   const chosen = PROGRAM_PRESETS[picked];
 
+  const pickingHybrid = picked === "roadTrailHybrid";
+  const restarting = pickingHybrid && currentId === picked && hybridWeek?.completed;
+  const currentPick = currentId === picked && !restarting;
+  const validStart = Boolean(startMonday && startMonday >= thisMonday && mondayKeyOf(startMonday) === startMonday);
+  const previewBlock = pickingHybrid && validStart ? startRoadTrailHybrid(presetProgram(picked), startMonday, { raceTarget }) : null;
+  const target = previewBlock && describeRoadTrailWeek(previewBlock, startMonday);
+  const shownWeek = hybridWeek ? applyRaceBuild(current, todayKey) : current;
+  const movedDays = hybridWeek ? weekMovesFor(current, todayKey) : null;
+
   const load = async () => {
-    if (!chosen || busy || picked === currentId) return;
-    const base = presetProgram(picked);
-    const keepsPlan = hasRacePlan && !base.__raceBuild;
-    if (!(await confirm({ message: `Switch to "${chosen.name}"? This will replace your current program.${keepsPlan ? " Your race plan stays." : ""}`, confirmLabel: "Switch program" }))) return;
+    if (!chosen || busy || currentPick || (pickingHybrid && !validStart)) return;
+    const base = previewBlock || presetProgram(picked);
+    const keepExisting = hasRacePlan && !base.__raceBuild && (!pickingHybrid || retainRace);
+    const dateNote = pickingHybrid ? ` Week 1 starts ${formatPlanDate(startMonday)}.` : "";
+    const raceNote = keepExisting ? " Your race plan stays." : pickingHybrid && current.__raceBuild ? " Your existing race calendar will be replaced." : "";
+    if (!(await confirm({ message: `Switch to "${chosen.name}"? This will replace your current program.${dateNote}${raceNote}`, confirmLabel: "Switch program" }))) return;
     setBusy(true);
-    const next = keepRacePlan(program, base);
+    const next = keepExisting ? keepRacePlan(program, base) : base;
     try {
       if (await onSaveProgram(next)) seedSupersetPrefsFromProgram(next);
     } finally {
@@ -174,7 +244,7 @@ export function ProgramHome({ program, onSaveProgram, onEdit, onBuild }) {
     <div className="shell" data-screen="train-program">
       {confirmDialog}
       <div className="main" style={{ gap: 16 }}>
-        <p className="t-s c2">Start from a preset, then edit the week.{hasRacePlan ? " Loading a preset keeps your race plan." : ""}</p>
+        <p className="t-s c2">Choose a preset to replace your training week.</p>
         <label className="field"><span className="lbl">Plan collection</span>
           <select className="input" value={original ? "original" : "research"} onChange={(event) => chooseCollection(event.target.value)}>
             <option value="research">Research-based plans</option><option value="original">Original presets</option>
@@ -194,32 +264,50 @@ export function ProgramHome({ program, onSaveProgram, onEdit, onBuild }) {
         </div>
         {chosen && (
           <ul className="rows" style={{ borderTop: "1px solid var(--line)" }}>
-            <FoldRow key={picked} title={`${chosen.name}, day by day`} sub="Every session and exercise">
+            <FoldRow key={picked} title={`${chosen.name}, day by day`} sub={pickingHybrid ? "Week 1 sessions and exercises" : "Every session and exercise"}>
               <p className="t-s c2">{chosen.desc}</p>
               <DayByDay program={presetProgram(picked)} />
             </FoldRow>
             {chosen.guide && <FoldRow key={`${picked}-guide`} title="How to train on this plan" sub="Equipment, progression and recovery">
               <div style={column(9)}>
-                {[chosen.guide.audience, chosen.guide.equipment, chosen.guide.progression, chosen.guide.recovery].map((line) => <p className="t-s" key={line}>{line}</p>)}
+                {[(!pickingHybrid || currentPick) && chosen.guide.audience, chosen.guide.equipment, chosen.guide.progression, chosen.guide.recovery].filter(Boolean).map((line) => <p className="t-s" key={line}>{line}</p>)}
                 <a href={`/training-guide.html#${picked}`} target="_blank" rel="noreferrer">Read the plan and its research ↗</a>
               </div>
             </FoldRow>}
           </ul>
         )}
-        <button type="button" className="btn btn-p btn-b" aria-disabled={busy || picked === currentId || undefined} onClick={load}>
-          {busy ? "Loading…" : picked === currentId ? `${chosen?.name} is your program` : `Load ${chosen?.name || "preset"}`}
+        {pickingHybrid && !currentPick && <>
+          <p className="t-s">{chosen.guide.audience}</p>
+          <HybridTargetField value={raceTarget} onChange={setRaceTarget} />
+          <label className="field"><span className="lbl" id="hybrid-start-label">Week 1 start date</span>
+            <input type="date" className="input" value={startMonday} aria-labelledby="hybrid-start-label" min={thisMonday} step="7" onChange={e => setStartMonday(e.target.value)} aria-invalid={!validStart || undefined} aria-describedby="hybrid-start-hint" />
+            <span id="hybrid-start-hint" className="hint">{!validStart ? "Choose this Monday or a later Monday." : startMonday < todayKey ? "Join midweek and skip the sessions already past." : `${target.raceName} on ${formatPlanDate(target.raceDate)}.`}</span>
+          </label>
+          {hasRacePlan && <label className="field"><span className="lbl" id="hybrid-calendar-label">Running calendar</span>
+            <select className="input" aria-labelledby="hybrid-calendar-label" value={retainRace ? "keep" : "hybrid"} onChange={e => setRetainRace(e.target.value === "keep")}>
+              <option value="keep">Keep {program.__raceBuild.raceName}</option>
+              <option value="hybrid">Use Road &amp; Trail Hybrid runs</option>
+            </select>
+            <span className="hint">{retainRace ? "Your dated race plan sets the runs during its build. The strength taper follows the Week 1 date above." : "Loading the hybrid runs replaces your dated race plan."}</span>
+          </label>}
+        </>}
+        <button type="button" className="btn btn-p btn-b" aria-disabled={busy || currentPick || (pickingHybrid && !validStart) || undefined} onClick={load}>
+          {busy ? "Loading…" : currentPick ? `${chosen?.name} is your program` : restarting ? "Start another hybrid block" : `Load ${chosen?.name || "preset"}`}
         </button>
         <div style={{ display: "flex", gap: 8 }}>
           <button type="button" className="btn btn-s" onClick={onBuild} style={{ flex: "1 1 0", minWidth: 0 }}>Build my own</button>
           <button type="button" className="btn btn-s" onClick={() => onEdit?.()} style={{ flex: "1 1 0", minWidth: 0 }}>Edit the week</button>
         </div>
-        <p className="t-s c2">Loading replaces your current week{hasRacePlan ? "; your race plan stays" : ""}.</p>
 
         <section aria-labelledby="program-week" style={column(4)}>
           <h2 id="program-week" className="t-h">Your week</h2>
+          {hybridWeek && <div style={column(6)}>
+            <p className="t-s c2">{hybridWeekLabel(hybridWeek)}</p>
+            {onOpenBlock && <button type="button" className="btn btn-s btn-sm" style={{ alignSelf: "start" }} onClick={onOpenBlock}>View block and race target</button>}
+          </div>}
           <ul className="rows">
             {DAYS.map((day) => (
-              <li key={day}><LinkRow label={`${day} · ${current[day]?.type || "Rest"}`} sub={dayLine(current[day])} onClick={() => onEdit?.(day)} /></li>
+              <li key={day}><LinkRow label={`${day} · ${shownWeek[day]?.type || "Rest"}`} sub={dayLine(shownWeek[day])} onClick={() => onEdit?.(movedDays?.[day] || day)} /></li>
             ))}
           </ul>
         </section>
@@ -405,6 +493,7 @@ export function ProgramEditor({ program, initialDay = null, onSaveProgram, onDon
     <div className="shell" data-screen="train-editor">
       {confirmDialog}
       <div className="main" style={{ gap: 16 }}>
+        {original.__hybridBlock?.id === "roadTrailHybrid" && <p className="t-s c2">Edit the base week. The block scales your saved lifting sets by phase. Editing a run’s prescription keeps that run fixed across weeks.</p>}
         <div style={column(6)}>
           <span id="editor-day" className="lbl">Day</span>
           <Seg labelledBy="editor-day" options={DAYS.map((d) => ({ value: d, label: <><span aria-hidden="true">{d.charAt(0)}</span><span className="sr">{d}</span></> }))} value={day} onChange={setDay} />

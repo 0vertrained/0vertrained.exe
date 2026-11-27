@@ -38,11 +38,11 @@ const SPEC = {
 const LINEUP_NAMES = ORIGINAL_PRESET_IDS.map((id) => PROGRAM_PRESETS[id].name);
 const UNLISTED_NAMES = ["raceEdition50k"].map((id) => PROGRAM_PRESETS[id].name);
 
-function openPicker({ program = DEFAULT_PROGRAM, original = true } = {}) {
+function openPicker({ program = DEFAULT_PROGRAM, original = true, todayKey } = {}) {
   const onSaveProgram = vi.fn(async () => true);
   render(
     <ThemeProvider>
-      <ProgramHome program={program} onSaveProgram={onSaveProgram} onEdit={vi.fn()} onBuild={vi.fn()} />
+      <ProgramHome program={program} todayKey={todayKey} onSaveProgram={onSaveProgram} onEdit={vi.fn()} onBuild={vi.fn()} />
     </ThemeProvider>,
   );
   if (original) fireEvent.change(screen.getByRole("combobox", { name: "Plan collection" }), { target: { value: "original" } });
@@ -129,6 +129,71 @@ describe("Switch preset", () => {
     await waitFor(() => expect(onSaveProgram).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(readSupersetPref("Monday", "Pull-Up")).toBe(true));
     expect(readSupersetPref("Thursday", "Chin-Up")).toBe(true);
+  });
+});
+
+describe("Road & Trail Hybrid activation", () => {
+  function pickHybrid(program) {
+    const { onSaveProgram } = openPicker({ program, original: false, todayKey: "2026-11-27" });
+    fireEvent.click(screen.getByRole("radio", { name: /Road & Trail Hybrid/ }));
+    return onSaveProgram;
+  }
+
+  it("defaults a Friday selection to the coming Monday, previews the race, then commits the selected target on confirmation", async () => {
+    const onSaveProgram = pickHybrid();
+    expect(screen.getByLabelText("Week 1 start date").value).toBe("2026-11-30");
+    fireEvent.change(screen.getByLabelText("Hybrid race target"), { target: { value: "trail15k" } });
+    expect(screen.getByText("Trail 15K on Sat, Jan 23.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /How to train on this plan/ }));
+    expect(screen.getByRole("link", { name: /plan and its research/ }).getAttribute("href")).toBe("/training-guide.html#roadTrailHybrid");
+    fireEvent.click(screen.getByRole("button", { name: "Load Road & Trail Hybrid" }));
+    expect(onSaveProgram).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    expect(onSaveProgram).not.toHaveBeenCalled();
+    await switchTo("Road & Trail Hybrid");
+    await waitFor(() => expect(onSaveProgram).toHaveBeenCalledTimes(1));
+    const saved = onSaveProgram.mock.calls[0][0];
+    expect(saved.__hybridBlock).toEqual({ id: "roadTrailHybrid", startMonday: "2026-11-30", raceTarget: "trail15k" });
+    expect(saved.Tuesday.sessions.map(s => s.id)).toEqual(["am", "pm"]);
+  });
+
+  it("lets an athlete start a fresh block if an imported start date is invalid", async () => {
+    const program = { ...PROGRAM_PRESETS.roadTrailHybrid.program,
+      __hybridBlock: { id: "roadTrailHybrid", startMonday: "invalid" } };
+    const onSaveProgram = pickHybrid(program);
+    await switchTo("Road & Trail Hybrid");
+    await waitFor(() => expect(onSaveProgram).toHaveBeenCalledTimes(1));
+    expect(onSaveProgram.mock.calls[0][0].__hybridBlock.startMonday).toBe("2026-11-30");
+  });
+
+  it("requires a current or future Monday and lets the athlete join the current week explicitly", async () => {
+    const onSaveProgram = pickHybrid();
+    const start = screen.getByLabelText("Week 1 start date");
+    const load = screen.getByRole("button", { name: "Load Road & Trail Hybrid" });
+    for (const value of ["", "2026-12-01", "2026-11-16"]) {
+      fireEvent.change(start, { target: { value } });
+      expect(start.getAttribute("aria-invalid")).toBe("true");
+      fireEvent.click(load);
+      expect(screen.queryByRole("dialog")).toBeNull();
+    }
+    expect(onSaveProgram).not.toHaveBeenCalled();
+    fireEvent.change(start, { target: { value: "2026-11-23" } });
+    expect(screen.getByText(/Join midweek and skip the sessions already past/)).toBeTruthy();
+    await switchTo("Road & Trail Hybrid");
+    await waitFor(() => expect(onSaveProgram).toHaveBeenCalledTimes(1));
+    expect(onSaveProgram.mock.calls[0][0].__hybridBlock.startMonday).toBe("2026-11-23");
+  });
+
+  it.each(["keep", "hybrid"])("respects the athlete’s running-calendar choice (%s)", async choice => {
+    const onSaveProgram = pickHybrid({ ...DEFAULT_PROGRAM, __raceBuild: SPEC });
+    const calendars = screen.getByLabelText("Running calendar");
+    expect(calendars.value).toBe("keep");
+    fireEvent.change(calendars, { target: { value: choice } });
+    await switchTo("Road & Trail Hybrid");
+    await waitFor(() => expect(onSaveProgram).toHaveBeenCalledTimes(1));
+    const next = onSaveProgram.mock.calls[0][0];
+    expect(next.__raceBuild).toBe(choice === "keep" ? SPEC : undefined);
+    expect(next.__hybridBlock.startMonday).toBe("2026-11-30");
   });
 });
 

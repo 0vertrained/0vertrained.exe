@@ -196,7 +196,8 @@ export function runWorkout(session, { dateKey, index = 0, context = {} } = {}) {
   const cardio = session?.cardio;
   const modality = cardioModality(cardio);
   const activity = ({ stairs: "stair", spin: "bike", ride: "bike" })[modality] || modality;
-  const structure = runStructure(cardio, activity === "run" ? context : {});
+  const pace = cardio?.raceDistance ? { ...context, raceDistance: cardio.raceDistance } : context;
+  const structure = runStructure(cardio, activity === "run" && cardio?.raceSurface !== "trail" ? pace : {});
   if (!structure) return null;
   const content = {
     v: RUN_WORKOUT_VERSION,

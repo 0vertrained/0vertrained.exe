@@ -8,11 +8,18 @@
 
 import { Icon } from "./ui/ledger";
 import { describeBuildWeek } from "./raceBuild";
+import { describeRoadTrailWeek } from "./plans/roadTrailHybrid";
 
 export function formatPlanDate(dateKey) {
   const d = new Date(`${dateKey}T12:00:00`);
   if (Number.isNaN(d.getTime())) return dateKey || "";
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+export function hybridWeekLabel(week) {
+  if (week.completed) return "Block complete · Recovery";
+  if (!week.weekNumber) return `Starts ${formatPlanDate(week.startMonday)}`;
+  return `Week ${week.weekNumber} of ${week.totalWeeks} · ${week.phase}`;
 }
 
 /** Pure copy for the line — exported for tests. Null when there's no plan. */
@@ -39,13 +46,17 @@ export function raceWeekCopy(desc) {
 
 export function RaceWeekLine({ program, dateKey }) {
   const copy = raceWeekCopy(describeBuildWeek(program, dateKey));
-  if (!copy) return null;
+  const hybrid = describeRoadTrailWeek(program, dateKey);
+  if (!copy && !hybrid) return null;
   return (
-    <div className="row" data-plate="race-week">
-      <Icon name="run" className="c2" />
-      <span className="kv grow"><span className="t-bs">{copy.eyebrow}</span><span className="t-s c2">{copy.main}</span></span>
-      <span className="n-s c2">{copy.countdown}</span>
-    </div>
+    <>
+      {hybrid && <p className="t-s c2">Road &amp; Trail Hybrid · {hybridWeekLabel(hybrid)}</p>}
+      {copy && <div className="row" data-plate="race-week">
+        <Icon name="run" className="c2" />
+        <span className="kv grow"><span className="t-bs">{copy.eyebrow}</span><span className="t-s c2">{copy.main}</span></span>
+        <span className="n-s c2">{copy.countdown}</span>
+      </div>}
+    </>
   );
 }
 

@@ -4,6 +4,16 @@
 // Session-aware days can add: { sessions: [{ id, label, title, lifting, cardio }] }.
 // All helpers are pure and defensive so old saved programs continue to work.
 
+// Supabase JSONB can reorder object keys. Detect edits to the actual
+// prescription rather than relying on serialization order.
+export function samePrescription(left, right) {
+  if (left === right) return true;
+  if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+  const keys = Object.keys(left);
+  return Array.isArray(left) === Array.isArray(right) && keys.length === Object.keys(right).length &&
+    keys.every(key => Object.hasOwn(right, key) && samePrescription(left[key], right[key]));
+}
+
 function cleanId(value, fallback) {
   const raw = String(value || "").trim().toLowerCase();
   const id = raw.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");

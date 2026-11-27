@@ -4,6 +4,7 @@
 // totals. A day opens read-only; "Edit this day" hands it to Today, which is
 // where a past day is changed. On a wide screen the day docks beside the list.
 
+import { applyRaceBuild } from "./raceBuild";
 import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName } from "./constants";
 import { buildAthleteTimeline, filterTimelineEvents, groupTimelineByDate, summarizeTimeline } from "./athleteTimeline";
@@ -80,7 +81,7 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
   const strap = useWhoopBluetooth();
   const day = data[dateKey] || defaultDay();
   const dayName = getDayName(new Date(`${dateKey}T12:00:00`));
-  const planned = program?.[dayName] || DEFAULT_PROGRAM[dayName];
+  const planned = applyRaceBuild(program, dateKey)?.[dayName] || DEFAULT_PROGRAM[dayName];
   const exercises = Object.entries(day.workout?.exercises || {});
   const shown = allLifts ? exercises : exercises.slice(0, 3);
   const watchLine = watchLiftLine(watchLiftSummary(day));

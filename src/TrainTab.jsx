@@ -11,11 +11,12 @@ import { summarizeProgramDay } from "./programSummary";
 import { isExerciseHandled } from "./workoutLogging";
 import { mondayKeyOf, describeBuildWeek, keepRacePlan } from "./raceBuild";
 import { isRunPlanSpec } from "./runPlanGenerator";
-import { formatPlanDate, raceWeekCopy } from "./RaceWeekLine";
+import { formatPlanDate, raceWeekCopy, hybridWeekLabel } from "./RaceWeekLine";
 import { summarizeProgramForHub } from "./moreHub";
 import { Icon, LinkRow } from "./ui/ledger";
 import { useTopBar } from "./ui/shell";
-import { ProgramHome, ProgramEditor } from "./ProgramScreen";
+import { ProgramHome, ProgramEditor, RoadTrailBlock } from "./ProgramScreen";
+import { describeRoadTrailWeek } from "./plans/roadTrailHybrid";
 import { ProgramBuilderPanel } from "./ProgramBuilderPanel";
 import { RacePlanPanel } from "./RacePlanPanel";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
@@ -56,7 +57,9 @@ export function buildTrainWeek({ program, entries, todayKey }) {
     const lifting = flattenProgramLifting(day);
     const logged = entries?.[dateKey]?.workout || {};
     const doneLifts = lifting.filter((exercise) => isExerciseHandled(exercise, logged.exercises?.[exercise.name] || {})).length;
-    const hasCardio = getProgramSessions(day).some((session) => !!session.cardio);
+    const sessions = getProgramSessions(day);
+    const cardios = sessions.filter(session => session.cardio);
+    const hasCardio = cardios.length > 0;
     const cardioLogged = (parseFloat(logged.cardio?.miles) || 0) > 0 || String(logged.cardio?.time || "").trim() !== ""
       || Object.values(logged.cardioSessions || {}).some((c) => (parseFloat(c?.miles) || 0) > 0 || String(c?.time || "").trim() !== "");
     const isRest = lifting.length === 0 && !hasCardio;
@@ -65,7 +68,9 @@ export function buildTrainWeek({ program, entries, todayKey }) {
     const from = movedFrom(program, dateKey);
     const parts = from ? [`From ${from}`] : [];
     if (lifting.length) parts.push(done ? "Lifting" : when === "ahead" ? `${lifting.length}${NBSP}exercises` : `${doneLifts} of ${lifting.length}${NBSP}exercises`);
-    if (hasCardio) parts.push(summary.cardioLabel || "Cardio");
+    for (const session of cardios) {
+      parts.push(summarizeProgramDay({ cardio: session.cardio }).cardioLabel);
+    }
     if (done) parts.push("done");
     return {
       dayName, dateKey, when, isRest, done,
@@ -73,7 +78,7 @@ export function buildTrainWeek({ program, entries, todayKey }) {
       label: `${dayName.slice(0, 3)}${NBSP}${date.getDate()}`,
       title: isRest ? "Rest day" : (summary.label || dayName),
       detail: isRest ? [...parts, "No training planned"].join(" · ") : parts.join(" · "),
-      liftCount: lifting.length,
+      liftCount: lifting.length, sessions,
     };
   });
 }
@@ -100,6 +105,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
   const today = week.find((d) => d.when === "today") || week[0];
   const planSummary = summarizeProgramForHub(program);
   const hasRacePlan = isRunPlanSpec(program?.__raceBuild);
+  const hybridWeek = describeRoadTrailWeek(program, todayKey);
   const raceCopy = hasRacePlan ? raceWeekCopy(describeBuildWeek(program, todayKey)) : null;
   // This week's moved days, kept on the program for this week only.
   const weekMoved = Boolean(weekMovesFor(program, todayKey));
@@ -120,6 +126,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
     });
 
   if (view === "block") {
+    if (hybridWeek) return <RoadTrailBlock program={program} week={hybridWeek} todayKey={todayKey} onSaveProgram={onSaveProgram} onOpenProgram={() => setView("program")} />;
     return (
       <Suspense fallback={loading("the block")}>
         <BlockScreen data={entries} settings={settings} program={shown} onOpenProgram={() => setView("program")} />
@@ -128,7 +135,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
   }
 
   if (view === "program") {
-    return <ProgramHome program={program} onSaveProgram={onSaveProgram} onBuild={() => setView("build")} onEdit={(day = null) => { setEditDay(day); setView("edit"); }} />;
+    return <ProgramHome program={program} todayKey={todayKey} onOpenBlock={() => setView("block")} onSaveProgram={onSaveProgram} onBuild={() => setView("build")} onEdit={(day = null) => { setEditDay(day); setView("edit"); }} />;
   }
   if (view === "edit") {
     return <ProgramEditor program={program} initialDay={editDay} onSaveProgram={onSaveProgram} onDone={() => setView("program")} onGuard={setLeaveGuard} />;
@@ -173,7 +180,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
   if (view === "history") {
     return (
       <Suspense fallback={loading("history")}>
-        <ProgressHistory data={entries} program={shown} goals={settings?.goals} selectedDay={selectedDay} onSelectDay={setSelectedDay} isBroadsheet={isBroadsheet} onOpenDay={onOpenDay} />
+        <ProgressHistory data={entries} program={program} goals={settings?.goals} selectedDay={selectedDay} onSelectDay={setSelectedDay} isBroadsheet={isBroadsheet} onOpenDay={onOpenDay} />
       </Suspense>
     );
   }
@@ -187,6 +194,13 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
             <h2 id="train-today" className="t-h grow clip">{today.title}</h2>
             {today.liftCount > 0 && <span className="t-s c2">{today.liftCount}{NBSP}exercises</span>}
           </div>
+          {today.sessions.length > 1 && <ul className="rows" aria-label="Today’s sessions">
+            {today.sessions.map(session => <li key={session.id} className="row" style={{ minHeight: 36 }}>
+              <span className="t-ss c2">{session.label}</span>
+              <span className="t-s grow">{session.title}</span>
+              {session.cardio?.minutes > 0 && <span className="t-s c2">{session.cardio.minutes}{NBSP}min</span>}
+            </li>)}
+          </ul>}
           {today.isRest
             ? <p className="t-s c2">No training planned. A planned rest day counts as a day kept.</p>
             : today.done
@@ -231,7 +245,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
           <h2 id="train-plan" className="t-h">The plan</h2>
           <ul className="rows">
             <li><LinkRow label="Program" sub={planSummary.hasProgram ? planSummary.line : "No program yet. Build one or pick a preset."} onClick={() => setView("program")} /></li>
-            <li><LinkRow label="Block" sub="Where this week sits in the block" onClick={() => setView("block")} /></li>
+            <li><LinkRow label="Block" sub={hybridWeek ? `Road & Trail Hybrid · ${hybridWeekLabel(hybridWeek)}` : "Where this week sits in the block"} onClick={() => setView("block")} /></li>
             <li><LinkRow label="Race plan" sub={hasRacePlan ? `${program.__raceBuild.raceName} · ${formatPlanDate(program.__raceBuild.raceDate)}${raceCopy ? ` · ${raceCopy.countdown}` : ""}` : "Train for a 5K, 10K or half, built around your lifting"} onClick={() => setView("race")} /></li>
             <li><LinkRow label="History" sub="Every session and run" onClick={() => setView("history")} /></li>
           </ul>

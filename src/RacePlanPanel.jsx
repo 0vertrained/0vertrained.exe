@@ -32,7 +32,7 @@ import {
 } from "./runPlanGenerator";
 import { formatPlanDate } from "./RaceWeekLine";
 
-const RESULT_DISTANCE_IDS = ["5k", "10k", "half"];
+const RESULT_DISTANCE_IDS = ["5k", "10k", "15k", "half"];
 
 function isoKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -158,6 +158,7 @@ export function RacePlanPanel({ program, todayKey, onSave, onEnd }) {
       {confirmDialog}
       <div className="main" style={{ gap: 20 }}>
         <h2 className="t-xl">{hasPlan ? "Your race plan" : "Train for a race"}</h2>
+        {program?.__hybridBlock?.id === "roadTrailHybrid" && <p className="t-s c2">A dated race plan replaces the hybrid runs during its build. Your lifting still tapers in week 8 of Road &amp; Trail Hybrid.</p>}
 
         <section aria-labelledby="race-race" style={column(12)}>
           <h3 id="race-race" className="t-h">The race</h3>

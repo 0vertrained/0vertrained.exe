@@ -25,6 +25,7 @@ export const RACE_DISTANCES = {
   "1mi":      { id: "1mi",      meters: 1609.344, label: "1 mile" },
   "5k":       { id: "5k",       meters: 5000,     label: "5K" },
   "10k":      { id: "10k",      meters: 10000,    label: "10K" },
+  "15k":      { id: "15k",      meters: 15000,    label: "15K" },
   "half":     { id: "half",     meters: 21097.5,  label: "Half marathon" },
   "marathon": { id: "marathon", meters: 42195,    label: "Marathon" },
 };
@@ -165,7 +166,7 @@ export function formatPace(secPerMile) {
  * Returns null unless it yields a plausible VDOT.
  */
 export function normalizeBenchmark(raw) {
-  if (!raw || typeof raw !== "object") return null;
+  if (!raw || typeof raw !== "object" || raw.surface === "trail") return null;
   const distance = typeof raw.distance === "string" && RACE_DISTANCES[raw.distance] ? raw.distance : null;
   const seconds = Number.isFinite(Number(raw.seconds)) ? Math.round(Number(raw.seconds)) : null;
   if (!distance || !seconds) return null;

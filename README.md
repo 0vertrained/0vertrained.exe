@@ -5,7 +5,7 @@ evidence-based verdict each morning on how hard to train today. It runs as a pro
 [0vertrained.netlify.app](https://0vertrained.netlify.app); a seeded demo with no account is at
 [/#/demo](https://0vertrained.netlify.app/#/demo).
 
-The [training guide](public/training-guide.html) covers six goal-specific programs, the exercise catalog and the research behind their prescriptions. Run `npm run guide:build` after editing the plan or catalog data.
+The [training guide](public/training-guide.html) covers seven research-based programs, including the eight-week Road & Trail Hybrid race block, and the exercise catalog behind their prescriptions. Run `npm run guide:build` after editing the plan or catalog data.
 
 ## What it does
 

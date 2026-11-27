@@ -33,6 +33,22 @@ describe("race results", () => {
     expect(normalizeRace({ distance: "half", seconds: 6300, name: "  River Run  " })).toEqual({ distance: "half", seconds: 6300, name: "River Run" });
   });
 
+  it("keeps trail bests and finish times separate from road forecasts and pace updates", () => {
+    const trail = { distance: "15k", seconds: 13500, surface: "trail", name: "Ridge" };
+    const newResults = raceResults({
+      ...entries,
+      "2026-12-01": { workout: { cardio: { race: trail } } },
+      "2026-12-02": { workout: { cardioSessions: { pm: { race: { ...trail, distance: "5k", seconds: 1400 } } } } },
+    });
+    expect(newResults[1]).toMatchObject({ ...trail, vdot: null });
+    expect(personalBests(newResults)["5k"].seconds).toBe(1450);
+    expect(personalBests(newResults)["trail-5k"].seconds).toBe(1400);
+    expect(currentFitness({ results: newResults }).name).toBe("Turkey Trot");
+    expect(currentFitness({ results: [newResults[0]] })).toBeNull();
+    expect(paceUpdateFor({ result: newResults[0], dateKey: "2026-12-02", spec: { benchmark: null } })).toBeNull();
+    expect(raceMiles("15k")).toBe(9.32);
+  });
+
   it("know their miles, pace and name", () => {
     expect([raceMiles("5k"), raceMiles("10k"), raceMiles("half")]).toEqual([3.11, 6.21, 13.11]);
     expect(racePace({ distance: "10k", seconds: 3000 })).toBe(483);

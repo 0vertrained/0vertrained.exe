@@ -1242,7 +1242,7 @@ function AppInner({ onThemeChange }) {
           {tab === "Train" && (
             <TrainTab
               key={trainLanding || "home"} initialView={trainLanding}
-              program={program} liveProgram={liveProgram} entries={data} settings={settings}
+              program={program} liveProgram={recoveryProgram} entries={data} settings={settings}
               onSaveProgram={handleSaveProgram} onApplyGeneratedProgram={handleApplyGeneratedProgram}
               onStartToday={() => { setLogDate(null); navigateTo("Today"); setTodayIntent({ kind: "workout", nonce: Date.now() }); }}
               onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }}
@@ -1259,7 +1259,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.progress.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.progress.isZero
               ? <DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} />
-              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab owner={integrationAccountReady ? accountOwner : null} data={data} settings={settings} program={liveProgram} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onOpenEdition={openEdition} onOpenBlock={() => { setTrainLanding("block"); navigateTo("Train"); }} /></>}
+              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab owner={integrationAccountReady ? accountOwner : null} data={data} settings={settings} program={recoveryProgram} baseProgram={program} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onOpenEdition={openEdition} onOpenBlock={() => { setTrainLanding("block"); navigateTo("Train"); }} /></>}
             </div>
           )}
           </>)}

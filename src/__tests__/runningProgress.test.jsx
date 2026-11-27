@@ -33,6 +33,16 @@ describe("RunningProgress", () => {
     expect(within(predicted).getByText("Half marathon")).toBeTruthy();
   });
 
+  it("lists a trail finish outside road prediction range and keeps the previous road benchmark", () => {
+    const entries = { ...data, "2026-11-27": { workout: { cardio: {
+      race: { surface: "trail", distance: "15k", seconds: 13500, name: "Ridge" },
+    } } } };
+    render(<RunningProgress data={entries} program={program} todayKey="2026-11-27" />);
+    expect(screen.getByText(/Trail 15K in 3:45:00/)).toBeTruthy();
+    expect(screen.getByText("Trail best")).toBeTruthy();
+    expect(screen.getByText(/Predicted from your Turkey Trot/)).toBeTruthy();
+  });
+
   it("shows easy pace and ground per heartbeat from easy runs only", () => {
     render(<RunningProgress data={data} program={program} todayKey="2026-11-26" />);
     const easy = screen.getByRole("heading", { name: "Easy runs" }).closest("section");

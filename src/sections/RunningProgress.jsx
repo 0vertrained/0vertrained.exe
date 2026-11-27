@@ -6,7 +6,7 @@
 import { useMemo } from "react";
 import { formatDuration, formatPace } from "../runPaces";
 import { isRunPlanSpec } from "../runPlanGenerator";
-import { currentFitness, personalBests, raceLabel, raceResults } from "../raceResults";
+import { currentFitness, personalBests, raceBestKey, raceLabel, raceResults } from "../raceResults";
 import { easyPaceTrend, heartRateTrend, loggedRuns } from "../runProgress";
 import { dayDate } from "./charts";
 import { CardioFitness } from "./CardioFitness";
@@ -80,15 +80,15 @@ export function RunningProgress({ owner, data = {}, program = null, todayKey }) 
           <h2 id="races-title" className="t-h">Races</h2>
           <ul className="rows">
             {results.slice(0, 8).map((result) => {
-              const best = bests[result.distance];
+              const best = bests[raceBestKey(result)];
               const isBest = best && best.dateKey === result.dateKey && best.seconds === result.seconds;
               return (
-                <li key={`${result.dateKey}-${result.distance}-${result.seconds}`} className="row" style={{ minHeight: 56 }}>
+                <li key={`${result.dateKey}-${raceBestKey(result)}-${result.seconds}`} className="row" style={{ minHeight: 56 }}>
                   <span className="kv grow">
-                    <span className="t-bs clip">{result.name || `${raceLabel(result.distance)} race`}</span>
-                    <span className="n-s c2">{dayDate(result.dateKey)} · {raceLabel(result.distance)} in {formatDuration(result.seconds)} · {formatPace(result.pace)}/mi</span>
+                    <span className="t-bs clip">{result.name || `${raceLabel(result.distance, result.surface)} race`}</span>
+                    <span className="n-s c2">{dayDate(result.dateKey)} · {raceLabel(result.distance, result.surface)} in {formatDuration(result.seconds)} · {formatPace(result.pace)}/mi</span>
                   </span>
-                  {isBest && <span className="tag tag-e">PR</span>}
+                  {isBest && <span className="tag tag-e">{result.surface === "trail" ? "Trail best" : "PR"}</span>}
                 </li>
               );
             })}

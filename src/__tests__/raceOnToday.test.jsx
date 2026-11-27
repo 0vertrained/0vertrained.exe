@@ -8,6 +8,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { ThemeProvider } from "../theme";
 import { TodayTab } from "../TodayTab";
 import { DAYS, defaultDay, getDayName, getTodayKey } from "../constants";
+import { roadTrailWeekProgram } from "../plans/roadTrailHybrid";
 import { DEFAULT_SETTINGS } from "../data";
 
 vi.mock("../oura", async (importOriginal) => ({ ...(await importOriginal()), isOuraConnected: vi.fn(async () => false), loadOuraData: vi.fn(async () => ({})) }));
@@ -26,7 +27,7 @@ const todayName = getDayName(new Date());
 const rest = { type: "Rest", lifting: [], cardio: null };
 const program = { ...Object.fromEntries(DAYS.map((day) => [day, rest])), [todayName]: { type: "Run day", lifting: [], cardio: { type: "Easy Run", miles: 3, effort: "Easy" } } };
 
-function mountToday({ earlier = {}, baseProgram = program } = {}) {
+function mountToday({ earlier = {}, baseProgram = program, liveProgram = program } = {}) {
   const showToast = vi.fn();
   const onUseRaceForPaces = vi.fn();
   let latest = null;
@@ -38,7 +39,7 @@ function mountToday({ earlier = {}, baseProgram = program } = {}) {
       <ThemeProvider>
         <TodayTab
           todayName={todayName} todayData={day} updateToday={updateToday} showToast={showToast} onExport={vi.fn()} loaded
-          program={program} baseProgram={baseProgram} onUseRaceForPaces={onUseRaceForPaces}
+          program={liveProgram} baseProgram={baseProgram} onUseRaceForPaces={onUseRaceForPaces}
           settings={{ ...DEFAULT_SETTINGS, onboarded: true }} allData={{ ...earlier, [todayKey]: day }}
           logDate={null} setLogDate={vi.fn()} ouraRecovery={null} setTab={vi.fn()}
         />
@@ -67,6 +68,21 @@ describe("a race on Today", () => {
     expect(showToast).toHaveBeenLastCalledWith("Race saved");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByText("Turkey Trot")).toBeTruthy();
+  });
+
+  it("logs the programmed trail 15K from a blank race day with its actual distance and terrain", () => {
+    const liveProgram = { ...program, [todayName]: roadTrailWeekProgram(8, "trail15k").Saturday };
+    const { day, onUseRaceForPaces } = mountToday({ liveProgram });
+    fireEvent.click(screen.getByRole("button", { name: "Log as a race" }));
+    const sheet = within(screen.getByRole("dialog"));
+    expect(sheet.getByRole("radio", { name: "Trail" }).getAttribute("aria-checked")).toBe("true");
+    expect(sheet.getByRole("radio", { name: "15K" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.change(sheet.getByLabelText("Finish time"), { target: { value: "3:45:00" } });
+    fireEvent.click(sheet.getByRole("button", { name: "Save race" }));
+    expect(day().workout.cardio).toMatchObject({ miles: "9.32", time: "3:45:00", modality: "run",
+      race: { distance: "15k", seconds: 13500, surface: "trail" } });
+    expect(onUseRaceForPaces).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("asks again for a time it can't read", () => {

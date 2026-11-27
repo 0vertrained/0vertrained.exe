@@ -20,6 +20,7 @@
 // registry-string path (the 50K) is unchanged.
 
 import { generateRunPlan, isRunPlanSpec } from "./runPlanGenerator";
+import { resolveRoadTrailWeek } from "./plans/roadTrailHybrid";
 import { applyWeekMoves } from "./weekMoves";
 import { isRunCardio } from "./cardioLog";
 export { isRunCardio } from "./cardioLog";
@@ -285,7 +286,8 @@ function applyPlanPatch(day, patch) {
 // reference when there is nothing to do (no marker or moves, unknown id, not
 // started, race complete) so React consumers don't re-render for nothing.
 export function applyRaceBuild(program, todayKey) {
-  return applyWeekMoves(applyBuildWeek(program, todayKey), todayKey);
+  const hybridWeek = resolveRoadTrailWeek(program, todayKey);
+  return applyWeekMoves(applyBuildWeek(hybridWeek, todayKey), todayKey);
 }
 
 function applyBuildWeek(program, todayKey) {
