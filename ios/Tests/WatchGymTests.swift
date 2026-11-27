@@ -4,6 +4,7 @@ import Foundation
 // WCSession, HealthKit, or a paired device.
 struct RunSpec: Codable, Equatable {}
 final class SessionStore {
+    var athleteOwner: String? { today?.owner }
     var today: WatchPlan?
     var sent = [[String: Any]]()
     var isResting = false
@@ -57,6 +58,18 @@ struct WatchGymTests {
         precondition(!restored.sets(for: b)[0].done && restored.sets(for: b)[1].done && !restored.isResting)
         precondition(restored.sent.last?["targetID"] as? String == "second")
         precondition(restored.lastWatchSet?.id == "first")
+        let owner = "undo-fixture-" + UUID().uuidString
+        restored.today?.owner = owner
+        restored.today?.mutateExercise(a) { $0.display = choice.name }
+        let calibration = RepCalibrationStore(defaults: .standard)
+        let id = RepMotionExercise.dumbbellBenchPress.rawValue
+        defer { calibration.reset(owner: owner, exerciseID: id) }
+        var profile = RepCalibrationProfile()
+        let review = RepMotionEvidence(exercise: .dumbbellBenchPress, counts: [8,8,8,8,7], detected: 8, uninterrupted: true)
+        precondition(profile.review(review, confirmed: 8, setID: "first"))
+        calibration.save(profile, owner: owner, exerciseID: id)
+        precondition(restored.undoLastWatchSet() == a)
+        precondition(calibration.profile(owner: owner, exerciseID: id).reviewCount() == 0)
         print("Watch gym fixtures passed")
     }
 }

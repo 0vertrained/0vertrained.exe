@@ -25,6 +25,10 @@
 		54AB01104DB092CD137D3E5A /* LiftJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */; };
 		0B7536D05E9E67AED22BC779 /* GymSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAEDFF4AAB48AC36996B87A /* GymSession.swift */; };
 		3B322103072F703D8D0E22D4 /* RepMotionDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32D4FA71BE89E0DCFA4BFE0E /* RepMotionDetector.swift */; };
+		CE0A7F939CE3C27AAF49DC81 /* RepExerciseCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A4DC55E935F103C185E86F /* RepExerciseCatalog.swift */; };
+		D786252D55B92D7DE5E637DF /* RepCalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F56C4D987DE7BC8770286AB /* RepCalibration.swift */; };
+		C83D71D1AAD89A0DAD5A0B65 /* RepCalibrationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 046C47FC7D689BC77D160287 /* RepCalibrationStore.swift */; };
+		0120DB513D719CA189B2EA88 /* VerticalRepTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0FFFA720BAA3E9CBAF45D67 /* VerticalRepTracker.swift */; };
 		422B471699EB6BBD75F29723 /* RepCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0862B70F45D513FE9D308349 /* RepCounterView.swift */; };
 		E9F5213AB0CAE20499AF0456 /* CardioWorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F6F09DAFF42F989F7C302CB /* CardioWorkoutView.swift */; };
 		7B7421F6E340BEF655504BD8 /* WorkoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E11111B82BA566C6F1B74B0 /* WorkoutManager.swift */; };
@@ -148,6 +152,10 @@
 		3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftJournal.swift; sourceTree = "<group>"; };
 		3BAEDFF4AAB48AC36996B87A /* GymSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GymSession.swift; sourceTree = "<group>"; };
 		32D4FA71BE89E0DCFA4BFE0E /* RepMotionDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepMotionDetector.swift; sourceTree = "<group>"; };
+		69A4DC55E935F103C185E86F /* RepExerciseCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepExerciseCatalog.swift; sourceTree = "<group>"; };
+		5F56C4D987DE7BC8770286AB /* RepCalibration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepCalibration.swift; sourceTree = "<group>"; };
+		046C47FC7D689BC77D160287 /* RepCalibrationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepCalibrationStore.swift; sourceTree = "<group>"; };
+		A0FFFA720BAA3E9CBAF45D67 /* VerticalRepTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerticalRepTracker.swift; sourceTree = "<group>"; };
 		0862B70F45D513FE9D308349 /* RepCounterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepCounterView.swift; sourceTree = "<group>"; };
 		5F6F09DAFF42F989F7C302CB /* CardioWorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardioWorkoutView.swift; sourceTree = "<group>"; };
 		2E11111B82BA566C6F1B74B0 /* WorkoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutManager.swift; sourceTree = "<group>"; };
@@ -293,6 +301,10 @@
 				3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */,
 				3BAEDFF4AAB48AC36996B87A /* GymSession.swift */,
 				32D4FA71BE89E0DCFA4BFE0E /* RepMotionDetector.swift */,
+				69A4DC55E935F103C185E86F /* RepExerciseCatalog.swift */,
+				5F56C4D987DE7BC8770286AB /* RepCalibration.swift */,
+				046C47FC7D689BC77D160287 /* RepCalibrationStore.swift */,
+				A0FFFA720BAA3E9CBAF45D67 /* VerticalRepTracker.swift */,
 				0862B70F45D513FE9D308349 /* RepCounterView.swift */,
 				5F6F09DAFF42F989F7C302CB /* CardioWorkoutView.swift */,
 				2E11111B82BA566C6F1B74B0 /* WorkoutManager.swift */,
@@ -548,6 +560,10 @@
 				54AB01104DB092CD137D3E5A /* LiftJournal.swift in Sources */,
 				0B7536D05E9E67AED22BC779 /* GymSession.swift in Sources */,
 				3B322103072F703D8D0E22D4 /* RepMotionDetector.swift in Sources */,
+				CE0A7F939CE3C27AAF49DC81 /* RepExerciseCatalog.swift in Sources */,
+				D786252D55B92D7DE5E637DF /* RepCalibration.swift in Sources */,
+				C83D71D1AAD89A0DAD5A0B65 /* RepCalibrationStore.swift in Sources */,
+				0120DB513D719CA189B2EA88 /* VerticalRepTracker.swift in Sources */,
 				422B471699EB6BBD75F29723 /* RepCounterView.swift in Sources */,
 				E9F5213AB0CAE20499AF0456 /* CardioWorkoutView.swift in Sources */,
 				7B7421F6E340BEF655504BD8 /* WorkoutManager.swift in Sources */,

@@ -51,6 +51,9 @@ extension SessionStore {
         guard let date = today?.date, let last = lastWatchSet else { return nil }
         let event = GymEditEvent(type: "undo", date: date, session: last.key.session, exercise: last.key.name,
                                  setIndex: last.slot, targetID: last.id)
+        if let performed = today?.exercise(last.key)?.display {
+            RepCalibrationStore(defaults: .standard).undo(setID: last.id, owner: athleteOwner, exerciseName: performed)
+        }
         commitGymEdit(event, undoing: last.id) { day in
             day.mutateExercise(last.key) { exercise in
                 guard exercise.sets.indices.contains(last.slot), exercise.sets[last.slot].watchEventID == last.id else { return }

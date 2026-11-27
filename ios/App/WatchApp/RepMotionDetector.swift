@@ -1,29 +1,50 @@
 import Foundation
 
-/// Opt-in prototype for movements in which the watch arm travels through an arc.
-enum RepMotionExercise {
-    case curl, lateralRaise
+private struct ArcRepTracker {
+    let rise: Double
+    let bottom: Double
+    private(set) var count = 0
+    private var start: Double?
+    private var peak: Double = 0
+    private var armed = true
+    private var smallest = Double.infinity
+    private var largest = 0.0
 
-    init?(name: String) {
-        switch name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "dumbbell curl", "db curl", "hammer curl", "incline db curl", "incline dumbbell curl":
-            self = .curl
-        case "lateral raise", "dumbbell lateral raise", "db lateral raise":
-            self = .lateralRaise
-        default: return nil
-        }
+    init(baseRise: Double, offset: Int) {
+        rise = baseRise * (1 + Double(offset) * 0.13)
+        bottom = min(rise * 0.55, 18 - Double(offset) * 2)
     }
 
-    var riseAngle: Double { self == .curl ? 55 : 43 }
+    var consistent: Bool { count >= 3 && smallest >= rise + 6 && largest - smallest <= 28 }
+
+    mutating func reset(at angle: Double) {
+        start = nil
+        peak = 0
+        armed = angle <= bottom
+    }
+
+    mutating func sample(time: Double, angle: Double) {
+        if angle <= bottom {
+            if let start, peak >= rise, (0.45...14).contains(time - start) {
+                count += 1
+                smallest = min(smallest, peak)
+                largest = max(largest, peak)
+            }
+            reset(at: angle)
+        } else if armed {
+            if start == nil { start = time }
+            peak = max(peak, angle)
+        }
+    }
 }
 
-/// Uses gravity in the watch's local frame. The angle between two gravity
-/// vectors is independent of which wrist the watch is on or how it is strapped.
-/// A rep needs an outward excursion and a return to the calibrated bottom.
+/// The alternative trackers see the exact same samples. Only the active count
+/// is displayed; their five totals allow a logged correction to test whether a
+/// different sensitivity would actually have improved this set.
 struct RepMotionDetector {
     let exercise: RepMotionExercise
+    private let index: Int
     private(set) var calibrated = false
-    private(set) var count = 0
     private(set) var interrupted = false
     private var firstTime: Double?
     private var lastTime: Double?
@@ -31,18 +52,25 @@ struct RepMotionDetector {
     private var candidate = SIMD3<Double>(repeating: 0)
     private var origin = SIMD3<Double>(repeating: 0)
     private var filteredAngle = 0.0
-    private var excursionStart: Double?
-    private var peak = 0.0
-    private var armed = false
-    private var reachedTop = false
-    private var depths: [Double] = []
+    private var arcs: [ArcRepTracker]
+    private var vertical = VerticalRepTracker()
 
-    init(exercise: RepMotionExercise) { self.exercise = exercise }
+    init(exercise: RepMotionExercise, calibration: RepCalibrationProfile = .init(), asOf date: Date = Date()) {
+        self.exercise = exercise
+        let offset = calibration.exercise == exercise ? calibration.setting(asOf: date) : 0
+        index = offset + 2
+        arcs = RepCalibrationProfile.settings.map { ArcRepTracker(baseRise: exercise.riseAngle, offset: $0) }
+    }
 
-    /// Descriptive signal quality for review, not a calibrated probability.
+    var count: Int { exercise.verticalStart != nil ? vertical.counts[index] : arcs[index].count }
+
     var consistent: Bool {
-        guard !interrupted, depths.count >= 3, let low = depths.min(), let high = depths.max() else { return false }
-        return low >= exercise.riseAngle + 6 && high - low <= 28
+        !interrupted && (exercise.verticalStart != nil ? vertical.consistent(at: index) : arcs[index].consistent)
+    }
+
+    var evidence: RepMotionEvidence {
+        let counts = exercise.verticalStart != nil ? vertical.counts : arcs.map(\.count)
+        return RepMotionEvidence(exercise: exercise, counts: counts, detected: count, uninterrupted: calibrated && !interrupted)
     }
 
     private static func dot(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> Double {
@@ -53,52 +81,69 @@ struct RepMotionDetector {
         acos(min(1, max(-1, dot(a, b)))) * 180 / .pi
     }
 
-    mutating func sample(time: Double, gravity: SIMD3<Double>) {
+    mutating func sample(time: Double, gravity: SIMD3<Double>, acceleration: SIMD3<Double>? = nil) {
         let length = sqrt(Self.dot(gravity, gravity))
-        guard time.isFinite, length.isFinite, length > 0.5,
-              time > (lastTime ?? -.infinity) else { return }
+        guard time.isFinite, time > (lastTime ?? -.infinity) else { return }
+        guard length.isFinite, length > 0.5 else {
+            if calibrated { interrupted = true }
+            return
+        }
         let unit = gravity / length
         let delta = time - (lastTime ?? time)
         if firstTime == nil { firstTime = time }
         lastTime = time
         guard let firstTime, time - firstTime >= 2 else { return }
+
+        var verticalAcceleration = 0.0
+        var still = true
+        if let direction = exercise.verticalStart {
+            guard let acceleration, Self.dot(acceleration, acceleration) <= 4 * 4 else {
+                if calibrated { interrupted = true }
+                steadySince = nil
+                vertical.resetCycle()
+                return
+            }
+            // Core Motion reports upward acceleration as negative Z face-up,
+            // where gravity is also negative Z (Apple Bubble Level, step 17).
+            // Their dot product therefore reports positive upward acceleration.
+            verticalAcceleration = Self.dot(acceleration, unit) * Double(direction)
+            guard abs(verticalAcceleration) <= 2.5 else {
+                if calibrated { interrupted = true }
+                steadySince = nil
+                vertical.resetCycle()
+                return
+            }
+            still = Self.dot(acceleration, acceleration) < 0.08 * 0.08
+        }
         if !calibrated {
-            if steadySince == nil || delta > 0.4 || Self.angle(unit, candidate) > 6 {
+            if !still {
+                steadySince = nil
+            } else if steadySince == nil || delta > 0.4 || Self.angle(unit, candidate) > 6 {
                 steadySince = time
                 candidate = unit
             } else if let steadySince, time - steadySince >= 0.65 {
                 origin = unit
                 calibrated = true
-                armed = true
             }
             return
         }
 
-        let angle = Self.angle(unit, origin)
         if delta > 0.4 {
             interrupted = true
-            filteredAngle = angle
-            resetCycle(atBottom: angle <= 18)
+            if exercise.verticalStart != nil {
+                vertical.resetCycle()
+            } else {
+                filteredAngle = Self.angle(unit, origin)
+                for i in arcs.indices { arcs[i].reset(at: filteredAngle) }
+            }
             return
         }
-        filteredAngle += (angle - filteredAngle) * (1 - exp(-delta / 0.08))
-        if filteredAngle <= 18 {
-            if let start = excursionStart, reachedTop, (0.45...14).contains(time - start) {
-                count += 1
-                depths.append(peak)
-            }
-            resetCycle(atBottom: true)
-        } else if armed {
-            if excursionStart == nil { excursionStart = time }
-            peak = max(peak, filteredAngle)
-            if peak >= exercise.riseAngle { reachedTop = true }
+        if exercise.verticalStart != nil {
+            vertical.sample(time: time, acceleration: verticalAcceleration)
+        } else {
+            let angle = Self.angle(unit, origin)
+            filteredAngle += (angle - filteredAngle) * (1 - exp(-delta / 0.08))
+            for i in arcs.indices { arcs[i].sample(time: time, angle: filteredAngle) }
         }
-    }
-
-    private mutating func resetCycle(atBottom: Bool) {
-        armed = atBottom
-        reachedTop = false
-        excursionStart = nil
-        peak = 0
     }
 }

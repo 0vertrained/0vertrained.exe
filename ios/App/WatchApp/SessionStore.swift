@@ -152,13 +152,14 @@ final class SessionStore: NSObject, ObservableObject {
 
     // MARK: - Logging
 
-    func logSet(_ key: ExerciseKey, setIndex: Int, values: [String: Double]) {
+    @discardableResult
+    func logSet(_ key: ExerciseKey, setIndex: Int, values: [String: Double]) -> String? {
         beginLift()
         guard var session = journal.active,
               let section = session.plan.sessions.firstIndex(where: { $0.id == key.session }),
-              let row = session.plan.sessions[section].exercises.firstIndex(where: { $0.name == key.name }) else { return }
+              let row = session.plan.sessions[section].exercises.firstIndex(where: { $0.name == key.name }) else { return nil }
         var exercise = session.plan.sessions[section].exercises[row]
-        guard exercise.sets.indices.contains(setIndex), !exercise.sets[setIndex].done else { return }
+        guard exercise.sets.indices.contains(setIndex), !exercise.sets[setIndex].done else { return nil }
         let id = UUID().uuidString
         let now = Date()
         let at = timestamp.string(from: now)
@@ -173,6 +174,7 @@ final class SessionStore: NSObject, ObservableObject {
                                          setIndex: setIndex, values: values, loggedAt: now))
         send(SetEvent(id: id, date: session.plan.date, session: key.session, exercise: key.name,
                       setIndex: setIndex, values: values, at: at, performedName: exercise.display))
+        return id
     }
 
     func finish(_ summary: WorkoutSummary) {

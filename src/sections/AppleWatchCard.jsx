@@ -78,7 +78,8 @@ export function AppleWatchCard() {
       <details className="t-s">
         <summary>Training from your Watch</summary>
         <p>Open 0VERTRAINED on your iPhone once to send the week to your Watch. During a lift, open Workout options to swap an exercise before its first set, pair it with the next exercise, or undo your last Watch set. “Saved on Watch” means the edits are waiting for your iPhone.</p>
-        <p>To try rep counting, open a dumbbell curl or lateral raise and tap Count reps · beta. Lower your watch arm and start lifting after the tap. Finish counting, check the number with the Crown, then tap Use reps and Log set.</p>
+        <p>Open a supported lift and tap Count reps · beta. Try a goblet squat, bench press, overhead press, curl, triceps pushdown, or lateral raise. Hold the starting position shown for the lift and begin on the wrist tap. For alternating curls, review the reps performed by your watch arm.</p>
+        <p>Finish counting, check the number with the Crown, then tap Use reps and Log set. With Learn from my sets enabled, repeated corrections can tune future counts for that lift on this Watch. Undo last Watch set removes its feedback. Reset this lift clears its calibration.</p>
       </details>
       {message && <p className="t-s" role="status">{message}</p>}
     </section>

@@ -13,6 +13,7 @@ struct SetLoggerView: View {
     /// Numbers changed with the crown, for the set named by `editsFor`.
     @State private var edits: [String: Double] = [:]
     @State private var editsFor = ""
+    @State private var motionReview: (owner: String, slot: String, exerciseID: String, evidence: RepMotionEvidence)?
     @State private var showingOptions = false
     @FocusState private var focus: String?
 
@@ -73,11 +74,20 @@ struct SetLoggerView: View {
 
                 if let motionExercise = RepMotionExercise(name: exercise.display),
                    let reps = exercise.fields.first(where: { $0.prop == "reps" }) {
-                    RepCounterButton(exercise: motionExercise, name: exercise.display, limit: Int(reps.max)) { count in
+                    let slot = setKey(current)
+                    let owner = store.athleteOwner
+                    RepCounterButton(exercise: motionExercise, name: exercise.display, owner: owner, limit: Int(reps.max),
+                                     onOpen: { motionReview = nil }) { count, evidence in
+                        guard owner == store.athleteOwner, slot == setKey(current),
+                              store.nextOpenSet(for: key)?.index == current.index,
+                              store.today?.exercise(key)?.display == exercise.display else { return }
                         binding(reps, current: current).wrappedValue = Double(count)
                         focus = reps.prop
+                        if let owner, let evidence {
+                            motionReview = (owner, slot, motionExercise.rawValue, evidence)
+                        }
                     }
-                    .id(setKey(current) + exercise.display)
+                    .id(slot + exercise.display)
                 }
 
                 if let target = exercise.targetRir {
@@ -119,6 +129,7 @@ struct SetLoggerView: View {
     private func move(to next: ExerciseKey) {
         edits = [:]
         editsFor = ""
+        motionReview = nil
         focus = store.today?.exercise(next)?.fields.first?.prop
         key = next
     }
@@ -197,7 +208,7 @@ struct SetLoggerView: View {
     }
 
     private func setKey(_ current: SetState) -> String {
-        "\(key.session)/\(key.name)#\(current.index)"
+        "\(store.today?.date ?? "")/\(key.session)/\(key.name)#\(current.index)"
     }
 
     private func isEdited(_ current: SetState) -> Bool {
@@ -248,7 +259,19 @@ struct SetLoggerView: View {
         if exercise.targetRir != nil, isEdited(current), let reserve = edits["rir"] {
             logged["rir"] = reserve
         }
-        store.logSet(key, setIndex: current.index, values: logged)
+        guard let setID = store.logSet(key, setIndex: current.index, values: logged) else { return }
+        if let review = motionReview, review.slot == setKey(current), review.owner == store.athleteOwner,
+           RepMotionExercise(name: exercise.display)?.rawValue == review.exerciseID,
+           let reps = logged["reps"], let confirmed = Int(exactly: reps) {
+            let calibration = RepCalibrationStore(defaults: .standard)
+            if calibration.isLearningEnabled(owner: review.owner, exerciseID: review.exerciseID) {
+                var profile = calibration.profile(owner: review.owner, exerciseID: review.exerciseID)
+                if profile.review(review.evidence, confirmed: confirmed, setID: setID) {
+                    calibration.save(profile, owner: review.owner, exerciseID: review.exerciseID)
+                }
+            }
+        }
+        motionReview = nil
         WKInterfaceDevice.current().play(.success)
         edits = [:]
         editsFor = ""
