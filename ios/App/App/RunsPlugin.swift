@@ -4,9 +4,10 @@ import WorkoutKit
 import Capacitor
 
 /// Runs on the Apple Watch: planned runs scheduled in the watch's Workout
-/// app, and runs recorded on the watch read back from Apple Health. The page
-/// decides what to schedule and what to log (src/watch/useWatchRuns.js);
-/// this does what iOS has to.
+/// app, and runs recorded on the watch read back from Apple Health, with
+/// each run's distance and heart rate over time and its effort, and Apple's
+/// cardio fitness estimate. The page decides what to schedule and what to
+/// log (src/watch/useWatchRuns.js); this does what iOS has to.
 @objc(RunsPlugin)
 public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "RunsPlugin"
@@ -16,8 +17,13 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "enable", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "schedule", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clear", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "recentRuns", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "recentRuns", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "runDetail", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "cardioFitness", returnType: CAPPluginReturnPromise)
     ]
+
+    /// Seconds between the points runDetail keeps: plenty for splits.
+    private static let pointSpacing: TimeInterval = 3
 
     private let health = HKHealthStore()
 
@@ -109,8 +115,177 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    /// id: a run's Health workout id, from recentRuns. Resolves { distance,
+    /// heartRate, pauses, effort? }: distance as [seconds from the start,
+    /// meters so far], heart rate as [seconds, bpm], pauses as [from, to] in
+    /// seconds, and the effort as { value, estimated }, your rating of the
+    /// run where there is one, else Apple's estimate (iOS 18 and later). The
+    /// page cuts the run into splits (src/watch/runSplits.js).
+    @objc func runDetail(_ call: CAPPluginCall) {
+        guard HKHealthStore.isHealthDataAvailable(),
+              let text = call.getString("id"),
+              let id = UUID(uuidString: text) else {
+            call.reject("No run to read.")
+            return
+        }
+        Task {
+            try? await self.health.requestAuthorization(toShare: [], read: Self.readTypes)
+            guard let workout = await self.workout(id) else {
+                call.resolve([:])
+                return
+            }
+            let perMinute = HKUnit.count().unitDivided(by: .minute())
+            let distance = await self.series(.distanceWalkingRunning, of: workout, unit: .meter(), runningTotal: true)
+            let heartRate = await self.series(.heartRate, of: workout, unit: perMinute, runningTotal: false)
+            var detail: [String: Any] = [
+                "distance": distance,
+                "heartRate": heartRate,
+                "pauses": Self.pauses(of: workout)
+            ]
+            if let effort = await self.effort(of: workout) {
+                detail["effort"] = effort
+            }
+            call.resolve(detail)
+        }
+    }
+
+    /// days: how far back. Resolves { points: [{ date, value }] }: Apple's
+    /// cardio fitness (VO2 max) estimates in mL/kg/min, the last of each
+    /// day, oldest first.
+    @objc func cardioFitness(_ call: CAPPluginCall) {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            call.resolve(["points": [[String: Any]]()])
+            return
+        }
+        let days = max(7, min(call.getInt("days") ?? 365, 730))
+        let start = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date()
+        Task {
+            try? await self.health.requestAuthorization(toShare: [], read: Self.readTypes)
+            let unit = HKUnit(from: "ml/kg*min")
+            let samples = await self.quantitySamples(.vo2Max, predicate: HKQuery.predicateForSamples(withStart: start, end: nil, options: .strictStartDate))
+            var order: [String] = []
+            var latest: [String: Double] = [:]
+            for sample in samples {
+                let key = RunSchedule.dayKey(sample.endDate)
+                if latest[key] == nil { order.append(key) }
+                latest[key] = sample.quantity.doubleValue(for: unit)
+            }
+            let points: [[String: Any]] = order.map { key in
+                ["date": key, "value": ((latest[key] ?? 0) * 10).rounded() / 10]
+            }
+            call.resolve(["points": points])
+        }
+    }
+
     private static var readTypes: Set<HKObjectType> {
-        [HKObjectType.workoutType(), HKQuantityType(.distanceWalkingRunning), HKQuantityType(.heartRate)]
+        var types: Set<HKObjectType> = [
+            HKObjectType.workoutType(),
+            HKQuantityType(.distanceWalkingRunning),
+            HKQuantityType(.heartRate),
+            HKQuantityType(.vo2Max)
+        ]
+        if #available(iOS 18.0, *) {
+            types.insert(HKQuantityType(.workoutEffortScore))
+            types.insert(HKQuantityType(.estimatedWorkoutEffortScore))
+        }
+        return types
+    }
+
+    private func workout(_ id: UUID) async -> HKWorkout? {
+        await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: HKObjectType.workoutType(), predicate: HKQuery.predicateForObject(with: id), limit: 1, sortDescriptors: nil) { _, samples, _ in
+                continuation.resume(returning: samples?.first as? HKWorkout)
+            }
+            self.health.execute(query)
+        }
+    }
+
+    private func quantitySamples(_ id: HKQuantityTypeIdentifier, predicate: NSPredicate) async -> [HKQuantitySample] {
+        await withCheckedContinuation { continuation in
+            let oldestFirst = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+            let query = HKSampleQuery(sampleType: HKQuantityType(id), predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [oldestFirst]) { _, samples, _ in
+                continuation.resume(returning: samples as? [HKQuantitySample] ?? [])
+            }
+            self.health.execute(query)
+        }
+    }
+
+    /// The workout's own samples; for one that didn't link them, the
+    /// samples its device recorded while it ran.
+    private func samples(_ id: HKQuantityTypeIdentifier, of workout: HKWorkout) async -> [HKQuantitySample] {
+        let linked = await quantitySamples(id, predicate: HKQuery.predicateForObjects(from: workout))
+        if !linked.isEmpty { return linked }
+        let during = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForSamples(withStart: workout.startDate, end: workout.endDate, options: .strictStartDate),
+            HKQuery.predicateForObjects(from: workout.sourceRevision.source)
+        ])
+        return await quantitySamples(id, predicate: during)
+    }
+
+    /// [seconds from the start, value] oldest first, a point every few
+    /// seconds at most: a running total for distance, the reading for
+    /// heart rate.
+    private func series(_ id: HKQuantityTypeIdentifier, of workout: HKWorkout, unit: HKUnit, runningTotal: Bool) async -> [[Double]] {
+        let list = await samples(id, of: workout)
+        var points: [[Double]] = []
+        var total = 0.0
+        var lastKept = -Double.greatestFiniteMagnitude
+        for (index, sample) in list.enumerated() {
+            let value = sample.quantity.doubleValue(for: unit)
+            let at: TimeInterval
+            if runningTotal {
+                total += value
+                at = sample.endDate.timeIntervalSince(workout.startDate)
+            } else {
+                let middle = sample.startDate.addingTimeInterval(sample.endDate.timeIntervalSince(sample.startDate) / 2)
+                at = middle.timeIntervalSince(workout.startDate)
+            }
+            let isLast = index == list.count - 1
+            guard at - lastKept >= Self.pointSpacing || isLast else { continue }
+            let reading = runningTotal ? total : value
+            points.append([(at * 10).rounded() / 10, (reading * 10).rounded() / 10])
+            lastKept = at
+        }
+        return points
+    }
+
+    /// Paused stretches, in seconds from the start: paused by you or by the
+    /// watch when you stopped moving.
+    private static func pauses(of workout: HKWorkout) -> [[Double]] {
+        var stretches: [[Double]] = []
+        var pausedAt: Date?
+        let events = (workout.workoutEvents ?? []).sorted { $0.dateInterval.start < $1.dateInterval.start }
+        for event in events {
+            switch event.type {
+            case .pause, .motionPaused:
+                if pausedAt == nil { pausedAt = event.dateInterval.start }
+            case .resume, .motionResumed:
+                if let from = pausedAt {
+                    stretches.append([from.timeIntervalSince(workout.startDate), event.dateInterval.start.timeIntervalSince(workout.startDate)])
+                    pausedAt = nil
+                }
+            default:
+                break
+            }
+        }
+        if let from = pausedAt {
+            stretches.append([from.timeIntervalSince(workout.startDate), workout.endDate.timeIntervalSince(workout.startDate)])
+        }
+        return stretches
+    }
+
+    /// { value, estimated }: your rating of the run, else Apple's estimate.
+    private func effort(of workout: HKWorkout) async -> [String: Any]? {
+        guard #available(iOS 18.0, *) else { return nil }
+        let unit = HKUnit.appleEffortScore()
+        let during = HKQuery.predicateForSamples(withStart: workout.startDate, end: workout.endDate, options: [])
+        if let rated = await quantitySamples(.workoutEffortScore, predicate: during).last {
+            return ["value": rated.quantity.doubleValue(for: unit), "estimated": false]
+        }
+        if let estimate = await quantitySamples(.estimatedWorkoutEffortScore, predicate: during).last {
+            return ["value": estimate.quantity.doubleValue(for: unit), "estimated": true]
+        }
+        return nil
     }
 
     private func currentStatus() async -> [String: Any] {
