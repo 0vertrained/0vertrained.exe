@@ -3,8 +3,8 @@
 // and heart rate, pauses left out of each split's time; its effort comes
 // with it and counts in the day's load; and the splits show on Today and in
 // History behind one button.
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { runSplits, splitPace } from "../watch/runSplits";
 import { detailWrites, planRunDetails } from "../watch/healthRuns";
 import { computeSessionLoad } from "../loadModel";
@@ -96,6 +96,13 @@ describe("a run's effort in the day's load", () => {
 });
 
 describe("RunSplits", () => {
+  const cardio = { splits: [{ n: 1, miles: 1, seconds: 480, hr: 145 }, { n: 2, miles: 0.25, seconds: 150, hr: null }] };
+
+  function openSplits() {
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 splits" }));
+    return within(screen.getByRole("region", { name: "Split replay" }));
+  }
+
   it("shows the effort, and the splits behind a button", () => {
     render(<RunSplits cardio={{ effortScore: "7", effortEstimated: true, splits: [{ n: 1, miles: 1, seconds: 492, hr: 151 }, { n: 2, miles: 0.5, seconds: 240, hr: null }] }} />);
     expect(screen.getByText("Effort 7, hard: Apple’s estimate.")).toBeTruthy();
@@ -107,5 +114,65 @@ describe("RunSplits", () => {
   it("says nothing without splits or effort", () => {
     const { container } = render(<RunSplits cardio={{ miles: "3" }} />);
     expect(container.textContent).toBe("");
+  });
+
+  it("uses split distance for the step widths and reads the selected split's own averages", () => {
+    render(<RunSplits cardio={cardio} />);
+    const replay = openSplits();
+    const slider = replay.getByRole("slider");
+    const plot = slider.parentElement;
+    expect(plot.querySelector("rect").getAttribute("width")).toBe("80");
+    expect(replay.getByText("8:00/mi")).toBeTruthy();
+    expect(replay.getByText("145 bpm")).toBeTruthy();
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(slider.value).toBe("1");
+    expect(plot.querySelector("rect").getAttribute("width")).toBe("20");
+    expect(replay.getByText("10:00/mi")).toBeTruthy();
+    expect(replay.getByText("—")).toBeTruthy();
+    fireEvent.change(slider, { target: { value: "0.5" } });
+    expect(replay.getByText("8:00/mi")).toBeTruthy();
+    fireEvent.keyDown(slider, { key: "End" });
+    expect(replay.getByRole("button", { name: "Replay" })).toBeTruthy();
+    fireEvent.keyDown(slider, { key: "Home" });
+    expect(slider.value).toBe("0");
+  });
+
+  it("plays on demand, stops when hidden, and cancels the frame when collapsed", () => {
+    let callback;
+    const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((run) => { callback = run; return 7; });
+    const cancel = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    const clock = vi.spyOn(performance, "now").mockReturnValue(200);
+    let hidden;
+    try {
+      render(<RunSplits cardio={cardio} />);
+      const replay = openSplits();
+      expect(frame).not.toHaveBeenCalled();
+      fireEvent.click(replay.getByRole("button", { name: "Play" }));
+      act(() => callback(2700));
+      // Half the original moving time is 315 seconds into a 480 s/mile split.
+      expect(Number(replay.getByRole("slider").value)).toBeCloseTo(315 / 480);
+      hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+      fireEvent(document, new Event("visibilitychange"));
+      expect(replay.getByRole("button", { name: "Play" })).toBeTruthy();
+      hidden.mockReturnValue(false);
+      fireEvent.click(replay.getByRole("button", { name: "Play" }));
+      fireEvent.click(screen.getByRole("button", { name: "Hide splits" }));
+      expect(cancel).toHaveBeenLastCalledWith(7);
+    } finally {
+      hidden?.mockRestore();
+      clock.mockRestore();
+      cancel.mockRestore();
+      frame.mockRestore();
+    }
+  });
+
+  it("lets the athlete step through splits with reduced motion", () => {
+    render(<div data-motion="still"><RunSplits cardio={cardio} /></div>);
+    const replay = openSplits();
+    fireEvent.click(replay.getByRole("button", { name: "Next split" }));
+    expect(replay.getByText("Split 2 of 2")).toBeTruthy();
+    fireEvent.click(replay.getByRole("button", { name: "Finish" }));
+    fireEvent.click(replay.getByRole("button", { name: "Start over" }));
+    expect(replay.getByText("Split 1 of 2")).toBeTruthy();
   });
 });

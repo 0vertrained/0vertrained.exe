@@ -7,6 +7,7 @@ import { useState } from "react";
 import { effortWord } from "../effort";
 import { formatRunPace } from "../watch/healthRuns";
 import { splitPace } from "../watch/runSplits";
+import { SplitReplay } from "./SplitReplay";
 
 export function RunSplits({ cardio }) {
   const [open, setOpen] = useState(false);
@@ -24,7 +25,8 @@ export function RunSplits({ cardio }) {
           {open ? "Hide splits" : `Show ${splits.length} ${splits.length === 1 ? "split" : "splits"}`}
         </button>
       )}
-      {open && splits.length > 0 && (
+      {open && splits.length > 0 && (<>
+        <SplitReplay key={splits.map(({ miles, seconds }) => `${miles}/${seconds}`).join("|")} splits={splits} />
         <table className="tbl">
           <caption className="sr">Mile splits</caption>
           <thead><tr><th scope="col">Mile</th><th scope="col">Pace</th><th scope="col" style={{ paddingRight: 0 }}>Heart rate</th></tr></thead>
@@ -38,7 +40,7 @@ export function RunSplits({ cardio }) {
             ))}
           </tbody>
         </table>
-      )}
+      </>)}
     </div>
   );
 }
