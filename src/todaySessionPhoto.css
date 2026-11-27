@@ -1,0 +1,35 @@
+.today-session-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.today-session-title > h3 { min-width: 0; overflow-wrap: anywhere; }
+.today-session-photo-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(76px, 32%, 160px);
+  align-items: center;
+  gap: 12px;
+}
+.today-session-photo-row h3 { overflow-wrap: anywhere; }
+.today-session-photo {
+  aspect-ratio: 2 / 1;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--sunk);
+}
+.today-session-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .today-session-photo img:not([data-motion="reduced"] *, [data-motion="still"] *) {
+    animation: today-photo-settle 800ms var(--e-out) both;
+  }
+}
+@keyframes today-photo-settle {
+  from { transform: scale(1.065); }
+  to { transform: scale(1); }
+}

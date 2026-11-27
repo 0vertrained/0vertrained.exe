@@ -5,6 +5,28 @@
 // no persistence, no algorithm changes — purely presentational reshaping of
 // values the app already has, so they are safe to unit test.
 import { summarizeProgramDay } from "./programSummary";
+import { EXERCISES } from "./programExerciseLibrary";
+import { isRunCardio } from "./raceBuild";
+import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
+
+const barbellLifts = new Set(EXERCISES.filter((lift) => lift.equipment === "barbell").map((lift) => lift.name.toLowerCase()));
+
+export function sessionPhotoFor(lifting, cardio) {
+  if (lifting.some((lift) =>
+    lift?.equipment === "barbell" || /\bbarbell\b/i.test(lift?.name) || barbellLifts.has(lift?.name?.toLowerCase())
+  )) return "strength";
+  if (lifting.length && lifting.every((lift) =>
+    [TRACKING_MODES.BODYWEIGHT_REPS, TRACKING_MODES.TIMED_HOLD].includes(resolveTrackingMode(lift))
+  )) return "core";
+
+  // An interval session can also be on a bike or in a pool. Look for
+  // a planned run, named running work, or an explicit jog prescription.
+  if (!isRunCardio(cardio)) return null;
+  const running = ["easy", "long", "quality", "benchmark", "race"].includes(cardio.planRole) ||
+    /\b(run|runs|running|jog|jogging|fartlek|marathon|strides?)\b/i.test(cardio.type) ||
+    /\b(?:warm[- ]?up|easy|recovery) jog\b/i.test(cardio.notes);
+  return running ? "track" : null;
+}
 
 // Calls that meaningfully change the planned session. "maintain"/"push" keep
 // the plan, so the plan card only shows a delta for these two.

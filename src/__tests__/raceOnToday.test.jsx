@@ -7,8 +7,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { ThemeProvider } from "../theme";
 import { TodayTab } from "../TodayTab";
-import { DAYS, defaultDay, getDayName, getTodayKey } from "../constants";
+import { DAYS, DEFAULT_PROGRAM, defaultDay, getDayName, getTodayKey } from "../constants";
 import { DEFAULT_SETTINGS } from "../data";
+import strengthPhoto from "../assets/training/strength.webp";
+import trackPhoto from "../assets/training/track.webp";
+import corePhoto from "../assets/training/core.webp";
 
 vi.mock("../oura", async (importOriginal) => ({ ...(await importOriginal()), isOuraConnected: vi.fn(async () => false), loadOuraData: vi.fn(async () => ({})) }));
 vi.mock("../whoop", () => ({ isWhoopConnected: vi.fn(async () => false), loadWhoopData: vi.fn(async () => ({})) }));
@@ -26,7 +29,7 @@ const todayName = getDayName(new Date());
 const rest = { type: "Rest", lifting: [], cardio: null };
 const program = { ...Object.fromEntries(DAYS.map((day) => [day, rest])), [todayName]: { type: "Run day", lifting: [], cardio: { type: "Easy Run", miles: 3, effort: "Easy" } } };
 
-function mountToday({ earlier = {}, baseProgram = program } = {}) {
+function mountToday({ earlier = {}, currentProgram = program, baseProgram = currentProgram } = {}) {
   const showToast = vi.fn();
   const onUseRaceForPaces = vi.fn();
   let latest = null;
@@ -38,7 +41,7 @@ function mountToday({ earlier = {}, baseProgram = program } = {}) {
       <ThemeProvider>
         <TodayTab
           todayName={todayName} todayData={day} updateToday={updateToday} showToast={showToast} onExport={vi.fn()} loaded
-          program={program} baseProgram={baseProgram} onUseRaceForPaces={onUseRaceForPaces}
+          program={currentProgram} baseProgram={baseProgram} onUseRaceForPaces={onUseRaceForPaces}
           settings={{ ...DEFAULT_SETTINGS, onboarded: true }} allData={{ ...earlier, [todayKey]: day }}
           logDate={null} setLogDate={vi.fn()} ouraRecovery={null} setTab={vi.fn()}
         />
@@ -52,6 +55,26 @@ function mountToday({ earlier = {}, baseProgram = program } = {}) {
 function logRun(miles) {
   fireEvent.change(screen.getAllByLabelText("Miles")[0], { target: { value: miles } });
 }
+
+describe("the planned activity on Today", () => {
+  const run = { type: "Easy Run", miles: 3 };
+  const lift = { name: "Back Squat", sets: 3, reps: 5 };
+  it.each([
+    ["Run", { cardio: run }, trackPhoto],
+    ["Lift then run", { lifting: [lift], cardio: run }, strengthPhoto],
+    ["Intervals and core", DEFAULT_PROGRAM.Thursday, corePhoto],
+    ["Bodyweight", { lifting: [{ name: "Plank", sets: 3, reps: 30 }] }, corePhoto],
+    ["Custom", { lifting: [{ name: "Mobility circuit", sets: 2, reps: 8 }] }, null],
+    ["Bike", { cardio: { type: "Bike intervals" } }, null],
+    ["Unknown cardio", { cardio: { type: "Intervals" } }, null],
+    ["Rest", {}, null],
+  ])("matches the next activity on a %s day", (type, planned, expectedPhoto) => {
+    mountToday({ currentProgram: { ...program, [todayName]: { ...rest, type, ...planned } } });
+    const image = document.querySelector('[data-ui="today-command-center"] img');
+    expect(image?.getAttribute("src") ?? null).toBe(expectedPhoto);
+    if (expectedPhoto) expect(image.alt).toBe("");
+  });
+});
 
 describe("a race on Today", () => {
   it("is offered once a run is logged, and fills what the run is missing", () => {

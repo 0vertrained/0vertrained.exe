@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { runInNewContext } from "node:vm";
 
 const root = path.resolve(import.meta.dirname, "../..");
 
@@ -18,5 +19,17 @@ describe("installed app shell", () => {
     expect(sw).toContain('request.mode === "navigate"');
     expect(sw).toContain('cache.match("/")');
     expect(sw).toContain('addEventListener("push"');
+  });
+
+  it("passes a movie byte-range request through to the browser", () => {
+    const listeners = new Map();
+    const respondWith = vi.fn();
+    const origin = "https://example.test";
+    const self = { location: { origin }, addEventListener: (event, fn) => listeners.set(event, fn) };
+    const sw = fs.readFileSync(path.join(root, "public/sw.js"), "utf8");
+    runInNewContext(sw, { self, URL });
+    const request = new Request(origin + "/assets/finish.mp4", { headers: { Range: "bytes=0-1" } });
+    listeners.get("fetch")({ request, respondWith });
+    expect(respondWith).not.toHaveBeenCalled();
   });
 });
