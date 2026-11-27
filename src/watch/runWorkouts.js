@@ -13,8 +13,9 @@
 
 import { suggestPlanFromNotes, timeBasedCardioPlan } from "../cardioSession";
 import { DEFAULT_PROGRAM, getDayName } from "../constants";
+import { cardioModality } from "../cardioLog";
 import { getProgramSessions } from "../programSessions";
-import { applyRaceBuild, isRunCardio, resolveRaceBuildConfig } from "../raceBuild";
+import { applyRaceBuild, resolveRaceBuildConfig } from "../raceBuild";
 import { METERS_PER_MILE, RACE_DISTANCES } from "../runPaces";
 
 export const RUN_WORKOUT_VERSION = 1;
@@ -187,21 +188,26 @@ export function runSessionsFor(program, dateKey) {
   const dayName = getDayName(new Date(`${dateKey}T12:00:00`));
   const live = applyRaceBuild(program, dateKey) || DEFAULT_PROGRAM;
   const day = live[dayName] || DEFAULT_PROGRAM[dayName];
-  return getProgramSessions(day).filter((session) => isRunCardio(session.cardio));
+  return getProgramSessions(day).filter(session => session.cardio);
 }
 
 /** One planned run as the spec the iPhone and watch apps build a workout from. */
 export function runWorkout(session, { dateKey, index = 0, context = {} } = {}) {
   const cardio = session?.cardio;
-  const structure = runStructure(cardio, context);
+  const modality = cardioModality(cardio);
+  const activity = ({ stairs: "stair", spin: "bike", ride: "bike" })[modality] || modality;
+  const structure = runStructure(cardio, activity === "run" ? context : {});
   if (!structure) return null;
   const content = {
     v: RUN_WORKOUT_VERSION,
-    name: String(cardio.type || session.title || "Run"),
+    activity,
+    sessionId: session.id,
+    name: String(cardio.type || session.title || "Cardio"),
     summary: runSummary(cardio),
     // Only the run's name decides: notes that mention a treadmill as an
     // option still mean a run outside.
-    location: INDOOR.test(String(cardio.type || "")) ? "indoor" : "outdoor",
+    location: (/stationary|spin|stepper/i.test(cardio.type) || INDOOR.test(String(cardio.type || "")) ||
+      ["stair", "row", "elliptical", "cross", "rope", "cardio"].includes(activity)) ? "indoor" : "outdoor",
     ...structure,
   };
   return {

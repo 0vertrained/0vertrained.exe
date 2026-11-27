@@ -55,7 +55,10 @@ export function getLoggedCardioBlocks(wo) {
   const plain = wo?.cardio;
   if (!hasCardioResult(plain)) return sessionBlocks;
   if (!sessionBlocks.length) return [plain];
-  if (plain.unplanned && !plain.activityRefs?.length) return [...sessionBlocks, plain];
+  if (!plain.activityRefs?.length && (plain.unplanned ||
+      Object.entries(wo.cardioSessions || {}).filter(([, block]) => hasCardioResult(block)).every(([id]) => id.startsWith("apple-")))) {
+    return [...sessionBlocks, plain];
+  }
   // An athlete can accept an import before later logging the same scheduled
   // run. Count the scheduled work and any distinct imported components.
   if (!Array.isArray(plain?.activityRefs) || !plain.activityRefs.length || cardioDuration(plain).minutes <= 0) return sessionBlocks;

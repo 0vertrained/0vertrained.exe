@@ -7,17 +7,39 @@ import Foundation
 /// app.
 struct WatchPlan: Codable, Equatable {
     var v: Int
+    var owner: String?
     var date: String
     var sentAt: String?
     var title: String?
+    var adaptationReason: String?
     var sessions: [PlanSession]
     /// Ids of watch events the phone has dealt with.
     var seen: [String]?
     /// Today's planned runs. Missing from plans sent before runs existed.
     var runs: [RunSpec]?
+    var cardio: [RunSpec]?
+    var cardioWorkouts: [RunSpec] { cardio ?? runs ?? [] }
 
     func exercise(_ key: ExerciseKey) -> PlanExercise? {
         sessions.first { $0.id == key.session }?.exercises.first { $0.name == key.name }
+    }
+
+    mutating func mutateExercise(_ key: ExerciseKey, _ change: (inout PlanExercise) -> Void) {
+        guard let s = sessions.firstIndex(where: { $0.id == key.session }),
+              let e = sessions[s].exercises.firstIndex(where: { $0.name == key.name }) else { return }
+        change(&sessions[s].exercises[e])
+    }
+
+    func adjacent(to key: ExerciseKey, offset: Int) -> ExerciseKey? {
+        guard let session = sessions.first(where: { $0.id == key.session }),
+              let index = session.exercises.firstIndex(where: { $0.name == key.name }),
+              session.exercises.indices.contains(index + offset) else { return nil }
+        return ExerciseKey(session: key.session, name: session.exercises[index + offset].name)
+    }
+
+    func pairLeader(for key: ExerciseKey) -> ExerciseKey? {
+        if let previous = adjacent(to: key, offset: -1), exercise(previous)?.pairNext == true { return previous }
+        return exercise(key)?.pairNext == true ? key : nil
     }
 
     var keys: [ExerciseKey] {
@@ -32,6 +54,7 @@ struct WatchPlan: Codable, Equatable {
 struct WatchWeek: Codable, Equatable {
     /// Which version of the week this is.
     var week: Int?
+    var owner: String?
     var sentAt: String?
     /// Ids of watch events the phone has dealt with.
     var seen: [String]?
@@ -54,6 +77,14 @@ struct PlanExercise: Codable, Equatable {
     var restSeconds: Int
     var fields: [PlanField]
     var sets: [PlanSet]
+    var swaps: [PlanVariation]?
+    var pairNext: Bool?
+}
+
+struct PlanVariation: Codable, Equatable {
+    var name: String
+    var fields: [PlanField]
+    var sets: [PlanSet]
 }
 
 struct PlanField: Codable, Equatable, Hashable {
@@ -74,6 +105,8 @@ struct PlanSet: Codable, Equatable {
     var source: String?
     /// "Target", "Set 1" or "Last time".
     var sourceLabel: String?
+    var watchEventID: String?
+    var completedAt: String?
 }
 
 struct ExerciseKey: Codable, Hashable {
@@ -112,6 +145,22 @@ struct SetEvent: Encodable {
     var setIndex: Int
     var values: [String: Double]
     var at: String
+    var performedName: String?
+}
+
+struct GymEditEvent: Encodable {
+    let v = 1
+    var type: String
+    var id = UUID().uuidString
+    var date: String
+    var session: String
+    var exercise: String
+    var at = Date().ISO8601Format(.iso8601(timeZone: .gmt, includingFractionalSeconds: true))
+    var performedName: String?
+    var setIndex: Int?
+    var targetID: String?
+    var partner: String?
+    var enabled: Bool?
 }
 
 struct FinishEvent: Encodable {

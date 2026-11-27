@@ -17,12 +17,12 @@ function setPath(object, [key, ...rest], value) {
   return { ...base, [key]: rest.length ? setPath(base[key], rest, value) : value };
 }
 
-function useApp(ready) {
+function useApp(ready, owner = null, stageDays) {
   const [data, setData] = useState({});
   const updateEntryAtDate = (dateKey, path, value) => {
     setData((prev) => ({ ...prev, [dateKey]: setPath(prev[dateKey], path.split("."), value) }));
   };
-  useWatchBridge({ ready, data, program, updateEntryAtDate });
+  useWatchBridge({ ready, owner, data, program, updateEntryAtDate, stageDays });
   return data;
 }
 
@@ -44,6 +44,7 @@ const eventFor = (dateKey, id, setIndex) => JSON.stringify({
 
 afterEach(() => {
   delete window.Capacitor;
+  localStorage.removeItem("0vt.watch.legacyOwner.v1");
 });
 
 describe("useWatchBridge", () => {
@@ -81,6 +82,39 @@ describe("useWatchBridge", () => {
       expect(last.days[0].date).toBe(today);
       expect(last.days[0].sessions[0].exercises[0].sets.map((set) => set.done)).toEqual([true, true, false]);
     }, { timeout: 3000 });
+  });
+
+  it("only stages and receipts this athlete's edits across account switches", async () => {
+    const today = getTodayKey();
+    const raw = (owner, id) => JSON.stringify({ ...JSON.parse(eventFor(today, id, 0)), owner });
+    const watch = installWatch([]);
+    // A prior native bridge can return the entire unfiltered inbox.
+    watch.pending.mockResolvedValue({ events: [raw("A", "first"), raw("B", "second"), eventFor(today, "legacy", 1)] });
+    localStorage.setItem("0vt.watch.legacyOwner.v1", "A");
+    const stage = vi.fn(() => true);
+    const { rerender } = renderHook(({ owner }) => useApp(true, owner, stage), { initialProps: { owner: "B" } });
+    await waitFor(() => expect(watch.ack).toHaveBeenCalledWith({ owner: "B", ids: ["second"] }));
+    await waitFor(() => expect(watch.sendPlan).toHaveBeenCalled());
+    const b = JSON.parse(watch.sendPlan.mock.calls.at(-1)[0].plan);
+    expect(b.seen).toEqual(["second"]);
+    expect(b.days.every(day => day.owner === "B")).toBe(true);
+    rerender({ owner: "A" });
+    await waitFor(() => expect(watch.ack).toHaveBeenCalledWith({ owner: "A", ids: ["first", "legacy"] }));
+    await waitFor(() => expect(JSON.parse(watch.sendPlan.mock.calls.at(-1)[0].plan).seen).toEqual(["first", "legacy"]));
+  });
+
+  it("retries an edit when the durable phone journal refuses it", async () => {
+    const today = getTodayKey();
+    const watch = installWatch([]);
+    watch.pending.mockResolvedValue({ events: [eventFor(today, "delayed", 0)] });
+    const stage = vi.fn().mockReturnValueOnce(false).mockReturnValue(true);
+    const { result } = renderHook(() => useApp(true, null, stage));
+    await waitFor(() => expect(stage).toHaveBeenCalledOnce());
+    expect(watch.ack).not.toHaveBeenCalled();
+    expect(result.current[today]).toBeUndefined();
+    watch.addListener.mock.calls[0][1]();
+    await waitFor(() => expect(watch.ack).toHaveBeenCalledWith({ ids: ["delayed"] }));
+    expect(result.current[today].workout.exercises["Bench Press"].sets[0].watchEventID).toBe("delayed");
   });
 
   it("drains again when the phone hears from the watch", async () => {

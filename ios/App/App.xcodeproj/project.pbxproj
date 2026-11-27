@@ -22,6 +22,11 @@
 		D149A81AC8FF32E58D92940A /* OvertrainedWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729538034977797DF2BD5D23 /* OvertrainedWatchApp.swift */; };
 		E69202C430EE3DED082F6E58 /* Plan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57002D3065893BE4A0C8E868 /* Plan.swift */; };
 		0AFD51DCC80035D52772190B /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F93304EBC9BB081B1F4BA8E /* SessionStore.swift */; };
+		54AB01104DB092CD137D3E5A /* LiftJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */; };
+		0B7536D05E9E67AED22BC779 /* GymSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAEDFF4AAB48AC36996B87A /* GymSession.swift */; };
+		3B322103072F703D8D0E22D4 /* RepMotionDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32D4FA71BE89E0DCFA4BFE0E /* RepMotionDetector.swift */; };
+		422B471699EB6BBD75F29723 /* RepCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0862B70F45D513FE9D308349 /* RepCounterView.swift */; };
+		E9F5213AB0CAE20499AF0456 /* CardioWorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F6F09DAFF42F989F7C302CB /* CardioWorkoutView.swift */; };
 		7B7421F6E340BEF655504BD8 /* WorkoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E11111B82BA566C6F1B74B0 /* WorkoutManager.swift */; };
 		0DEE4BAB0B969F00DB8AF1DF /* Ledger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38AC71F5AD351E7CDF4772F7 /* Ledger.swift */; };
 		D141DFA9A02021E77D905979 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526253225A49CABDC2200ADF /* TodayView.swift */; };
@@ -29,6 +34,7 @@
 		05B735A7766D283AA9783A23 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C86C8E8B50612AEA804D7DF6 /* Assets.xcassets */; };
 		4C6B28BBC80DBF91D65282C0 /* WatchApp.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8BAEAEF91065D80CBCA650A4 /* WatchApp.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		590F95388AC9C227C76786DC /* WatchLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4221B06C2DCB2CF22321BF /* WatchLink.swift */; };
+		B7452FDB3114CDA1EFAB0DAA /* WatchInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF6343409316D3C02888A642 /* WatchInbox.swift */; };
 		3A1971D9450A4097E0147736 /* WatchPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */; };
 		A92E61295872EE52B7F69B9D /* RunsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D95201F6381D68DFE7A852F /* RunsPlugin.swift */; };
 		28750D975F84203C6125340E /* RunWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */; };
@@ -139,6 +145,11 @@
 		729538034977797DF2BD5D23 /* OvertrainedWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OvertrainedWatchApp.swift; sourceTree = "<group>"; };
 		57002D3065893BE4A0C8E868 /* Plan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Plan.swift; sourceTree = "<group>"; };
 		8F93304EBC9BB081B1F4BA8E /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftJournal.swift; sourceTree = "<group>"; };
+		3BAEDFF4AAB48AC36996B87A /* GymSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GymSession.swift; sourceTree = "<group>"; };
+		32D4FA71BE89E0DCFA4BFE0E /* RepMotionDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepMotionDetector.swift; sourceTree = "<group>"; };
+		0862B70F45D513FE9D308349 /* RepCounterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepCounterView.swift; sourceTree = "<group>"; };
+		5F6F09DAFF42F989F7C302CB /* CardioWorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardioWorkoutView.swift; sourceTree = "<group>"; };
 		2E11111B82BA566C6F1B74B0 /* WorkoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutManager.swift; sourceTree = "<group>"; };
 		38AC71F5AD351E7CDF4772F7 /* Ledger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ledger.swift; sourceTree = "<group>"; };
 		526253225A49CABDC2200ADF /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
@@ -148,6 +159,7 @@
 		1DDBD41B34367BB49A6C50A4 /* WatchApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WatchApp.entitlements; sourceTree = "<group>"; };
 		8BAEAEF91065D80CBCA650A4 /* WatchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WatchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE4221B06C2DCB2CF22321BF /* WatchLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLink.swift; sourceTree = "<group>"; };
+		CF6343409316D3C02888A642 /* WatchInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchInbox.swift; sourceTree = "<group>"; };
 		33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPlugin.swift; sourceTree = "<group>"; };
 		1D95201F6381D68DFE7A852F /* RunsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunsPlugin.swift; sourceTree = "<group>"; };
 		FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunWorkout.swift; sourceTree = "<group>"; };
@@ -252,6 +264,7 @@
 				F96BE0CE0BD54388E58060CD /* DevicePlugin.swift */,
 				EB4495DBD229BCAEA7533599 /* RestAlertPlugin.swift */,
 				CE4221B06C2DCB2CF22321BF /* WatchLink.swift */,
+				CF6343409316D3C02888A642 /* WatchInbox.swift */,
 				33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */,
 				1D95201F6381D68DFE7A852F /* RunsPlugin.swift */,
 				79A65BABD675768D7B7FDC32 /* App.entitlements */,
@@ -277,6 +290,11 @@
 				729538034977797DF2BD5D23 /* OvertrainedWatchApp.swift */,
 				57002D3065893BE4A0C8E868 /* Plan.swift */,
 				8F93304EBC9BB081B1F4BA8E /* SessionStore.swift */,
+				3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */,
+				3BAEDFF4AAB48AC36996B87A /* GymSession.swift */,
+				32D4FA71BE89E0DCFA4BFE0E /* RepMotionDetector.swift */,
+				0862B70F45D513FE9D308349 /* RepCounterView.swift */,
+				5F6F09DAFF42F989F7C302CB /* CardioWorkoutView.swift */,
 				2E11111B82BA566C6F1B74B0 /* WorkoutManager.swift */,
 				38AC71F5AD351E7CDF4772F7 /* Ledger.swift */,
 				526253225A49CABDC2200ADF /* TodayView.swift */,
@@ -499,6 +517,7 @@
 				ECF5A5356C7B26509D72E684 /* DevicePlugin.swift in Sources */,
 				6E4BDACBA708E39B66331921 /* RestAlertPlugin.swift in Sources */,
 				590F95388AC9C227C76786DC /* WatchLink.swift in Sources */,
+				B7452FDB3114CDA1EFAB0DAA /* WatchInbox.swift in Sources */,
 				3A1971D9450A4097E0147736 /* WatchPlugin.swift in Sources */,
 				A92E61295872EE52B7F69B9D /* RunsPlugin.swift in Sources */,
 				28750D975F84203C6125340E /* RunWorkout.swift in Sources */,
@@ -526,6 +545,11 @@
 				D149A81AC8FF32E58D92940A /* OvertrainedWatchApp.swift in Sources */,
 				E69202C430EE3DED082F6E58 /* Plan.swift in Sources */,
 				0AFD51DCC80035D52772190B /* SessionStore.swift in Sources */,
+				54AB01104DB092CD137D3E5A /* LiftJournal.swift in Sources */,
+				0B7536D05E9E67AED22BC779 /* GymSession.swift in Sources */,
+				3B322103072F703D8D0E22D4 /* RepMotionDetector.swift in Sources */,
+				422B471699EB6BBD75F29723 /* RepCounterView.swift in Sources */,
+				E9F5213AB0CAE20499AF0456 /* CardioWorkoutView.swift in Sources */,
 				7B7421F6E340BEF655504BD8 /* WorkoutManager.swift in Sources */,
 				0DEE4BAB0B969F00DB8AF1DF /* Ledger.swift in Sources */,
 				D141DFA9A02021E77D905979 /* TodayView.swift in Sources */,

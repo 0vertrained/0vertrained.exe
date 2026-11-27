@@ -155,6 +155,7 @@ function AppInner({ onThemeChange }) {
   const [accountUnavailable, setAccountUnavailable] = useState(null);
   const [bootAttempt, setBootAttempt] = useState(0);
   const [loaded, setLoaded]       = useState(false);
+  const [loadedOwner, setLoadedOwner] = useState(null);
   // This account's settings are known: from a successful read or from
   // its own cache. Until then the in-memory settings are defaults, so nothing
   // may write them anywhere: edits and queued saves skip the cache, the queue
@@ -227,6 +228,7 @@ function AppInner({ onThemeChange }) {
   const fileRef    = useRef();
 
   const saveTimers = useRef({});
+  const dayUploads = useRef(new Map());
   const hasLoadedRef = useRef(null); // stores the user id that was last loaded
   // The user whose durable offline queue has been flushed (see the
   // flush effect below). Declared up here so the logged-out branch of
@@ -363,7 +365,7 @@ function AppInner({ onThemeChange }) {
       return;
     }
     if (!user) {
-      setData({}); setProgram(null); setLoaded(false); setRefreshing(false);
+      setData({}); setProgram(null); setLoaded(false); setLoadedOwner(null); setRefreshing(false);
       // Nothing from the last account carries into the next one on this
       // page: its settings and username, its in-memory save queue (persisted
       // under its own key, it flushes when that account signs back in), and
@@ -420,6 +422,7 @@ function AppInner({ onThemeChange }) {
       }
       // For now, assume cached data is already onboarded (we only cache after initial load)
       setShowTutorial(false);
+      setLoadedOwner(user.id);
       setLoaded(true);
       setRefreshing(true);
     } else {
@@ -520,6 +523,7 @@ function AppInner({ onThemeChange }) {
         // Update cache status to reflect the fresh load
         setCacheStatus(getCacheStatus(user.id));
 
+        setLoadedOwner(user.id);
         setLoaded(true);
 
         // Background history hydrate: pages entries older than the window and
@@ -606,10 +610,19 @@ function AppInner({ onThemeChange }) {
   const scheduleSave = useCallback((dateKey, dayPayload) => {
     if (demoMode) return;
     if (saveTimers.current[dateKey]) clearTimeout(saveTimers.current[dateKey]);
-    saveTimers.current[dateKey] = setTimeout(async () => {
+    const timer = setTimeout(async () => {
+      const key = `${user?.id}/${dateKey}`;
+      await dayUploads.current.get(key);
+      if (saveTimers.current[dateKey] !== timer || hasLoadedRef.current !== user?.id) return;
       setSaving(true);
-      const res = await saveEntry(dateKey, dayPayload);
-      setSaving(false);
+      // Serialize a day's uploads so an older request cannot overwrite a
+      // newer, acknowledged watch batch on the server or clear its local queue.
+      const upload = saveEntry(dateKey, dayPayload).catch(() => ({ error: "Save failed" }));
+      dayUploads.current.set(key, upload);
+      const res = await upload;
+      dayUploads.current.delete(key);
+      setSaving(dayUploads.current.size > 0);
+      if (saveTimers.current[dateKey] !== timer || hasLoadedRef.current !== user?.id) return;
       if (res.error) {
         // Queue any failed save, not just browser-detected offline failures.
         // Gyms are full of half-dead networks; navigator.onLine can lie.
@@ -644,6 +657,7 @@ function AppInner({ onThemeChange }) {
         }
       }
     }, 700);
+    saveTimers.current[dateKey] = timer;
     // showToast is a stable useCallback([]) — intentionally omitted; including
     // it makes the React Compiler drop memoization here (compile-skip error).
   }, [demoMode, isOnline, user?.id, data, program, settings, myUsername]);
@@ -749,8 +763,16 @@ function AppInner({ onThemeChange }) {
 
   // In the iPhone app: today's lifting to the watch, and the sets logged on
   // the watch into the log. Nothing in a browser.
-  useWatchBridge({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, wearableScore: ouraRecovery, readiness: customReadiness, updateEntryAtDate });
-  useWatchRuns({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, updateEntryAtDate, showToast });
+  const stageWatchDays = (days) => {
+    if (!user?.id || !accountReadyRef.current) return false;
+    const queued = { ...readPendingSaves(user.id), ...days };
+    if (!writePendingSaves(user.id, queued, { allowEviction: false })) return false;
+    setPendingSaves(previous => ({ ...previous, ...days }));
+    return true;
+  };
+  const watchAccountReady = accountReady && !demoMode && Boolean(accountOwner) && loadedOwner === accountOwner;
+  useWatchBridge({ owner: accountOwner, builderPreferences: settings?.programBuilder, ready: watchAccountReady, data, program, wearableScore: ouraRecovery, readiness: customReadiness, updateEntryAtDate, stageDays: stageWatchDays });
+  useWatchRuns({ owner: accountOwner, ready: watchAccountReady, data, program, updateEntryAtDate, showToast });
   useHealthDaily({ ready: accountReady && !demoMode && Boolean(user?.id), data, wearables: Boolean(settings?.ouraConnected || settings?.whoopConnected), updateEntryAtDate });
   useWidgetCards({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, wearableScore: ouraRecovery, readiness: customReadiness });
   useHealthWrite({ ready: accountReady && !demoMode && Boolean(user?.id), data });

@@ -18,6 +18,7 @@ const run = (label, command, args, options = {}) => {
 run("tests passed", "npm", ["run", "test"]);
 if (spawnSync("swiftc", ["--version"], { stdio: "ignore" }).status === 0) {
   run("WHOOP Bluetooth protocol fixtures passed", "npm", ["run", "test:whoop-bluetooth"]);
+  run("Apple Watch workout fixtures passed", "npm", ["run", "test:watch-workouts"]);
 } else {
   console.log("Swift compiler unavailable. Skipping native WHOOP protocol fixtures.");
 }

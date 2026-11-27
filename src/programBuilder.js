@@ -21,6 +21,7 @@ import {
   isCompoundPattern,
   exercisePrescription,
   findLibraryExercise,
+  availableSwapNames,
   EXERCISES,
 } from "./programExerciseLibrary";
 import { resolveTrackingMode, TRACKING_MODES } from "./workoutLogging";
@@ -76,6 +77,8 @@ export const CARDIO_PREFERENCE_IDS = CARDIO_PREFERENCES.map((c) => c.id);
 export const CARDIO_MODALITIES = [
   { id: "mixed", label: "Mixed cardio" }, { id: "run", label: "Running" }, { id: "walk", label: "Walking" },
   { id: "bike", label: "Cycling" }, { id: "row", label: "Rowing" }, { id: "elliptical", label: "Elliptical" },
+  { id: "stair", label: "Stair stepper" }, { id: "rope", label: "Jump rope" }, { id: "hike", label: "Hiking" },
+  { id: "spin", label: "Stationary bike" }, { id: "cross", label: "Mixed cardio circuit" },
 ];
 const GUIDE_FOR_GOAL = {
   bodybuilding: "upperLowerGrowth", strength: "barbellStrength", hybrid: "balancedHybrid",
@@ -428,6 +431,7 @@ function liftEntry(exercise, ctx, preferred, isMain = false) {
   const restSeconds = strengthMain ? 180 : matched ? preferred.restSeconds : compound ? 120 : 90;
   const leverage = mode === TRACKING_MODES.BODYWEIGHT_REPS || mode === TRACKING_MODES.TIMED_HOLD;
   return { ...entry, sets, reps, repMin, restSeconds, progressionExposures: 2,
+    swapOptions: availableSwapNames(exercise, ctx),
     ...(!timed && { rir: strengthMain ? 2 : reserve }),
     ...(leverage && { progressionMode: "leverage" }),
     ...(matched && { notes: preferred.notes }),
@@ -529,7 +533,7 @@ function buildLiftingDay(role, ctx, occurrence) {
     lifting: fitToTime(adjusted, ctx.sessionLength), cardio: null };
 }
 
-const MODALITY_NAMES = { run: "Run", walk: "Walk", bike: "Ride", row: "Row", elliptical: "Elliptical" };
+const MODALITY_NAMES = { run: "Run", walk: "Walk", bike: "Ride", row: "Row", elliptical: "Elliptical", stair: "Stair Stepper", rope: "Jump Rope", hike: "Hike", spin: "Stationary Bike", cross: "Cardio Circuit" };
 
 function steadyCardio(modality, minutes, type) {
   return { type, modality, miles: 0, minutes, effort: "Conversational · RPE 3–4/10",
@@ -539,7 +543,7 @@ function steadyCardio(modality, minutes, type) {
 
 function buildCardioDay(role, ctx, occurrence) {
   const gym = ["full_gym", "machines"].includes(ctx.equipment) || (ctx.equipment === "mixed" && ctx.equipmentChoices.includes("machines"));
-  const rotation = gym ? ["walk", "run", "bike", "elliptical", "row"] : ["walk", "run"];
+  const rotation = gym ? ["walk", "run", "bike", "elliptical", "row", "stair"] : ["walk", "run"];
   const selected = ctx.goal === "cardio_only" && ctx.cardioModality !== "mixed" ? ctx.cardioModality : null;
   const modality = selected || (ctx.goal === "cardio_only" ? rotation[(occurrence - 1) % rotation.length] : "run");
   const quality = (role === "tempo_run" || role === "quality_run") && ctx.includeIntervals && !ctx.deload && ctx.experience !== "beginner";
@@ -559,7 +563,7 @@ function buildCardioDay(role, ctx, occurrence) {
   const longRun = role === "long_run";
   const planned = longRun ? easy + 15 : easy;
   const minutes = Math.min(ctx.sessionLength, ctx.deload ? Math.round(planned * .75) : planned);
-  const type = longRun ? "Long Run" : role === "recovery" ? "Recovery Walk" : `Easy ${MODALITY_NAMES[modality]}`;
+  const type = longRun ? `Long ${MODALITY_NAMES[modality]}` : role === "recovery" ? "Recovery Walk" : `Easy ${MODALITY_NAMES[modality]}`;
   return { type, code: longRun ? "LONG" : "EASY", lifting: [], cardio: steadyCardio(role === "recovery" ? "walk" : modality, minutes, type) };
 }
 

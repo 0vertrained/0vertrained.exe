@@ -98,13 +98,16 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
         let calendar = Calendar.current
         let start = calendar.date(byAdding: .day, value: -days, to: calendar.startOfDay(for: Date())) ?? Date()
         let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            HKQuery.predicateForWorkouts(with: .running),
+            NSCompoundPredicate(orPredicateWithSubpredicates: Set(Array(RunSpec.activityTypes.values) + [.stairs, .stepTraining, .crossTraining]).map { HKQuery.predicateForWorkouts(with: $0) }),
             HKQuery.predicateForSamples(withStart: start, end: nil, options: .strictStartDate)
         ])
         let newestFirst = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
         let query = HKSampleQuery(sampleType: HKObjectType.workoutType(), predicate: predicate, limit: 50, sortDescriptors: [newestFirst]) { _, samples, _ in
-            let runs = (samples as? [HKWorkout] ?? []).map(Self.describe)
-            call.resolve(["runs": runs])
+            Task {
+                var activities = [[String: Any]]()
+                for workout in samples as? [HKWorkout] ?? [] { activities.append(await Self.describe(workout)) }
+                call.resolve(["runs": activities])
+            }
         }
         Task {
             // Heart rate was added after runners first said yes. iOS shows
@@ -135,13 +138,26 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
                 return
             }
             let perMinute = HKUnit.count().unitDivided(by: .minute())
-            let distance = await self.series(.distanceWalkingRunning, of: workout, unit: .meter(), runningTotal: true)
+            var distance: [[Double]] = []
+            if let type = Self.distanceType(workout) { distance = await self.series(type, of: workout, unit: .meter(), runningTotal: true) }
             let heartRate = await self.series(.heartRate, of: workout, unit: perMinute, runningTotal: false)
             var detail: [String: Any] = [
                 "distance": distance,
                 "heartRate": heartRate,
                 "pauses": Self.pauses(of: workout)
             ]
+            if let stored = workout.metadata?["OTCardioSteps"] as? String, let data = stored.data(using: .utf8),
+               let steps = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                detail["segments"] = steps
+            } else {
+                // Read measured segment intervals only. Individual marks or mile
+                // laps do not identify where a prescribed work interval began.
+                let segments = (workout.workoutEvents ?? []).filter { $0.type == .segment && $0.dateInterval.duration > 0 }
+                    .sorted { $0.dateInterval.start < $1.dateInterval.start }
+                if !segments.isEmpty {
+                    detail["segments"] = segments.prefix(150).map { ["seconds": Int($0.dateInterval.duration.rounded())] }
+                }
+            }
             if let effort = await self.effort(of: workout) {
                 detail["effort"] = effort
             }
@@ -180,13 +196,14 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
     private static var readTypes: Set<HKObjectType> {
         var types: Set<HKObjectType> = [
             HKObjectType.workoutType(),
-            HKQuantityType(.distanceWalkingRunning),
+            HKQuantityType(.distanceWalkingRunning), HKQuantityType(.distanceCycling), HKQuantityType(.distanceSwimming),
             HKQuantityType(.heartRate),
             HKQuantityType(.vo2Max)
         ]
         if #available(iOS 18.0, *) {
             types.insert(HKQuantityType(.workoutEffortScore))
             types.insert(HKQuantityType(.estimatedWorkoutEffortScore))
+            types.insert(HKQuantityType(.distanceRowing))
         }
         return types
     }
@@ -290,6 +307,7 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private func currentStatus() async -> [String: Any] {
         var status: [String: Any] = [
+            "cardioVersion": 2,
             "supported": false,
             "scheduling": "unsupported",
             "health": HKHealthStore.isHealthDataAvailable()
@@ -301,13 +319,21 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
         return status
     }
 
-    private static func describe(_ workout: HKWorkout) -> [String: Any] {
+    private static func describe(_ workout: HKWorkout) async -> [String: Any] {
         var run: [String: Any] = [
             "id": workout.uuid.uuidString,
             "date": RunSchedule.dayKey(workout.startDate),
             "start": ISO8601DateFormatter().string(from: workout.startDate),
+            "activity": RunSpec.modality(for: workout.workoutActivityType) ?? "cardio",
             "seconds": workout.duration
         ]
+        if let owner = workout.metadata?["OTAthleteOwner"] as? String { run["owner"] = owner }
+        if let id = workout.metadata?["OTPlanID"] as? String {
+            run["planId"] = id
+        } else if #available(iOS 17, *), let plan = try? await workout.workoutPlan {
+            run["planId"] = plan.id.uuidString.lowercased()
+        }
+        if let session = workout.metadata?["OTSessionID"] as? String { run["sessionId"] = session }
         if let meters = distance(of: workout) {
             run["meters"] = meters
         }
@@ -317,9 +343,22 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
         return run
     }
 
+    private static func distanceType(_ workout: HKWorkout) -> HKQuantityTypeIdentifier? {
+        switch workout.workoutActivityType {
+        case .running, .walking, .hiking: return .distanceWalkingRunning
+        case .cycling: return .distanceCycling
+        case .swimming: return .distanceSwimming
+        case .rowing:
+            if #available(iOS 18, *) { return .distanceRowing }
+            return nil
+        default: return nil
+        }
+    }
+
     private static func distance(of workout: HKWorkout) -> Double? {
         if #available(iOS 16.0, *) {
-            return workout.statistics(for: HKQuantityType(.distanceWalkingRunning))?.sumQuantity()?.doubleValue(for: .meter())
+            guard let type = distanceType(workout) else { return nil }
+            return workout.statistics(for: HKQuantityType(type))?.sumQuantity()?.doubleValue(for: .meter())
         }
         return workout.totalDistance?.doubleValue(for: .meter())
     }

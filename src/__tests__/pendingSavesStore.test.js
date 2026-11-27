@@ -20,6 +20,14 @@ describe("pendingSavesStore", () => {
     expect(readPendingSaves(USER)).toEqual({});
   });
 
+  it("declines a Watch receipt without evicting another offline day", () => {
+    const previous = { "2026-11-25": { notes: "unsynced" } };
+    writePendingSaves(USER, previous);
+    expect(writePendingSaves(USER, { ...previous, "2026-11-26": { notes: "x".repeat(400_001) } },
+      { allowEviction: false })).toBe(false);
+    expect(readPendingSaves(USER)).toEqual(previous);
+  });
+
   it("degrades malformed JSON to an empty map", () => {
     localStorage.setItem(`ovt-pending-saves-v1-${USER}`, "{not json");
     expect(readPendingSaves(USER)).toEqual({});

@@ -17,27 +17,28 @@ final class SessionStore: NSObject, ObservableObject {
     @Published private(set) var week: WatchWeek?
     /// The date today's plan is for; moves on at midnight.
     @Published private(set) var dayKey = SessionStore.dateKey(Date())
-    @Published private(set) var pending: [PendingSet] = []
-    @Published private(set) var rest: Rest?
-
-    struct Rest: Equatable {
-        var endsAt: Date
-        var seconds: Int
-        /// What comes after the rest, e.g. "Set 3 · 185 × 8".
-        var next: String?
+    @Published private var journal = LiftJournal()
+    typealias Rest = LiftJournal.Rest
+    var rest: Rest? { journal.rest }
+    var pending: [PendingSet] { journal.pending }
+    var athleteOwner: String? { week?.owner }
+    func isCurrentOwner(_ owner: String?) -> Bool {
+        owner == athleteOwner || (owner == nil && athleteOwner == defaults.string(forKey: Key.legacyOwner))
     }
+    var activeLift: LiftJournal.Session? { journal.active }
+    var unsyncedCount: Int { journal.outbox.count }
 
     private enum Key {
         static let week = "ovt.week"
-        /// A single day's plan, as saved before weeks.
         static let plan = "ovt.plan"
         static let pending = "ovt.pending"
         static let outbox = "ovt.outbox"
+        static let journal = "ovt.liftJournal.v1"
+        static let legacyOwner = "ovt.liftJournal.firstAthlete"
     }
-
     private let defaults = UserDefaults.standard
-    /// Events not yet handed to WatchConnectivity, kept across launches.
-    private var outbox: [String] = []
+    private var inFlight: Set<String> = []
+    private var retry: DispatchWorkItem?
     private var restWork: DispatchWorkItem?
     private let timestamp: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -63,17 +64,26 @@ final class SessionStore: NSObject, ObservableObject {
     /// and whenever the app comes to the front.
     func refreshDay() {
         let key = Self.dateKey(Date())
-        guard key != dayKey else { return }
-        dayKey = key
-        prunePending()
+        if key != dayKey { dayKey = key }
+        if let rest, rest.endsAt <= Date() { endRest() }
+        flush()
     }
 
-    // MARK: - Reading the plan
+    var today: WatchPlan? { journal.day(Self.dateKey(Date()), week: week) }
 
-    /// Today's plan, if the phone has sent one.
-    var today: WatchPlan? {
-        let key = Self.dateKey(Date())
-        return week?.days.first { $0.date == key }
+    func beginLift(at now: Date = Date()) {
+        guard journal.active == nil, let plan = today, !plan.sessions.isEmpty else { return }
+        journal.begin(plan, at: now)
+        persist()
+    }
+
+    func commitGymEdit<Event: Encodable>(_ event: Event, undoing id: String? = nil, _ mutate: (inout WatchPlan) -> Void) {
+        beginLift()
+        guard var session = journal.active else { return }
+        mutate(&session.plan)
+        journal.active = session
+        if let id { journal.pending.removeAll { $0.id == id } }
+        send(event)
     }
 
     /// The local calendar day, written as the phone writes it: 2026-11-26.
@@ -96,7 +106,7 @@ final class SessionStore: NSObject, ObservableObject {
         for (index, set) in exercise.sets.enumerated() {
             if set.done {
                 states.append(SetState(index: index, done: true, values: set.values, sourceLabel: nil))
-            } else if let local = pending.last(where: { $0.session == key.session && $0.exercise == key.name && $0.setIndex == index }) {
+            } else if let local = journal.pendingSet(on: today?.date ?? dayKey, key: key, index: index) {
                 states.append(SetState(index: index, done: true, values: local.values, sourceLabel: nil))
             } else if set.source != "target", let previous = states.last, previous.done, !previous.values.isEmpty {
                 // Unless the target fills it, a set follows the one before
@@ -111,6 +121,13 @@ final class SessionStore: NSObject, ObservableObject {
 
     func nextOpenSet(for key: ExerciseKey) -> SetState? {
         sets(for: key).first { !$0.done }
+    }
+
+    func rememberExercise(_ key: ExerciseKey) {
+        guard var active = journal.active, active.exercise != key, active.plan.exercise(key) != nil else { return }
+        active.exercise = key
+        journal.active = active
+        persist()
     }
 
     /// The next exercise with a set left, in program order, after this one.
@@ -136,47 +153,137 @@ final class SessionStore: NSObject, ObservableObject {
     // MARK: - Logging
 
     func logSet(_ key: ExerciseKey, setIndex: Int, values: [String: Double]) {
-        guard let plan = today else { return }
+        beginLift()
+        guard var session = journal.active,
+              let section = session.plan.sessions.firstIndex(where: { $0.id == key.session }),
+              let row = session.plan.sessions[section].exercises.firstIndex(where: { $0.name == key.name }) else { return }
+        var exercise = session.plan.sessions[section].exercises[row]
+        guard exercise.sets.indices.contains(setIndex), !exercise.sets[setIndex].done else { return }
         let id = UUID().uuidString
         let now = Date()
-        pending.append(PendingSet(id: id, date: plan.date, session: key.session, exercise: key.name, setIndex: setIndex, values: values, loggedAt: now))
-        savePending()
-        send(SetEvent(id: id, date: plan.date, session: key.session, exercise: key.name, setIndex: setIndex, values: values, at: timestamp.string(from: now)))
+        let at = timestamp.string(from: now)
+        exercise.sets[setIndex].done = true
+        exercise.sets[setIndex].values = values
+        exercise.sets[setIndex].watchEventID = id
+        exercise.sets[setIndex].completedAt = at
+        session.plan.sessions[section].exercises[row] = exercise
+        session.exercise = key
+        journal.active = session
+        journal.pending.append(PendingSet(id: id, date: session.plan.date, session: key.session, exercise: key.name,
+                                         setIndex: setIndex, values: values, loggedAt: now))
+        send(SetEvent(id: id, date: session.plan.date, session: key.session, exercise: key.name,
+                      setIndex: setIndex, values: values, at: at, performedName: exercise.display))
     }
 
     func finish(_ summary: WorkoutSummary) {
-        let date = today?.date ?? Self.dateKey(summary.startedAt)
-        send(FinishEvent(
-            id: UUID().uuidString,
-            date: date,
-            at: timestamp.string(from: summary.endedAt),
-            startedAt: timestamp.string(from: summary.startedAt),
-            durationSeconds: max(0, Int(summary.endedAt.timeIntervalSince(summary.startedAt))),
-            averageHeartRate: summary.averageHeartRate,
-            activeEnergy: summary.activeEnergy
-        ))
-    }
-
-    private func send<Event: Encodable>(_ event: Event) {
-        guard let data = try? JSONEncoder().encode(event), let json = String(data: data, encoding: .utf8) else { return }
-        outbox.append(json)
-        defaults.set(outbox, forKey: Key.outbox)
+        guard let session = journal.active else { return }
+        let finish = FinishEvent(id: session.id, date: session.plan.date, at: timestamp.string(from: summary.endedAt),
+            startedAt: timestamp.string(from: session.startedAt),
+            durationSeconds: max(0, Int(summary.endedAt.timeIntervalSince(session.startedAt))),
+            averageHeartRate: summary.averageHeartRate, activeEnergy: summary.activeEnergy)
+        enqueue(finish)
+        journal.close(at: summary.endedAt)
+        restWork?.cancel()
+        persist()
         flush()
     }
 
-    private func flush() {
-        guard WCSession.isSupported(), WCSession.default.activationState == .activated, !outbox.isEmpty else { return }
-        for json in outbox {
-            WCSession.default.transferUserInfo(["event": json])
+    func finishWithoutHealth() {
+        guard let session = journal.active else { return }
+        finish(WorkoutSummary(startedAt: session.startedAt, endedAt: Date(), averageHeartRate: nil, activeEnergy: nil))
+    }
+
+    private func enqueue<Event: Encodable>(_ event: Event) {
+        guard let raw = try? JSONEncoder().encode(event),
+              var object = try? JSONSerialization.jsonObject(with: raw) as? [String: Any] else { return }
+        if let session = journal.active {
+            object["owner"] = session.plan.owner ?? athleteOwner
+            object["workoutID"] = session.id
+            // Keep the exercise identity and input types, even when the athlete
+            // edits their phone program before this workout reconnects.
+            let sessions = session.plan.sessions.map { section -> [String: Any] in
+                let exercises = section.exercises.map { ex -> [String: Any] in
+                    ["name": ex.name, "display": ex.display, "count": ex.sets.count, "reps": ex.sets.first?.values["reps"] ?? 8, "fields": ex.fields.map(\.prop),
+                     "swaps": (ex.swaps ?? []).map(\.name), "pairNext": ex.pairNext ?? false, "targetRir": ex.targetRir ?? ""]
+                }
+                return ["id": section.id, "title": section.title, "exercises": exercises]
+            }
+            object["offlinePlan"] = ["title": session.plan.title ?? "Lifting", "sessions": sessions] as [String: Any]
         }
-        outbox.removeAll()
-        defaults.set(outbox, forKey: Key.outbox)
+        if let data = try? JSONSerialization.data(withJSONObject: object), let json = String(data: data, encoding: .utf8) {
+            journal.outbox.append(json)
+        }
+    }
+
+    func send<Event: Encodable>(_ event: Event) {
+        enqueue(event)
+        persist()
+        flush()
+    }
+
+    private func journalKey(for owner: String?) -> String { owner.map { Key.journal + ".athlete." + $0 } ?? Key.journal }
+
+    private func storedJournal(for owner: String?) -> LiftJournal? {
+        guard let data = defaults.data(forKey: journalKey(for: owner)) else { return nil }
+        return try? JSONDecoder().decode(LiftJournal.self, from: data)
+    }
+
+    private func persist() {
+        if let data = try? JSONEncoder().encode(journal) { defaults.set(data, forKey: journalKey(for: athleteOwner)) }
+    }
+
+    private func flush() {
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated,
+              !journal.outbox.isEmpty, inFlight.isEmpty else { return }
+        let wc = WCSession.default
+        if wc.receivedApplicationContext["journalVersion"] as? Int == 1 {
+            // One ordered batch at a time. Never retire it on transport success:
+            // the iPhone acknowledges after its workout log has accepted the edits.
+            var bytes = 0
+            let batch = journal.outbox.prefix { raw in
+                bytes += raw.utf8.count
+                return bytes <= 40_000
+            }
+            let events = batch.isEmpty ? [journal.outbox[0]] : Array(batch)
+            inFlight = Set(events.compactMap(LiftJournal.eventID))
+            if let first = events.first, first.utf8.count > 40_000, let id = LiftJournal.eventID(first) {
+                if !wc.outstandingFileTransfers.contains(where: { $0.file.metadata?["batchID"] as? String == id }) {
+                    let url = FileManager.default.temporaryDirectory.appendingPathComponent("lift-" + UUID().uuidString)
+                    do {
+                        try JSONEncoder().encode(events).write(to: url, options: .atomic)
+                        wc.transferFile(url, metadata: ["batchID": id])
+                    } catch { inFlight.removeAll() }
+                }
+            } else if !wc.outstandingUserInfoTransfers.contains(where: { ($0.userInfo["events"] as? [String]) == events }) {
+                wc.transferUserInfo(["events": events])
+            }
+        } else {
+            let existing = Set(wc.outstandingUserInfoTransfers.compactMap { $0.userInfo["event"] as? String })
+            for raw in journal.outbox where !existing.contains(raw) { wc.transferUserInfo(["event": raw]) }
+            inFlight = Set(journal.outbox.compactMap(LiftJournal.eventID))
+        }
+        retry?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.inFlight.removeAll()
+            self?.flush()
+        }
+        retry = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 90, execute: work)
+    }
+
+    private func confirmed(_ ids: Set<String>) {
+        guard !ids.isEmpty else { return }
+        journal.acknowledge(ids)
+        inFlight.subtract(ids)
+        persist()
+        flush()
     }
 
     // MARK: - Rest
 
     func startRest(seconds: Int, next: String?) {
-        rest = Rest(endsAt: Date().addingTimeInterval(TimeInterval(seconds)), seconds: seconds, next: next)
+        journal.rest = Rest(endsAt: Date().addingTimeInterval(TimeInterval(seconds)), seconds: seconds, next: next)
+        persist()
         scheduleRestEnd()
     }
 
@@ -184,14 +291,16 @@ final class SessionStore: NSObject, ObservableObject {
         guard var current = rest else { return }
         current.endsAt.addTimeInterval(TimeInterval(seconds))
         current.seconds += seconds
-        rest = current
+        journal.rest = current
+        persist()
         scheduleRestEnd()
     }
 
     func endRest() {
         restWork?.cancel()
         restWork = nil
-        rest = nil
+        journal.rest = nil
+        persist()
     }
 
     /// While a workout is running the app keeps running with the wrist down,
@@ -201,7 +310,7 @@ final class SessionStore: NSObject, ObservableObject {
         guard let rest else { return }
         let work = DispatchWorkItem { [weak self] in
             WKInterfaceDevice.current().play(.notification)
-            self?.rest = nil
+            self?.endRest()
         }
         restWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + max(0, rest.endsAt.timeIntervalSinceNow), execute: work)
@@ -229,12 +338,37 @@ final class SessionStore: NSObject, ObservableObject {
             return
         }
         if let had = week?.sentAt, let got = incoming.sentAt, got < had { return }
+        // Once the phone sends scoped plans, an older unscoped transfer must
+        // never replace an athlete's current week.
+        if athleteOwner != nil && incoming.owner == nil { return }
+        if let next = incoming.owner, next != athleteOwner {
+            if defaults.string(forKey: Key.legacyOwner) == nil { defaults.set(next, forKey: Key.legacyOwner) }
+            if athleteOwner != nil {
+                WorkoutManager.shared.endForAccountChange()
+                CardioWorkoutManager.shared.closeForAccountChange()
+                persist()
+                journal = storedJournal(for: next) ?? LiftJournal()
+            } else if let saved = storedJournal(for: next) {
+                journal = saved
+            } else if next != defaults.string(forKey: Key.legacyOwner) {
+                journal = LiftJournal()
+            } else {
+                journal.active?.plan.owner = next
+                journal.lastFinish?.plan.owner = next
+            }
+            restWork?.cancel()
+            retry?.cancel()
+            inFlight.removeAll()
+        }
         week = incoming
         if let data = try? JSONEncoder().encode(incoming) {
             defaults.set(data, forKey: Key.week)
         }
-        prunePending()
+        journal.receive(incoming, calendarDay: dayKey)
+        confirmed(Set(incoming.seen ?? []))
+        persist()
         Self.saveCards(incoming)
+        flush()
     }
 
     // MARK: - The watch face
@@ -250,43 +384,27 @@ final class SessionStore: NSObject, ObservableObject {
 
     private static func card(_ day: WatchPlan) -> DayCard {
         let exercises = day.sessions.reduce(0) { $0 + $1.exercises.count }
-        let runs = day.runs ?? []
+        let runs = day.cardioWorkouts
         var parts: [String] = []
         if exercises > 0 { parts.append(exercises == 1 ? "1 exercise" : "\(exercises) exercises") }
         for run in runs {
             let length = run.summary?.components(separatedBy: " · ").first ?? ""
             parts.append(length.isEmpty ? run.name : "\(run.name), \(length)")
         }
-        let kind = exercises > 0 && !runs.isEmpty ? "both" : exercises > 0 ? "lift" : !runs.isEmpty ? "run" : "rest"
+        let kind = exercises > 0 ? (runs.isEmpty ? "lift" : "both") : runs.first.map { $0.activity ?? "run" } ?? "rest"
         let named = [day.title, day.sessions.first?.title, runs.first?.name].compactMap { $0 }.first { !$0.isEmpty }
         let title = kind == "rest" ? "Rest day" : named ?? "Training"
         return DayCard(date: day.date, title: title, detail: parts.joined(separator: " · "), kind: kind)
     }
 
     private static func singleDay(_ plan: WatchPlan) -> WatchWeek {
-        WatchWeek(week: nil, sentAt: plan.sentAt, seen: plan.seen, days: [plan])
+        WatchWeek(week: nil, owner: plan.owner, sentAt: plan.sentAt, seen: plan.seen, days: [plan])
     }
 
     /// The phone compresses the week (ios/App/App/WatchLink.swift).
     private static func unpack(_ data: Data) -> Data? {
         guard let raw = try? (data as NSData).decompressed(using: .zlib) else { return nil }
         return raw as Data
-    }
-
-    /// Drops what the phone has dealt with: sets its plans show done, events
-    /// it lists as seen (including any it set aside), and days before its week.
-    private func prunePending() {
-        guard let week else { return }
-        let seen = Set(week.seen ?? [])
-        let earliest = week.days.map(\.date).min() ?? dayKey
-        let before = pending.count
-        pending.removeAll { item in
-            if seen.contains(item.id) || item.date < earliest { return true }
-            guard let day = week.days.first(where: { $0.date == item.date }),
-                  let exercise = day.exercise(ExerciseKey(session: item.session, name: item.exercise)) else { return false }
-            return item.setIndex < exercise.sets.count && exercise.sets[item.setIndex].done
-        }
-        if pending.count != before { savePending() }
     }
 
     private func restore() {
@@ -297,27 +415,54 @@ final class SessionStore: NSObject, ObservableObject {
                   let plan = try? JSONDecoder().decode(WatchPlan.self, from: data) {
             week = Self.singleDay(plan)
         }
-        if let data = defaults.data(forKey: Key.pending) {
-            pending = (try? JSONDecoder().decode([PendingSet].self, from: data)) ?? []
+        if let saved = storedJournal(for: athleteOwner) {
+            journal = saved
+        } else if athleteOwner == nil {
+            if let data = defaults.data(forKey: Key.pending) {
+                journal.pending = (try? JSONDecoder().decode([PendingSet].self, from: data)) ?? []
+            }
+            journal.outbox = defaults.stringArray(forKey: Key.outbox) ?? []
+            // Older builds removed a set from the queue as soon as the OS
+            // accepted it. Replay unconfirmed sets using the original event ID.
+            let queued = Set(journal.outbox.compactMap(LiftJournal.eventID))
+            for set in journal.pending where !queued.contains(set.id) {
+                enqueue(SetEvent(id: set.id, date: set.date, session: set.session, exercise: set.exercise,
+                                 setIndex: set.setIndex, values: set.values, at: timestamp.string(from: set.loggedAt)))
+            }
+            persist()
         }
-        outbox = defaults.stringArray(forKey: Key.outbox) ?? []
+        if let rest, rest.endsAt > Date() { scheduleRestEnd() } else if rest != nil { endRest() }
         if let week { Self.saveCards(week) }
     }
 
-    private func savePending() {
-        if let data = try? JSONEncoder().encode(pending) {
-            defaults.set(data, forKey: Key.pending)
-        }
-    }
 }
 
 extension SessionStore: WCSessionDelegate {
+    func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        guard file.metadata?["week"] as? Bool == true, let packed = try? Data(contentsOf: file.fileURL) else { return }
+        DispatchQueue.main.async { self.receive(["week": packed]) }
+    }
+
+    func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
+        try? FileManager.default.removeItem(at: fileTransfer.file.fileURL)
+    }
+
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         guard activationState == .activated else { return }
         let context = session.receivedApplicationContext
         DispatchQueue.main.async {
             self.receive(context)
             self.flush()
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        guard let ids = userInfo["receipts"] as? [String] else { return }
+        let owner = userInfo["owner"] as? String
+        DispatchQueue.main.async {
+            if self.isCurrentOwner(owner) {
+                self.confirmed(Set(ids))
+            }
         }
     }
 

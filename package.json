@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "node scripts/test-suite.mjs",
     "test:whoop-bluetooth": "sh scripts/test-whoop-bluetooth.sh",
+    "test:watch-workouts": "sh scripts/test-watch-workouts.sh",
     "quality:gate": "node scripts/quality-gate.mjs",
     "lint": "eslint .",
     "sync:version": "node scripts/sync-version.mjs",

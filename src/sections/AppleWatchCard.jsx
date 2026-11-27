@@ -29,7 +29,7 @@ export function AppleWatchCard() {
     return () => { cancelled = true; };
   }, []);
 
-  const unsupported = status?.supported === false;
+  const unsupported = status?.supported === false && !status?.health;
 
   const turnOn = async () => {
     setBusy(true);
@@ -37,10 +37,10 @@ export function AppleWatchCard() {
     try {
       const next = await nativePlugin("OTRuns")?.enable?.();
       setStatus(next || null);
-      if (next?.scheduling === "authorized") {
+      if (next?.scheduling === "authorized" || (next?.supported === false && next?.health)) {
         writeWatchRunsOn(true);
         setOn(true);
-        setMessage("This week’s runs are on their way to the Workout app.");
+        setMessage(next.scheduling === "authorized" ? "This week’s supported cardio sessions are on their way to the Workout app." : "Apple Health workout import is on.");
       } else {
         setMessage(BLOCKED[next?.scheduling] || "Couldn’t turn this on. Try again.");
       }
@@ -54,7 +54,7 @@ export function AppleWatchCard() {
   const turnOff = async () => {
     writeWatchRunsOn(false);
     setOn(false);
-    setMessage("Your runs are off the watch.");
+    setMessage("Workout scheduling and Health import are off.");
     try { await nativePlugin("OTRuns")?.clear?.(); } catch { /* removed next time it's turned off */ }
   };
 
@@ -70,11 +70,16 @@ export function AppleWatchCard() {
         {on && <button type="button" className="btn btn-g btn-sm" onClick={turnOff}>Turn off</button>}
       </div>
       {unsupported ? <p className="t-ss c2">Not available on this iPhone</p>
-        : on ? <p className="t-ss good">On · runs go to the Workout app</p>
+        : on ? <p className="t-ss good">On · Apple Health workout import</p>
         : <p className="t-ss c2">Off</p>}
       <p className="t-s c2">
-        Puts the next 7 days of planned runs, with their pace targets, in the Workout app on your watch, and fills in the log from runs you record on the watch. Turning it on asks to add workouts to your watch and to read runs from Apple Health.
+        Schedules compatible cardio sessions in Apple Workout and imports each recorded workout from Apple Health. Your 0VERTRAINED Watch app also guides timed machine workouts, including the stair stepper.
       </p>
+      <details className="t-s">
+        <summary>Training from your Watch</summary>
+        <p>Open 0VERTRAINED on your iPhone once to send the week to your Watch. During a lift, open Workout options to swap an exercise before its first set, pair it with the next exercise, or undo your last Watch set. “Saved on Watch” means the edits are waiting for your iPhone.</p>
+        <p>To try rep counting, open a dumbbell curl or lateral raise and tap Count reps · beta. Lower your watch arm and start lifting after the tap. Finish counting, check the number with the Crown, then tap Use reps and Log set.</p>
+      </details>
       {message && <p className="t-s" role="status">{message}</p>}
     </section>
   );

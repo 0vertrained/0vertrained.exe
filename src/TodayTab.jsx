@@ -618,6 +618,13 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
           <span className="kv grow"><span className="t-bs clip">{cardioLabel(recorded)}</span><span className="t-s c2">{cardioMeta(cardio) || "Cardio"}</span></span>
           {!isLoggingPast && onStart && <button type="button" className="btn btn-s btn-sm" onClick={onStart}>{startLabel}</button>}
         </div>
+        {logged.plannedSeconds > 0 && logged.time && <p className="t-s c2">Planned {formatDuration(logged.plannedSeconds)} · Recorded {logged.time}</p>}
+        {logged.segments?.length > 0 && <details>
+          <summary className="t-s">Recorded segments ({logged.segments.length})</summary>
+          <ol>{logged.segments.map((segment, index) => <li className="t-s" key={index}>
+            {segment.label || "Segment"} · {formatDuration(segment.seconds)}{segment.targetSeconds > 0 && ` (target ${formatDuration(segment.targetSeconds)})`}
+          </li>)}</ol>
+        </details>}
         {cardio.notes && <CardioNotes notes={cardio.notes} />}
         <CardioFields logged={logged} planned={cardio} running={running} onChange={(field, value) => logCardioField(path, cardio, field, value)} />
         {running && <PaceCheck cardio={cardio} logged={logged} />}
@@ -794,6 +801,12 @@ export function TodayTab({  todayName, todayData, updateToday, updateEntryAtDate
         )}
 
         {/* A run nobody planned still gets logged: the same three fields, on any day. */}
+        {Object.entries(wo.cardioSessions || {}).filter(([id, logged]) =>
+          logged?.activityRefs?.some(ref => ref.source === "apple") && hasCardioResult(logged) &&
+          !(sessionAwareProgram && programSessions.some(session => session.id === id && session.cardio))
+        ).map(([id, logged]) => <div key={id}>
+          {cardioBlock({ cardio: logged, logged, path: `workout.cardioSessions.${id}` })}
+        </div>)}
         {!hasPlainCardio && (
           <div>
             <div className="row">
@@ -1138,14 +1151,14 @@ const ExerciseLogger = memo(function ExerciseLogger({ exercise, data, onChange, 
   }, 0);
 
   const updateSet = (index, field, value) => {
-    onChange({ ...data, sets: sets.map((set, setIndex) => setIndex === index ? { ...set, [field]: value } : set) });
+    onChange({ ...data, sets: sets.map((set, setIndex) => setIndex === index ? { ...set, watchEventID: undefined, [field]: value } : set) });
     if (errors[index]) setErrors((current) => ({ ...current, [index]: "" }));
   };
   const toggleDone = (index) => {
     const set = sets[index];
     if (set.done) {
-      const { completedAt, ...reopened } = set;
-      void completedAt;
+      const { completedAt, watchEventID, ...reopened } = set;
+      void completedAt; void watchEventID;
       onChange({ ...data, sets: sets.map((entry, setIndex) => setIndex === index ? { ...reopened, done: false } : entry) });
       return;
     }
@@ -1220,7 +1233,7 @@ const ExerciseLogger = memo(function ExerciseLogger({ exercise, data, onChange, 
             <button type="button" className="ibtn ibtn-o" aria-pressed={Boolean(set.done)} aria-label={`${name}, set ${index + 1} done`} onClick={() => toggleDone(index)}><Icon name="check" size="s" /></button>
           </div>
           {errors[index] && <p className="err" role="alert"><Icon name="warn" size="s" />{errors[index]}</p>}
-          <CascadeSet set={set} showOffer isLast={index === sets.length - 1} onChange={(nextSet) => onChange({ ...data, sets: sets.map((entry, setIndex) => setIndex === index ? nextSet : entry) })} />
+          <CascadeSet set={set} showOffer isLast={index === sets.length - 1} onChange={(nextSet) => onChange({ ...data, sets: sets.map((entry, setIndex) => setIndex === index ? { ...nextSet, watchEventID: undefined } : entry) })} />
         </div>
       ))}
     </section>

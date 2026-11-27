@@ -13,7 +13,7 @@ final class WatchLink: NSObject {
     static let shared = WatchLink()
     static let inboxChanged = Notification.Name("ovt.watchInboxChanged")
 
-    private let inboxKey = "ovt.watch.inbox"
+    private let journalKey = "ovt.watch.inbox.v2"
     private let queue = DispatchQueue(label: "ovt.watch.link")
     /// The newest week of plans, until the watch can take it.
     private var unsentPlan: String?
@@ -32,18 +32,32 @@ final class WatchLink: NSObject {
     }
 
     /// The events waiting, oldest first, each as the JSON the watch sent.
-    func pendingEvents() -> [String] {
-        queue.sync { readInbox() }
+    func pendingPayload(owner: String?) -> [String: Any] {
+        queue.sync {
+            let accounts = partitions(for: owner)
+            return ["events": accounts.flatMap { readInbox(owner: $0).events }, "acceptLegacy": accounts.contains(nil)]
+        }
     }
 
-    /// Removes the events the page has dealt with, and any it can't read.
-    func acknowledge(ids: Set<String>) {
+    // Old watch apps omitted the athlete ID. Keep those events with the first
+    // account that claims this pairing, including across iPhone relaunches.
+    private func partitions(for owner: String?) -> [String?] {
+        let key = journalKey + ".legacyOwner"
+        guard let owner else { return UserDefaults.standard.string(forKey: key) == nil ? [nil] : [] }
+        if UserDefaults.standard.string(forKey: key) == nil { UserDefaults.standard.set(owner, forKey: key) }
+        return UserDefaults.standard.string(forKey: key) == owner ? [nil, owner] : [owner]
+    }
+
+    func acknowledge(ids: Set<String>, owner: String?) {
         queue.sync {
-            let kept = readInbox().filter { event in
-                guard let id = Self.eventId(event) else { return false }
-                return !ids.contains(id)
+            for partition in partitions(for: owner) {
+                var inbox = readInbox(owner: partition)
+                let accepted = Set(inbox.events.compactMap(WatchInbox.id)).intersection(ids)
+                guard !accepted.isEmpty else { continue }
+                inbox.confirm(accepted)
+                writeInbox(inbox, owner: partition)
+                sendReceipts(Array(accepted), owner: partition)
             }
-            writeInbox(kept)
         }
     }
 
@@ -70,7 +84,14 @@ final class WatchLink: NSObject {
             return
         }
         do {
-            try session.updateApplicationContext(["week": week])
+            if week.count > 50_000 {
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent("week-" + UUID().uuidString)
+                try week.write(to: url, options: .atomic)
+                session.transferFile(url, metadata: ["week": true])
+                try session.updateApplicationContext(["journalVersion": 1])
+            } else {
+                try session.updateApplicationContext(["week": week, "journalVersion": 1])
+            }
             unsentPlan = nil
         } catch {
             // Kept, and tried again when the watch's state changes or the
@@ -78,12 +99,24 @@ final class WatchLink: NSObject {
         }
     }
 
-    private func readInbox() -> [String] {
-        UserDefaults.standard.stringArray(forKey: inboxKey) ?? []
+    private func inboxKey(_ owner: String?) -> String { owner.map { journalKey + ".athlete." + $0 } ?? journalKey }
+
+    private func readInbox(owner: String?) -> WatchInbox {
+        if let data = UserDefaults.standard.data(forKey: inboxKey(owner)),
+           let inbox = try? JSONDecoder().decode(WatchInbox.self, from: data) { return inbox }
+        guard owner == nil else { return WatchInbox() }
+        return WatchInbox(events: UserDefaults.standard.stringArray(forKey: "ovt.watch.inbox") ?? [])
     }
 
-    private func writeInbox(_ inbox: [String]) {
-        UserDefaults.standard.set(inbox, forKey: inboxKey)
+    private func writeInbox(_ inbox: WatchInbox, owner: String?) {
+        if let data = try? JSONEncoder().encode(inbox) { UserDefaults.standard.set(data, forKey: inboxKey(owner)) }
+    }
+
+    private func sendReceipts(_ ids: [String], owner: String?) {
+        guard !ids.isEmpty, WCSession.isSupported(), WCSession.default.activationState == .activated else { return }
+        var message: [String: Any] = ["receipts": ids]
+        message["owner"] = owner
+        WCSession.default.transferUserInfo(message)
     }
 
     /// The week's JSON, zlib-compressed: the watch unpacks it the same way.
@@ -92,11 +125,7 @@ final class WatchLink: NSObject {
         return compressed as Data
     }
 
-    private static func eventId(_ json: String) -> String? {
-        guard let data = json.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        return object["id"] as? String
-    }
+
 }
 
 extension WatchLink: WCSessionDelegate {
@@ -116,11 +145,29 @@ extension WatchLink: WCSessionDelegate {
     }
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        guard let event = userInfo["event"] as? String else { return }
+        let events = userInfo["events"] as? [String] ?? (userInfo["event"] as? String).map { [$0] } ?? []
+        receiveBatch(events)
+    }
+
+    func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
+        try? FileManager.default.removeItem(at: fileTransfer.file.fileURL)
+    }
+
+    func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        guard file.metadata?["batchID"] != nil, let data = try? Data(contentsOf: file.fileURL),
+              let events = try? JSONDecoder().decode([String].self, from: data) else { return }
+        receiveBatch(events)
+    }
+
+    private func receiveBatch(_ events: [String]) {
+        guard !events.isEmpty else { return }
         queue.async {
-            var inbox = self.readInbox()
-            inbox.append(event)
-            self.writeInbox(inbox)
+            for (owner, batch) in Dictionary(grouping: events, by: WatchInbox.owner) {
+                var inbox = self.readInbox(owner: owner)
+                let alreadySaved = inbox.receive(batch)
+                self.writeInbox(inbox, owner: owner)
+                self.sendReceipts(alreadySaved, owner: owner)
+            }
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: WatchLink.inboxChanged, object: nil)
             }

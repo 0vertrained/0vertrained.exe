@@ -45,16 +45,17 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     /// Asks for Health access the first time, then starts.
     func start() {
-        guard phase == .idle else { return }
+        guard phase == .idle, !CardioWorkoutManager.shared.isActive else { return }
         guard HKHealthStore.isHealthDataAvailable() else {
             problem = "Health isn't available on this watch."
             return
         }
         problem = nil
         phase = .starting
+        let owner = SessionStore.shared.athleteOwner
         healthStore.requestAuthorization(toShare: shareTypes, read: readTypes) { [weak self] _, _ in
             DispatchQueue.main.async {
-                guard let self else { return }
+                guard let self, self.phase == .starting, SessionStore.shared.isCurrentOwner(owner) else { return }
                 guard self.canSave else {
                     self.phase = .idle
                     self.problem = "To track workouts, allow 0VERTRAINED in the Health app on your iPhone, under Sharing > Apps."
@@ -68,7 +69,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// Starts without asking, if Health access was already given. Logging a
     /// set calls this so rest taps work even if Start was skipped.
     func startIfAllowed() {
-        guard phase == .idle, canSave else { return }
+        guard phase == .idle, canSave, !CardioWorkoutManager.shared.isActive else { return }
         begin()
     }
 
@@ -93,6 +94,7 @@ final class WorkoutManager: NSObject, ObservableObject {
             self.builder = builder
 
             let start = Date()
+            SessionStore.shared.beginLift(at: start)
             session.startActivity(with: start)
             builder.beginCollection(withStart: start) { [weak self] _, error in
                 guard error != nil else { return }
@@ -103,6 +105,38 @@ final class WorkoutManager: NSObject, ObservableObject {
         } catch {
             phase = .idle
             problem = "The workout couldn't start. Try again."
+        }
+    }
+
+    /// A real athlete change parks the old owner's final metrics in that
+    /// journal before any new owner's plan can receive asynchronous callbacks.
+    func endForAccountChange() {
+        if let lift = SessionStore.shared.activeLift {
+            SessionStore.shared.finish(WorkoutSummary(startedAt: lift.startedAt, endedAt: Date(),
+                averageHeartRate: averageHeartRate, activeEnergy: activeEnergy))
+        }
+        onEnded = nil
+        if phase == .starting { phase = .idle }
+        else if phase == .running { phase = .ending; session?.end() }
+    }
+
+    func recover() {
+        let owner = SessionStore.shared.athleteOwner
+        healthStore.recoverActiveWorkoutSession { [weak self] recovered, _ in
+            guard let recovered else { return }
+            DispatchQueue.main.async {
+                guard let self, self.phase == .idle, SessionStore.shared.isCurrentOwner(owner) else { return }
+                if recovered.workoutConfiguration.activityType != .traditionalStrengthTraining {
+                    CardioWorkoutManager.shared.restore(recovered)
+                    return
+                }
+                self.session = recovered
+                self.builder = recovered.associatedWorkoutBuilder()
+                recovered.delegate = self
+                self.builder?.delegate = self
+                self.startDate = recovered.startDate ?? SessionStore.shared.activeLift?.startedAt
+                self.phase = .running
+            }
         }
     }
 
@@ -143,8 +177,11 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
     func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
         guard toState == .ended, let builder else { return }
         builder.endCollection(withEnd: date) { _, _ in
-            builder.finishWorkout { _, _ in
-                DispatchQueue.main.async { self.finished(at: date) }
+            builder.finishWorkout { _, error in
+                DispatchQueue.main.async {
+                    if error != nil { self.problem = "Workout log kept. Apple Health could not save the recording." }
+                    self.finished(at: date)
+                }
             }
         }
     }

@@ -362,7 +362,7 @@ describe("research-based custom weeks", () => {
     expect(active.filter(d => d.code === "QUALITY")).toHaveLength(1);
     expect(active.find(d => d.code === "QUALITY").cardio.steps[1]).toMatchObject({ reps: 3, work: { minutes: 4 } });
     const now = new Date("2026-11-23T10:00:00");
-    expect(runSchedule(plan.program, "2026-11-23", { days: 7, now })).toEqual([]);
+    expect(runSchedule(plan.program, "2026-11-23", { days: 7, now }).map(workout => workout.activity)).toEqual(Array(4).fill("row"));
     const runs = buildProgramPlan({ goal: "cardio_only", cardioModality: "run", sessionLength: 30, trainingDaysPerWeek: 4, includeIntervals: true });
     const workouts = runSchedule(runs.program, "2026-11-23", { days: 7, now });
     expect(workouts).toHaveLength(4);

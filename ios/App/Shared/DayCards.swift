@@ -59,6 +59,16 @@ enum DayCards {
     static func symbol(_ kind: String?) -> String {
         switch kind {
         case "run": return "figure.run"
+        case "bike": return "figure.outdoor.cycle"
+        case "row": return "figure.rower"
+        case "elliptical": return "figure.elliptical"
+        case "stair": return "figure.stair.stepper"
+        case "walk": return "figure.walk"
+        case "hike": return "figure.hiking"
+        case "rope": return "figure.jumprope"
+        case "cross", "cardio": return "heart.fill"
+        case "swim": return "figure.pool.swim"
+        case "ski": return "figure.skiing.crosscountry"
         case "rest": return "bed.double.fill"
         default: return "dumbbell.fill"
         }

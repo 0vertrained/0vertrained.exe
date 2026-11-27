@@ -60,24 +60,27 @@ export function readPendingSaves(userId) {
  * @param {string} userId
  * @param {Record<string, object>} map
  */
-export function writePendingSaves(userId, map) {
-  if (!userId) return;
+export function writePendingSaves(userId, map, { allowEviction = true } = {}) {
+  if (!userId) return false;
   try {
     const entries = Object.entries(map || {}).filter(([, payload]) => payload != null);
     if (!entries.length) {
       localStorage.removeItem(keyFor(userId));
-      return;
+      return true;
     }
     entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     let serialized = JSON.stringify(Object.fromEntries(entries));
+    if (!allowEviction && serialized.length > MAX_STORE_BYTES) return false;
     while (serialized.length > MAX_STORE_BYTES && entries.length > 1) {
       entries.shift(); // drop the oldest day first
       serialized = JSON.stringify(Object.fromEntries(entries));
     }
     localStorage.setItem(keyFor(userId), serialized);
+    return true;
   } catch {
     // localStorage unavailable/full — the in-memory queue still retries this
     // session; durability degrades gracefully instead of crashing a save.
+    return false;
   }
 }
 

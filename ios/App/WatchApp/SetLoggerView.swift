@@ -13,6 +13,7 @@ struct SetLoggerView: View {
     /// Numbers changed with the crown, for the set named by `editsFor`.
     @State private var edits: [String: Double] = [:]
     @State private var editsFor = ""
+    @State private var showingOptions = false
     @FocusState private var focus: String?
 
     init(key: ExerciseKey) {
@@ -25,7 +26,7 @@ struct SetLoggerView: View {
         Group {
             if let exercise {
                 if let rest = store.rest {
-                    RestView(rest: rest)
+                    RestView(rest: rest, undo: store.lastWatchSet == nil ? nil : undoSet)
                 } else {
                     let sets = store.sets(for: key)
                     if let current = sets.first(where: { !$0.done }) {
@@ -42,6 +43,9 @@ struct SetLoggerView: View {
             }
         }
         .navigationTitle(exercise?.display ?? "")
+        .onAppear { store.rememberExercise(key) }
+        .onChange(of: key) { _, next in store.rememberExercise(next) }
+        .sheet(isPresented: $showingOptions) { options }
     }
 
     // MARK: - The set
@@ -49,7 +53,7 @@ struct SetLoggerView: View {
     private func logger(_ exercise: PlanExercise, current: SetState, total: Int) -> some View {
         ScrollView {
             VStack(spacing: 8) {
-                Text("Set \(current.index + 1) of \(total)")
+                Text("\(pairLabel)Set \(current.index + 1) of \(total)")
                     .font(.footnote)
                     .foregroundStyle(Ledger.ink2)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -65,6 +69,15 @@ struct SetLoggerView: View {
                         .font(.footnote)
                         .foregroundStyle(Ledger.ink2)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if let motionExercise = RepMotionExercise(name: exercise.display),
+                   let reps = exercise.fields.first(where: { $0.prop == "reps" }) {
+                    RepCounterButton(exercise: motionExercise, name: exercise.display, limit: Int(reps.max)) { count in
+                        binding(reps, current: current).wrappedValue = Double(count)
+                        focus = reps.prop
+                    }
+                    .id(setKey(current) + exercise.display)
                 }
 
                 if let target = exercise.targetRir {
@@ -88,10 +101,70 @@ struct SetLoggerView: View {
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(!isValid(exercise, current: current))
                     .doubleTapPresses()
+
+                Button("Workout options") { showingOptions = true }
+                    .buttonStyle(SecondaryButtonStyle())
             }
         }
         .onAppear {
             if focus == nil { focus = exercise.fields.first?.prop }
+        }
+    }
+
+    private var pairLabel: String {
+        guard let first = store.today?.pairLeader(for: key) else { return "" }
+        return first == key ? "A1 · " : "A2 · "
+    }
+
+    private func move(to next: ExerciseKey) {
+        edits = [:]
+        editsFor = ""
+        focus = store.today?.exercise(next)?.fields.first?.prop
+        key = next
+    }
+
+    private func undoSet() {
+        if let next = store.undoLastWatchSet() { move(to: next) }
+        showingOptions = false
+    }
+
+    private var options: some View {
+        NavigationStack {
+            List {
+                if let exercise, !store.sets(for: key).contains(where: { $0.done }),
+                   let swaps = exercise.swaps, !swaps.isEmpty {
+                    Section("Swap exercise") {
+                        ForEach(swaps, id: \.name) { choice in
+                            Button(choice.name) {
+                                store.swapExercise(key, to: choice.name)
+                                move(to: key)
+                                showingOptions = false
+                            }
+                        }
+                    }
+                }
+                if let plan = store.today {
+                    if let leader = plan.pairLeader(for: key) {
+                        Button("Unpair superset") {
+                            store.pairExercise(leader, enabled: false)
+                            showingOptions = false
+                        }
+                    } else if let next = plan.adjacent(to: key, offset: 1),
+                              let other = plan.exercise(next), other.skipped != true, plan.pairLeader(for: next) == nil {
+                        Button("Superset with \(other.display)") {
+                            store.pairExercise(key, enabled: true)
+                            showingOptions = false
+                        }
+                    }
+                }
+                if let last = store.lastWatchSet {
+                    Section("Last Watch set") {
+                        Button("Undo \(store.today?.exercise(last.key)?.display ?? last.key.name) · set \(last.slot + 1)", action: undoSet)
+                    }
+                }
+                Button("Back to workout") { showingOptions = false }
+            }
+            .navigationTitle("Workout options")
         }
     }
 
@@ -183,6 +256,13 @@ struct SetLoggerView: View {
 
         // Nothing follows the session's last set, so nothing to rest for.
         guard !store.allLogged else { return }
+        if let change = store.supersetTransition(after: key), let next = store.today?.exercise(change.next) {
+            move(to: change.next)
+            if change.rest {
+                store.startRest(seconds: exercise.restSeconds, next: "Next: \(next.display)")
+            }
+            return
+        }
         store.startRest(seconds: exercise.restSeconds, next: nextUp(exercise))
     }
 
@@ -226,6 +306,10 @@ struct SetLoggerView: View {
                         .foregroundStyle(Ledger.ink2)
                         .multilineTextAlignment(.center)
                 }
+                if store.lastWatchSet != nil {
+                    Button("Undo last Watch set", action: undoSet)
+                        .buttonStyle(SecondaryButtonStyle())
+                }
             }
             .frame(maxWidth: .infinity)
         }
@@ -237,6 +321,7 @@ struct SetLoggerView: View {
 struct RestView: View {
     @EnvironmentObject private var store: SessionStore
     let rest: SessionStore.Rest
+    var undo: (() -> Void)?
 
     var body: some View {
         ScrollView {
@@ -266,6 +351,13 @@ struct RestView: View {
                         .buttonStyle(SecondaryButtonStyle())
                         .accessibilityLabel("Skip the rest")
                         .doubleTapPresses()
+                }
+                if let undo {
+                    Button("Undo last Watch set", action: undo)
+                        .buttonStyle(SecondaryButtonStyle())
+                }
+                if let reason = store.today?.adaptationReason {
+                    Text(reason).font(.footnote).foregroundStyle(Ledger.ink2)
                 }
             }
             .frame(maxWidth: .infinity)

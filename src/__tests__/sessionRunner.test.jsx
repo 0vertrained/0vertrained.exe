@@ -92,6 +92,16 @@ describe("the session runner", () => {
     }
   });
 
+  it("makes a corrected watch set a phone edit so delayed Watch Undo cannot remove it", () => {
+    const workout = { exercises: { Bench: { sets: [done(185, 8, { watchEventID: "wrist-set" })] } } };
+    const { ui, updates } = mountRunner({ workout });
+    fireEvent.click(ui.getByRole("button", { name: /^Set 1, logged/ }));
+    fireEvent.change(ui.getByRole("spinbutton", { name: "Weight in pounds" }), { target: { value: "180" } });
+    const saved = updates.mock.calls.filter(([path]) => path === "workout.exercises.Bench").at(-1)[1];
+    expect(saved.sets[0]).toMatchObject({ done: true, weight: "180" });
+    expect(saved.sets[0].watchEventID).toBeUndefined();
+  });
+
   it("protects the lift identity of completed sets when reopening exercise options", () => {
     const lifting = [{ name: "Bench Press", sets: 2, reps: 8 }];
     for (const performedName of [undefined, "Incline Dumbbell Press"]) {

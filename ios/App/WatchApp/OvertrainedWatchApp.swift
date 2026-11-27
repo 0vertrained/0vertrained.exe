@@ -1,4 +1,11 @@
 import SwiftUI
+import WatchKit
+
+final class WatchWorkoutDelegate: NSObject, WKApplicationDelegate {
+    func handleActiveWorkoutRecovery() {
+        WorkoutManager.shared.recover()
+    }
+}
 
 /// 0VERTRAINED on Apple Watch: the day's lifts from the phone, one set at a
 /// time, with the workout tracked in Health, and the day's runs, which open
@@ -8,6 +15,7 @@ import SwiftUI
 /// tap, pinching twice presses the screen's main button.
 @main
 struct OvertrainedWatchApp: App {
+    @WKApplicationDelegateAdaptor(WatchWorkoutDelegate.self) private var delegate
     @StateObject private var store = SessionStore.shared
     @StateObject private var workout = WorkoutManager.shared
     @Environment(\.scenePhase) private var scenePhase
@@ -17,6 +25,7 @@ struct OvertrainedWatchApp: App {
             NavigationStack {
                 TodayView()
             }
+            .id(store.athleteOwner)
             .environmentObject(store)
             .environmentObject(workout)
             .tint(Ledger.ink)

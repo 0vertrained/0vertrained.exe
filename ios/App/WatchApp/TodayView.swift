@@ -6,16 +6,19 @@ import SwiftUI
 struct TodayView: View {
     @EnvironmentObject private var store: SessionStore
     @EnvironmentObject private var workout: WorkoutManager
+    @ObservedObject private var cardioWorkout = CardioWorkoutManager.shared
     @State private var confirmingEnd = false
 
     var body: some View {
         Group {
-            if let plan = store.today {
-                if plan.sessions.isEmpty && (plan.runs ?? []).isEmpty {
+            if cardioWorkout.isActive {
+                CardioWorkoutView()
+            } else if let plan = store.today {
+                if plan.sessions.isEmpty && plan.cardioWorkouts.isEmpty {
                     EmptyStateView(
                         symbol: "moon.zzz",
                         title: "Nothing planned today",
-                        detail: "Today's plan on your iPhone has no lifts or runs."
+                        detail: plan.adaptationReason ?? "Today's plan on your iPhone has no scheduled workout."
                     )
                 } else {
                     list(plan)
@@ -29,6 +32,13 @@ struct TodayView: View {
             }
         }
         .navigationTitle(navigationTitle)
+        .safeAreaInset(edge: .bottom) {
+            if store.unsyncedCount > 0 && !cardioWorkout.isActive {
+                Text("Saved on Watch · \(store.unsyncedCount) awaiting iPhone")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).allowsHitTesting(false)
+            }
+        }
         .navigationDestination(for: ExerciseKey.self) { key in
             SetLoggerView(key: key)
         }
@@ -36,7 +46,7 @@ struct TodayView: View {
             Button("End workout", role: .destructive) { endWorkout() }
             Button("Keep going", role: .cancel) {}
         } message: {
-            Text("It's saved to Health, and your iPhone marks the session finished if every set is logged.")
+            Text("Your iPhone receives the sets you logged. Any remaining sets stay open.")
         }
     }
 
@@ -47,18 +57,27 @@ struct TodayView: View {
 
     private func list(_ plan: WatchPlan) -> some View {
         List {
-            if let runs = plan.runs, !runs.isEmpty {
+            if let reason = plan.adaptationReason, !reason.isEmpty {
+                Text(reason).font(.footnote).foregroundStyle(Ledger.ink2)
+            }
+            let runs = plan.cardioWorkouts
+            if !runs.isEmpty {
                 Section {
                     ForEach(runs) { run in
-                        RunRow(run: run, lifting: workout.phase != .idle)
+                        RunRow(run: run, lifting: workout.phase != .idle || store.activeLift != nil)
                     }
                 } header: {
-                    Text(runs.count == 1 ? "Run" : "Runs")
+                    Text("Cardio")
                 }
             }
             if !plan.sessions.isEmpty {
                 Section {
                     workoutRow
+                    if let key = store.activeLift?.exercise, let exercise = plan.exercise(key) {
+                        NavigationLink(value: key) {
+                            Label(store.rest == nil ? "Resume \(exercise.display)" : "Resume rest", systemImage: "arrow.uturn.forward")
+                        }
+                    }
                 }
             }
             ForEach(plan.sessions) { session in
@@ -75,7 +94,7 @@ struct TodayView: View {
                     }
                 }
             }
-            if workout.phase == .running {
+            if workout.phase == .running || (store.activeLift != nil && workout.phase == .idle) {
                 Section {
                     Button("End workout", role: .destructive) { confirmingEnd = true }
                 }
@@ -89,7 +108,7 @@ struct TodayView: View {
         case .idle:
             VStack(spacing: 6) {
                 Button { workout.start() } label: {
-                    Label("Start workout", systemImage: "figure.strengthtraining.traditional")
+                    Label(store.activeLift == nil ? "Start workout" : "Start Health tracking", systemImage: "figure.strengthtraining.traditional")
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 if let problem = workout.problem {
@@ -131,6 +150,10 @@ struct TodayView: View {
     }
 
     private func endWorkout() {
+        if workout.phase == .idle {
+            store.finishWithoutHealth()
+            return
+        }
         workout.end { summary in
             store.finish(summary)
             store.endRest()
@@ -179,13 +202,13 @@ struct ExerciseRow: View {
     }
 }
 
-/// A screen with nothing to log yet, saying what to do about it.
-/// A planned run: what it is, and the button that opens it in the Workout
-/// app with its steps and pace or heart-rate alerts.
+/// Use Apple Workout when it supports the activity and its goals. The in-app
+/// recorder can run the same steps for other equipment.
 struct RunRow: View {
     let run: RunSpec
     /// A lifting workout is going here; one workout at a time.
     let lifting: Bool
+    @ObservedObject private var cardio = CardioWorkoutManager.shared
     @State private var opening = false
     @State private var problem: String?
 
@@ -200,18 +223,24 @@ struct RunRow: View {
                     .foregroundStyle(Ledger.ink2)
             }
             Button { open() } label: {
-                Label("Start in Workout", systemImage: "figure.run")
+                Label(RunWorkout.plan(for: run) == nil ? "Start cardio" : "Start in Workout", systemImage: "play.fill")
             }
             .buttonStyle(PrimaryButtonStyle())
-            .disabled(opening || lifting)
+            .disabled(opening || lifting || cardio.isActive)
             if lifting {
                 Text("End the lifting workout first.")
                     .font(.footnote)
                     .foregroundStyle(Ledger.ink2)
-            } else if let problem {
-                Text(problem)
+            } else if let message = problem ?? cardio.problem {
+                Text(message)
                     .font(.footnote)
                     .foregroundStyle(Ledger.ink2)
+                if problem != nil {
+                    Button("Track in 0VERTRAINED") {
+                        problem = nil
+                        cardio.start(run)
+                    }
+                }
             }
         }
         .listRowBackground(Color.clear)
@@ -219,7 +248,7 @@ struct RunRow: View {
 
     private func open() {
         guard let plan = RunWorkout.plan(for: run) else {
-            problem = "This run couldn't be set up. Start it from the Workout app."
+            cardio.start(run)
             return
         }
         opening = true
@@ -228,7 +257,7 @@ struct RunRow: View {
             do {
                 try await plan.openInWorkoutApp()
             } catch {
-                problem = "The Workout app didn't open. Try again."
+                problem = "Apple Workout didn’t open."
             }
             opening = false
         }

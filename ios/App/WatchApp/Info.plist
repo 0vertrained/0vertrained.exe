@@ -8,6 +8,8 @@
 	<string>0VERTRAINED reads your heart rate during workouts you start on your watch.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>0VERTRAINED saves the workouts you track on your watch to Health.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>0VERTRAINED uses wrist motion during sets you choose to count, so you can review the detected reps before logging.</string>
 	<key>WKApplication</key>
 	<true/>
 	<key>WKBackgroundModes</key>

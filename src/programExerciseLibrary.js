@@ -225,6 +225,18 @@ export function exercisePrescription(name) {
     ...(trackingMode && { trackingMode }) };
 }
 
+// A swap keeps the movement pattern and logging units, and fits the
+// athlete's available equipment even when a bench or bar is unavailable.
+export function availableSwapNames(exercise, { equipment, experience, equipmentChoices } = {}) {
+  const shape = exercisePrescription(exercise.name);
+  if (!shape) return [];
+  const mode = resolveTrackingMode(shape);
+  const options = selectExercises(exercise.pattern, equipment, experience, EXERCISES.length, 0, equipmentChoices)
+    .filter(other => other.name !== exercise.name && resolveTrackingMode(exercisePrescription(other.name)) === mode);
+  const priority = other => (exercise.alternatives?.includes(other.name) ? 2 : 0) + (other.equipment !== exercise.equipment ? 1 : 0);
+  return options.sort((a, b) => priority(b) - priority(a)).slice(0, 4).map(other => other.name);
+}
+
 // Cardio catalog
 // intensity buckets drive the builder's recovery-spacing rules.
 export const CARDIO_INTENSITY = ["recovery", "easy", "moderate", "hard"];

@@ -39,12 +39,12 @@ public class WatchPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func pending(_ call: CAPPluginCall) {
-        call.resolve(["events": WatchLink.shared.pendingEvents()])
+        call.resolve(WatchLink.shared.pendingPayload(owner: call.getString("owner")))
     }
 
     @objc func ack(_ call: CAPPluginCall) {
         let ids = call.getArray("ids", String.self) ?? []
-        WatchLink.shared.acknowledge(ids: Set(ids))
+        WatchLink.shared.acknowledge(ids: Set(ids), owner: call.getString("owner"))
         call.resolve()
     }
 

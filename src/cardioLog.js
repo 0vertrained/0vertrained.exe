@@ -1,7 +1,7 @@
 import { formatDuration, parseRunTime } from "./runPaces";
 
 const RUN_HINT = /\b(run|runs|running|jog|jogging|intervals?|tempo|threshold|strides?|fartlek|track|hill repeats?|shakeout|race|5k|10k|half marathon|marathon|zone\s*2|long zone)\b/i;
-const NON_RUN = /\b(walk|walking|hike|hiking|bike|ride|cycling|cycle|row|rowing|elliptical|swim|ski|erg|stair|sled)\b/i;
+const NON_RUN = /\b(walk|walking|hike|hiking|bike|biking|bikeerg|ride|cycling|cycle|spin|spinning|row|rowing|rower|elliptical|swim|swimming|ski|skierg|erg|stairs?|stairmaster|stepper|stairclimber|rope|sled)\b/i;
 const EXPLICIT_RUN = /\b(run|runs|running|jog|jogging)\b/i;
 
 /**
@@ -18,7 +18,7 @@ export function isRunCardio(cardio) {
 
 const SPORT_NAMES = {
   run: "Run", walk: "Walk", bike: "Bike", row: "Row", elliptical: "Elliptical",
-  swim: "Swim", stairs: "Stair climber", stair: "Stair climber", ski: "Ski", cardio: "Cardio",
+  swim: "Swim", stairs: "Stair climber", stair: "Stair climber", ski: "Ski", hike: "Hike", rope: "Jump rope", cross: "Cross training", cardio: "Cardio",
 };
 
 export function hasCardioResult(block) {
@@ -33,11 +33,14 @@ export function cardioModality(block) {
     if (isRunCardio(block)) return "run";
     const text = String(block.type).toLowerCase();
     if (/bik|ride|cycl|spin/.test(text)) return "bike";
-    if (/walk|hik/.test(text)) return "walk";
+    if (/hik/.test(text)) return "hike";
+    if (/walk/.test(text)) return "walk";
     if (/row/.test(text)) return "row";
     if (/elliptical/.test(text)) return "elliptical";
-    if (/stair/.test(text)) return "stair";
+    if (/rope/.test(text)) return "rope";
+    if (/stair|stepper/.test(text)) return "stair";
     if (/swim/.test(text)) return "swim";
+    if (/skierg|ski erg|cross.?train/.test(text)) return "cross";
     if (/ski/.test(text)) return "ski";
     return "cardio";
   }

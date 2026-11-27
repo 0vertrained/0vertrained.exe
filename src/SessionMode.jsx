@@ -304,7 +304,8 @@ export function SessionMode({
     [allData, todayKey, lifting, workoutData]
   );
   const canPair = idx < (lifting?.length || 0) - 1;
-  const pairedFromPrev = idx > 0 && lifting[idx - 1] && readSupersetPref(todayName, lifting[idx - 1].name);
+  const previous = lifting?.[idx - 1];
+  const pairedFromPrev = previous && (workoutData?.exercises?.[previous.name]?.pairNext ?? readSupersetPref(todayName, previous.name));
 
   useEffect(() => {
     if (!open || !lifting?.length) return;
@@ -332,18 +333,18 @@ export function SessionMode({
     setSheet(null);
     setSkipAsk(false);
     setSubstitutionReason("equipment");
-    setPaired(canPair ? readSupersetPref(todayName, exercise.name) : false);
+    setPaired(canPair && (exData.pairNext ?? readSupersetPref(todayName, exercise.name)));
     setNote(readExerciseNote(exercise.name));
     // sets is deliberately excluded; logging a set controls selection directly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx, exercise?.name, todayName, canPair]);
+  }, [idx, exercise?.name, todayName, canPair, exData.pairNext]);
 
   if (!open || !exercise) return null;
 
   const saveExercise = (next) => onUpdate(`workout.exercises.${exercise.name}`, next);
 
   const replaceSet = (setIndex, nextSet) => {
-    const next = sets.map((set, index) => index === setIndex ? nextSet : set);
+    const next = sets.map((set, index) => index === setIndex ? { ...nextSet, watchEventID: undefined } : set);
     saveExercise({ ...exData, sets: next });
     if (validationError) setValidationError("");
   };
@@ -359,8 +360,8 @@ export function SessionMode({
   };
 
   const reopenSet = (setIndex) => {
-    const { completedAt, ...reopened } = sets[setIndex];
-    void completedAt;
+    const { completedAt, watchEventID, ...reopened } = sets[setIndex];
+    void completedAt; void watchEventID;
     const reopenedSets = sets.map((set, index) => index === setIndex ? { ...reopened, done: false } : set);
     saveExercise({ ...exData, sets: reopenedSets, nextPrescription: undefined });
     setValidationError("");
@@ -461,6 +462,7 @@ export function SessionMode({
     const next = !paired;
     setPaired(next);
     writeSupersetPref(todayName, exercise.name, next);
+    saveExercise({ ...exData, pairNext: next });
   };
 
   const liftLogged = sets.some(set => set.done);
