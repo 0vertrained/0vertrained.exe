@@ -1,5 +1,5 @@
 // netlify/functions/whoop-auth.js
-import { PROVIDERS, resolveProviderTokens, persistProviderTokens, getProviderConnectionSummary } from "./_provider-standard.js";
+import { PROVIDERS, consumeProviderOAuthState, resolveProviderTokens, persistProviderTokens, getProviderConnectionSummary } from "./_provider-standard.js";
 
 // Whoop OAuth flow + manual sync handler
 //
@@ -19,7 +19,7 @@ import { PROVIDERS, resolveProviderTokens, persistProviderTokens, getProviderCon
 //   params or request body, for auth/status/sync/disconnect.
 // • The callback trusts ONLY the whoop_oauth_state table for ownership.
 // • Self-generated CSRF state is exactly 8 URL-safe chars (Whoop requirement),
-//   stored via service_role with a 10-minute TTL and best-effort deleted.
+//   stored via service_role with a 10-minute TTL and atomically claimed at callback.
 // • WHOOP_CLIENT_SECRET lives only in Netlify env vars (never browser / never
 //   VITE_*). Tokens are stored via the service_role key (server-to-server).
 // • We never log access_token, refresh_token, client_secret, Authorization
@@ -44,39 +44,6 @@ export const TOKEN_NEAR_EXPIRY_MS = 5 * 60 * 1000;
 export const SYNC_DAYS = 14;
 export const MAX_SYNC_DAYS = 30; // upper bound for the initial-backfill (?days=30) button
 const MAX_PAGES = 10; // conservative pagination bound per endpoint
-
-// Redaction helpers
-// Mirrors the Oura redaction. PostgREST error bodies may echo a failing row that
-// contains the Whoop JSON payload, so we keep code/message/hint but redact
-// tokens and payload/row detail. Never log biometric data.
-function redactSensitive(text) {
-  if (!text) return text;
-  let out = String(text).replace(
-    /("?(?:access_token|refresh_token|client_secret|service_role_key|service_role|apikey|authorization|bearer)"?\s*[:=]\s*"?)([^",&}\s]+)/gi,
-    (_m, prefix) => `${prefix}[REDACTED]`
-  );
-  out = out.replace(/("payload"\s*:\s*)(\{.*?\}|\[.*?\]|".*?")/gis, '$1"[REDACTED_PAYLOAD]"');
-  out = out.replace(/("details"\s*:\s*")([^"\\]*(?:\\.[^"\\]*)*)"/gi, (_m, prefix, details) => {
-    const d = String(details || "");
-    return /failing row|payload|access_token|refresh_token/i.test(d)
-      ? `${prefix}[REDACTED_ROW_DETAILS]"`
-      : `${prefix}${d}"`;
-  });
-  return out;
-}
-
-// Safely read a failed response body for logging: never throws, redacts
-// sensitive/biometric detail, truncates so logs stay small.
-async function readErrorBody(response, maxLen = 800) {
-  try {
-    const text = await response.text();
-    if (!text) return "";
-    const redacted = redactSensitive(text);
-    return redacted.length > maxLen ? `${redacted.slice(0, maxLen)}…[truncated]` : redacted;
-  } catch {
-    return "<unreadable body>";
-  }
-}
 
 // Response helpers
 const SECURITY_HEADERS = {
@@ -157,42 +124,6 @@ async function storeState(supabaseUrl, serviceKey, state, userId) {
   return r.ok;
 }
 
-// Look up + consume a state row. Returns the user_id if the state is valid and
-// unexpired, else null. The row is best-effort deleted regardless so it can be
-// used exactly once. Expired rows are also swept opportunistically.
-async function consumeState(supabaseUrl, serviceKey, state) {
-  let userId = null;
-  try {
-    const r = await fetch(
-      `${supabaseUrl}/rest/v1/whoop_oauth_state?state=eq.${encodeURIComponent(state)}&select=user_id,expires_at&limit=1`,
-      { headers: serviceHeaders(serviceKey) }
-    );
-    if (r.ok) {
-      const rows = await r.json();
-      const row = rows?.[0];
-      if (row && new Date(row.expires_at) > new Date()) {
-        userId = row.user_id;
-      }
-    }
-  } catch {
-    userId = null;
-  }
-  // Best-effort delete of the consumed row + any expired rows.
-  try {
-    await fetch(`${supabaseUrl}/rest/v1/whoop_oauth_state?state=eq.${encodeURIComponent(state)}`, {
-      method: "DELETE",
-      headers: serviceHeaders(serviceKey, { "Prefer": "return=minimal" }),
-    });
-    await fetch(`${supabaseUrl}/rest/v1/whoop_oauth_state?expires_at=lt.${encodeURIComponent(new Date().toISOString())}`, {
-      method: "DELETE",
-      headers: serviceHeaders(serviceKey, { "Prefer": "return=minimal" }),
-    });
-  } catch {
-    /* best-effort */
-  }
-  return userId;
-}
-
 // Route: GET /api/whoop/auth
 async function handleAuth(req) {
   const WHOOP_CLIENT_ID = process.env.WHOOP_CLIENT_ID;
@@ -248,7 +179,7 @@ async function handleCallback(req) {
   if (state.length !== STATE_LEN) return json({ error: "Invalid state" }, 400);
 
   // Ownership is derived ONLY from the server-side state table, never the query.
-  const userId = await consumeState(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, state);
+  const userId = await consumeProviderOAuthState(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { provider: PROVIDERS.WHOOP, state });
   if (!userId) return json({ error: "Invalid or expired state" }, 400);
 
   let tokenData;
@@ -881,14 +812,13 @@ async function storeWhoopBatches(supabaseUrl, serviceKey, rows) {
         }
       );
       if (!r.ok) {
-        const detail = await readErrorBody(r);
-        console.error(`Whoop storage failed data_type=${dataType} status=${r.status} rows=${batch.length} body=${detail}`);
+        console.error(`Whoop storage failed data_type=${dataType} status=${r.status} rows=${batch.length}`);
         failures.push({ dataType, status: r.status });
         continue;
       }
       stored += batch.length;
-    } catch (e) {
-      console.error(`Whoop storage error data_type=${dataType} rows=${batch.length}: ${e?.message || e}`);
+    } catch {
+      console.error(`Whoop storage error data_type=${dataType} rows=${batch.length}`);
       failures.push({ dataType, error: true });
     }
   }

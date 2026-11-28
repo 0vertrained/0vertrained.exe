@@ -17,13 +17,13 @@ function setPath(object, [key, ...rest], value) {
   return { ...base, [key]: rest.length ? setPath(base[key], rest, value) : value };
 }
 
-function useApp(showToast) {
-  const [data, setData] = useState({});
+function useApp(showToast, { initial = {}, stageDays, includeWriter = false } = {}) {
+  const [data, setData] = useState(initial);
   const updateEntryAtDate = (dateKey, path, value) => {
     setData((prev) => ({ ...prev, [dateKey]: setPath(prev[dateKey], path.split("."), value) }));
   };
-  useWatchRuns({ ready: true, data, program: DEFAULT_PROGRAM, updateEntryAtDate, showToast });
-  return data;
+  useWatchRuns({ ready: true, data, program: DEFAULT_PROGRAM, updateEntryAtDate, showToast, stageDays });
+  return includeWriter ? { data, updateEntryAtDate } : data;
 }
 
 function installRuns({ runs = [], scheduling = "authorized" } = {}) {
@@ -129,6 +129,64 @@ describe("useWatchRuns", () => {
     act(() => showToast.mock.calls[0][1].onAction());
     rerender();
     await waitFor(() => expect(result.current[today].workout.cardio).toMatchObject({ miles: "", splits: null, effortScore: "" }));
+  });
+
+  it("journals a Health import before marking its ID handled and retries when storage recovers", async () => {
+    const today = getTodayKey();
+    const plugin = installRuns({ runs: [{ id: "offline", date: today, meters: 1609.344, seconds: 600 }] });
+    writeWatchRunsOn(true);
+    const stageDays = vi.fn().mockReturnValueOnce(false).mockReturnValue(true);
+    const { result } = renderHook(() => useApp(vi.fn(), { stageDays }));
+    await waitFor(() => expect(stageDays).toHaveBeenCalledTimes(1));
+    expect(result.current[today]).toBeUndefined();
+    expect(readHandledRuns()).toEqual([]);
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    await waitFor(() => expect(readHandledRuns()).toEqual(["offline"]));
+    expect(stageDays.mock.lastCall[0][today].workout.cardio).toMatchObject({ miles: "1", time: "10:00" });
+    expect(result.current[today].workout.cardio.miles).toBe("1");
+    expect(plugin.recentRuns).toHaveBeenCalledTimes(2);
+  });
+
+  it("undo restores the original linked climb, preserves other links and respects later edits", async () => {
+    const today = getTodayKey();
+    const previous = { source: "strava", id: "previous" };
+    const initialBlock = { type: "Indoor climb", time: "11:00", miles: "0.9", pace: "12:13", hr: "130",
+      climbRecordingId: "hill", indoor: true, activityRefs: [previous], splits: [{ n: 1, seconds: 660 }], effortScore: "4", effortEstimated: false };
+    const initial = { [today]: { workout: { cardioSessions: { pm: initialBlock } } } };
+    const plugin = installRuns({ runs: [{ id: "health", recordingId: "hill", sessionId: "climb:hill", activity: "run",
+      date: today, meters: 1609.344, seconds: 600, avgHr: 150 }] });
+    plugin.runDetail = vi.fn(async () => ({ effort: { value: 7, estimated: true }, segments: [{ seconds: 600, label: "Work" }] }));
+    writeWatchRunsOn(true);
+    const showToast = vi.fn();
+    const { result } = renderHook(() => useApp(showToast, { initial, includeWriter: true }));
+    const block = () => result.current.data[today].workout.cardioSessions.pm;
+    await waitFor(() => expect(block().segments).toHaveLength(1));
+    expect(block()).toMatchObject({ miles: "1", time: "10:00", hr: "150", effortScore: "4", effortEstimated: false });
+    const extra = { source: "manual", id: "later" };
+    act(() => {
+      result.current.updateEntryAtDate(today, "workout.cardioSessions.pm.hr", "144");
+      result.current.updateEntryAtDate(today, "workout.cardioSessions.pm.segments", [{ seconds: 301 }]);
+      result.current.updateEntryAtDate(today, "workout.cardioSessions.pm.activityRefs", [...block().activityRefs, extra]);
+    });
+    act(() => showToast.mock.calls[0][1].onAction());
+    await waitFor(() => expect(block()).toMatchObject({ ...initialBlock, hr: "144", activityRefs: [previous, extra], segments: [{ seconds: 301 }] }));
+  });
+
+  it("reads later workouts when an earlier detail request fails and undoes details received on retry", async () => {
+    const first = "2026-11-24", second = "2026-11-25";
+    const plugin = installRuns({ runs: [first, second].map((date, i) => ({ id: String(i), date, meters: 1609.344, seconds: 600 })) });
+    plugin.runDetail = vi.fn().mockRejectedValueOnce(new Error("unavailable")).mockResolvedValue({ effort: { value: 6 } });
+    writeWatchRunsOn(true);
+    const toast = vi.fn();
+    const { result } = renderHook(() => useApp(toast));
+    await waitFor(() => expect(result.current[second]?.workout.cardio.effortScore).toBe("6"));
+    expect(result.current[first].workout.cardio.effortScore).toBeUndefined();
+    act(() => window.dispatchEvent(new Event(APP_FOREGROUND_EVENT)));
+    await waitFor(() => expect(result.current[first].workout.cardio.effortScore).toBe("6"));
+    expect(plugin.runDetail.mock.calls.map(([{id}]) => id)).toEqual(["0", "1", "0"]);
+    act(() => toast.mock.calls[0][1].onAction());
+    await waitFor(() => expect(result.current[first].workout.cardio.effortScore).toBe(""));
+    expect(result.current[second].workout.cardio.effortScore).toBe("");
   });
 
   it("doesn't fill the same run twice", async () => {

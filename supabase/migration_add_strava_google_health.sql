@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS public.provider_oauth_state (
   state       TEXT PRIMARY KEY,
-  provider    TEXT NOT NULL CHECK (provider IN ('google_health', 'strava')),
+  provider    TEXT NOT NULL CHECK (provider IN ('oura', 'google_health', 'strava')),
   user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   expires_at  TIMESTAMPTZ NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()

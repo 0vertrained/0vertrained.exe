@@ -15,6 +15,7 @@
 //   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY  (npx web-push generate-vapid-keys)
 //   VAPID_SUBJECT                        (mailto:you@example.com)
 
+import { trustedPushEndpoint } from "./_push-endpoint.js";
 import webpush from "web-push";
 
 // Target local send time: 19:30.
@@ -83,9 +84,11 @@ export default async () => {
 
   let sent = 0, pruned = 0, failed = 0;
   for (const s of due) {
+    const endpoint = trustedPushEndpoint(s.endpoint);
+    if (!endpoint) { failed++; continue; }
     try {
       await webpush.sendNotification(
-        { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        { endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
         payload
       );
       sent++;

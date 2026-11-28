@@ -8,7 +8,8 @@
 import { APP_FOREGROUND_EVENT } from "../integrations/appForeground";
 import { useDeviceToggle } from "../health/useDeviceToggle";
 import { useEffect, useRef, useState } from "react";
-import { getTodayKey } from "../constants";
+import { defaultDay, getTodayKey } from "../constants";
+import { setEntryPath } from "../entryPath";
 import { isNativeApp, nativePlugin } from "../native";
 import { WATCH_RUNS_EVENT, clearWatchSchedule, scheduleWatchRuns, readDetailedRuns, readHandledRuns, readWatchRunsOn, writeDetailedRuns, writeHandledRuns } from "./watchRunsState";
 
@@ -17,13 +18,13 @@ const SCHEDULE_DELAY_MS = 1500;
 export const IMPORT_DAYS = 7;
 
 // `ready`: the account's own data is loaded, so writes land on real days.
-export function useWatchRuns({ owner, ready, data, program, updateEntryAtDate, showToast }) {
+export function useWatchRuns({ owner, ready, data, program, updateEntryAtDate, showToast, stageDays }) {
   const native = isNativeApp() && Boolean(nativePlugin("OTRuns"));
   const on = useDeviceToggle(WATCH_RUNS_EVENT, readWatchRunsOn, owner, native && ready);
   // Bumped when the app comes back to the front, so a new day is noticed.
   const [wake, setWake] = useState(0);
-  const latest = useRef({ owner, data, program, updateEntryAtDate, showToast });
-  useEffect(() => { latest.current = { owner, data, program, updateEntryAtDate, showToast }; });
+  const latest = useRef({ owner, data, program, updateEntryAtDate, showToast, stageDays });
+  useEffect(() => { latest.current = { owner, data, program, updateEntryAtDate, showToast, stageDays }; });
   const lastScheduled = useRef("");
   const todayKey = getTodayKey();
 
@@ -76,48 +77,85 @@ export function useWatchRuns({ owner, ready, data, program, updateEntryAtDate, s
     let cancelled = false;
     let running = false;
 
-    const undone = new Set();
-    const undo = (fills, fillWrites) => {
-      const { data: state, updateEntryAtDate: write } = latest.current;
-      for (const fill of fills) {
-        const base = fill.path || "workout.cardio";
-        if (latest.current.owner !== owner) return;
-        const cardio = base.split(".").reduce((entry, key) => entry?.[key], state?.[fill.dateKey]) || {};
-        const ref = fill.activityRefs[0];
-        if (!cardio.activityRefs?.some(item => item.source === "apple" && item.id === ref.id)) continue;
-        undone.add(ref.id);
-        for (const { path, value } of fillWrites(fill)) {
-          // Left alone if it was changed since.
-          const current = cardio[path.split(".").pop()];
-          if (Array.isArray(value)) {
-            if (JSON.stringify(current) === JSON.stringify(value)) write(fill.dateKey, path, null);
-          } else if (String(current ?? "") === String(value)) write(fill.dateKey, path, "");
-        }
-        // The splits and effort read with the run go with it.
-        if (cardio.splits) write(fill.dateKey, `${base}.splits`, null);
-        if (cardio.segments) write(fill.dateKey, `${base}.segments`, null);
-        if (cardio.effortScore) {
-          write(fill.dateKey, `${base}.effortScore`, "");
-          write(fill.dateKey, `${base}.effortEstimated`, null);
-        }
+    const journal = new Map();
+    const currentDay = date => {
+      const rendered = latest.current.data?.[date];
+      const staged = journal.get(date);
+      return staged && staged.base === rendered ? staged.day : rendered;
+    };
+    const read = (date, path) => path.split(".").reduce((v, key) => v?.[key], currentDay(date));
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    // Keep the active day's pending writes available to a detail response or
+    // Undo even when React has not yet rendered the preceding batch.
+    const save = edits => {
+      if (cancelled || latest.current.owner !== owner) return false;
+      if (!edits.length) return true;
+      const days = {};
+      for (const { dateKey, path, value } of edits) {
+        const day = days[dateKey] || currentDay(dateKey) || defaultDay();
+        days[dateKey] = setEntryPath(day, path.split("."), value);
       }
+      if (latest.current.stageDays && !latest.current.stageDays(days)) return false;
+      for (const [date, day] of Object.entries(days)) journal.set(date, { base: latest.current.data?.[date], day });
+      for (const { dateKey, path, value } of edits) latest.current.updateEntryAtDate(dateKey, path, value);
+      return true;
     };
 
-    // Splits and effort for logged runs that are these Health runs: read
-    // once per run, in builds that can (RunsPlugin.runDetail).
-    const readDetails = async (runs, filled, healthRuns) => {
+    const undone = new Set();
+    let latestReceipts = new Map();
+    const undo = receipts => {
+      const edits = [];
+      const ids = [];
+      for (const [id, receipt] of receipts) {
+        const { dateKey, base, fields } = receipt;
+        const refs = read(dateKey, base + ".activityRefs");
+        if (!refs?.some(ref => ref.source === "apple" && ref.id === id)) continue;
+        ids.push(id);
+        for (const { path, value, previous } of fields) {
+          if (path === base + ".activityRefs") {
+            const remaining = refs.filter(ref => ref.source !== "apple" || ref.id !== id);
+            edits.push({ dateKey, path, value: remaining.length ? remaining : previous ?? null });
+          } else if (same(read(dateKey, path), value)) {
+            edits.push({ dateKey, path, value: previous === undefined ? (typeof value === "string" ? "" : null) : previous });
+          }
+        }
+      }
+      if (save(edits)) ids.forEach(id => undone.add(id));
+      else if (!cancelled) latest.current.showToast?.("Could not save the undo. Try again.", { action: "Retry", onAction: () => undo(receipts) });
+    };
+
+    // A temporarily unavailable Health workout is retried on foreground.
+    // Keep processing the other workouts returned by the same Health query.
+    const readDetails = async (runs, filled, healthRuns, receipts) => {
       const plugin = nativePlugin("OTRuns");
       if (typeof plugin?.runDetail !== "function") return;
-      const { data: state, updateEntryAtDate: write } = latest.current;
       const detailed = readDetailedRuns(owner);
-      for (const { dateKey, id, path: base, modality } of healthRuns.planRunDetails({ runs, data: state, detailed, filled })) {
+      const plans = healthRuns.planRunDetails({ runs, data: latest.current.data, detailed, filled });
+      for (const { dateKey, id, path: base = "workout.cardio", modality } of plans) {
+        if (cancelled) return;
+        const before = read(dateKey, base);
         let detail;
-        try { detail = await plugin.runDetail({ id }); } catch { break; }
+        try { detail = await plugin.runDetail({ id }); } catch { continue; }
         if (cancelled) return;
         if (undone.has(id)) continue;
-        const details = healthRuns.detailWrites(detail, base, modality);
-        if (details.length) detailed.push(id);
-        for (const { path, value } of details) write(dateKey, path, value);
+        const current = read(dateKey, base);
+        if (!same(current?.activityRefs, before?.activityRefs) || current?.miles !== before?.miles) continue;
+        const available = healthRuns.detailWrites(detail, base, modality);
+        if (!available.length) continue;
+        const edits = available
+          .filter(({ path }) => {
+            const field = path.split(".").pop();
+            const previous = current?.[field];
+            // A manual effort is a pair. Preserve both fields and any
+            // independently recorded splits or intervals.
+            if (field === "effortEstimated" && current?.effortScore) return false;
+            return previous == null || previous === "" || (Array.isArray(previous) && previous.length === 0);
+          })
+          .map(edit => ({ ...edit, dateKey, previous: read(dateKey, edit.path) }));
+        if (save(edits)) {
+          detailed.push(id);
+          receipts.get(id)?.fields.push(...edits);
+        }
       }
       if (!cancelled) writeDetailedRuns(detailed, owner);
     };
@@ -132,14 +170,28 @@ export function useWatchRuns({ owner, ready, data, program, updateEntryAtDate, s
         const healthRuns = await import("./healthRuns");
         const { fillMessage, fillWrites, planHealthFills } = healthRuns;
         if (cancelled) return;
-        const { data: state, updateEntryAtDate: write, showToast: toast } = latest.current;
+        const { data: state, showToast: toast } = latest.current;
         const { fills, handled } = planHealthFills({ runs, program: latest.current.program, data: state, handled: readHandledRuns(owner) });
-        writeHandledRuns(handled, owner);
+        const receipts = new Map();
+        const edits = [];
         for (const fill of fills) {
-          for (const { path, value } of fillWrites(fill)) write(fill.dateKey, path, value);
+          const { dateKey } = fill;
+          const fields = fillWrites(fill).map(edit => ({ ...edit, dateKey, previous: read(dateKey, edit.path) }));
+          // The newly imported Apple identity follows any earlier links on a climb.
+          const id = fill.activityRefs.at(-1).id;
+          receipts.set(id, { dateKey, base: fill.path || "workout.cardio", fields });
+          edits.push(...fields);
         }
-        if (fills.length) toast?.(fillMessage(fills, getTodayKey()), { action: "Undo", onAction: () => undo(fills, fillWrites) });
-        await readDetails(runs, fills, healthRuns);
+        if (!save(edits)) {
+          toast?.("Apple Health workouts are waiting for space in the offline log.");
+          return;
+        }
+        writeHandledRuns(handled, owner);
+        if (fills.length) {
+          latestReceipts = receipts;
+          toast?.(fillMessage(fills, getTodayKey()), { action: "Undo", onAction: () => undo(receipts) });
+        }
+        await readDetails(runs, fills, healthRuns, latestReceipts);
       } catch {
         // Read again next time the app comes to the front.
       } finally {

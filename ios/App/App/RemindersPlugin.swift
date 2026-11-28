@@ -12,7 +12,8 @@ public class RemindersPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "RemindersPlugin"
     public let jsName = "OTReminders"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "set", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "set", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise)
     ]
 
     private static let prefix = "ovt.reminder."
@@ -32,26 +33,43 @@ public class RemindersPlugin: CAPPlugin, CAPBridgedPlugin {
     /// doesn't allow the app's notifications.
     @objc func set(_ call: CAPPluginCall) {
         let text = call.getString("reminders") ?? "[]"
-        let reminders = (try? JSONDecoder().decode([Reminder].self, from: Data(text.utf8))) ?? []
+        guard let reminders = try? JSONDecoder().decode([Reminder].self, from: Data(text.utf8)) else {
+            call.reject("Invalid reminder list")
+            return
+        }
         let requests = reminders.map(Self.request)
+        let clearDelivered = call.getBool("clearDelivered") == true
         let center = UNUserNotificationCenter.current()
-        center.getPendingNotificationRequests { pending in
+        Task {
+            let pending = await center.pendingNotificationRequests()
             let ours = pending.map(\.identifier).filter { $0.hasPrefix(Self.prefix) }
             center.removePendingNotificationRequests(withIdentifiers: ours)
+            if clearDelivered {
+                let delivered = await center.deliveredNotifications()
+                let ids = delivered.map { $0.request.identifier }.filter { $0.hasPrefix(Self.prefix) }
+                center.removeDeliveredNotifications(withIdentifiers: ids)
+            }
             guard !requests.isEmpty else {
-                call.resolve(["allowed": true])
+                call.resolve(["allowed": true, "deliveredCleared": clearDelivered])
                 return
             }
-            center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
-                guard granted else {
+            do {
+                guard try await center.requestAuthorization(options: [.alert, .sound]) else {
                     call.resolve(["allowed": false])
                     return
                 }
-                for request in requests {
-                    center.add(request)
-                }
+                for request in requests { try await center.add(request) }
                 call.resolve(["allowed": true])
+            } catch {
+                center.removePendingNotificationRequests(withIdentifiers: requests.map(\.identifier))
+                call.reject("Could not schedule reminders")
             }
+        }
+    }
+
+    @objc func status(_ call: CAPPluginCall) {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            call.resolve(["denied": settings.authorizationStatus == .denied])
         }
     }
 

@@ -21,28 +21,38 @@ export function hasProgressPhotos() {
   return Boolean(plugin());
 }
 
-/** [{ id, date, pose }], oldest first. */
-export async function listPhotos() {
-  const result = await plugin()?.list();
-  return Array.isArray(result?.photos) ? result.photos : [];
+// Only the account-aware bridge methods may touch the album. Previously
+// installed iPhone builds expose unscoped list/read/remove methods.
+const upgradeMessage = "Rebuild or update the iPhone app to open your private photo album.";
+async function albumCall(owner, method, args = {}) {
+  if (!owner) throw new Error("Open your athlete profile to use progress photos.");
+  const bridge = plugin();
+  try {
+    if (!bridge || typeof bridge[method] !== "function") throw new Error(upgradeMessage);
+    return await bridge[method]({ owner, ...args });
+  } catch (error) {
+    if (error?.code === "UNIMPLEMENTED" || /not implemented/i.test(error?.message || "")) throw new Error(upgradeMessage, { cause: error });
+    throw error;
+  }
 }
 
-const shown = new Map();
-
-/** A photo as a data URL to show: "thumb" or "full". */
-export async function photoSource(id, size = "thumb") {
-  const key = `${id}|${size}`;
-  if (shown.has(key)) return shown.get(key);
-  const result = await plugin()?.read({ id, size });
-  if (!result?.data) return null;
-  const source = `data:image/jpeg;base64,${result.data}`;
-  if (size === "thumb") shown.set(key, source);
-  return source;
+export async function listPhotos(owner) {
+  const result = await albumCall(owner, "albumList");
+  if (result?.version !== 2 || !Array.isArray(result.photos)) throw new Error(upgradeMessage);
+  return { photos: result.photos, hasLegacy: result.hasLegacy === true };
 }
 
-export async function removePhoto(id) {
-  shown.delete(`${id}|thumb`);
-  await plugin()?.remove({ id });
+export function importLegacyPhotos(owner) {
+  return albumCall(owner, "importLegacyAlbum");
+}
+
+export async function photoSource(owner, id, size = "thumb") {
+  const result = await albumCall(owner, "albumRead", { id, size });
+  return result?.data ? `data:image/jpeg;base64,${result.data}` : null;
+}
+
+export function removePhoto(owner, id) {
+  return albumCall(owner, "albumRemove", { id });
 }
 
 /** The longer edge brought down to `edge`, the shape kept. */
@@ -76,9 +86,9 @@ function newId(date, pose) {
 }
 
 /** Shrinks a chosen photo and keeps it on the phone. Resolves { id, date, pose }. */
-export async function savePhoto(file, { date, pose = "front" }) {
+export async function savePhoto(owner, file, { date, pose = "front" }) {
   const image = await loadImage(file);
   const full = jpeg(image, FULL_EDGE, 0.85);
   const thumb = jpeg(image, THUMB_EDGE, 0.8);
-  return plugin()?.save({ id: newId(date, pose), date, pose, full, thumb });
+  return albumCall(owner, "albumSave", { id: newId(date, pose), date, pose, full, thumb });
 }

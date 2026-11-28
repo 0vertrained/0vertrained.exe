@@ -30,17 +30,18 @@ export function ConfirmDialog({
   useEffect(() => { onConfirmRef.current = onConfirm; }, [onConfirm]);
   useEffect(() => { onCancelRef.current = onCancel; }, [onCancel]);
   useEffect(() => {
-    // Focus lands on the confirm action. Escape cancels; Enter does what the
-    // focused button says (so Enter on Cancel never confirms); Tab stays
-    // between the two buttons. Focus goes back where it was on close.
     const opener = returnFocusRef.current;
-    confirmRef.current?.focus();
+    const initialButton = destructive ? cancelRef.current : confirmRef.current;
+    initialButton?.focus();
     const onKey = (e) => {
+      if (e.defaultPrevented || e.isComposing) return;
       if (e.key === "Escape") { e.preventDefault(); onCancelRef.current?.(); return; }
       if (e.key === "Enter") {
         e.preventDefault();
+        // Holding Enter to open a confirmation must not also answer it.
+        if (e.repeat) return;
         if (document.activeElement === cancelRef.current) onCancelRef.current?.();
-        else onConfirmRef.current?.();
+        else if (document.activeElement === confirmRef.current) onConfirmRef.current?.();
         return;
       }
       if (e.key === "Tab") {
@@ -52,9 +53,11 @@ export function ConfirmDialog({
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      requestAnimationFrame(() => opener?.isConnected && opener.focus?.());
+      requestAnimationFrame(() => {
+        if (opener?.isConnected && document.activeElement === document.body) opener.focus?.();
+      });
     };
-  }, []);
+  }, [destructive]);
 
   return (
     <>
@@ -94,7 +97,13 @@ export function useConfirm() {
   const [state, setState] = useState(null);
   const resolveRef = useRef(null);
 
+  useEffect(() => () => {
+    resolveRef.current?.(false);
+    resolveRef.current = null;
+  }, []);
+
   const confirm = useCallback((opts) => {
+    if (resolveRef.current) return Promise.resolve(false);
     const options = typeof opts === "string" ? { message: opts } : (opts || {});
     return new Promise((resolve) => {
       resolveRef.current = resolve;

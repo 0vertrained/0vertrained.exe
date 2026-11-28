@@ -15,45 +15,6 @@ import { resolveProviderTokens, persistProviderTokens, PROVIDERS, secretsMatch }
 
 const OURA_API_BASE = "https://api.ouraring.com/v2/usercollection";
 
-// Sync diagnostics helpers
-// These make failed Supabase/PostgREST writes debuggable without leaking
-// secrets. If you are chasing a "Failed to store Oura data" log line, this is
-// where the sanitized status + response body come from. Duplicated verbatim in
-// netlify/functions/oura-auth.js (no shared serverless utils dir exists yet).
-
-// Mask values of known-sensitive keys in any text we are about to log. PostgREST
-// error bodies may include a `details` field with a failing row, which can contain
-// the Oura JSON payload. Keep code/message/hint, but redact tokens and row/payload
-// detail so logs are useful without dumping biometric data.
-function redactSensitive(text) {
-  if (!text) return text;
-  let out = String(text).replace(
-    /("?(?:access_token|refresh_token|client_secret|service_role_key|service_role|apikey|authorization|bearer)"?\s*[:=]\s*"?)([^",&}\s]+)/gi,
-    (_m, prefix) => `${prefix}[REDACTED]`
-  );
-  out = out.replace(/("payload"\s*:\s*)(\{.*?\}|\[.*?\]|".*?")/gis, '$1"[REDACTED_PAYLOAD]"');
-  out = out.replace(/("details"\s*:\s*")([^"\\]*(?:\\.[^"\\]*)*)"/gi, (_m, prefix, details) => {
-    const d = String(details || "");
-    return /failing row|payload|access_token|refresh_token/i.test(d)
-      ? `${prefix}[REDACTED_ROW_DETAILS]"`
-      : `${prefix}${d}"`;
-  });
-  return out;
-}
-
-// Safely read a failed response body for logging: never throws, redacts
-// sensitive/biometric payload details, and truncates so logs stay small.
-async function readErrorBody(response, maxLen = 800) {
-  try {
-    const text = await response.text();
-    if (!text) return "";
-    const redacted = redactSensitive(text);
-    return redacted.length > maxLen ? `${redacted.slice(0, maxLen)}…[truncated]` : redacted;
-  } catch {
-    return "<unreadable body>";
-  }
-}
-
 function mergePayloadData(existingPayload, nextPayload) {
   const existingData = Array.isArray(existingPayload?.data) ? existingPayload.data : [];
   const nextData = Array.isArray(nextPayload?.data) ? nextPayload.data : [];
@@ -98,7 +59,7 @@ function dedupeOuraRowsForUpsert(rows, logLabel) {
 
 // Store Oura rows batched by data_type so one malformed payload type cannot
 // silently sink every other type in a single all-or-nothing POST. Each batch
-// logs sanitized status + row count + response body on failure and we continue
+// logs status and row count on failure and we continue
 // best-effort with the remaining types. Rows are first deduped by the Supabase
 // conflict target (user_id,date,data_type), merging same-day sleep docs.
 async function storeOuraDataBatches(supabaseUrl, serviceKey, upserts, logLabel) {
@@ -122,14 +83,13 @@ async function storeOuraDataBatches(supabaseUrl, serviceKey, upserts, logLabel) 
         body: JSON.stringify(rows),
       });
       if (!r.ok) {
-        const detail = await readErrorBody(r);
-        console.error(`${logLabel} storage failed data_type=${dataType} status=${r.status} rows=${rows.length} body=${detail}`);
+        console.error(`${logLabel} storage failed data_type=${dataType} status=${r.status} rows=${rows.length}`);
         failures.push({ dataType, status: r.status });
         continue;
       }
       stored += rows.length;
-    } catch (e) {
-      console.error(`${logLabel} storage error data_type=${dataType} rows=${rows.length}: ${e?.message || e}`);
+    } catch {
+      console.error(`${logLabel} storage error data_type=${dataType} rows=${rows.length}`);
       failures.push({ dataType, error: true });
     }
   }

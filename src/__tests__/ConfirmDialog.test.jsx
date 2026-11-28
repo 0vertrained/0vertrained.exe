@@ -74,6 +74,18 @@ describe("ConfirmDialog", () => {
     expect(screen.getByRole("button", { name: "Go" }).className).toBe("btn btn-p");
   });
 
+  it("initially focuses Cancel for a destructive action and ignores repeated or unrelated Enter presses", () => {
+    const onConfirm = vi.fn(), onCancel = vi.fn();
+    wrap(<><button>Background</button><ConfirmDialog message="Remove?" confirmLabel="Remove" destructive onConfirm={onConfirm} onCancel={onCancel}/></>);
+    expect(document.activeElement).toBe(screen.getByRole("button", {name:"Cancel"}));
+    screen.getByRole("button", {name:"Remove"}).focus();
+    fireEvent.keyDown(window, {key:"Enter", repeat:true});
+    screen.getByRole("button", {name:"Background"}).focus();
+    fireEvent.keyDown(window, {key:"Enter"});
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
   it("never confirms from Enter while Cancel has focus", () => {
     const onConfirm = vi.fn();
     const onCancel = vi.fn();
@@ -127,4 +139,14 @@ describe("useConfirm", () => {
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(false));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+});
+
+it("settles both confirmation requests if a second arrives and the owner leaves", async () => {
+  const onResult = vi.fn();
+  const view = wrap(<ConfirmHarness onResult={onResult} />);
+  fireEvent.click(screen.getByText("trigger"));
+  fireEvent.click(screen.getByText("trigger"));
+  await waitFor(() => expect(onResult.mock.calls).toEqual([[false]]));
+  view.unmount();
+  await waitFor(() => expect(onResult.mock.calls).toEqual([[false], [false]]));
 });

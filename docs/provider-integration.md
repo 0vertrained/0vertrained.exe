@@ -111,5 +111,6 @@ Apply these migrations in order:
 
 1. `supabase/migration_add_provider_standard.sql`
 2. `supabase/migration_add_strava_google_health.sql`
+3. `supabase/migration_v36_oura_oauth_state.sql` for existing installations. This allows Oura to create callback state rows alongside Strava.
 
 The second migration adds `provider_oauth_state` and `provider_webhook_events`, then defensively widens provider constraints if needed. `supabase/migration_v35_drop_google_health.sql` deletes any rows the retired Google Health integration left behind.

@@ -98,11 +98,11 @@ describe("V2.9 whoop-auth.js — OAuth + sync security", () => {
     expect(fnSrc).toContain("whoop_oauth_state");
     // Callback validates state length and derives user from the state table.
     expect(fnSrc).toMatch(/state\.length !== STATE_LEN/);
-    expect(fnSrc).toMatch(/consumeState\(/);
+    expect(fnSrc).toMatch(/consumeProviderOAuthState\(/);
   });
 
   test("callback does NOT trust a query-string user_id and sync does NOT trust body user_id", () => {
-    // The callback derives ownership only from consumeState (the state table).
+    // The callback derives ownership only from consumeProviderOAuthState (the state table).
     expect(fnSrc).not.toMatch(/searchParams\.get\(["']user_id["']\)/);
     // Sync resolves the user from the verified Bearer token, never req body.
     const syncFn = fnSrc.slice(fnSrc.indexOf("async function handleSync"));
@@ -118,9 +118,8 @@ describe("V2.9 whoop-auth.js — OAuth + sync security", () => {
     expect(fnSrc).toMatch(/application\/x-www-form-urlencoded/);
   });
 
-  test("has redaction helpers and does not log raw payloads or tokens", () => {
-    expect(fnSrc).toMatch(/function redactSensitive/);
-    expect(fnSrc).toMatch(/REDACTED_PAYLOAD/);
+  test("keeps storage failure bodies, raw payloads and tokens out of logs", () => {
+    expect(fnSrc).not.toContain("readErrorBody");
     // No console line logs a raw token/payload variable directly.
     expect(fnSrc).not.toMatch(/console\.\w+\([^)]*\baccess_token\b\s*[,)]/);
     expect(fnSrc).not.toMatch(/console\.\w+\([^)]*\brefresh_token\b\s*[,)]/);

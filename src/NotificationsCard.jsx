@@ -6,9 +6,11 @@
 // iPhone app, which push doesn't reach, the phone schedules the fixed-time
 // reminders itself (src/reminders/localReminders.js).
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { pushSupportState, getExistingSubscription, enablePush, disablePush, setPushPrefs } from "./push";
-import { LOCAL_REMINDERS, applyReminderPrefs, hasLocalReminders, readReminderPrefs, reminderNote, writeReminderPrefs } from "./reminders/localReminders";
+import { LOCAL_REMINDERS, applyReminderPrefs, hasLocalReminders, readReminderPrefs, reminderNote } from "./reminders/localReminders";
+import { APP_FOREGROUND_EVENT } from "./integrations/appForeground";
+import { nativePlugin } from "./native";
 import { timeLabel } from "./reminders/morningPlan";
 import { Switch } from "./ui/ledger";
 
@@ -19,8 +21,8 @@ const KINDS = [
 
 const sentence = (text) => (text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? "" : "."}` : "");
 
-export function NotificationsCard({ showToast }) {
-  return hasLocalReminders() ? <LocalReminders showToast={showToast} /> : <WebPush showToast={showToast} />;
+export function NotificationsCard({ owner, showToast }) {
+  return hasLocalReminders() ? <LocalReminders key={owner || "signed-out"} owner={owner} showToast={showToast} /> : <WebPush showToast={showToast} />;
 }
 
 // Morning times in quarter hours, 4:30 to 11 am.
@@ -31,60 +33,60 @@ const MORNING_TIMES = Array.from({ length: 27 }, (_, index) => {
 
 const DENIED = "Notifications are off for 0VERTRAINED. Turn them on in the iPhone’s Settings app, then try again.";
 
-function LocalReminders({ showToast }) {
-  const [prefs, setPrefs] = useState(() => readReminderPrefs());
+function LocalReminders({ owner, showToast }) {
+  const [prefs, setPrefs] = useState(() => readReminderPrefs(owner));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const toggle = async (reminder) => {
-    if (busy) return;
-    const next = { ...prefs, [reminder.id]: !prefs[reminder.id] };
+  const mounted = useRef(false);
+  const [permissionOff, setPermissionOff] = useState(false);
+  useEffect(() => {
+    mounted.current = true;
+    let generation = 0;
+    const check = async () => {
+      const request = ++generation;
+      try {
+        const result = await nativePlugin("OTReminders")?.status?.();
+        if (request === generation && mounted.current) setPermissionOff(result?.denied === true);
+      } catch { /* Older shells report denial through set(). */ }
+    };
+    void check();
+    window.addEventListener(APP_FOREGROUND_EVENT, check);
+    return () => { mounted.current = false; generation++; window.removeEventListener(APP_FOREGROUND_EVENT, check); };
+  }, []);
+  const update = async (next, message) => {
+    if (busy || !owner) return;
     setBusy(true);
     setError("");
-    setPrefs(next);
     try {
-      const { allowed } = await applyReminderPrefs(next);
-      if (!allowed) {
-        const back = { ...next, [reminder.id]: false };
-        setPrefs(back);
-        writeReminderPrefs(back);
-        setError(DENIED);
+      const result = await applyReminderPrefs(next, { owner, savePrefs: true });
+      if (!mounted.current || result.stale) return;
+      if (result.saved) setPrefs(next);
+      if (!result.allowed) {
+        setPermissionOff(true);
         return;
       }
-      writeReminderPrefs(next);
-      showToast?.(`${reminder.label} ${next[reminder.id] ? "on" : "off"}`);
+      if (Object.values(next).some(v => v === true)) setPermissionOff(false);
+      if (message) showToast?.(message);
     } catch {
-      setPrefs(prefs);
-      setError("Couldn’t change that reminder. Try again.");
+      if (mounted.current) setError("Couldn’t change that reminder. Try again.");
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   };
-
-  // The morning reminder's time. The phone gets the new time straight away.
-  const changeTime = async (value) => {
-    if (busy || !value || value === prefs.morningTime) return;
-    const next = { ...prefs, morningTime: value };
-    setBusy(true);
-    setError("");
-    setPrefs(next);
-    try {
-      await applyReminderPrefs(next);
-      writeReminderPrefs(next);
-    } catch {
-      setPrefs(prefs);
-      setError("Couldn’t change the time. Try again.");
-    } finally {
-      setBusy(false);
-    }
+  const toggle = reminder => {
+    const next = { ...prefs, [reminder.id]: !prefs[reminder.id] };
+    return update(next, reminder.label + (next[reminder.id] ? " on" : " off"));
   };
+  const changeTime = value => value && value !== prefs.morningTime && update({ ...prefs, morningTime: value });
 
   return (
     <section aria-labelledby="notifications-title" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <h2 id="notifications-title" className="t-h">Reminders on this iPhone</h2>
         <p className="t-b">This iPhone sends these itself, at the times below. Nothing is sent until you turn one on.</p>
-        {error && <p className="t-s stop" role="alert">{error}</p>}
+        {(error || permissionOff) && <p className="t-s stop" role="alert">{error || DENIED}</p>}
+        {!owner && <p className="t-s c2">Sign in to manage your reminders.</p>}
       </div>
       <div data-testid="local-reminders" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <div className="rows">
@@ -92,7 +94,7 @@ function LocalReminders({ showToast }) {
             <div key={reminder.id} style={{ display: "flex", flexDirection: "column" }}>
               <div className="row" style={{ alignItems: "flex-start", padding: "8px 0" }}>
                 <span className="kv grow"><span id={`remind-${reminder.id}`} className="t-bs">{reminder.label}</span><span className="t-s c2">{reminderNote(reminder, prefs)}</span></span>
-                <Switch checked={prefs[reminder.id]} onChange={() => toggle(reminder)} labelledBy={`remind-${reminder.id}`} disabled={busy} />
+                <Switch checked={prefs[reminder.id]} onChange={() => toggle(reminder)} labelledBy={`remind-${reminder.id}`} disabled={busy || !owner} />
               </div>
               {reminder.plan && prefs[reminder.id] && (
                 <label className="row" style={{ padding: "0 0 8px" }}>

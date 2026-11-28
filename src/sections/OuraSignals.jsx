@@ -29,7 +29,7 @@ function useLoaded(load, enabled) {
  * Today: yesterday's daytime stress and today's so far. With `fill`, an
  * unanswered check-in stress takes yesterday's (marked as from Oura).
  */
-export function OuraStressLine({ enabled, todayKey, body, updateToday, fill = false }) {
+export function OuraStressLine({ owner, enabled, todayKey, body, updateToday, fill = false }) {
   const extras = useLoaded(loadOuraExtras, enabled);
   const fillWith = fill && extras ? checkinStress(extras.stress, todayKey) : null;
   const answered = body?.stress !== undefined && body?.stress !== null && body?.stress !== "";
@@ -42,8 +42,8 @@ export function OuraStressLine({ enabled, todayKey, body, updateToday, fill = fa
 
   // Tonight's window goes into the evening check-in reminder too.
   useEffect(() => {
-    if (extras) rememberBedtime(extras.bedtime || null);
-  }, [extras]);
+    if (extras) rememberBedtime(extras.bedtime || null, { owner });
+  }, [extras, owner]);
 
   const sentence = extras ? stressSentence(extras.stress, todayKey) : "";
   if (!sentence) return null;

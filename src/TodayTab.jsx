@@ -219,7 +219,7 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR, onA
   );
 }
 
-export function TodayTab({ onOpenClimb, integrationRevision = 0, todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onSaveProgram = null, onChangeStartDate = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, wearableSample = null, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
+export function TodayTab({ reminderOwner, onOpenClimb, integrationRevision = 0, todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onSaveProgram = null, onChangeStartDate = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, wearableSample = null, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
   // Broadsheet: below 1440px every wrapper is display:contents and
   // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -734,7 +734,7 @@ export function TodayTab({ onOpenClimb, integrationRevision = 0, todayName, toda
           )}
           <CallCard ops={ops} decision={todayDecision} recommendation={dailyRecommendation} call={sharedCall} sessionTitle={sessionTitle} exerciseCount={totalExercises} primary={primary} isRest={todayPlan.isRest} upcomingHybridStart={upcomingHybridStart} onChangeStartDate={isLoggingPast ? null : onChangeStartDate} finished={finished} onOpenRecovery={() => setTab?.("Recovery")} />
           <FuelSnapshot ops={ops} onOpenFuel={() => setTab?.("Fuel")} />
-          <OuraStressLine enabled={ouraConnected} todayKey={todayKey} body={bod} updateToday={updateToday} fill />
+          <OuraStressLine owner={reminderOwner} enabled={ouraConnected} todayKey={todayKey} body={bod} updateToday={updateToday} fill />
         </>
       )}
       </section>

@@ -6,6 +6,8 @@
 //
 // Required env: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 
+import { trustedPushEndpoint } from "./_push-endpoint.js";
+
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -79,12 +81,16 @@ export default async (req) => {
       body: JSON.stringify(patch),
     });
     if (!r.ok) {
-      const detail = await r.text().catch(() => "");
-      console.error(`push-subscribe prefs failed ${r.status}: ${detail.slice(0, 200)}`);
+      console.error(`push-subscribe prefs failed ${r.status}`);
       return json({ error: "Preferences not available yet" }, 502);
     }
     return json({ ok: true, prefs: patch });
   }
+
+  // Check destinations before persisting. Existing subscriptions of any kind
+  // can still be removed by their owner.
+  const destination = trustedPushEndpoint(endpoint);
+  if (!destination) return json({ error: "Unsupported push subscription endpoint" }, 400);
 
   // Default: subscribe (upsert on endpoint)
   const keys = subscription?.keys || {};
@@ -106,7 +112,7 @@ export default async (req) => {
     headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify({
       user_id: userId,
-      endpoint,
+      endpoint: destination,
       p256dh: keys.p256dh,
       auth: keys.auth,
       ...(tzOffset !== undefined ? { tz_offset_minutes: tzOffset } : {}),
@@ -115,10 +121,7 @@ export default async (req) => {
     }),
   });
   if (!r.ok) {
-    // Detail stays in the function log (same stance as coach.js) —
-    // PostgREST errors can echo table/column internals the client shouldn't see.
-    const detail = await r.text().catch(() => "");
-    console.error(`push-subscribe store failed ${r.status}: ${detail.slice(0, 200)}`);
+    console.error(`push-subscribe store failed ${r.status}`);
     return json({ error: "Failed to store subscription" }, 502);
   }
   return json({ ok: true });

@@ -222,30 +222,34 @@ export async function storeProviderOAuthState(supabaseUrl, serviceKey, { provide
 
 export async function consumeProviderOAuthState(supabaseUrl, serviceKey, { provider, state }) {
   if (!supabaseUrl || !serviceKey || !provider || !state) return null;
-  let row = null;
+  // WHOOP has its own state table. Oura and Strava share a provider-scoped table.
+  const whoop = provider === PROVIDERS.WHOOP;
+  const table = whoop ? "whoop_oauth_state" : "provider_oauth_state";
+  const filters = new URLSearchParams({ state: "eq." + state, select: "user_id,expires_at" });
+  if (!whoop) filters.set("provider", "eq." + provider);
+  const now = new Date().toISOString();
+  filters.set("expires_at", "gt." + now);
+  let claimed;
   try {
-    const r = await fetch(
-      `${supabaseUrl}/rest/v1/provider_oauth_state?provider=eq.${encodeURIComponent(provider)}&state=eq.${encodeURIComponent(state)}&select=user_id,expires_at&limit=1`,
-      { headers: serviceHeaders(serviceKey) }
-    );
-    if (r.ok) row = (await r.json())?.[0] || null;
+    // DELETE … RETURNING is the claim. Only the transaction that removed the
+    // unexpired row can authorize a callback, even across function instances.
+    const response = await fetch(`${supabaseUrl}/rest/v1/${table}?${filters}`, {
+      method: "DELETE",
+      headers: serviceHeaders(serviceKey, { Prefer: "return=representation" }),
+    });
+    if (!response.ok) return null;
+    const rows = await response.json();
+    if (Array.isArray(rows) && rows.length === 1) claimed = rows[0];
   } catch {
-    row = null;
+    return null;
   }
   try {
-    await fetch(`${supabaseUrl}/rest/v1/provider_oauth_state?provider=eq.${encodeURIComponent(provider)}&state=eq.${encodeURIComponent(state)}`, {
+    await fetch(`${supabaseUrl}/rest/v1/${table}?expires_at=lte.${encodeURIComponent(now)}`, {
       method: "DELETE",
-      headers: serviceHeaders(serviceKey, { "Prefer": "return=minimal" }),
+      headers: serviceHeaders(serviceKey, { Prefer: "return=minimal" }),
     });
-    await fetch(`${supabaseUrl}/rest/v1/provider_oauth_state?expires_at=lt.${encodeURIComponent(new Date().toISOString())}`, {
-      method: "DELETE",
-      headers: serviceHeaders(serviceKey, { "Prefer": "return=minimal" }),
-    });
-  } catch {
-    /* best effort */
-  }
-  if (!row || new Date(row.expires_at) <= new Date()) return null;
-  return row.user_id || null;
+  } catch { /* Expiry cleanup is independent of the claim. */ }
+  return Date.parse(claimed?.expires_at) > Date.now() ? claimed.user_id || null : null;
 }
 
 export async function getConnectedAccount(supabaseUrl, serviceKey, userId, provider, { strict = false } = {}) {

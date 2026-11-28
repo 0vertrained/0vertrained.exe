@@ -8,7 +8,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { bedtimeText, checkinStress, effectText, formatMinutes, resilienceView, stressSentence, tagEffects } from "../oura/extrasView";
-import { remindersFor, rememberBedtime } from "../reminders/localReminders";
+import { remindersFor, rememberBedtime, setReminderOwner, writeReminderPrefs } from "../reminders/localReminders";
 
 const extras = vi.hoisted(() => ({ value: null, tags: null }));
 vi.mock("../oura/extras", () => ({
@@ -129,21 +129,23 @@ describe("the bedtime window", () => {
   it("joins the evening check-in reminder, and the phone gets the new words", async () => {
     const plugin = { set: vi.fn(async () => ({ allowed: true })) };
     window.Capacitor = { isNativePlatform: () => true, Plugins: { OTReminders: plugin } };
-    localStorage.setItem("ovt-local-reminders", JSON.stringify({ checkin: true }));
+    await setReminderOwner("A");
+    plugin.set.mockClear();
+    writeReminderPrefs({ checkin: true }, "A");
     const now = new Date(2026, 10, 26, 12, 0);
-    rememberBedtime({ startMinutes: -75, endMinutes: -30 }, { now });
+    rememberBedtime({ startMinutes: -75, endMinutes: -30 }, { owner: "A", now });
     await waitFor(() => expect(plugin.set).toHaveBeenCalledTimes(1));
     const [checkin] = JSON.parse(plugin.set.mock.calls[0][0].reminders);
     expect(checkin.body).toBe("Log sleep, energy, and soreness — tomorrow's call depends on tonight's data. Bedtime tonight: 10:45\u00a0pm to 11:30\u00a0pm, Oura’s window for you.");
 
     // The same window again sends nothing.
-    rememberBedtime({ startMinutes: -75, endMinutes: -30 }, { now });
+    rememberBedtime({ startMinutes: -75, endMinutes: -30 }, { owner: "A", now });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(plugin.set).toHaveBeenCalledTimes(1);
 
     // A week-old window says nothing about tonight.
     const later = new Date(2026, 11, 5, 12, 0);
-    expect(remindersFor({ checkin: true }, { now: later, days: [] })[0].body).toBe("Log sleep, energy, and soreness — tomorrow's call depends on tonight's data.");
+    expect(remindersFor({ checkin: true }, { owner: "A", now: later, days: [] })[0].body).toBe("Log sleep, energy, and soreness — tomorrow's call depends on tonight's data.");
   });
 });
 

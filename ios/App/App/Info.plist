@@ -32,6 +32,8 @@
 	<string>group.$(APP_BUNDLE_ID)</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>0VERTRAINED connects to the WHOOP strap you select to read heart rate, measure morning HRV, and sync saved readings. For indoor climbs, it reads speed, distance and incline from the treadmill you select.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Confirm ownership of this iPhone before importing older progress photos into your athlete profile.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>0VERTRAINED uses the camera to scan food barcodes into your food log and to take progress photos, which stay on this iPhone.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

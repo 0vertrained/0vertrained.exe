@@ -33,5 +33,8 @@ if command -v node >/dev/null 2>&1; then
     node scripts/verify-incline-parity.mjs "$out/climb-protocol"
 fi
 
+swiftc ios/App/App/PhotosPlugin.swift ios/Tests/PhotoAlbumTests.swift -o "$out/photo-album"
+"$out/photo-album"
+
 swiftc ios/App/App/ClimbTreadmill.swift ios/Tests/ClimbDiscoveryTests.swift -o "$out/climb-discovery"
 "$out/climb-discovery"

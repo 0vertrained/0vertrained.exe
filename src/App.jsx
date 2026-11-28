@@ -4,6 +4,7 @@
 // files (TodayTab/ProgressTab/FuelTab/TrainTab). DemoPage is lazy: it isn't
 // needed for first paint, so it loads on demand and stays out of the initial
 // bundle.
+import { setEntryPath as setPath } from "./entryPath";
 import { recordClimb } from "./climb/ledger";
 import { rehearsalAttempt } from "./rehearsal/attempts";
 import { preserveRehearsal, validCourseDate } from "./rehearsal/course";
@@ -21,7 +22,8 @@ import { logOut, ensureProfileExists } from "./auth";
 import { useMediaQuery, useIsDesktop, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { CommandPalette } from "./ui/CommandPalette";
 import { supabase } from "./supabaseClient";
-import { loadAllEntries, loadAllEntriesChecked, loadRecentEntries, loadOlderEntries, entriesWindowCutoff, saveEntry, importEntries, loadProgramChecked, saveProgram, loadSettingsChecked, saveSettings, patchSettings, DEFAULT_SETTINGS, setCachedUserId, clearCachedUserId } from "./data";
+import { entryBackupError, restoreEntryBackup, entryStatsCsv } from "./entryBackup";
+import { backupSession, loadAllEntriesChecked, loadRecentEntries, loadOlderEntries, entriesWindowCutoff, saveEntry, importEntries, loadProgramChecked, saveProgram, loadSettingsChecked, saveSettings, patchSettings, DEFAULT_SETTINGS, setCachedUserId, clearCachedUserId } from "./data";
 import { readCache, writeCache, clearCache, getCacheStatus } from "./appDataCache";
 import { readPendingSaves, writePendingSaves } from "./pendingSavesStore";
 import { clearRecoveryDashboardCache } from "./recoveryDashboardSessionCache";
@@ -745,12 +747,6 @@ function AppInner({ onThemeChange }) {
     };
   }, [pendingSaves, scheduleSave, showToast]);
 
-  // Efficient immutable nested path update — avoids JSON.parse/stringify on every keystroke
-  const setPath = (obj, parts, value) => {
-    if (parts.length === 1) return { ...obj, [parts[0]]: value };
-    return { ...obj, [parts[0]]: setPath(obj[parts[0]] || {}, parts.slice(1), value) };
-  };
-
   const updateEntryAtDate = (dateKey, path, value) => {
     setData(prev => {
       const current = prev[dateKey] || defaultDay();
@@ -811,11 +807,11 @@ function AppInner({ onThemeChange }) {
     return true;
   };
   useWatchBridge({ owner: accountOwner, builderPreferences: settings?.programBuilder, ready: integrationAccountReady, data, program, wearableScore: ouraRecovery, readiness: customReadiness, updateEntryAtDate, stageDays: stageWatchDays });
-  useWatchRuns({ owner: accountOwner, ready: integrationAccountReady, data, program, updateEntryAtDate, showToast });
+  useWatchRuns({ owner: accountOwner, ready: integrationAccountReady, data, program, updateEntryAtDate, showToast, stageDays: stageWatchDays });
   useHealthDaily({ owner: accountOwner, ready: integrationAccountReady, data, wearables: Boolean(settings?.ouraConnected || settings?.whoopConnected), updateEntryAtDate });
   useWidgetCards({ ready: accountReady && !demoMode && Boolean(user?.id), data, program, wearableScore: ouraRecovery, readiness: customReadiness });
   useHealthWrite({ owner: accountOwner, ready: integrationAccountReady, data });
-  useMorningPlan({ ready: accountReady && !demoMode && Boolean(user?.id), program });
+  useMorningPlan({ owner: demoMode ? null : accountOwner, authReady, ready: integrationAccountReady, program });
   // The app's light taps on controls follow the runner's haptics setting.
   const uiHapticsOn = settings?.trainingCues?.haptics !== false;
   useEffect(() => { setUiHaptics(uiHapticsOn); }, [uiHapticsOn]);
@@ -1064,14 +1060,21 @@ function AppInner({ onThemeChange }) {
   // Note: one line about what the file holds (an incomplete export),
   // shown on the export screen and in the "Shared" toast. A separate toast
   // would sit under the full-screen export screen, or be replaced by "Shared".
-  const deliver = async (text, filename, mime, label, note = null) => {
+  const [importing, setImporting] = useState(null);
+  const beginBackup = () => demoMode || integrationAccountReady ? backupSession(accountOwner) : () => false;
+  const deliver = async (current, text, filename, mime, label, note = null) => {
+    if (!current()) return;
     try {
       const file = new File([text], filename, { type: mime });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: filename });
-        showToast(note ? `Shared. ${note}` : "Shared"); return;
+        if (current()) showToast(note ? `Shared. ${note}` : "Shared");
+        return;
       }
-    } catch (e) {}
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+    if (!current()) return;
     try {
       const blob = new Blob([text], { type: mime });
       const url  = URL.createObjectURL(blob);
@@ -1080,7 +1083,7 @@ function AppInner({ onThemeChange }) {
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {}
-    setExportModal({ text, filename, label, note });
+    setExportModal({ owner: accountOwner, text, filename, label, note });
   };
 
   // Exports cover the whole history. In-memory `data` is the 180-day
@@ -1088,11 +1091,13 @@ function AppInner({ onThemeChange }) {
   // after a failed hydrate a "Full Backup" was quietly short. Page everything
   // from the server and lay the in-memory map over it: queued or unsaved local
   // edits win, and nothing in memory is lost if the fetch comes back partial.
-  const loadFullHistory = async () => {
+  const loadFullHistory = async (current) => {
+    if (!current()) return null;
     if (demoMode) return { history: data, note: null };
     let server = {};
     let complete = false;
-    try { ({ entries: server, complete } = await loadAllEntriesChecked()); } catch { /* keep what's in memory */ }
+    try { ({ entries: server, complete } = await loadAllEntriesChecked(accountOwner)); } catch { /* keep what's in memory */ }
+    if (!current()) return null;
     const merged = { ...(server || {}), ...data };
     return {
       history: Object.fromEntries(Object.keys(merged).sort().map((key) => [key, merged[key]])),
@@ -1100,56 +1105,61 @@ function AppInner({ onThemeChange }) {
     };
   };
   const exportJSON = async () => {
-    const { history, note } = await loadFullHistory();
-    return deliver(JSON.stringify(history, null, 2), `athlete_data_${getTodayKey()}.json`, "application/json", "JSON Backup", note);
+    const current = beginBackup();
+    const result = await loadFullHistory(current);
+    if (result && current()) return deliver(current, JSON.stringify(result.history, null, 2), `athlete_data_${getTodayKey()}.json`, "application/json", "JSON Backup", result.note);
   };
-  const exportCSV  = async () => {
-    const { history, note } = await loadFullHistory();
-    const rows = [["Date","Weight","Calories","Protein","Carbs","Fats","Water","Sleep","Energy","Soreness","Miles","Workout Done"]];
-    Object.entries(history).sort().forEach(([date, d]) => {
-      rows.push([date, d.body?.weight||"", d.nutrition?.calories||"", d.nutrition?.protein||"", d.nutrition?.carbs||"", d.nutrition?.fats||"", d.nutrition?.water||"", d.body?.sleep||"", d.body?.energy||"", d.body?.soreness||"", d.workout?.cardio?.miles||"", d.workout?.completed?"Yes":"No"]);
-    });
-    deliver(rows.map(r => r.join(",")).join("\n"), `athlete_stats_${getTodayKey()}.csv`, "text/csv", "CSV Export", note);
+  const exportCSV = async () => {
+    const current = beginBackup();
+    const result = await loadFullHistory(current);
+    if (result && current()) return deliver(current, entryStatsCsv(result.history), `athlete_stats_${getTodayKey()}.csv`, "text/csv", "CSV Export", result.note);
   };
 
-  const importFromText = async (text) => {
+  const importFromText = async (text, current = beginBackup()) => {
+    if (!current()) return;
+    if (typeof text !== "string" || new Blob([text]).size > 5 * 1024 * 1024) { showToast("File too large (max 5MB)"); return; }
     let parsed; try { parsed = JSON.parse(text); } catch { showToast("Invalid JSON"); return; }
+    const invalid = entryBackupError(parsed);
+    if (invalid) { showToast(invalid); return; }
+    parsed = restoreEntryBackup(parsed);
     if (demoMode) {
       setData(parsed);
       setImportOpen(false);
       showToast("Demo import loaded locally");
       return;
     }
-    setSaving(true);
-    const res = await importEntries(parsed);
-    setSaving(false);
-    if (res.error) { showToast(res.error || "Import failed"); return; }
-    const all = await loadAllEntries();
-    setData(all); 
-    // Keep cache warm after successful import (once the account is known)
-    if (user?.id && accountReadyRef.current) {
-      writeCache(user.id, {
-        entries: all,
-        program,
-        settings,
-        myUsername,
+    if (importing?.owner === accountOwner) return;
+    setImporting({ owner: accountOwner, current });
+    try {
+      const res = await importEntries(parsed, accountOwner);
+      if (!current()) return;
+      if (res.error) { showToast(res.error); return; }
+      // Only the verified imported days changed. Keep unrelated local edits
+      // and older cached history, even if the network drops after the write.
+      setData(previous => ({ ...previous, ...parsed }));
+      const cached = readCache(accountOwner);
+      writeCache(accountOwner, {
+        entries: { ...cached?.entries, ...recoveryInputs.current.data, ...parsed },
+        program: cached?.program ?? program, settings: settingsRef.current, myUsername,
       });
-    }
-    setImportOpen(false); 
-    showToast("Data imported");
+      setImportOpen(false);
+      showToast("Data imported");
+    } catch { if (current()) showToast("Could not import the backup. Try again."); }
+    finally { setImporting(previous => previous?.current === current ? null : previous); }
   };
 
   const importFile = (e) => {
     const file = e.target.files[0]; if (!file) return;
-    // Reject files over 5MB before reading — a legitimate export is <1MB.
-    // This prevents memory exhaustion from accidental large file selection.
+    const current = beginBackup();
+    if (!current()) return;
     if (file.size > 5 * 1024 * 1024) {
-      showToast('File too large (max 5MB)');
-      e.target.value = '';
+      showToast("File too large (max 5MB)");
+      e.target.value = "";
       return;
     }
     const reader = new FileReader();
-    reader.onload = ev => importFromText(ev.target.result);
+    reader.onload = ev => importFromText(ev.target.result, current);
+    reader.onerror = () => { if (current()) showToast("Could not read the backup file."); };
     reader.readAsText(file); e.target.value = "";
   };
 
@@ -1237,10 +1247,10 @@ function AppInner({ onThemeChange }) {
             <ErrorBoundary label="Profile">
             <Suspense fallback={<LoadingShell plan={getSkeletonPlan("Profile")} />}>
             <ProfileScreen
-              view={profileView} onView={setProfileView}
+              owner={integrationAccountReady ? accountOwner : null} view={profileView} onView={setProfileView}
               username={myUsername} demoMode={demoMode}
               exportJSON={exportJSON} exportCSV={exportCSV} fileRef={fileRef}
-              onPasteImport={() => setImportOpen(true)}
+              onPasteImport={() => setImportOpen(accountOwner)}
               onSettings={(section) => openSettings(section || null, null, "Profile")}
               onLogout={handleLogout}
               settings={settings}
@@ -1278,7 +1288,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.today.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.today.isZero && !program?.__climbs?.[todayKey]
               ? <DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />
-              : <TodayTab onOpenClimb={() => { setClimbHistoryRequest(null); setTrainLanding("climb"); navigateTo("Train"); }} key={accountOwner} integrationRevision={integrationRevision} todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onSaveProgram={handleSaveProgram} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} wearableSample={wearableSample} setTab={navigateTo} onChangeStartDate={() => { setTrainLanding("block"); navigateTo("Train"); }} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={currentLoad} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
+              : <TodayTab reminderOwner={integrationAccountReady ? accountOwner : null} onOpenClimb={() => { setClimbHistoryRequest(null); setTrainLanding("climb"); navigateTo("Train"); }} key={accountOwner} integrationRevision={integrationRevision} todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onSaveProgram={handleSaveProgram} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} wearableSample={wearableSample} setTab={navigateTo} onChangeStartDate={() => { setTrainLanding("block"); navigateTo("Train"); }} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={currentLoad} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
             </div>
           )}
           {tab === "Train" && (
@@ -1337,9 +1347,9 @@ function AppInner({ onThemeChange }) {
           : <Toast action={toast.action} onAction={() => { toast.onAction?.(); setToast(null); }}>{toast.text}</Toast>)}
       </div>
       <input ref={fileRef} type="file" accept=".json" aria-label="Import data from JSON file" style={{ display:"none" }} onChange={importFile} />
-      {exportModal && <ExportModal modal={exportModal} onClose={() => setExportModal(null)} showToast={showToast} />}
+      {exportModal && exportModal.owner === accountOwner && <ExportModal modal={exportModal} onClose={() => setExportModal(null)} showToast={showToast} />}
       {settingsOpen && accountReady && <Suspense fallback={null}><SettingsScreen key={accountOwner} owner={integrationAccountReady ? accountOwner : null} integrationRevision={integrationRevision} settings={settings} onSave={handleSaveSettings} onPatch={handlePatchSettings} onClose={() => setSettingsOpen(false)} busy={settingsBusy} onThemeChange={handleThemeChange} currentTheme={themeId} initialSection={settingsLanding.section} notice={settingsLanding.notice} backLabel={settingsLanding.from} loggedDays={countLoggedDays(data)} currentTab={tab} /></Suspense>}
-      {importOpen  && <ImportModal onImport={importFromText} onClose={() => setImportOpen(false)} />}
+      {importOpen && importOpen === accountOwner && <ImportModal busy={importing?.owner === accountOwner} onImport={importFromText} onClose={() => setImportOpen(false)} />}
       {/* Coach stays always-mounted (it manages its own open/close animation and
           in-flight request state); lazy just moves its code out of the entry
           chunk. coachEnabled gates whether it can ever open, so skip the chunk
@@ -1428,7 +1438,7 @@ function ExportModal({ modal, onClose, showToast }) {
 }
 
 // Paste a backup's JSON and import it.
-function ImportModal({ onImport, onClose }) {
+function ImportModal({ onImport, onClose, busy }) {
   const [text, setText] = useState("");
   const empty = !text.trim();
   return (
@@ -1439,7 +1449,7 @@ function ImportModal({ onImport, onClose }) {
           <p className="t-b">Paste the text of an exported backup (JSON), then import it.</p>
           <label className="field"><span className="lbl">Backup</span><textarea className="input area" rows={10} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} /></label>
         </div>
-        <div className="foot"><button type="button" className="btn btn-p btn-b" aria-disabled={empty || undefined} onClick={() => !empty && onImport(text)}>Import backup</button></div>
+        <div className="foot"><button type="button" className="btn btn-p btn-b" disabled={busy} aria-disabled={empty || busy || undefined} onClick={() => !empty && !busy && onImport(text)}>{busy ? "Importing…" : "Import backup"}</button></div>
       </div>
     </Flow>
   );

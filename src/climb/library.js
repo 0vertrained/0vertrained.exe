@@ -12,6 +12,16 @@ function storedDriver() {
 function openDatabase() {
   const driver = storedDriver();
   if (driver === "local") return Promise.resolve(null);
+  if (!driver) {
+    // Earlier versions wrote directly to localStorage without marking the
+    // driver when IndexedDB was unavailable.
+    try {
+      if (Object.keys(localStorage).some(key => key.startsWith("ot.climb/"))) {
+        try { localStorage.setItem(driverKey, "local"); } catch { /* still readable when full */ }
+        return Promise.resolve(null);
+      }
+    } catch { /* IndexedDB can be available with localStorage disabled. */ }
+  }
   if (typeof indexedDB === "undefined") return driver === "indexedDB"
     ? Promise.reject(new Error("Your climb database is temporarily unavailable."))
     : Promise.resolve(null);
@@ -103,30 +113,57 @@ const conflict = () => new Error("This climb was updated in another window. Reop
 export async function changeClimbLibrary(owner, changes, expectedToken) {
   const prefix = scope(owner);
   const db = await openDatabase();
+  const removed = new Set(changes.filter(([key, value]) => key.startsWith("course/") && value == null)
+    .map(([key]) => key.slice("course/".length)));
+  const mustCheck = expectedToken !== undefined || removed.size > 0;
+  const checkJournal = current => {
+    if (expectedToken !== undefined && tokenOf(current) !== expectedToken) throw conflict();
+    if (removed.size === 0) return;
+    const replacement = changes.findLast(([key]) => key === "active");
+    const active = replacement ? replacement[1] : current;
+    if (active && [active, ...(active.previousAttempts || [])].some(row => removed.has(row.revision ?? row.course?.revision))) {
+      throw new Error("Finish the active climb before removing a course it uses.");
+    }
+  };
   if (!db) {
-    if (expectedToken !== undefined && tokenOf(JSON.parse(localStorage.getItem(prefix + "active"))) !== expectedToken) throw conflict();
-    for (const [key, value] of changes) {
-      if (value == null) localStorage.removeItem(prefix + key);
-      else localStorage.setItem(prefix + key, JSON.stringify(value));
+    if (mustCheck) checkJournal(JSON.parse(localStorage.getItem(prefix + "active")));
+    const applied = [];
+    try {
+      for (const [key, value] of changes) {
+        const path = prefix + key;
+        const old = changes.length > 1 ? localStorage.getItem(path) : null;
+        if (value == null) localStorage.removeItem(path);
+        else localStorage.setItem(path, JSON.stringify(value));
+        if (changes.length > 1) applied.push([path, old]);
+      }
+    } catch (error) {
+      for (const [path, old] of applied.reverse()) {
+        if (old === null) localStorage.removeItem(path);
+        else localStorage.setItem(path, old);
+      }
+      throw error;
     }
     return;
   }
   return new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, "readwrite"), store = tx.objectStore(storeName);
     let cause;
-    const apply = () => {
-      for (const [key, value] of changes) {
-        if (value == null) store.delete(prefix + key);
-        else store.put(value, prefix + key);
+    const apply = journal => {
+      try {
+        if (mustCheck) checkJournal(journal);
+        for (const [key, value] of changes) {
+          if (value == null) store.delete(prefix + key);
+          else store.put(value, prefix + key);
+        }
+      } catch (error) {
+        cause = error;
+        tx.abort();
       }
     };
-    if (expectedToken === undefined) apply();
+    if (!mustCheck) apply();
     else {
       const current = store.get(prefix + "active");
-      current.onsuccess = () => {
-        if (tokenOf(current.result) !== expectedToken) { cause = conflict(); tx.abort(); }
-        else apply();
-      };
+      current.onsuccess = () => apply(current.result);
     }
     tx.oncomplete = () => resolve();
     tx.onerror = tx.onabort = () => reject(cause || tx.error || new Error("Could not save the climb on this device."));

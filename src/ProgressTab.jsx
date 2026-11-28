@@ -284,7 +284,7 @@ export function ProgressTab({ owner, onRaceClimb, data, settings, program, baseP
         todayKey={todayKey}
         onSave={updateEntryAtDate ? (measurement, value) => { updateEntryAtDate(todayKey, `body.${measurement.key}`, String(value)); showToast?.(`${measurement.label} measurement saved`); } : null}
       />
-      <ProgressPhotos todayKey={todayKey} showToast={showToast} />
+      <ProgressPhotos owner={owner} todayKey={todayKey} showToast={showToast} />
       <section aria-labelledby="protein-title" style={column(8)}>
         <h2 id="protein-title" className="t-h">Protein, last 7{NBSP}days</h2>
         {proteinDays.length === 0 ? (

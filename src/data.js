@@ -1,3 +1,4 @@
+import { entryBackupError, restoreEntryBackup } from "./entryBackup";
 import { supabase } from "./supabaseClient";
 import { DEFAULT_COACH_PREFERENCES, normalizeCoachPreferences } from "./coachMemory";
 
@@ -7,14 +8,25 @@ import { DEFAULT_COACH_PREFERENCES, normalizeCoachPreferences } from "./coachMem
 // is cleared by clearCachedUserId() so the next login gets a fresh ID.
 let _cachedUserId = null;
 
-export function setCachedUserId(id) { _cachedUserId = id; }
-export function clearCachedUserId() { _cachedUserId = null; }
+let authRevision = 0;
+export function setCachedUserId(id) {
+  if (id !== _cachedUserId) authRevision++;
+  _cachedUserId = id;
+}
+export function clearCachedUserId() { authRevision++; _cachedUserId = null; }
+
+export function backupSession(owner) {
+  const revision = authRevision;
+  return () => Boolean(owner) && _cachedUserId === owner && revision === authRevision;
+}
 
 async function getUserId() {
   if (_cachedUserId) return _cachedUserId;
+  const revision = authRevision;
   const { data } = await supabase.auth.getUser();
   const id = data.user?.id ?? null;
-  if (id) _cachedUserId = id;
+  if (authRevision !== revision) return _cachedUserId === id ? id : null;
+  if (id) setCachedUserId(id);
   return id;
 }
 
@@ -31,15 +43,14 @@ export async function loadAllEntries() {
 
 // Same pages, plus whether they all arrived, so an export can say
 // when the server couldn't be reached instead of handing over a short file.
-export async function loadAllEntriesChecked() {
+export async function loadAllEntriesChecked(owner) {
   const PAGE = 1000;
   const map = {};
   let from = 0;
   while (true) {
-    const { data, error } = await supabase
-      .from("entries")
-      .select("entry_date, payload")
-      .order("entry_date", { ascending: true })
+    let query = supabase.from("entries").select("entry_date, payload");
+    if (owner) query = query.eq("user_id", owner);
+    const { data, error } = await query.order("entry_date", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) { console.error("Load failed:", error); return { entries: map, complete: false }; }
     for (const row of data) map[row.entry_date] = row.payload;
@@ -138,22 +149,13 @@ export async function saveEntry(entryDate, payload) {
 }
 
 // Bulk replace — used by JSON import. Validates shape before writing.
-export async function importEntries(dataMap) {
+export async function importEntries(dataMap, expectedOwner) {
+  const invalid = entryBackupError(dataMap);
+  if (invalid) return { error: invalid };
   const userId = await getUserId();
-  if (!userId) return { error: "Not authenticated." };
+  if (!userId || (expectedOwner && userId !== expectedOwner)) return { error: "Sign in again before importing." };
 
-  // Validate: must be a plain object with date-like keys
-  if (typeof dataMap !== "object" || Array.isArray(dataMap)) {
-    return { error: "Import failed: expected an object keyed by date." };
-  }
-  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-  const validEntries = Object.entries(dataMap).filter(([k, v]) =>
-    DATE_RE.test(k) && typeof v === "object" && v !== null
-  );
-  if (validEntries.length === 0) return { error: "Import failed: no valid entries found." };
-  if (validEntries.length > 3000) return { error: "Import too large (max 3000 days)." };
-
-  const rows = validEntries.map(([entry_date, payload]) => ({
+  const rows = Object.entries(restoreEntryBackup(dataMap)).map(([entry_date, payload]) => ({
     user_id: userId, entry_date, payload,
   }));
   const { error } = await supabase.from("entries").upsert(rows, { onConflict: "user_id,entry_date" });

@@ -162,7 +162,7 @@ describe("serverless security guards", () => {
         const rows = JSON.parse(opts.body);
         ouraDataPosts.push(rows);
         if (rows.some((row) => row.data_type === "heartrate")) {
-          return new Response("permission denied for column access_token", { status: 500 });
+          return new Response(JSON.stringify({ message: "private-test-heart-reading", details: "private-athlete-detail" }), { status: 500 });
         }
         return new Response(null, { status: 201 });
       }
@@ -197,6 +197,7 @@ describe("serverless security guards", () => {
     expect(logged).toContain("data_type=heartrate");
     expect(logged).toContain("status=500");
     expect(logged).not.toContain("service-role-key");
+    expect(logged).not.toMatch(/private-test-heart-reading|private-athlete-detail/);
   });
 
   test("oura status verifies bearer token and never returns stored OAuth tokens", async () => {
@@ -252,8 +253,7 @@ describe("serverless security guards", () => {
   });
 
   test("oura callback consumes the state row exactly once (replay of the same state fails)", async () => {
-    // Proves the DB-backed one-time state: the callback reads the row,
-    // then DELETEs it. A replayed callback with the same state finds no row and
+    // The callback claims the row with an atomic delete. A repeat finds no row and
     // is rejected. This is the property the old HMAC-signed state lacked.
     process.env.OURA_CLIENT_ID = "client-id";
     process.env.OURA_CLIENT_SECRET = "client-secret";
@@ -273,14 +273,14 @@ describe("serverless security guards", () => {
         const method = (init?.method || "GET").toUpperCase();
         const match = u.match(/state=eq\.([^&]+)/);
         const stateVal = match ? decodeURIComponent(match[1]) : null;
-        if (method === "GET") {
-          const row = stateVal && store.has(stateVal) ? [store.get(stateVal)] : [];
-          return new Response(JSON.stringify(row), { status: 200 });
+        if (method === "DELETE" && stateVal) {
+          expect(init.headers.Prefer).toBe("return=representation");
+          const row = store.get(stateVal);
+          store.delete(stateVal);
+          return Response.json(row ? [row] : []);
         }
-        if (method === "DELETE") {
-          if (stateVal) store.delete(stateVal);
-          return new Response(null, { status: 204 });
-        }
+        if (method === "DELETE") return new Response(null, { status: 204 });
+        return new Response(null, { status: 405 });
       }
       if (u.includes("api.ouraring.com/oauth/token")) {
         tokenExchangeCalls += 1;

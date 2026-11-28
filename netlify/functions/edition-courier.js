@@ -31,6 +31,7 @@
 // Required tables: push_subscriptions (existing), push_state + push_log
 //                  (supabase/migration_add_courier.sql).
 
+import { trustedPushEndpoint } from "./_push-endpoint.js";
 import webpush from "web-push";
 import { mirrorClassify } from "./_recovery-mirror.js";
 
@@ -139,20 +140,22 @@ export default async () => {
     listRes = await rest("push_subscriptions?select=user_id,endpoint,p256dh,auth,tz_offset_minutes");
   }
   if (!listRes.ok) return new Response(JSON.stringify({ error: "Failed to load subscriptions" }), { status: 502 });
-  const subs = (await listRes.json()).filter((s) => s.user_id);
+  const subs = await listRes.json();
 
   const nowMs = Date.now();
   // Group devices per user; a user is due when ANY of their devices is due
   // (per-device tz — a traveler's phone decides for itself at send time).
   const byUser = new Map();
   for (const s of subs) {
+    const endpoint = trustedPushEndpoint(s.endpoint);
+    if (!s.user_id || !endpoint) continue;
     if (!byUser.has(s.user_id)) byUser.set(s.user_id, []);
-    byUser.get(s.user_id).push(s);
+    byUser.get(s.user_id).push({ ...s, destination: endpoint });
   }
 
   const send = async (sub, payload) => {
     try {
-      await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, JSON.stringify(payload));
+      await webpush.sendNotification({ endpoint: sub.destination, keys: { p256dh: sub.p256dh, auth: sub.auth } }, JSON.stringify(payload));
       return "sent";
     } catch (err) {
       const code = err?.statusCode;

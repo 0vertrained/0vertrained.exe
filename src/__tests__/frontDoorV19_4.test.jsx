@@ -544,6 +544,22 @@ describe("V19.4 review fixes · returns and reads that fail", () => {
     await waitFor(() => expect(ink()).toBe(THEMES.whitepaperLight.mode), WAIT); // the server's answer wins
   }, 20000);
 
+  it("discards a paged backup after the athlete switches directly to another signed-in account", async () => {
+    h.store.settings = { ...PROFILE };
+    let complete;
+    dataLayer.loadAllEntriesChecked.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+    render(<App />);
+    await liveToday();
+    fireEvent.click(screen.getByRole("button", { name: /^Profile/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Your data/ }, WAIT));
+    fireEvent.click(await screen.findByRole("button", { name: /Export full backup/ }, WAIT));
+    expect(typeof complete).toBe("function");
+    await act(async () => { h.authCb("SIGNED_IN", { user: { id: "other-athlete" }, access_token: "session" }); });
+    await act(async () => { complete({ entries: { "2026-02-09": { notes: "private-backup" } }, complete: true }); });
+    expect(screen.queryByLabelText("JSON Backup text")).toBeNull();
+    expect(document.body.textContent).not.toContain("private-backup");
+  }, 20000);
+
   it("an export that couldn't reach the server says so on the export screen", async () => {
     h.store.settings = { ...PROFILE };
     h.store.historyIncomplete = true;

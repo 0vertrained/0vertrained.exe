@@ -122,11 +122,11 @@ function useNotificationsLine() {
   return line;
 }
 
-export function ProfileScreen({ view = "home", onView, username = null, demoMode = false, settings, allData, showToast, onSettings, onLogout, exportJSON, exportCSV, fileRef, onPasteImport, onSaveCoachPreferences, onSaveCoachingSettings }) {
+export function ProfileScreen({ owner, view = "home", onView, username = null, demoMode = false, settings, allData, showToast, onSettings, onLogout, exportJSON, exportCSV, fileRef, onPasteImport, onSaveCoachPreferences, onSaveCoachingSettings }) {
   const notifications = useNotificationsLine();
 
   if (view === "notifications") {
-    return <div className="shell" data-screen="profile-notifications"><div className="main" style={{ gap: 16 }}><NotificationsCard showToast={showToast} /></div></div>;
+    return <div className="shell" data-screen="profile-notifications"><div className="main" style={{ gap: 16 }}><NotificationsCard owner={owner} showToast={showToast} /></div></div>;
   }
   if (view === "coach") {
     return <CoachSettings settings={settings} allData={allData} onSaveCoachPreferences={onSaveCoachPreferences} onSaveCoachingSettings={onSaveCoachingSettings} showToast={showToast} />;
