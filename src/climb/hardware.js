@@ -10,15 +10,17 @@ export const healthRoutesAvailable = () => typeof health()?.climbRoute === "func
 export async function getTreadmill() {
   return climbHardwareAvailable() ? belt().status() : offline();
 }
-export async function scanTreadmills() {
-  return climbHardwareAvailable() ? belt().scan() : offline();
+export async function scanTreadmills(mode) {
+  if (!climbHardwareAvailable()) return offline();
+  return mode === "peloton" ? belt().scan({ mode: "peloton" }) : belt().scan();
 }
 export async function connectTreadmill(id) {
   if (!climbHardwareAvailable()) throw new Error("Open the updated iPhone app to connect a treadmill.");
   return belt().connect({ id });
 }
-export async function disconnectTreadmill() {
-  return climbHardwareAvailable() ? belt().disconnect() : offline();
+export async function disconnectTreadmill({ forget = false } = {}) {
+  if (!climbHardwareAvailable()) return offline();
+  return forget ? belt().disconnect({ forget: true }) : belt().disconnect();
 }
 export async function subscribeTreadmill(callback) {
   if (!climbHardwareAvailable()) return () => {};

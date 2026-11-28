@@ -2,7 +2,68 @@ import Foundation
 
 @main
 struct ClimbProtocolTests {
+    static func metricReports() {
+        // All fields, in little-endian wire order. The paired paces are two
+        // independent 16-bit seconds-per-500m values in the GATT supplement.
+        var packet = Data([0xfe, 0x1f])
+        packet.append(contentsOf: [0x38, 4, 0x84, 3, 3, 2, 1])
+        packet.append(contentsOf: [0xf4, 0xff, 0xf9, 0xff, 123, 0, 87, 0])
+        packet.append(contentsOf: [150, 0, 180, 0, 250, 0, 0x84, 3, 15])
+        packet.append(contentsOf: [153, 78, 0x84, 3, 0x2c, 1, 0xf4, 0xff, 42, 0])
+        let expected: [String: Double] = [
+            "speedMps": 3, "averageSpeedMps": 2.5, "distanceMeters": 66051,
+            "inclinePercent": -1.2, "rampAngleDegrees": -0.7, "ascentMeters": 12.3, "descentMeters": 8.7,
+            "paceSecondsPerKm": 300, "averagePaceSecondsPerKm": 360,
+            "energyKcal": 250, "energyKcalPerHour": 900, "energyKcalPerMinute": 15,
+            "heartRateBpm": 153, "metabolicEquivalent": 7.8, "elapsedSeconds": 900, "remainingSeconds": 300,
+            "beltForceNewtons": -12, "powerWatts": 42
+        ]
+        precondition(ClimbTreadmillFrame(packet)?.observedMetrics == expected)
+        precondition(ClimbTreadmillFrame(packet + Data([0])) == nil)
+        let prefixKeys = ["speedMps", "averageSpeedMps", "distanceMeters", "inclinePercent",
+                          "rampAngleDegrees", "ascentMeters", "descentMeters"]
+        for count in 0..<packet.count {
+            let decoded = ClimbTreadmillFrame(packet.prefix(count))
+            if count == packet.count - 2 {
+                precondition(decoded?.observedMetrics == expected.filter { prefixKeys.contains($0.key) })
+            } else {
+                precondition(decoded == nil)
+            }
+        }
+        // One-byte legacy pace immediately precedes a pulse byte. The identical
+        // length could mean a modern packet lost its final heart rate byte.
+        let legacy = Data([0x2c,1, 0x38,4, 123,0,0, 15,0, 9,0, 52,159])
+        precondition(ClimbTreadmillFrame(legacy)?.observedMetrics == [
+            "speedMps":3, "distanceMeters":123, "inclinePercent":1.5, "rampAngleDegrees":0.9])
+        let modern = Data([0x2c,1, 0x38,4, 123,0,0, 15,0, 9,0, 152,0,159])
+        precondition(ClimbTreadmillFrame(modern)?.observedMetrics["paceSecondsPerKm"] == 304)
+        precondition(ClimbTreadmillFrame(modern)?.observedMetrics["heartRateBpm"] == 159)
+        let heartOnly = ClimbTreadmillFrame(Data([1, 1, 125]))
+        precondition(heartOnly?.observedMetrics == ["heartRateBpm": 125])
+        // Some consoles send zero or all ones when contact/sensor data is absent.
+        for hr: UInt8 in [0, 255] {
+            precondition(ClimbTreadmillFrame(Data([1, 1, hr]))?.observedMetrics.isEmpty == true)
+        }
+        precondition(ClimbTreadmillFrame(Data([0xff, 0x1f]) + Data(repeating: 0xff, count: packet.count - 4))?.observedMetrics ==
+            ["inclinePercent": -0.1, "rampAngleDegrees": -0.1, "beltForceNewtons": -1, "powerWatts": -1])
+        let unavailable = Data([0x8c, 0x10, 0xff,0xff, 0xff,0xff,0xff, 0xff,0x7f, 0xff,0x7f,
+                                0xff,0xff, 0xff,0xff, 0xff, 0xff,0x7f, 0xff,0x7f])
+        precondition(ClimbTreadmillFrame(unavailable)?.observedMetrics.isEmpty == true)
+        // A valid zero distance and resting belt are different from missing readings.
+        precondition(ClimbTreadmillFrame(Data([4,0, 0,0, 0,0,0]))?.observedMetrics == ["speedMps": 0, "distanceMeters": 0])
+
+        let advertised = ClimbMachineFeatures(Data([0x3d,0xbe,0,0, 3,0,0,0]))!
+        precondition(advertised.speedTargets && advertised.inclineTargets)
+        precondition(advertised.advertisedMetrics.count == expected.count - 1)
+        precondition(advertised.advertisedMetrics["speedMps"] == nil)
+        precondition(advertised.advertisedMetrics.values.allSatisfy { $0 })
+        let single = ClimbMachineFeatures(Data([0,4,0,0, 1,0,0,0]))!
+        precondition(single.advertisedMetrics.filter { $0.value }.map { $0.key } == ["heartRateBpm"])
+        precondition(single.speedTargets && !single.inclineTargets)
+    }
+
     static func main() {
+        metricReports()
         // A speed of 10.80 km/h, 0x010203 metres and -1.2% inclination.
         let bytes = Data([0x0e,0, 0x38,0x04, 0x38,0x04, 3,2,1, 0xf4,0xff, 0xf9,0xff])
         let frame = ClimbTreadmillFrame(bytes)!

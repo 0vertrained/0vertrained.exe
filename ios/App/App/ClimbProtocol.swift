@@ -1,46 +1,98 @@
 import Foundation
 
-/// Bluetooth SIG Fitness Machine Service 1.0.1. Characteristic 2ACD is packed
-/// little-endian; the instantaneous speed is absent when More Data is set.
+/// Bluetooth SIG GATT Specification Supplement, Treadmill Data (0x2ACD).
+/// This characteristic has no cadence field. Keep measurements from one
+/// notification separate from the previously observed connection-wide metrics.
 struct ClimbTreadmillFrame {
-    var speedMps: Double?
-    var distanceMeters: Int?
-    var inclinePercent: Double?
+    let observedMetrics: [String: Double]
+    var speedMps: Double? { observedMetrics["speedMps"] }
+    var distanceMeters: Int? { observedMetrics["distanceMeters"].map(Int.init) }
+    var inclinePercent: Double? { observedMetrics["inclinePercent"] }
+
+    private struct Field {
+        let key: String
+        let bit: Int
+        let bytes: Int
+        let divisor: Double
+        let signed: Bool
+        let range: ClosedRange<Int>?
+
+        init(_ key: String, _ bit: Int, _ bytes: Int, divisor: Double = 1, signed: Bool = false,
+             range: ClosedRange<Int>? = nil) {
+            self.key = key
+            self.bit = bit
+            self.bytes = bytes
+            self.divisor = divisor
+            self.signed = signed
+            self.range = range
+        }
+
+        func convert(_ raw: Int) -> Double? {
+            let number: Int
+            if signed {
+                // 0x7FFF indicates an unavailable field in a signed pair.
+                guard raw != 0x7fff, raw != 0x8000 else { return nil }
+                number = Int(Int16(bitPattern: UInt16(raw)))
+            } else {
+                // Machine firmwares can fill unavailable unsigned counters with ones.
+                guard raw != (1 << (8 * bytes)) - 1 else { return nil }
+                number = raw
+            }
+            if let range, !range.contains(number) { return nil }
+            return Double(number) / divisor
+        }
+    }
+
+    // In wire order. FTMS speed uses hundredths of km/h, elevation tenths of
+    // metres, pace whole seconds per 500 metres. Normalize at the boundary.
+    private static let fields = [
+        Field("speedMps", 0, 2, divisor: 360),
+        Field("averageSpeedMps", 1, 2, divisor: 360),
+        Field("distanceMeters", 2, 3),
+        Field("inclinePercent", 3, 2, divisor: 10, signed: true, range: -1000...1000),
+        Field("rampAngleDegrees", 3, 2, divisor: 10, signed: true, range: -900...900),
+        Field("ascentMeters", 4, 2, divisor: 10),
+        Field("descentMeters", 4, 2, divisor: 10),
+        Field("paceSecondsPerKm", 5, 2, divisor: 0.5, range: 1...65534),
+        Field("averagePaceSecondsPerKm", 6, 2, divisor: 0.5, range: 1...65534),
+        Field("energyKcal", 7, 2),
+        Field("energyKcalPerHour", 7, 2),
+        Field("energyKcalPerMinute", 7, 1),
+        Field("heartRateBpm", 8, 1, range: 1...254),
+        Field("metabolicEquivalent", 9, 1, divisor: 10),
+        Field("elapsedSeconds", 10, 2),
+        Field("remainingSeconds", 11, 2),
+        Field("beltForceNewtons", 12, 2, signed: true),
+        Field("powerWatts", 12, 2, signed: true)
+    ]
 
     init?(_ packet: Data) {
         let bytes = Array(packet)
         guard bytes.count >= 2 else { return nil }
         let flags = Int(bytes[0]) | Int(bytes[1]) << 8
-        guard flags & 0xE000 == 0 else { return nil }
+        guard flags & 0xe000 == 0 else { return nil }
+        let included = Self.fields.filter { field in
+            let enabled = flags & (1 << field.bit) != 0
+            return field.bit == 0 ? !enabled : enabled
+        }
+        let length = included.reduce(2) { $0 + $1.bytes }
+        let paceFields = included.filter { $0.bit == 5 || $0.bit == 6 }.count
+        // Some legacy consoles used one-byte pace. An equally short modern
+        // packet could be truncated. In either case only the fields preceding
+        // pace have unambiguous offsets, including all workout-control inputs.
+        let legacyLength = paceFields > 0 && bytes.count == length - paceFields
+        guard bytes.count == length || legacyLength else { return nil }
+
         var offset = 2
-        func read(_ count: Int) -> Int? {
-            guard offset + count <= bytes.count else { return nil }
-            var value = 0
-            for i in 0..<count { value |= Int(bytes[offset + i]) << (8 * i) }
-            offset += count
-            return value
+        var readings = [String: Double]()
+        for field in included {
+            if legacyLength && field.bit >= 5 { break }
+            var raw = 0
+            for i in 0..<field.bytes { raw |= Int(bytes[offset + i]) << (i * 8) }
+            offset += field.bytes
+            readings[field.key] = field.convert(raw)
         }
-        if flags & 1 == 0 {
-            guard let speed = read(2) else { return nil }
-            if speed != 0xffff { speedMps = Double(speed) / 360.0 }
-        }
-        if flags & 2 != 0, read(2) == nil { return nil }
-        if flags & 4 != 0 {
-            guard let distance = read(3) else { return nil }
-            distanceMeters = distance
-        }
-        if flags & 8 != 0 {
-            guard let grade = read(2), read(2) != nil else { return nil }
-            let signed = Int16(bitPattern: UInt16(grade))
-            if (-1000...1000).contains(Int(signed)) { inclinePercent = Double(signed) / 10 }
-        }
-        // Elevation gain, instantaneous/average pace, energy, HR, METs,
-        // elapsed/remaining time, force on belt & power.
-        let remainingWidths = [4, 1, 1, 5, 1, 1, 2, 2, 4]
-        for (index, width) in remainingWidths.enumerated() where flags & (1 << (index + 4)) != 0 {
-            guard offset + width <= bytes.count else { return nil }
-            offset += width
-        }
+        observedMetrics = readings
     }
 }
 
@@ -64,13 +116,27 @@ struct ClimbMachineFeatures {
     let distance: Bool
     let incline: Bool
     let inclineTargets: Bool
+    let speedTargets: Bool
+    let advertisedMetrics: [String: Bool]
 
     init?(_ data: Data) {
         let bytes = Array(data)
         guard bytes.count == 8 else { return nil }
-        distance = bytes[0] & 0x04 != 0
-        incline = bytes[0] & 0x08 != 0
-        inclineTargets = bytes[4] & 0x02 != 0
+        let bits = Int(bytes[0]) | Int(bytes[1]) << 8
+        // FTMS 1.0.1 table 4.5 maps treadmill data flags onto 2ACC features.
+        // Instantaneous speed has no feature bit, so it cannot be advertised.
+        let fields = [
+            ("averageSpeedMps", 0), ("distanceMeters", 2), ("inclinePercent", 3), ("rampAngleDegrees", 3),
+            ("ascentMeters", 4), ("descentMeters", 4), ("paceSecondsPerKm", 5), ("averagePaceSecondsPerKm", 5),
+            ("energyKcal", 9), ("energyKcalPerHour", 9), ("energyKcalPerMinute", 9), ("heartRateBpm", 10),
+            ("metabolicEquivalent", 11), ("elapsedSeconds", 12), ("remainingSeconds", 13),
+            ("beltForceNewtons", 15), ("powerWatts", 15)
+        ]
+        advertisedMetrics = Dictionary(uniqueKeysWithValues: fields.map { ($0.0, bits & (1 << $0.1) != 0) })
+        distance = bits & 0x04 != 0
+        incline = bits & 0x08 != 0
+        speedTargets = bytes[4] & 1 != 0
+        inclineTargets = bytes[4] & 2 != 0
     }
 }
 

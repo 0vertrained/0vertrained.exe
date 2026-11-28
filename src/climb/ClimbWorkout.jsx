@@ -212,7 +212,7 @@ export function ClimbWorkout({ active, onUpdateActive, onSaveResult, unit, profi
         catch (e) { setError(e.message); } finally { setBusy(false); }
       }}>Record on Watch</button>}
       {onConnectWatch && <p className="t-s c2">{watch?.connected ? "Watch recording connected" + (watch.heartRate > 0 ? " · " + Math.round(watch.heartRate) + " bpm" : "") : "Open 0vertrained on your Watch and accept the indoor recording."}</p>}
-      <Equipment reading={treadmill} />
+      <Equipment reading={treadmill} distanceUnit={unit} />
   </>;
   const beginClimb = async () => {
     const latest = current.current;

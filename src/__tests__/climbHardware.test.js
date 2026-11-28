@@ -38,6 +38,12 @@ it("uses explicit health reads, the selected device, and detachable live notific
   expect(belt.addListener).toHaveBeenCalledWith("treadmillState", listener);
   expect(runs.climbRouteList).not.toHaveBeenCalled();
   expect(belt.scan).not.toHaveBeenCalled();
+  await scanTreadmills();
+  await scanTreadmills("peloton");
+  expect(belt.scan.mock.calls).toEqual([[], [{ mode: "peloton" }]]);
+  expect(belt.connect).not.toHaveBeenCalled();
+  expect(belt.arm).not.toHaveBeenCalled();
+  expect(belt.requestIncline).not.toHaveBeenCalled();
   await connectTreadmill("AA");
   expect(belt.connect).toHaveBeenCalledWith({ id: "AA" });
   await expect(listHealthRoutes("athlete")).resolves.toEqual([{ id: "run" }]);
@@ -56,5 +62,6 @@ it("uses explicit health reads, the selected device, and detachable live notific
   await disconnectTreadmill();
   expect(remove).toHaveBeenCalledTimes(1);
   expect(belt.disarm).toHaveBeenCalledTimes(1);
-  expect(belt.disconnect).toHaveBeenCalledTimes(1);
+  await disconnectTreadmill({ forget: true });
+  expect(belt.disconnect.mock.calls).toEqual([[], [{ forget: true }]]);
 });

@@ -48,3 +48,17 @@
 @media(max-width:390px){.cl-shell{padding-inline:10px}.cl-axis-end{margin-left:0}.cl-legend{gap:8px}.cl-next{align-items:flex-start}.cl-title h1{font-size:16px}}
 
 .cl-credit{padding:0 14px 10px;color:var(--ink-2);font:400 12px var(--f-ui)}
+.cl-report{display:grid;gap:12px;border-block-start:1px solid var(--line);padding-block-start:14px;min-width:0}
+.cl-report h4{margin:0;font:600 14px var(--f-ui)}
+.cl-report .btn{justify-self:start;white-space:normal}
+.cl-report textarea{width:100%;font:12px/1.5 var(--f-data);resize:vertical}
+.cl-report details>summary{padding:8px 0}
+.cl-report-facts{margin:0;font-size:.875rem}
+.cl-report-facts>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+.cl-report-facts dt,.cl-signal-table small{color:var(--ink-2)}
+.cl-report-facts dd{margin:0;overflow-wrap:anywhere}
+.cl-signal-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:.875rem;text-align:start}
+.cl-signal-table th,.cl-signal-table td{text-align:start;vertical-align:top;padding:7px 3px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.cl-signal-table thead{color:var(--ink-2)}
+.cl-signal-table small,.cl-device small{display:block;font:400 12px/1.4 var(--f-ui);color:var(--ink-2)}
+.cl-device{white-space:normal;overflow-wrap:anywhere}

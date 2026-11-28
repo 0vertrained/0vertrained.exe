@@ -29,3 +29,6 @@ swiftc ios/App/Shared/RehearsalCourse.swift ios/Tests/RehearsalCourseTests.swift
 
 swiftc ios/App/App/ClimbProtocol.swift ios/Tests/ClimbProtocolTests.swift -o "$out/climb-protocol"
 "$out/climb-protocol"
+
+swiftc ios/App/App/ClimbTreadmill.swift ios/Tests/ClimbDiscoveryTests.swift -o "$out/climb-discovery"
+"$out/climb-discovery"

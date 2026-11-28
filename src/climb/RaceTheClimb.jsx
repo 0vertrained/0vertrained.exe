@@ -159,7 +159,7 @@ function CourseSetup({ course, owner, unit, profile, onProfile, treadmill, resul
       {estimate && <label className="field"><span className="lbl">Console pace estimate · {clockText(beltPace*unitMeters(unit)/1000)} / {unit}</span>
         <input type="range" aria-label="Console pace estimate" min="180" max="1200" step="5" value={beltPace} onChange={e=>setBeltPace(+e.target.value)}/></label>}
     </div></details>
-    <Equipment reading={treadmill} />
+    <Equipment reading={treadmill} distanceUnit={unit} />
     {onScheduleCourse && <details className="cl-details"><summary>Schedule as my run</summary><div className="cl-detail-body">
       <div className="cl-fields"><label className="field"><span className="lbl">Training date</span><input className="input" type="date" value={date} onChange={e => { setDate(e.target.value); setSlot(""); setFeedback(""); }} /></label>
         <label className="field"><span className="lbl">Training slot</span><select className="input" value={slot} onChange={e => { setSlot(e.target.value); setFeedback(""); }}>

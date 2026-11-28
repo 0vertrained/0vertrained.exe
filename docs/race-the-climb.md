@@ -10,6 +10,12 @@ The Santa Fe Striders publish a GPX with two tracks for the Big Tesuque Trail Ru
 
 The iPhone native bridge reads supported treadmill telemetry. The versioned web runner uses fresh samples, journals progress locally and detects uncertain crossings after gaps. Personal course terrain downloads use an explicit location-area request to USGS. The bundled sample and profile view work without terrain service access. Model-specific automatic incline remains gated on physical qualification. Use manual incline cues on current production hardware. Install the updated iPhone and Watch apps through Xcode for Bluetooth, Health imports and Watch recording.
 
+### Check a gym treadmill
+
+In the rebuilt iPhone app, open **Train → Race the Climb → Treadmill connection**. Wake the console and tap **Find treadmills** to find machines that offer the Bluetooth Fitness Machine Service (FTMS). For a Peloton, **Look for Peloton** also finds nearby broadcasts with Peloton, Tread, or FitSwitch in the name. Tap your machine to check its services. A name match identifies a candidate, and an empty scan means the phone saw no matching broadcast during that search.
+
+You can run this check before starting a workout. As you use the treadmill, compare the speed, distance and grade on the console with the last values and their ages in the report. The incline verdict uses the machine’s target-incline flag and its Bluetooth control point. Moving the deck with its knob can produce a grade reading even on a machine that accepts no incline commands from apps. The report sends no movement commands. After disconnecting, use **Copy compatibility report** to keep the result before you scan again or leave Race the Climb.
+
 The sections below describe the full product design and physical release criteria.
 
 ## The workout worth building
