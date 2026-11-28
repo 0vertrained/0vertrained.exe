@@ -154,10 +154,16 @@ struct ClimbTelemetry {
     private(set) var incline: Value?
 
     mutating func update(_ frame: ClimbTreadmillFrame, uptime: TimeInterval, date: Date) {
+        update(speedMps: frame.speedMps, inclinePercent: frame.inclinePercent, uptime: uptime, date: date)
+        if let n = frame.distanceMeters {
+            distance = Value(number: Double(n), uptime: uptime, wallMilliseconds: date.timeIntervalSince1970 * 1000)
+        }
+    }
+
+    mutating func update(speedMps: Double?, inclinePercent: Double?, uptime: TimeInterval, date: Date) {
         func value(_ number: Double) -> Value { Value(number: number, uptime: uptime, wallMilliseconds: date.timeIntervalSince1970 * 1000) }
-        if let n = frame.speedMps { speed = value(n) }
-        if let n = frame.distanceMeters { distance = value(Double(n)) }
-        if let n = frame.inclinePercent { incline = value(n) }
+        if let n = speedMps { speed = value(n) }
+        if let n = inclinePercent { incline = value(n) }
     }
 }
 
@@ -180,7 +186,11 @@ struct ClimbControl {
     enum Stage: String { case manual, acquiring, armed, acknowledging, settling }
     private(set) var stage: Stage = .manual
     private(set) var token: UUID?
-    private(set) var target: Double?
+    private(set) var target: Double?       // Last deck command that was actually issued.
+    private(set) var desiredGrade: Double? // Latest course goal, renewed by the foreground workout.
+    private(set) var lastSequence = 0
+    private var goalDeadline = 0.0
+    static let goalLease: TimeInterval = 6
     private(set) var owner = ""
     private(set) var recordingID = ""
     private(set) var reason: String?
@@ -209,6 +219,9 @@ struct ClimbControl {
         origin = range.minimum
         target = incline.number
         stage = .acquiring
+        desiredGrade = nil
+        lastSequence = 0
+        goalDeadline = now + Self.goalLease
         lastWrite = now
         deadline = now + 4
         reason = nil
@@ -219,6 +232,9 @@ struct ClimbControl {
         stage = .manual
         token = nil
         target = nil
+        desiredGrade = nil
+        lastSequence = 0
+        goalDeadline = 0
         qualification = nil
         owner = ""
         recordingID = ""
@@ -232,21 +248,36 @@ struct ClimbControl {
             disarm("Automatic incline released. Check belt speed and deck grade on the console.")
             return
         }
-        if stage != .armed && now >= deadline {
+        if now >= goalDeadline {
+            disarm("Course target expired. Use the console to set incline.")
+        } else if stage != .armed && now >= deadline {
             disarm("The treadmill took too long to confirm its incline. Use the console.")
         } else if let actual = telemetry.incline?.number, let target {
-            if stage == .settling && abs(actual - target) <= q.tolerance { stage = .armed }
+            if stage == .settling && (telemetry.incline?.uptime ?? 0) >= lastWrite && abs(actual - target) <= q.tolerance { stage = .armed }
             else if stage == .armed && abs(actual - target) > q.tolerance {
                 disarm("The measured incline changed. The console now controls the deck.")
             }
         }
     }
 
-    mutating func request(grade: Double, owner: String, recordingID: String, token: UUID, now: Double,
-                          telemetry: ClimbTelemetry, foreground: Bool) -> Data? {
+    /// Only the active workout's newest sequence may change a goal or renew its lease.
+    @discardableResult
+    mutating func setGoal(grade: Double, sequence: Int, owner: String, recordingID: String, token: UUID,
+                          telemetry: ClimbTelemetry, foreground: Bool, now: Double) -> Bool {
         check(telemetry: telemetry, foreground: foreground, now: now)
-        guard stage == .armed, let q = qualification, owner == self.owner, recordingID == self.recordingID,
-              token == self.token, grade.isFinite, let actual = telemetry.incline?.number, now - lastWrite >= q.interval else { return nil }
+        guard active, owner == self.owner, recordingID == self.recordingID, token == self.token,
+              grade.isFinite, sequence > lastSequence, sequence <= 9_007_199_254_740_991 else { return false }
+        desiredGrade = min(bounds.upperBound, max(bounds.lowerBound, grade))
+        lastSequence = sequence
+        goalDeadline = now + Self.goalLease
+        return true
+    }
+
+    /// The native timer and the offline replay advance this same single outstanding procedure.
+    mutating func advance(telemetry: ClimbTelemetry, foreground: Bool, now: Double) -> Data? {
+        check(telemetry: telemetry, foreground: foreground, now: now)
+        guard stage == .armed, let q = qualification, let grade = desiredGrade,
+              let actual = telemetry.incline?.number, now - lastWrite >= q.interval else { return nil }
         let low = max(bounds.lowerBound, actual - q.maxChange)
         let high = min(bounds.upperBound, actual + q.maxChange)
         let lowTick = ceil((low - origin) / step - 0.000001)
@@ -287,5 +318,102 @@ struct ClimbControl {
             }
         default: break
         }
+    }
+}
+
+/// Offline only. This file has no CoreBluetooth dependency; command bytes emitted by the real
+/// controller are decoded into trace rows and cannot reach an actuator.
+enum ClimbInclineReplay {
+    enum Kind: String, Decodable {
+        case telemetry, arm, ack, target, tick, pause, background, disconnect, console
+    }
+    struct Event: Decodable {
+        var at: Double
+        var type: Kind
+        var speedMps: Double?
+        var inclinePercent: Double?
+        var grade: Double?
+        var sequence: Int?
+        var opcode: Int?
+        var ok: Bool?
+    }
+    struct InvalidInput: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
+    static let maxEvents = 60_000
+
+    static func run(events: [Event], cap: Double, simulateAcknowledgements: Bool) throws -> [[String: Any]] {
+        guard events.count <= maxEvents, cap.isFinite, (0...15).contains(cap) else {
+            throw InvalidInput(message: "Replay requires at most 60,000 events and a cap between 0% and 15%.")
+        }
+        // A local fixture only. It is never added to ClimbQualification.qualified.
+        let qualification = ClimbQualification(maker: "Replay", model: "Virtual deck", firmware: "1",
+            low: 0, high: 15, maxChange: 2, interval: 3, settleTimeout: 8, tolerance: 0.26)
+        let range = ClimbInclineRange(Data([0, 0, 150, 0, 5, 0]))!
+        let owner = "offline-replay", recordingID = "10000000-0000-4000-8000-000000000001"
+        var control = ClimbControl(), readings = ClimbTelemetry()
+        var rows: [[String: Any]] = []
+        rows.reserveCapacity(events.count)
+        var lastTime = 0.0
+        var acquired = false
+        for (index, event) in events.enumerated() {
+            func invalid() -> InvalidInput { InvalidInput(message: "Invalid replay event at index \(index).") }
+            let now = event.at
+            guard now.isFinite, now >= lastTime else { throw invalid() }
+            lastTime = now
+            var command: Data?
+            switch event.type {
+            case .telemetry:
+                guard event.speedMps != nil || event.inclinePercent != nil,
+                      event.speedMps.map({ $0.isFinite && $0 >= 0 }) ?? true,
+                      event.inclinePercent.map({ $0.isFinite && abs($0) <= 100 }) ?? true else { throw invalid() }
+                readings.update(speedMps: event.speedMps, inclinePercent: event.inclinePercent, uptime: now,
+                                date: Date(timeIntervalSince1970: now))
+            case .arm:
+                if !acquired {
+                    command = control.arm(owner: owner, recordingID: recordingID, cap: cap, confirmed: true,
+                        foreground: true, qualification: qualification, range: range, telemetry: readings, now: now)
+                    acquired = command != nil
+                }
+            case .ack:
+                guard let opcode = event.opcode, opcode == 0 || opcode == 3, let ok = event.ok else { throw invalid() }
+                control.check(telemetry: readings, foreground: true, now: now)
+                control.indication(Data([0x80, UInt8(opcode), ok ? 1 : 4]), now: now)
+            case .target:
+                guard let grade = event.grade, grade.isFinite, let sequence = event.sequence,
+                      (1...9_007_199_254_740_991).contains(sequence) else { throw invalid() }
+                if let token = control.token {
+                    control.setGoal(grade: grade, sequence: sequence, owner: owner, recordingID: recordingID,
+                                    token: token, telemetry: readings, foreground: true, now: now)
+                }
+            case .tick:
+                command = control.advance(telemetry: readings, foreground: true, now: now)
+            case .console:
+                guard let grade = event.grade, grade.isFinite, abs(grade) <= 100 else { throw invalid() }
+                let tenths = UInt16(bitPattern: Int16((grade * 10).rounded()))
+                control.machineStatus(Data([0x06, UInt8(truncatingIfNeeded: tenths), UInt8(tenths >> 8)]))
+            case .background:
+                if control.active { control.disarm("Automatic incline released while the app is inactive.") }
+            case .pause:
+                if control.active { control.disarm("Manual incline. Check the deck on the console.") }
+            case .disconnect:
+                if control.active { control.disarm("Treadmill disconnected. Reconnect or continue with manual readings.") }
+            }
+            var row: [String: Any] = ["at": now, "type": event.type.rawValue]
+            if let command, let opcode = command.first {
+                row["command"] = opcode == 0 ? "acquire" : "incline"
+                if opcode == 3 { row["commandGrade"] = control.target }
+                if simulateAcknowledgements { control.indication(Data([0x80, opcode, 0x01]), now: now) }
+            }
+            control.check(telemetry: readings, foreground: true, now: now)
+            row["stage"] = control.stage.rawValue
+            row["desiredGrade"] = control.desiredGrade
+            row["targetGrade"] = control.target
+            row["measuredGrade"] = readings.incline?.number
+            row["reason"] = control.reason
+            rows.append(row)
+        }
+        return rows
     }
 }

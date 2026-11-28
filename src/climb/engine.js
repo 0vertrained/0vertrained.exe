@@ -1,3 +1,4 @@
+import { accountSectionTerrain, gradeSamples } from "./sectionTerrain";
 import { curveValue, gradeAt } from "./course";
 export { matchRecordedGhost, withRecordedGhost } from "./matchGhost";
 export { SAMPLE_COURSE, MAX_GPX_BYTES, importClimbGpx, listClimbGpxSegments,
@@ -65,7 +66,11 @@ export function updateClimb(course, state, event) {
   const prev = state.sensor;
   const handoff = !prev || prev.source !== source || rebase || meters < prev.meters;
   const estimated = Boolean(event.estimated) || source === "watch" || source === "pace";
-  const sensor = { source, meters, now };
+  const continuous = !handoff && !discontinuity && !estimated && prev.estimated !== true &&
+    event.measuredDistanceTime !== false && prev.measuredDistanceTime !== false;
+  const grades = event.measuredDistanceTime === false ? [] : gradeSamples({...event,now}, prev, continuous);
+  const sensor = {source, meters, now, estimated, measuredDistanceTime:event.measuredDistanceTime !== false,
+    gradeEpoch:continuous ? prev.gradeEpoch ?? prev.now : now, ...(grades.length > 0 && {gradeSample:grades.at(-1)})};
   const previousMeters = state.distanceMeters;
   let delta;
   if (source === "manual") {
@@ -104,7 +109,8 @@ export function updateClimb(course, state, event) {
   const endedAt = finish ? (finishTime == null ? now : state.startedAt + finishTime * 1000) : null;
   const trace = trailWith(state.trace, { meters: target, elapsedSeconds: finish ? (endedAt-state.startedAt)/1000 : elapsedSeconds });
   const uncertain = state.uncertain || (step > 0 && (missing || estimated)) || !!(prev && handoff && source !== "manual");
-  return { ...state, status: finish ? "finished" : "active", endedAt, lastAt: now, distanceMeters: target, sensor, marks, estimated,
+  const terrain = accountSectionTerrain(course,state,{target,delta,event:{...event,now},continuous:continuous && !sparse,grades});
+  return { ...state, ...terrain, status: finish ? "finished" : "active", endedAt, lastAt: now, distanceMeters: target, sensor, marks, estimated,
     uncertain, trace, verifiedMeters: state.verifiedMeters + (estimated ? 0 : step) };
 }
 

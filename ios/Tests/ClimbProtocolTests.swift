@@ -62,8 +62,84 @@ struct ClimbProtocolTests {
         precondition(single.speedTargets && !single.inclineTargets)
     }
 
-    static func main() {
+    static func sustainedFollower() throws {
+        typealias E = ClimbInclineReplay.Event
+        typealias Trace = [[String: Any]]
+        func simulate(_ events: [E], cap: Double = 10, autoAck: Bool = true) throws -> Trace {
+            try ClimbInclineReplay.run(events: events, cap: cap, simulateAcknowledgements: autoAck)
+        }
+        func commands(_ trace: Trace) -> [Double] { trace.compactMap { $0["commandGrade"] as? Double } }
+        let begin = [E(at: 0, type: .telemetry, speedMps: 3, inclinePercent: 0), E(at: 0,type: .arm)]
+        let goal = E(at: 0.1,type: .target,grade: 8,sequence: 1)
+        let warm = begin + [goal, E(at: 1,type: .tick), E(at: 3,type: .tick)]
+        var hill = warm
+        for grade in 1...3 {
+            let now = Double(grade * 3)
+            hill.append(E(at: now + 1,type: .telemetry,speedMps: 3,inclinePercent: Double(grade * 2)))
+            hill.append(E(at: now + 1,type: .target,grade: 8,sequence: grade + 1))
+            hill.append(E(at: now + 3,type: .tick))
+        }
+        hill += [E(at: 13,type: .telemetry,speedMps: 3,inclinePercent: 8),E(at: 15,type: .tick)]
+        let trace = try simulate(hill)
+        precondition(commands(trace) == [2,4,6,8])
+        precondition(trace.last?["stage"] as? String == "armed" && trace.last?["targetGrade"] as? Double == 8)
+
+        let clipped = try simulate(Array(hill.prefix(8)), cap: 3.2)
+        precondition(commands(clipped) == [2,3] && clipped.last?["desiredGrade"] as? Double == 3.2)
+
+        // A newer target while settling replaces the hill. Out-of-order requests never restore the old grade.
+        let change = try simulate(warm + [E(at: 3.1,type:.target,grade:1,sequence:3), E(at:3.2,type:.target,grade:12,sequence:2),
+            E(at:4,type:.telemetry,speedMps:3,inclinePercent:2), E(at:6,type:.tick)])
+        precondition(commands(change) == [2,1] && change.last?["desiredGrade"] as? Double == 1)
+        let expired = try simulate(warm + [E(at:4,type:.telemetry,speedMps:3,inclinePercent:2),
+            E(at:5,type:.target,grade:8,sequence:1), E(at:6.11,type:.tick), E(at:7,type:.target,grade:4,sequence:2)])
+        precondition(commands(expired) == [2] && expired.last?["stage"] as? String == "manual")
+        precondition((expired.last?["reason"] as? String)?.contains("expired") == true && expired.last?["desiredGrade"] == nil)
+
+        for action in [E(at:3.2,type:.pause), E(at:3.2,type:.background), E(at:3.2,type:.disconnect),
+                       E(at:3.2,type:.console,grade:7), E(at:3.2,type:.telemetry,speedMps:0)] {
+            let ended = try simulate(warm + [action, E(at:3.3,type:.ack,opcode:3,ok:true),
+                E(at:4,type:.target,grade:12,sequence:2), E(at:6,type:.tick), E(at:7,type:.arm)])
+            precondition(commands(ended) == [2] && ended.last?["stage"] as? String == "manual")
+            precondition(ended[ended.count-1]["reason"] as? String == ended[ended.count-5]["reason"] as? String)
+        }
+        let explicit = begin + [E(at:0.1,type:.ack,opcode:0,ok:true),goal,E(at:3,type:.tick)]
+        let pending = try simulate(explicit + [E(at:4,type:.telemetry,speedMps:3,inclinePercent:2),
+            E(at:5,type:.target,grade:8,sequence:2),E(at:6,type:.tick),E(at:7,type:.ack,opcode:3,ok:true),
+            E(at:8,type:.tick)],autoAck:false)
+        precondition(commands(pending) == [2] && pending.last?["stage"] as? String == "manual")
+        let dropping = try simulate(warm + [E(at:4,type:.target,grade:8,sequence:2),E(at:5,type:.tick)])
+        precondition(dropping.last?["stage"] as? String == "manual")
+        let noFeedback = try simulate(warm + [E(at:4,type:.telemetry,speedMps:3,inclinePercent:0),
+            E(at:5,type:.target,grade:8,sequence:2), E(at:8,type:.telemetry,speedMps:3,inclinePercent:0),
+            E(at:9,type:.target,grade:8,sequence:3), E(at:11,type:.tick)])
+        precondition(commands(noFeedback) == [2] && noFeedback.last?["stage"] as? String == "manual")
+        let denied = try simulate(begin + [E(at: 1,type:.ack,opcode:0,ok:false)],autoAck:false)
+        precondition(denied.last?["stage"] as? String == "manual")
+        do {
+            _ = try simulate([E(at:1,type:.tick),E(at:0,type:.tick)])
+            preconditionFailure("Reordered timestamps accepted")
+        } catch is ClimbInclineReplay.InvalidInput {}
+        precondition(ClimbQualification.qualified.isEmpty)
+    }
+
+    static func main() throws {
+        // Allows the web differential fixture runner to submit the identical JSON timeline.
+        if CommandLine.arguments.contains("--replay-stdin") {
+            struct Input: Decodable {
+                var events: [ClimbInclineReplay.Event]
+                var cap: Double
+                var simulateAcknowledgements: Bool?
+            }
+            let input = try JSONDecoder().decode(Input.self, from: FileHandle.standardInput.readDataToEndOfFile())
+            let rows = try ClimbInclineReplay.run(events: input.events, cap: input.cap,
+                                                  simulateAcknowledgements: input.simulateAcknowledgements ?? false)
+            let json = try JSONSerialization.data(withJSONObject: ["version": 1, "rows": rows])
+            FileHandle.standardOutput.write(json)
+            return
+        }
         metricReports()
+        try sustainedFollower()
         // A speed of 10.80 km/h, 0x010203 metres and -1.2% inclination.
         let bytes = Data([0x0e,0, 0x38,0x04, 0x38,0x04, 3,2,1, 0xf4,0xff, 0xf9,0xff])
         let frame = ClimbTreadmillFrame(bytes)!
@@ -108,8 +184,13 @@ struct ClimbProtocolTests {
         let generation = c.token!
         c.indication(Data([0x80,0x00,1]),now:0.2)
         precondition(c.stage == .armed)
+        var sequence = 0
         func request(_ c: inout ClimbControl, _ grade: Double, _ at: Double, _ current: UInt8 = 0, owner: String = "a", token: UUID? = nil) -> Data? {
-            c.request(grade:grade, owner:owner, recordingID:id, token:token ?? generation, now:at, telemetry:readings(at,current), foreground:true)
+            sequence += 1
+            let telemetry = readings(at,current)
+            guard c.setGoal(grade:grade, sequence:sequence, owner:owner, recordingID:id, token:token ?? generation,
+                            telemetry:telemetry, foreground:true, now:at) else { return nil }
+            return c.advance(telemetry:telemetry, foreground:true, now:at)
         }
         precondition(request(&c,12,1) == nil) // rate limit
         precondition(request(&c,12,2,owner:"b") == nil)

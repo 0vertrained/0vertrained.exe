@@ -42,9 +42,9 @@ export async function armTreadmill({ owner, recordingId, capPercent, confirmed }
   if (!climbHardwareAvailable()) throw new Error("Treadmill control is unavailable.");
   return belt().arm({ owner, recordingId, capPercent, confirmed });
 }
-export async function requestTreadmillIncline({ owner, recordingId, armToken, grade }) {
+export async function requestTreadmillIncline({ owner, recordingId, armToken, grade, sequence }) {
   if (!climbHardwareAvailable()) throw new Error("Treadmill control is unavailable.");
-  return belt().requestIncline({ owner, recordingId, armToken, grade });
+  return belt().requestIncline({ owner, recordingId, armToken, grade, sequence });
 }
 export async function disarmTreadmill() {
   if (typeof belt()?.disarm === "function") return belt().disarm();

@@ -40,7 +40,7 @@ function attemptSummary(envelope, owner) {
       !Array.isArray(run.marks)) return null;
   const fields = ["id", "recordingId", "owner", "courseId", "courseRevision", "name", "reference", "paceSecondsPerKm",
     "status", "startedAt", "endedAt", "distanceMeters", "verifiedMeters", "marks", "estimated", "uncertain",
-    "deckObservedMeters", "deckMatchedMeters", "deckLimitedMeters"];
+    "deckObservedMeters", "deckMatchedMeters", "deckLimitedMeters", "terrainSections", "legacyDeckTotals"];
   const summary = Object.fromEntries(fields.filter(key => run[key] !== undefined).map(key => [key, run[key]]));
   return { course: courseSummary(course), run: summary, dateKey };
 }

@@ -16,6 +16,16 @@ In the rebuilt iPhone app, open **Train → Race the Climb → Treadmill connect
 
 You can run this check before starting a workout. As you use the treadmill, compare the speed, distance and grade on the console with the last values and their ages in the report. The incline verdict uses the machine’s target-incline flag and its Bluetooth control point. Moving the deck with its knob can produce a grade reading even on a machine that accepts no incline commands from apps. The report sends no movement commands. After disconnecting, use **Copy compatibility report** to keep the result before you scan again or leave Race the Climb.
 
+Open **Guided Peloton check** and enter the name on the physical treadmill. The Bluetooth name is shown separately because a transmitter can be an adapter. Tap **Start baseline walk**, walk at a steady grade, then tap **Mark manual incline change** as you turn the knob. When the deck settles, tap **Begin observation**, then **Finish check → Save machine check**. The report shows the baseline and observed grade, the time from your marker to a reported change, and interruptions. A silent transmitter can still be saved as a partial check. You control the deck throughout.
+
+### Replay a climb
+
+Select a course in **Train → Race the Climb** and open **Session replay**. Choose a saved check, a saved indoor climb with belt readings, or the demo. Set a starting distance and incline cap, then tap **Run replay**. Scrub the timeline to compare course grade, the controller’s requested incline, and the grade the transmitter actually reported. Try a disconnect, phone backgrounding, or console override to see when the controller releases. Replay runs offline. Its virtual deck simulates acknowledgments, accepts 0–15% grades in half-point increments, and limits changes to two percentage points every three seconds. An 8% sustained hill can take several confirmed steps to reach. A successful simulation does not qualify a physical treadmill for automatic incline.
+
+### Read the section results
+
+After saving a timed climb, open **Climbing by section** in the debrief or workout history. Each landmark shows the course ascent, estimated belt ascent, and how much of the attempted distance had both a belt counter and deck incline. The reproduced percentage compares ascent over the same measured stretch, so a dropout cannot turn missing climbing into zero. Flat sections have no ascent percentage. A partial finish shows the distance you reached. **Practice this climb** reopens the largest well-measured climbing deficit when the course is on this device. Detailed belt readings and machine checks stay on the recording device. The workout log can sync the section totals.
+
 The sections below describe the full product design and physical release criteria.
 
 ## The workout worth building

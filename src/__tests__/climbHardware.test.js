@@ -52,7 +52,7 @@ it("uses explicit health reads, the selected device, and detachable live notific
   await expect(importHealthRoute("run", "athlete")).resolves.toBe("<gpx/>");
   expect(runs.climbRoute).toHaveBeenCalledWith({ id: "run", owner: "athlete" });
   const consent = { owner: "a", recordingId: "r", capPercent: 4, confirmed: true };
-  const intent = { owner: "a", recordingId: "r", armToken: "generation", grade: 3 };
+  const intent = { owner: "a", recordingId: "r", armToken: "generation", grade: 3, sequence: 5 };
   await armTreadmill(consent);
   await requestTreadmillIncline(intent);
   expect(belt.arm).toHaveBeenCalledWith(consent);

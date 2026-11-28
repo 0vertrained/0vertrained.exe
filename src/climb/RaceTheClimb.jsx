@@ -4,6 +4,7 @@ import { useConfirm } from "../ui/ConfirmDialog";
 import { buildIndoorGhost, climbReadout, SAMPLE_COURSE, selectClimb, startClimb, withRecordedGhost } from "./engine";
 import { ClimbScene, clockText, distanceText, gainText, unitMeters } from "./ClimbScene";
 import { Equipment, useTreadmill } from "./ClimbEquipment";
+import { SessionReplay } from "./SessionReplay.jsx";
 import { ClimbImports } from "./ClimbImports";
 import { ClimbWorkout, Debrief, Metric } from "./ClimbWorkout";
 import "./raceTheClimb.css";
@@ -80,7 +81,7 @@ function Preview({ course, unit, profile, onProfile, reference, indoorGhost, pac
 }
 
 function CourseSetup({ course, owner, unit, profile, onProfile, treadmill, results, initialSetup, scheduledSlot, todayKey, getScheduleSlots,
-  onScheduleCourse, onUpdateActive, onCourse, watchReading }) {
+  onScheduleCourse, onUpdateActive, onCourse, onSaveCheck, watchReading }) {
   const ghosts = useMemo(() => results.map(({ run, dateKey }) => {
     const ghost = buildIndoorGhost(course, run);
     return ghost ? { ghost, dateKey } : null;
@@ -159,7 +160,7 @@ function CourseSetup({ course, owner, unit, profile, onProfile, treadmill, resul
       {estimate && <label className="field"><span className="lbl">Console pace estimate · {clockText(beltPace*unitMeters(unit)/1000)} / {unit}</span>
         <input type="range" aria-label="Console pace estimate" min="180" max="1200" step="5" value={beltPace} onChange={e=>setBeltPace(+e.target.value)}/></label>}
     </div></details>
-    <Equipment reading={treadmill} distanceUnit={unit} />
+    <Equipment reading={treadmill} distanceUnit={unit} onSaveCheck={onSaveCheck} />
     {onScheduleCourse && <details className="cl-details"><summary>Schedule as my run</summary><div className="cl-detail-body">
       <div className="cl-fields"><label className="field"><span className="lbl">Training date</span><input className="input" type="date" value={date} onChange={e => { setDate(e.target.value); setSlot(""); setFeedback(""); }} /></label>
         <label className="field"><span className="lbl">Training slot</span><select className="input" value={slot} onChange={e => { setSlot(e.target.value); setFeedback(""); }}>
@@ -170,7 +171,7 @@ function CourseSetup({ course, owner, unit, profile, onProfile, treadmill, resul
   </>;
 }
 
-function AthleteClimb({ owner, courses = empty, results = empty, active, onUpdateActive, onSaveCourse, onDeleteCourse, onSaveResult, onScheduleCourse, initialCourse,
+function AthleteClimb({ owner, courses = empty, results = empty, checks = empty, onSaveCheck, onDeleteCheck, active, onUpdateActive, onSaveCourse, onDeleteCourse, onSaveResult, onScheduleCourse, initialCourse,
   initialSetup, initialHealthRun, scheduledSlot, getScheduleSlots, todayKey, watchReading, onConnectWatch, courseSources, storageError, missingCourse }) {
   const [selected, setSelected] = useState(validCourse(initialCourse) ? initialCourse : SAMPLE_COURSE);
   const [unit, setUnit] = useState(() => { try { return owner && localStorage.getItem("0vt.climb.units."+owner)==="mi" ? "mi" : "km"; } catch { return "km"; } });
@@ -197,7 +198,7 @@ function AthleteClimb({ owner, courses = empty, results = empty, active, onUpdat
   return <div className="cl-shell"><div className="cl-title"><h1>Race the Climb</h1><label><span className="sr-only">Distance units</span>
     <select aria-label="Distance units" value={unit} className="input" onChange={e => { const next=e.target.value;setUnit(next);try { if(owner)localStorage.setItem("0vt.climb.units."+owner,next); } catch { /* This choice still applies in memory. */ } }}><option value="km">km</option><option value="mi">mi</option></select></label></div>
     {active && validCourse(active.course) && active.run?.owner === owner ? <ClimbWorkout key={active.run.id} {...{
-      active, onUpdateActive, onSaveResult, unit, profile, onProfile: setProfile, treadmill, watchReading, onConnectWatch,
+      active, onUpdateActive, onSaveResult, unit, profile, onProfile: setProfile, treadmill, watchReading, onConnectWatch, onSaveCheck,
     }} onSaved={value => {
       setRecent(value); setSelected(value.course);
     }} /> : <>
@@ -207,7 +208,8 @@ function AthleteClimb({ owner, courses = empty, results = empty, active, onUpdat
         onChange={e => setSelected(library.find(c => c.revision === e.target.value) || SAMPLE_COURSE)}>
         {library.map(c => <option value={c.revision} key={c.revision}>{c.name}{c.ghostName ? " · " + c.ghostName : ""} · {distanceText(c.distanceMeters,unit)}</option>)}</select></label>}
       <CourseSetup key={selected.revision} course={selected} {...{ owner, unit, profile, onProfile:setProfile, treadmill, results:history,
-        initialSetup:initialCourse?.revision === selected.revision ? initialSetup : null, scheduledSlot, todayKey, getScheduleSlots, onScheduleCourse, onUpdateActive, watchReading }} onCourse={saveCourse} />
+        initialSetup:initialCourse?.revision === selected.revision ? initialSetup : null, scheduledSlot, todayKey, getScheduleSlots, onScheduleCourse, onUpdateActive, onSaveCheck, watchReading }} onCourse={saveCourse} />
+      <SessionReplay course={selected} unit={unit} checks={checks} onDelete={onDeleteCheck} confirm={confirm}/>
       <ClimbImports initialHealthRun={initialHealthRun} selectedName={selected.name} onGhost={selected.source === "sample" ? null : recorded => saveCourse(withRecordedGhost(selected, recorded))}
         onCourse={saveCourse} owner={owner} courseSources={courseSources} />
       {onDeleteCourse && selected.revision !== SAMPLE_COURSE.revision && <button type="button" className="btn btn-g" onClick={async () => {

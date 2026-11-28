@@ -118,7 +118,7 @@ import UIKit
 public final class ClimbTreadmill: CAPPlugin, CAPBridgedPlugin, CBCentralManagerDelegate, CBPeripheralDelegate {
     public let identifier = "ClimbTreadmill"
     public let jsName = "OTClimb"
-    public let pluginMethods: [CAPPluginMethod] = ["status", "scan", "connect", "disconnect", "arm", "requestIncline", "disarm"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["status", "scan", "connect", "disconnect", "arm", "requestIncline", "disarm", "replayIncline"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
 
@@ -220,7 +220,14 @@ public final class ClimbTreadmill: CAPPlugin, CAPBridgedPlugin, CBCentralManager
         watchdog = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self, self.control.active else { return }
             let previous = self.control.stage
-            self.control.check(telemetry: self.telemetry, foreground: self.foreground, now: self.uptime)
+            guard self.phase == "connected", self.qualified != nil, let device = self.selected, let point = self.controlPoint else {
+                self.releaseControl("Treadmill capability information changed.")
+                self.emit()
+                return
+            }
+            if let packet = self.control.advance(telemetry: self.telemetry, foreground: self.foreground, now: self.uptime) {
+                device.writeValue(packet, for: point, type: .withResponse)
+            }
             self.reconcileControl(true)
             if self.control.stage != previous { self.emit() }
         }
@@ -228,20 +235,40 @@ public final class ClimbTreadmill: CAPPlugin, CAPBridgedPlugin, CBCentralManager
 
     @objc func requestIncline(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            guard self.phase == "connected", self.qualified != nil, let device = self.selected, let point = self.controlPoint,
+            guard self.phase == "connected", self.qualified != nil,
                   let token = UUID(uuidString: call.getString("armToken") ?? ""), token == self.control.token,
                   let owner = call.getString("owner"), owner == self.control.owner,
                   let recording = call.getString("recordingId"), recording == self.control.recordingID,
-                  let grade = call.getDouble("grade") else {
+                  let grade = call.getDouble("grade"), grade.isFinite, let seq = call.getInt("sequence"),
+                  (1...9_007_199_254_740_991).contains(seq) else {
                 call.reject("Control session expired. Use the console."); return
             }
-            if let packet = self.control.request(grade: grade, owner: owner, recordingID: recording, token: token,
-                    now: self.uptime, telemetry: self.telemetry, foreground: self.foreground) {
-                device.writeValue(packet, for: point, type: .withResponse)
-            }
+            // A late bridge request cannot overwrite or extend a newer course target.
+            self.control.setGoal(grade: grade, sequence: seq, owner: owner, recordingID: recording, token: token,
+                                 telemetry: self.telemetry, foreground: self.foreground, now: self.uptime)
             self.reconcileControl(true)
             self.emit()
             call.resolve(self.snapshot())
+        }
+    }
+
+    /// Replay is deliberately separate from the live bridge: only value types enter this work item.
+    @objc func replayIncline(_ call: CAPPluginCall) {
+        guard let raw = call.getArray("events"), raw.count <= ClimbInclineReplay.maxEvents else {
+            call.reject("Provide a bounded incline replay timeline.")
+            return
+        }
+        let cap = call.getDouble("cap") ?? 10
+        let simulatedAcks = call.getBool("simulateAcknowledgements") == true
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let json = try JSONSerialization.data(withJSONObject: raw)
+                let events = try JSONDecoder().decode([ClimbInclineReplay.Event].self, from: json)
+                let rows = try ClimbInclineReplay.run(events: events, cap: cap, simulateAcknowledgements: simulatedAcks)
+                call.resolve(["version": 1, "rows": rows])
+            } catch {
+                call.reject("Could not replay incline events. " + error.localizedDescription)
+            }
         }
     }
 
@@ -401,7 +428,7 @@ public final class ClimbTreadmill: CAPPlugin, CAPBridgedPlugin, CBCentralManager
     private func snapshot() -> [String: Any] {
         let now = ProcessInfo.processInfo.systemUptime
         var value: [String: Any] = [
-            "scan": scanEvidence.snapshot,
+            "scan": scanEvidence.snapshot, "inclineFollowerVersion": 1,
             "status": phase, "autoIncline": qualified != nil, "controlStage": control.stage.rawValue,
             "fresh": telemetry.distance?.fresh(now) == true || telemetry.speed?.fresh(now) == true,
             "devices": devices.keys.sorted { (names[$0] ?? "", $0.uuidString) < (names[$1] ?? "", $1.uuidString) }
@@ -411,6 +438,7 @@ public final class ClimbTreadmill: CAPPlugin, CAPBridgedPlugin, CBCentralManager
         value["message"] = control.reason ?? message
         value["armToken"] = control.token?.uuidString
         value["targetIncline"] = control.target
+        value["desiredIncline"] = control.desiredGrade
         value["deviceId"] = selected?.identifier.uuidString
         value["deviceName"] = selected.flatMap { names[$0.identifier] }
         value["connectionId"] = connectionID

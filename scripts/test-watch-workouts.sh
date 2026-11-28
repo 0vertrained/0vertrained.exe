@@ -29,6 +29,9 @@ swiftc ios/App/Shared/RehearsalCourse.swift ios/Tests/RehearsalCourseTests.swift
 
 swiftc ios/App/App/ClimbProtocol.swift ios/Tests/ClimbProtocolTests.swift -o "$out/climb-protocol"
 "$out/climb-protocol"
+if command -v node >/dev/null 2>&1; then
+    node scripts/verify-incline-parity.mjs "$out/climb-protocol"
+fi
 
 swiftc ios/App/App/ClimbTreadmill.swift ios/Tests/ClimbDiscoveryTests.swift -o "$out/climb-discovery"
 "$out/climb-discovery"

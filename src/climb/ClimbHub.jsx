@@ -5,6 +5,7 @@ import { validCourseDate } from "../rehearsal/course";
 import { SAMPLE_COURSE, buildClimbCourse, climbReadout } from "./engine";
 import { changeClimbLibrary, packActiveClimb, readClimbLibrary } from "./library";
 import { climbHistory, climbSlots, courseSummary } from "./ledger";
+import { workoutReplayCheck } from "./workoutCapture";
 import RaceTheClimb from "./RaceTheClimb";
 
 const SOURCES = [
@@ -64,6 +65,10 @@ export default function ClimbHub({ owner, entries, program, todayKey, onSaveProg
     return () => { current = false; };
   }, [owner, retry]);
   const watch = useClimbWatch(owner, lib?.active);
+  const replayChecks = useMemo(() => [
+    ...(lib?.checks || []),
+    ...(lib?.results || []).map(workoutReplayCheck).filter(Boolean),
+  ], [lib?.checks, lib?.results]);
   const schedule = program?.__climbs?.[todayKey];
   const scheduled = schedule && (lib?.courses.find(c => c.revision === schedule.revision) || (SAMPLE_COURSE.revision === schedule.revision ? SAMPLE_COURSE : null));
   const rehearsal = useMemo(() => {
@@ -98,6 +103,17 @@ export default function ClimbHub({ owner, entries, program, todayKey, onSaveProg
   return <>
     {fromToday && schedule && !scheduled && <p role="status" className="banner">Today's course, {schedule.name}, is saved on another device. Import that course file here to use it.</p>}
     <RaceTheClimb owner={owner} initialHealthRun={initialHealthRun} todayKey={todayKey} courses={courses} active={lib.active} results={[...resultMap.values()]} courseSources={SOURCES}
+      checks={replayChecks}
+      onSaveCheck={check => serialize(async () => {
+        if (check?.version !== 1 || !check.id || !Array.isArray(check.samples) || !Number.isFinite(check.endedAt)) throw new Error("Finish this treadmill check before saving.");
+        await changeClimbLibrary(owner, [["check/" + check.id, check]]);
+        setLib(before => ({ ...before, checks: [check, ...before.checks.filter(item => item.id !== check.id)] }));
+        return true;
+      })}
+      onDeleteCheck={id => serialize(async () => {
+        await changeClimbLibrary(owner, [["check/" + id, null]]);
+        setLib(before => ({ ...before, checks: before.checks.filter(item => item.id !== id) }));
+      })}
       initialCourse={initialSetup ? scheduled : null} initialSetup={initialSetup} watchReading={watch.reading} onConnectWatch={watch.connect}
       getScheduleSlots={date => climbSlots(program, entries, date)}
       onSaveCourse={course => serialize(() => storeCourse(course))}

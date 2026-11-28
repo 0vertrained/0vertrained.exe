@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nativeHaptic, nativeKeepAwake } from "../native";
 import { useConfirm } from "../ui/ConfirmDialog";
-import { climbReadout, finishClimb, gradeAt, selectClimb, startClimb, updateClimb } from "./engine";
+import { climbReadout, finishClimb, selectClimb, startClimb, updateClimb } from "./engine";
 import { ClimbScene, clockText, distanceText, gapText, unitMeters } from "./ClimbScene";
+import { SectionTerrain } from "./SectionClimbing";
 import { Equipment, QualifiedIncline } from "./ClimbEquipment";
+import { WorkoutBeltCapture } from "./workoutCapture";
 
 export function Metric({ label, children }) {
   return <div className="cl-metric"><span className="lbl">{label}</span><strong>{children}</strong></div>;
@@ -31,18 +33,6 @@ function SplitReplay({course, run, mark, unit}) {
   </div>;
 }
 
-function accumulateGrade(course,before,after,packet,continuous,cap) {
-  const delta=after.distanceMeters-before.distanceMeters;
-  if (!continuous || delta<=0 || !Number.isFinite(packet.inclinePercent) || !Number.isFinite(packet.inclineAt) ||
-      Math.abs(packet.sampleAt-packet.inclineAt)>3000) return after;
-  const grade=gradeAt(course,(before.distanceMeters+after.distanceMeters)/2);
-  if (!Number.isFinite(grade)) return after;
-  const match=Math.abs(grade-packet.inclinePercent)<=1, limited=grade<0 || grade>cap;
-  return {...after,deckObservedMeters:(before.deckObservedMeters||0)+delta,
-    deckMatchedMeters:(before.deckMatchedMeters||0)+(match?delta:0),
-    deckLimitedMeters:(before.deckLimitedMeters||0)+(limited?delta:0)};
-}
-
 export function Debrief({ course, run, unit, onRepeat }) {
   const [shown, setShown] = useState(null);
   const marks = (run.marks || []).filter(m => m.meters > .001);
@@ -63,7 +53,7 @@ export function Debrief({ course, run, unit, onRepeat }) {
     <p className="t-s c2">{run.reference === "recorded" ? "Outdoor recorded reference" : run.reference === "indoor" ? "Indoor recorded reference" : run.reference === "solo" ? "Solo run" : "Target pacer"}
       {run.distanceMeters > 0 && Number.isFinite(run.verifiedMeters) && " · " + Math.min(100,Math.round(100*run.verifiedMeters/run.distanceMeters)) + "% distance from console or belt"}
       {run.uncertain && " · Estimated or sparse intervals"}</p>
-    {run.deckObservedMeters > 0 ? <p className="t-s c2">Measured deck over {distanceText(run.deckObservedMeters,unit)} · {Math.round(100*(run.deckMatchedMeters||0)/run.deckObservedMeters)}% within one percentage point of course grade{run.deckLimitedMeters > 0 && " · " + distanceText(run.deckLimitedMeters,unit) + " outside your cue range"}</p>
+    {run.terrainSections?.length ? <SectionTerrain {...{course,run,unit,onRepeat}}/> : run.deckObservedMeters > 0 ? <p className="t-s c2">Measured deck over {distanceText(run.deckObservedMeters,unit)} · {Math.round(100*(run.deckMatchedMeters||0)/run.deckObservedMeters)}% within one percentage point of course grade{run.deckLimitedMeters > 0 && " · " + distanceText(run.deckLimitedMeters,unit) + " outside your cue range"}</p>
       : <p className="t-s c2">Actual deck incline was unmeasured.</p>}
     {marks.length > 0 ? <ol className="cl-splits" aria-label="Climb splits">{marks.map((m, index) =>
       <li key={m.id}><button type="button" className="cl-split" aria-expanded={shown === m.id} onClick={() => select(m)}>
@@ -89,7 +79,7 @@ function useRaceClock(live) {
   return now;
 }
 
-export function ClimbWorkout({ active, onUpdateActive, onSaveResult, unit, profile, onProfile, treadmill, watchReading, onConnectWatch, onSaved }) {
+export function ClimbWorkout({ active, onUpdateActive, onSaveResult, unit, profile, onProfile, treadmill, watchReading, onConnectWatch, onSaved, onSaveCheck }) {
   const { course, run } = active;
   const phase = active.phase || "climb";
   const extra = phase === "warmup" || phase === "cooldown";
@@ -106,12 +96,27 @@ export function ClimbWorkout({ active, onUpdateActive, onSaveResult, unit, profi
   const saving = useRef(false);
   const { confirm, confirmDialog } = useConfirm();
   const lastSample = useRef(active.lastSample || null);
+  const beltCapture = useRef(null);
+  const deck = useRef({connection:null, grades:[]});
   const current = useRef(active);
   useEffect(() => { current.current = active; }, [active]);
+  useEffect(() => {
+    const visibility = () => {
+      if (beltCapture.current && current.current.run.status==="active" && (!current.current.phase || current.current.phase==="climb")) {
+        beltCapture.current.interrupt(document.hidden ? "background" : "foreground", Date.now());
+      }
+    };
+    document.addEventListener("visibilitychange",visibility);
+    return () => document.removeEventListener("visibilitychange",visibility);
+  }, []);
   const commit = useCallback(async payload => {
     const last = current.current;
     const recording = payload.recording || { startedAt:payload.run.startedAt, baseMeters:0, extraMeters:0 };
     const next = {...payload, recording:{...recording, distanceMeters: (recording.baseMeters || 0) + (payload.phase === "warmup" ? 0 : payload.run.distanceMeters) + (recording.extraMeters || 0)}};
+    const capture = beltCapture.current;
+    if (capture?.id === next.run.id && capture.startedAt === next.run.startedAt && capture.data.rows.length) {
+      next.run = {...next.run,beltReplay:capture.data};
+    }
     current.current = next;
     try {
       if (await onUpdateActive(next) === false) throw new Error("This device could not keep the latest reading. Free storage and try again.");
@@ -126,10 +131,26 @@ export function ClimbWorkout({ active, onUpdateActive, onSaveResult, unit, profi
     fresh: watch.connected, connectionId: watch.recordingId, distanceMeters: watch.meters, sampleAt: watch.at, heartRate: watch.heartRate,
   } : null, [source, treadmill, watch]);
   useEffect(() => {
+    if (source === "belt" && live && !active.paused && !document.hidden) {
+      const currentRun=current.current.run;
+      if (!beltCapture.current || beltCapture.current.startedAt !== currentRun.startedAt) beltCapture.current=new WorkoutBeltCapture(currentRun);
+      beltCapture.current.record(packet);
+    }
+    // Deck and distance notifications may alternate. Keep each actual grade
+    // timestamp until the counter interval covering it has been processed.
+    if (source === "belt" && collecting && !active.paused && packet?.connectionId) {
+      if (deck.current.connection !== packet.connectionId) deck.current = {connection:packet.connectionId, grades:[]};
+      const {inclineAt: at, inclinePercent: percent} = packet;
+      const grades = deck.current.grades;
+      if (Number.isFinite(at) && Number.isFinite(percent) && at <= Date.now() &&
+          (!grades.length || at > grades.at(-1).at)) {
+        deck.current.grades = [...grades.filter(sample => at - sample.at <= 13000), {at, percent}].slice(-128);
+      }
+    }
     const hasCounter = Number.isFinite(packet?.distanceMeters);
     const packetTime = (hasCounter ? packet?.distanceAt : packet?.speedAt) ?? packet?.sampleAt;
     if (!collecting || active.paused || !packet?.fresh || !Number.isFinite(packetTime) ||
-      packetTime < run.startedAt || Date.now() - packetTime > 10_000) return;
+      packetTime < run.startedAt || packetTime > Date.now() || Date.now() - packetTime > 10_000) return;
     const last = lastSample.current;
     const sameConnection = last && last.source === source && last.connection === packet.connectionId;
     if (sameConnection && last.t >= packetTime) return;
@@ -143,23 +164,31 @@ export function ClimbWorkout({ active, onUpdateActive, onSaveResult, unit, profi
     if (!previous || previous.recording?.endedAt) return;
     const rebase = !sameConnection || modeChanged || meters < last.meters;
     const sample = { t: packetTime, connection: packet.connectionId, source, meters, hasCounter };
-    lastSample.current = sample;
     if (extra) {
+      lastSample.current = sample;
       const delta = rebase ? 0 : Math.max(0, meters-last.meters);
       void commit({...previous, lastSample:sample, recording:{...previous.recording,extraMeters:(previous.recording?.extraMeters||0)+delta}});
     } else {
-      const next = updateClimb(course, previous.run, { source, meters, now: packetTime, estimated: !hasCounter, rebase, discontinuity: !continuity });
+      const next = updateClimb(course, previous.run, {source, meters, now:packetTime, estimated:!hasCounter, rebase,
+        discontinuity:!continuity, measuredDistanceTime:Number.isFinite(packet.distanceAt), gradeCap:previous.gradeCap ?? 12, grades:source === "belt" ? deck.current.grades : []});
       if (next !== previous.run) {
-        const observed=source==="belt" ? accumulateGrade(course,previous.run,next,packet,continuity && !rebase,previous.gradeCap??12) : next;
-        void commit({ ...previous, run: observed, lastSample:sample });
+        lastSample.current = sample;
+        void commit({ ...previous, run:next, lastSample:sample }).then(ok => {
+          if (!ok && lastSample.current === sample) lastSample.current = last;
+        });
       }
     }
-  }, [collecting, extra, source, course, active.paused, packet, commit, run.startedAt]);
+  }, [collecting, extra, live, source, course, active.paused, packet, commit, run.startedAt]);
   const nextConfirmedLandmark = course.landmarks.find(m=>m.meters>run.distanceMeters+.001);
   const fresh = packet?.fresh === true && Number.isFinite(packet.sampleAt) && now - packet.sampleAt < 10000;
   const measuredInclineFresh = fresh && Number.isFinite(packet?.inclineAt) && Math.abs(now-packet.inclineAt)<10000;
   const exerciseChange = async (patch) => {
+    if (beltCapture.current && live) {
+      if (typeof patch.paused === "boolean") beltCapture.current.interrupt(patch.paused ? "pause" : "resume",Date.now());
+      else if (patch.source && patch.source !== source) beltCapture.current.interrupt("disconnect",Date.now());
+    }
     lastSample.current = null;
+    deck.current = {connection:null, grades:[]};
     await commit({ ...current.current, lastSample:null, manualEstimateStart:Date.now(), ...patch });
   };
   const record = async () => {
@@ -168,8 +197,12 @@ export function ClimbWorkout({ active, onUpdateActive, onSaveResult, unit, profi
       setError("Enter a cumulative console distance above your last reading."); return;
     }
     const latest = current.current;
-    const change = extra ? {...latest, recording:{...latest.recording,extraMeters:distance}} : {...latest, run:updateClimb(course, latest.run,{now:Date.now(),source:"manual",meters:distance})};
-    if (await commit({...change, lastSample:null, source:"manual"})) setConsoleDistance("");
+    const change = extra ? {...latest, recording:{...latest.recording,extraMeters:distance}} : {...latest, run:updateClimb(course, latest.run,{now:Date.now(),source:"manual",meters:distance,gradeCap:latest.gradeCap ?? 12})};
+    if (await commit({...change, lastSample:null, source:"manual"})) {
+      lastSample.current = null;
+      deck.current = {connection:null, grades:[]};
+      setConsoleDistance("");
+    }
   };
   const finish = async () => {
     if (await confirm({ title: "Finish this climb here?", message: "Keep the distance and splits you reached and review the partial attempt.", confirmLabel: "Finish here" })) {
@@ -202,7 +235,7 @@ export function ClimbWorkout({ active, onUpdateActive, onSaveResult, unit, profi
         {live && nextConfirmedLandmark && <button type="button" className="btn btn-g" disabled={active.paused} onClick={async () => {
           const landmark=nextConfirmedLandmark;
           const latest=current.current;
-          const updated=updateClimb(course,latest.run,{source:"manual",meters:landmark.meters});
+          const updated=updateClimb(course,latest.run,{source:"manual",meters:landmark.meters,gradeCap:latest.gradeCap ?? 12});
           if(await commit({...latest,run:updated,lastSample:null}))setConsoleDistance("");
         }}>Mark {nextConfirmedLandmark.name} at {distanceText(nextConfirmedLandmark.meters,unit)}</button>}
       </div> : <p role="status" className="t-s c2">{active.paused ? "Distance on hold." : !fresh ? "Waiting for fresh distance. You can switch to console readings." : reading.estimated ? "Estimated from measured belt speed." : "Following live distance."}</p>}
@@ -212,7 +245,7 @@ export function ClimbWorkout({ active, onUpdateActive, onSaveResult, unit, profi
         catch (e) { setError(e.message); } finally { setBusy(false); }
       }}>Record on Watch</button>}
       {onConnectWatch && <p className="t-s c2">{watch?.connected ? "Watch recording connected" + (watch.heartRate > 0 ? " · " + Math.round(watch.heartRate) + " bpm" : "") : "Open 0vertrained on your Watch and accept the indoor recording."}</p>}
-      <Equipment reading={treadmill} distanceUnit={unit} />
+      <Equipment reading={treadmill} distanceUnit={unit} onSaveCheck={onSaveCheck} />
   </>;
   const beginClimb = async () => {
     const latest = current.current;

@@ -1,6 +1,7 @@
 // Metres along the ordered line are the shared coordinate for terrain, landmarks
 // and both runners. Keep stationary fixes: their timestamps encode aid-stop dwell.
 import { courseDistances, validCourseId } from "../rehearsal/course";
+import { profileSummary } from "./ascent";
 import { stableUuid } from "../stableUuid";
 
 const MAX_POINTS = 50_000;
@@ -85,35 +86,6 @@ function canonicalMarks(raw, distanceMeters, addDefaultSplits) {
   marks.sort((a, b) => a.meters - b.meters);
   marks.push({ id: "crest", name: "Finish", meters: distanceMeters });
   return marks;
-}
-
-// Count meaningful climbing between valleys and crests. A small alternating
-// elevation error on a flat road must not accumulate indefinitely as ascent.
-function profileSummary(points) {
-  const hysteresis = 2;
-  let elevationCoverage = 0, ascent = 0, valley = null, peak = null;
-  function closeClimb() {
-    if (peak !== null && peak - valley >= hysteresis) ascent += peak - valley;
-    valley = null;
-    peak = null;
-  }
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1], b = points[i], d = b.meters - a.meters;
-    const rise = b.elevationMeters - a.elevationMeters;
-    if (!Number.isFinite(a.elevationMeters) || !Number.isFinite(b.elevationMeters) ||
-        d > 250 || Math.abs(rise) > Math.max(5, d * 0.65)) {
-      closeClimb();
-      continue;
-    }
-    if (!d) continue;
-    elevationCoverage += d;
-    if (valley === null) valley = a.elevationMeters;
-    if (peak !== null && b.elevationMeters <= peak - hysteresis) closeClimb();
-    valley = Math.min(valley ?? b.elevationMeters, b.elevationMeters);
-    if (b.elevationMeters - valley >= hysteresis) peak = Math.max(peak ?? valley, b.elevationMeters);
-  }
-  closeClimb();
-  return { ascent, elevationCoverage };
 }
 
 function makeCourse({ name, points, landmarks, source, seedId, rootRevision, offset = 0, addDefaultSplits = true, terrain, elevationSource }) {

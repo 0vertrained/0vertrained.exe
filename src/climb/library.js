@@ -69,9 +69,10 @@ async function readAll(owner) {
 
 export async function readClimbLibrary(owner) {
   const rows = await readAll(owner);
-  const courses = new Map(), results = [], active = rows.find(([key]) => key === "active")?.[1];
+  const courses = new Map(), results = [], checks = [], active = rows.find(([key]) => key === "active")?.[1];
   for (const [key, value] of rows) {
     if (key.startsWith("course/") && value?.revision) courses.set(value.revision, value);
+    if (value?.version === 1 && key === "check/" + value.id && Array.isArray(value.samples)) checks.push(value);
     if (key.startsWith("result/") && value?.run?.owner === owner) results.push(value);
   }
   const recover = row => {
@@ -83,7 +84,7 @@ export async function readClimbLibrary(owner) {
     restored.previousAttempts = restored.previousAttempts.map(recover);
     if (restored.previousAttempts.some(row => !row)) throw new Error("A course needed to recover this workout is missing.");
   }
-  return { courses: [...courses.values()], results, active: restored };
+  return { courses: [...courses.values()], results, checks: checks.sort((a,b) => b.startedAt - a.startedAt), active: restored };
 
 }
 
