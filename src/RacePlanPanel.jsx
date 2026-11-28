@@ -16,6 +16,8 @@ import { useMemo, useState } from "react";
 import { Icon, Seg } from "./ui/ledger";
 import { DAYS } from "./constants";
 import { useConfirm } from "./ui/ConfirmDialog";
+import { samePrescription } from "./programSessions";
+import { describeRoadTrailWeek } from "./plans/roadTrailHybrid";
 import { RACE_DISTANCES, buildPaceZones, formatDuration, formatPace, parseDuration } from "./runPaces";
 import {
   CROSS_TRAINING_OPTIONS,
@@ -87,10 +89,13 @@ function Choice({ id, label, children, hint = null }) {
 
 // Train › Race plan. Answers on one page, the plan previewed under them, and
 // an explicit Start (or Update) to save. Train's Back leaves without saving.
-export function RacePlanPanel({ program, todayKey, onSave, onEnd }) {
+export function RacePlanPanel({ program, todayKey, onSave, onEnd, onOpenBlock }) {
   const { confirm, confirmDialog } = useConfirm();
   const hasPlan = isRunPlanSpec(program?.__raceBuild);
-  const [draft, setDraft] = useState(() => initialDraft(program, todayKey));
+  const savedDraft = useMemo(() => initialDraft(program, todayKey), [program, todayKey]);
+  const [draft, setDraft] = useState(savedDraft);
+  const hybridWeek = describeRoadTrailWeek(program, todayKey);
+  const showBlockLink = hybridWeek && hasPlan && onOpenBlock && samePrescription(draft, savedDraft);
   const [busy, setBusy] = useState(false);
 
   const set = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
@@ -129,7 +134,7 @@ export function RacePlanPanel({ program, todayKey, onSave, onEnd }) {
   };
   const end = async () => {
     if (busy) return;
-    if (!(await confirm({ message: "End this race plan? Your runs go back to what your program says. Your lifting isn't affected.", confirmLabel: "End plan", destructive: true }))) return;
+    if (!(await confirm({ message: "End this race plan and return to your program’s schedule?", confirmLabel: "End plan", destructive: true }))) return;
     setBusy(true);
     try { await onEnd?.(); } finally { setBusy(false); }
   };
@@ -144,7 +149,10 @@ export function RacePlanPanel({ program, todayKey, onSave, onEnd }) {
       {confirmDialog}
       <div className="main" style={{ gap: 20 }}>
         <h2 className="t-xl">{hasPlan ? "Your race plan" : "Train for a race"}</h2>
-        {program?.__hybridBlock?.id === "roadTrailHybrid" && <p className="t-s c2">A dated race plan replaces the hybrid runs during its build. Your lifting still tapers in week 8 of Road &amp; Trail Hybrid.</p>}
+        {hybridWeek && <div className="kv" style={{ gap: 6 }}>
+          <p className="t-s c2">{showBlockLink ? "Review the lifting taper for this race in your hybrid block." : "After saving the running schedule, you can preview a lifting taper for race day."}</p>
+          {showBlockLink && <button type="button" className="btn btn-s btn-sm" style={{ alignSelf: "start" }} disabled={busy} onClick={onOpenBlock}>Review lifting alignment</button>}
+        </div>}
 
         <section aria-labelledby="race-race" style={column(12)}>
           <h3 id="race-race" className="t-h">The race</h3>

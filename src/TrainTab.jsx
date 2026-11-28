@@ -16,12 +16,13 @@ import { summarizeProgramForHub } from "./moreHub";
 import { Icon, LinkRow } from "./ui/ledger";
 import { useTopBar } from "./ui/shell";
 import { ProgramHome, ProgramEditor, RoadTrailBlock } from "./ProgramScreen";
+import { changeHybridRacePlan } from "./hybridRaceAlignment";
 import { describeRoadTrailWeek } from "./plans/roadTrailHybrid";
 import { ProgramBuilderPanel } from "./ProgramBuilderPanel";
 import { RacePlanPanel } from "./RacePlanPanel";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { dayDate } from "./sections/charts";
-import { movedFrom, resetWeek, swapDays, weekMovesFor } from "./weekMoves";
+import { movedFrom, raceMoveLock, resetWeek, swapDays, weekMovesFor } from "./weekMoves";
 import { MoveDaySheet } from "./MoveDay";
 
 // The block brings the planner and the decision engine with it, so it loads
@@ -78,7 +79,7 @@ export function buildTrainWeek({ program, entries, todayKey }) {
       label: `${dayName.slice(0, 3)}${NBSP}${date.getDate()}`,
       title: isRest ? "Rest day" : (summary.label || dayName),
       detail: isRest ? [...parts, "No training planned"].join(" · ") : parts.join(" · "),
-      liftCount: lifting.length, sessions,
+      liftCount: lifting.length, sessions, moveLock: raceMoveLock(program, dateKey),
     };
   });
 }
@@ -126,7 +127,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
     });
 
   if (view === "block") {
-    if (hybridWeek) return <RoadTrailBlock program={program} week={hybridWeek} todayKey={todayKey} onSaveProgram={onSaveProgram} onOpenProgram={() => setView("program")} />;
+    if (hybridWeek) return <RoadTrailBlock program={program} entries={entries} week={hybridWeek} todayKey={todayKey} onSaveProgram={onSaveProgram} onOpenProgram={() => setView("program")} />;
     return (
       <Suspense fallback={loading("the block")}>
         <BlockScreen data={entries} settings={settings} program={shown} onOpenProgram={() => setView("program")} />
@@ -162,15 +163,14 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
       <RacePlanPanel
         program={base}
         todayKey={todayKey}
+        onOpenBlock={hybridWeek ? () => setView("block") : undefined}
         onSave={async (spec) => {
-          const ok = await onSaveProgram({ ...base, __raceBuild: spec });
-          if (ok) setView("home");
+          const ok = await onSaveProgram(changeHybridRacePlan(base, spec, entries, todayKey));
+          if (ok) setView(hybridWeek ? "block" : "home");
           return ok;
         }}
         onEnd={async () => {
-          const next = { ...base };
-          delete next.__raceBuild;
-          const ok = await onSaveProgram(next);
+          const ok = await onSaveProgram(changeHybridRacePlan(base, null, entries, todayKey));
           if (ok) setView("home");
           return ok;
         }}

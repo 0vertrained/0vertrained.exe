@@ -49,4 +49,15 @@ describe("MoveDaySheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Put this week back as planned" }));
     expect(onReset).toHaveBeenCalled();
   });
+
+  it("keeps an aligned race and its taper out of the swap choices", () => {
+    const onSwap = vi.fn();
+    const protectedWeek = week.map(day => ({ ...day, moveLock: day.dayName === "Thursday" ? "Race taper" : null }));
+    render(<MoveDaySheet open week={protectedWeek} onSwap={onSwap} onClose={vi.fn()} />);
+    expect(row("Thu 26").getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(row("Fri 27"));
+    fireEvent.click(row("Thu 26"));
+    expect(within(row("Thu 26")).getByText("Race taper")).toBeTruthy();
+    expect(onSwap).not.toHaveBeenCalled();
+  });
 });

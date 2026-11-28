@@ -9,6 +9,7 @@ import { ThemeProvider, useTheme } from "./theme";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName, presetProgram } from "./constants";
 import { recoveryVerdictFromLoad } from "./sharedCall";
 import { shiftDate } from "./coachWindows";
+import { changeHybridRacePlan } from "./hybridRaceAlignment";
 import { liveTrainingWeek, snapshotOnTrainingWrite } from "./customTrainingDay";
 import { detectDayZero } from "./dayZero";
 import { readOAuthReturn, cleanOAuthReturnUrl } from "./oauthReturn";
@@ -988,7 +989,7 @@ function AppInner({ onThemeChange }) {
   // A race result's paces, written into the race plan.
   const applyRaceToPaces = (benchmark) => {
     if (!program?.__raceBuild || !benchmark) return Promise.resolve(false);
-    return handleSaveProgram({ ...program, __raceBuild: { ...program.__raceBuild, benchmark } }, { savedMessage: "Training paces updated" });
+    return handleSaveProgram(changeHybridRacePlan(program, { ...program.__raceBuild, benchmark }, data, currentDayKey), { savedMessage: "Training paces updated" });
   };
 
   // Apply a Program Builder V2 generated plan. Explicit user action from

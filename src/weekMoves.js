@@ -9,6 +9,9 @@
 // see the same week. A week's moves are dropped eight weeks on, the next
 // time moves are saved. Pure: dates are passed in.
 
+import { alignmentOn } from "./plans/hybridAlignmentDates.js";
+import { shiftDate } from "./coachWindows.js";
+
 export const WEEK_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 function keyOf(date) {
@@ -30,8 +33,7 @@ export function weekdayOf(dateKey) {
 }
 
 /** The week's moves as { day: source day }, or null without any. */
-export function weekMovesFor(program, dateKey) {
-  const start = weekStartOf(dateKey);
+function savedMovesFor(program, start) {
   const moves = start ? program?.__weekMoves?.[start] : null;
   if (!moves || typeof moves !== "object") return null;
   const clean = {};
@@ -41,15 +43,56 @@ export function weekMovesFor(program, dateKey) {
   return Object.keys(clean).length ? clean : null;
 }
 
+function moveLock(raceDate, key) {
+  if (!raceDate) return null;
+  if (key === raceDate) return "Race day";
+  if (key < raceDate && key >= shiftDate(raceDate, -2)) return "Race taper";
+  if (key > raceDate && (weekStartOf(key) === weekStartOf(raceDate) || key === shiftDate(raceDate, 1))) return "Post-race recovery";
+  return null;
+}
+
+export function raceMoveLock(program, dateKey) {
+  return moveLock(alignmentOn(program?.__hybridBlock, dateKey)?.raceDate, dateKey);
+}
+
+/** Project the saved swaps onto the days that can move. Passing over a pinned
+ * day in a cycle keeps the remaining workouts in their original swap order. */
+export function weekMovesFor(program, dateKey) {
+  const monday = weekStartOf(dateKey);
+  const saved = savedMovesFor(program, monday);
+  const marker = program?.__hybridBlock;
+  if (!saved || !marker?.alignments?.length) return saved;
+  const dates = Object.fromEntries(WEEK_DAYS.map((day, index) => [day, shiftDate(monday, index)]));
+  const moves = {};
+  for (const [day, first] of Object.entries(saved)) {
+    const raceDate = alignmentOn(marker, dates[day])?.raceDate;
+    // A race that already held its date must also stay out of later workouts
+    // when the athlete restores independent dates partway through that week.
+    const locked = name => moveLock(raceDate, dates[name]) ||
+      (dates[name] < dates[day] && raceMoveLock(program, dates[name]));
+    if (locked(day)) continue;
+    let source = first;
+    const visited = new Set();
+    while (source && !visited.has(source) && locked(source)) {
+      visited.add(source);
+      source = saved[source];
+    }
+    if (source && source !== day && !visited.has(source)) moves[day] = source;
+  }
+  return Object.keys(moves).length ? moves : null;
+}
+
 /**
  * The program with the week's moves applied: each moved day shows the plan
  * of the day it came from. The same reference when the week has none.
  */
-export function applyWeekMoves(program, dateKey) {
+export function applyWeekMoves(program, dateKey, resolveSource = null) {
   const moves = weekMovesFor(program, dateKey);
   if (!moves) return program;
   const next = { ...program };
-  for (const [day, source] of Object.entries(moves)) next[day] = program[source] ?? null;
+  for (const [day, source] of Object.entries(moves)) {
+    next[day] = (resolveSource ? resolveSource(day, source) : program[source]) ?? null;
+  }
   return next;
 }
 
@@ -61,7 +104,7 @@ export function movedFrom(program, dateKey) {
 
 // The week as a full map, every day to the day whose plan it shows.
 function fullMap(program, dateKey) {
-  const moves = weekMovesFor(program, dateKey) || {};
+  const moves = savedMovesFor(program, weekStartOf(dateKey)) || {};
   return Object.fromEntries(WEEK_DAYS.map((day) => [day, moves[day] || day]));
 }
 
@@ -92,6 +135,11 @@ function withWeek(program, start, map) {
 export function swapDays(program, dateKey, first, second) {
   const start = weekStartOf(dateKey);
   if (!start || !WEEK_DAYS.includes(first) || !WEEK_DAYS.includes(second) || first === second) return program;
+  if (program.__hybridBlock?.alignments?.length) {
+    const firstDate = shiftDate(start, WEEK_DAYS.indexOf(first));
+    const secondDate = shiftDate(start, WEEK_DAYS.indexOf(second));
+    if (raceMoveLock(program, firstDate) || raceMoveLock(program, secondDate)) return program;
+  }
   const map = fullMap(program, dateKey);
   [map[first], map[second]] = [map[second], map[first]];
   return withWeek(program, start, map);

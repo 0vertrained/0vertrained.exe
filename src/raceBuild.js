@@ -21,7 +21,9 @@
 
 import { generateRunPlan, isRunPlanSpec } from "./runPlanGenerator";
 import { resolveRoadTrailWeek, ROAD_TRAIL_HYBRID } from "./plans/roadTrailHybrid";
-import { applyWeekMoves } from "./weekMoves";
+import { applyWeekMoves, WEEK_DAYS } from "./weekMoves";
+import { alignmentOn, validDateKey } from "./plans/hybridAlignmentDates";
+import { shiftDate } from "./coachWindows";
 import { isRunCardio } from "./cardioLog";
 export { isRunCardio } from "./cardioLog";
 
@@ -143,6 +145,16 @@ export function resolveRaceBuildConfig(marker) {
   return null;
 }
 
+// Race edits retain the previous spec through the last day it governed.
+export function racePlanOn(program, dateKey) {
+  const history = program?.__hybridBlock?.priorRacePlans;
+  if (dateKey && Array.isArray(history)) {
+    const past = history.find(row => validDateKey(row?.until) && dateKey <= row.until && Object.hasOwn(row, "spec"));
+    if (past) return past.spec;
+  }
+  return program?.__raceBuild;
+}
+
 // Resolution
 
 // Maps a date to a ladder week. Dates before the ladder clamp to week 0
@@ -179,7 +191,7 @@ export function resolveBuildWeek(config, todayKey) {
 // active build (or the race is done). A generated plan that hasn't started
 // yet describes itself as pending, with its start date.
 export function describeBuildWeek(program, todayKey) {
-  const config = resolveRaceBuildConfig(program?.__raceBuild);
+  const config = resolveRaceBuildConfig(racePlanOn(program, todayKey));
   if (!config) return null;
   const resolved = resolveBuildWeek(config, todayKey);
   if (!resolved || resolved.phase === "complete") return null;
@@ -287,11 +299,43 @@ function applyPlanPatch(day, patch) {
 // started, race complete) so React consumers don't re-render for nothing.
 export function applyRaceBuild(program, todayKey) {
   const hybridWeek = resolveRoadTrailWeek(program, todayKey);
-  return applyWeekMoves(applyBuildWeek(hybridWeek, todayKey), todayKey);
+  const marker = program?.__hybridBlock;
+  const monday = mondayKeyOf(todayKey);
+  const scheduled = datedBuildWeek(hybridWeek, todayKey, monday);
+  if ((!marker?.alignments?.length && !marker?.priorRacePlans?.length) || !program.__weekMoves) return applyWeekMoves(scheduled, todayKey);
+
+  // Read moved work with the strength and run plans in effect on its
+  // destination. Borrowing a later weekday must not revise a logged session.
+  return applyWeekMoves(scheduled, todayKey, (day, source) => {
+    const destKey = shiftDate(monday, WEEK_DAYS.indexOf(day));
+    const sourceKey = shiftDate(monday, WEEK_DAYS.indexOf(source));
+    const destSpec = racePlanOn(program, destKey);
+    if (destSpec === racePlanOn(program, sourceKey) && alignmentOn(marker, destKey) === alignmentOn(marker, sourceKey)) {
+      return scheduled[source];
+    }
+    return applyBuildWeek(resolveRoadTrailWeek(program, todayKey, destKey), todayKey, destSpec)[source];
+  });
 }
 
-function applyBuildWeek(program, todayKey) {
-  const config = resolveRaceBuildConfig(program?.__raceBuild);
+function datedBuildWeek(program, todayKey, monday) {
+  if (!program?.__hybridBlock?.priorRacePlans?.length) return applyBuildWeek(program, todayKey, program?.__raceBuild);
+  const first = racePlanOn(program, monday);
+  const sunday = shiftDate(monday, 6);
+  const changesThisWeek = program.__hybridBlock.priorRacePlans.some(row => row?.until >= monday && row.until < sunday);
+  if (!changesThisWeek) return applyBuildWeek(program, todayKey, first);
+  // An edit or end can take effect halfway through the displayed week.
+  const bySpec = new Map();
+  const week = { ...program };
+  for (const [index, day] of WEEK_DAYS.entries()) {
+    const spec = racePlanOn(program, shiftDate(monday, index));
+    if (!bySpec.has(spec)) bySpec.set(spec, applyBuildWeek(program, todayKey, spec));
+    week[day] = bySpec.get(spec)[day];
+  }
+  return week;
+}
+
+function applyBuildWeek(program, todayKey, spec) {
+  const config = resolveRaceBuildConfig(spec);
   if (!config) return program;
   const resolved = resolveBuildWeek(config, todayKey);
   // A date can still be pending while its calendar week contains the first runs.

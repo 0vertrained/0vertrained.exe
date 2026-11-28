@@ -18,6 +18,7 @@ import { weekdayOf, weekMovesFor } from "./weekMoves";
 import { formatPlanDate, hybridWeekLabel } from "./RaceWeekLine";
 import { FoldRow, Icon, LinkRow, Seg } from "./ui/ledger";
 import { AddExerciseSheet } from "./AddExercise";
+import { HybridRaceAlignment } from "./HybridRaceAlignmentSection";
 import { buildCardio, CARDIO_SESSIONS, exercisePrescription } from "./programExerciseLibrary";
 
 const NBSP = "\u00a0";
@@ -157,7 +158,7 @@ function HybridStartDate({ program, week, todayKey, onSaveProgram, saving, setSa
   </div>;
 }
 
-export function RoadTrailBlock({ program, week, todayKey, onOpenProgram, onSaveProgram }) {
+export function RoadTrailBlock({ program, entries, week, todayKey, onOpenProgram, onSaveProgram }) {
   const [selected, setSelected] = useState(null);
   const [draftTarget, setDraftTarget] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -172,8 +173,12 @@ export function RoadTrailBlock({ program, week, todayKey, onOpenProgram, onSaveP
       }
     } finally { setSaving(false); }
   };
-  const previewCount = week.totalWeeks + Number(week.completed);
-  const previewWeek = Math.min(selected ?? (week.completed ? previewCount : week.weekNumber || 1), previewCount);
+  const tomorrow = shiftDate(todayKey, 1);
+  const scheduled = describeRoadTrailWeek(program, tomorrow) || week;
+  const changesTomorrow = week.raceDate !== scheduled.raceDate || week.aligned !== scheduled.aligned;
+  const previewCalendar = changesTomorrow ? scheduled : week;
+  const previewCount = previewCalendar.totalWeeks + Number(previewCalendar.completed);
+  const previewWeek = Math.min(selected ?? (previewCalendar.completed ? previewCount : previewCalendar.weekNumber || 1), previewCount);
   const dates = Array.from({ length: previewCount }, (_, i) => i === 0 ? (week.startDate || week.startMonday) : shiftDate(week.startMonday, i * 7));
   const preview = applyRaceBuild(program, dates[previewWeek - 1]);
   const sessions = DAYS.flatMap(day => getProgramSessions(preview[day]));
@@ -185,18 +190,25 @@ export function RoadTrailBlock({ program, week, todayKey, onOpenProgram, onSaveP
       <header className="kv" style={{ gap: 4 }}>
         <h2 className="t-xl">Road &amp; Trail Hybrid</h2>
         <p className="t-bs">{hybridWeekLabel(week)}</p>
-        <p className="t-s c2">Hybrid target · {week.raceName} · {formatPlanDate(week.raceDate)}</p>
+        <p className="t-s c2">{scheduled.aligned ? "Lifting taper target" : "Hybrid target"} · {scheduled.raceName} · {formatPlanDate(scheduled.raceDate)}</p>
+        {changesTomorrow && <p className="t-s c2">New taper takes effect {formatPlanDate(tomorrow)}.</p>}
       </header>
       <HybridStartDate program={program} week={week} todayKey={todayKey} onSaveProgram={onSaveProgram} saving={saving} setSaving={setSaving} editable />
-      {week.completed && <p className="t-s">Your recovery week stays on the calendar until you start another block or change programs.</p>}
-      {isRunPlanSpec(program.__raceBuild) && <p className="t-s c2">{program.__raceBuild.raceName} supplies the runs on its scheduled weeks. Lifting follows the hybrid block.</p>}
-      {onSaveProgram && todayKey <= week.raceDate && <div style={column(8)}>
+      {previewCalendar.completed && <p className="t-s">Your recovery week stays on the calendar until you start another block or change programs.</p>}
+      {onSaveProgram && <HybridRaceAlignment program={program} entries={entries} todayKey={todayKey} saving={saving} setSaving={setSaving} onSaveProgram={onSaveProgram} />}
+      {onSaveProgram && !scheduled.aligned && todayKey <= week.raceDate && <div style={column(8)}>
         <HybridTargetField value={target} onChange={setDraftTarget} />
         {target !== week.raceTarget && <button type="button" className="btn btn-s" disabled={saving} onClick={changeTarget}>{saving ? "Saving…" : "Save race target"}</button>}
       </div>}
       <label className="field"><span className="lbl">Preview a training week</span>
         <select className="input" value={previewWeek} onChange={e => setSelected(Number(e.target.value))}>
-          {dates.map((date, i) => <option key={date} value={i + 1}>{i < week.totalWeeks ? `Week ${i + 1} · ${describeRoadTrailWeek(program, date).phase}` : "Post-race recovery"} · {formatPlanDate(date)}</option>)}
+          {dates.map((date, i) => {
+            const phase = describeRoadTrailWeek(program, date).phase;
+            const sunday = shiftDate(mondayKeyOf(date), 6);
+            const endPhase = describeRoadTrailWeek(program, sunday).phase;
+            const label = phase === endPhase ? phase : `${phase} → ${endPhase}`;
+            return <option key={date} value={i + 1}>{i < scheduled.totalWeeks ? `Week ${i + 1} · ${label}` : "Post-race recovery"} · {formatPlanDate(date)}</option>;
+          })}
         </select>
       </label>
       <p className="t-s">{sets} working sets{minutes > 0 && ` · ${minutes} min cardio`}{miles > 0 && ` · ${Number(miles.toFixed(2))} mi by distance`}</p>
@@ -347,7 +359,7 @@ export function ProgramHome({ program, liveProgram, onSaveProgram, onEdit, onBui
               <option value="keep">Keep {program.__raceBuild.raceName}</option>
               <option value="hybrid">Use Road &amp; Trail Hybrid runs</option>
             </select>
-            <span className="hint">{retainRace ? "Your dated race plan sets the runs during its build. The strength taper follows the Week 1 date above." : "Loading the hybrid runs replaces your dated race plan."}</span>
+            <span className="hint">{retainRace ? "Your race plan sets the runs. After loading, open Block to align your lifting taper with race day." : "Loading the hybrid runs replaces your dated race plan."}</span>
           </label>}
           {firstDay && <p className="t-s">{formatPlanDate(startDate)} · {firstDay.type || "Rest"} · {dayLine(firstDay)}</p>}
         </>}

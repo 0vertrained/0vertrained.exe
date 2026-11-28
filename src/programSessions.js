@@ -20,6 +20,17 @@ function cleanId(value, fallback) {
   return id || fallback;
 }
 
+const SESSION_START_TIMES = {
+  morning: "07:00", am: "07:00", midday: "12:00", lunch: "12:00",
+  afternoon: "16:00", evening: "17:30", pm: "17:30", night: "19:00",
+};
+
+// Local scheduled time shared by race previews and Apple Watch workouts.
+export function plannedSessionTime(session) {
+  const slot = String(session?.timeOfDay || "").toLowerCase();
+  return Object.hasOwn(SESSION_START_TIMES, slot) ? SESSION_START_TIMES[slot] : "07:00";
+}
+
 export function normalizeProgramSession(session = {}, index = 0, day = {}) {
   const fallbackId = index === 0 ? "main" : `session-${index + 1}`;
   const label = String(session.label || session.timeOfDay || (index === 0 ? "Session" : `Session ${index + 1}`)).trim();

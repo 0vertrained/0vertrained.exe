@@ -1,3 +1,5 @@
+import { alignmentOn, validDateKey } from "./hybridAlignmentDates.js";
+import { shiftDate } from "../coachWindows.js";
 import { samePrescription } from "../programSessions.js";
 import { WEEK_DAYS, weekdayOf, weekStartOf } from "../weekMoves.js";
 
@@ -147,12 +149,6 @@ export const ROAD_TRAIL_HYBRID = {
   program: { ...template, __hybridBlock: { id } },
 };
 
-function validDateKey(key) {
-  if (typeof key !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
-  const time = Date.parse(key + "T12:00:00Z");
-  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === key;
-}
-
 export function startRoadTrailHybrid(program, dateKey, { raceTarget = program?.__hybridBlock?.raceTarget } = {}) {
   const marker = program?.__hybridBlock;
   if (marker?.id !== id || !validDateKey(dateKey)) return program;
@@ -161,42 +157,82 @@ export function startRoadTrailHybrid(program, dateKey, { raceTarget = program?._
 }
 
 const dayMs = 86_400_000;
-export function describeRoadTrailWeek(program, dateKey) {
+
+function blockCalendar(program) {
   const marker = program?.__hybridBlock;
-  if (marker?.id !== id || !validDateKey(dateKey)) return null;
-  // Existing saved blocks used the first Monday as their only start date.
+  if (marker?.id !== id) return null;
   const legacy = !Object.hasOwn(marker, "startDate");
   const startDate = legacy ? marker.startMonday : marker.startDate;
   if (!validDateKey(startDate)) return null;
   const startMonday = weekStartOf(startDate);
   if (legacy && startMonday !== startDate) return null;
-  const monday = weekStartOf(dateKey);
-  // UTC calendar keys keep week changes independent of DST.
-  const start = Date.parse(startMonday);
-  const index = dateKey < startDate ? -1 : Math.floor((Date.parse(monday) - start) / (7 * dayMs));
-  const totalWeeks = ROAD_TRAIL_WEEKS.length;
-  const completed = index >= totalWeeks;
-  const raceTarget = Object.hasOwn(ROAD_TRAIL_TARGETS, marker.raceTarget) ? marker.raceTarget : "road10k";
   return {
-    raceTarget, raceName: ROAD_TRAIL_TARGETS[raceTarget].name,
-    weekNumber: Math.min(totalWeeks + 1, Math.max(0, index + 1)), totalWeeks, completed,
-    phase: index < 0 ? "Upcoming" : completed ? "Recovery" : ROAD_TRAIL_WEEKS[index].phase,
     startDate, startMonday,
-    raceDate: new Date(start + (7 * totalWeeks - 2) * dayMs).toISOString().slice(0, 10),
+    baselineRaceDate: shiftDate(startMonday, 7 * ROAD_TRAIL_WEEKS.length - 2),
+    raceTarget: Object.hasOwn(ROAD_TRAIL_TARGETS, marker.raceTarget) ? marker.raceTarget : "road10k",
+    marker,
   };
+}
+
+function weeksBetween(monday, otherMonday) {
+  return (Date.parse(otherMonday) - Date.parse(monday)) / (7 * dayMs);
+}
+
+// Keep the normal four-week loading cycle when the event is further away.
+// The last two build weeks lead into the taper. Do not add a cutback
+// immediately before the taper just because the race moved.
+function alignedStrengthWeek(weekNumber, totalWeeks) {
+  const remaining = totalWeeks - weekNumber;
+  if (remaining === 0) return 8;
+  if (remaining === 1) return 7;
+  if (weekNumber === 1) return 1;
+  if (weekNumber % 4 === 0 && remaining > 2) return 4;
+  if (remaining === 2) return 6;
+  if (remaining === 3) return 5;
+  return weekNumber % 2 === 0 ? 2 : 3;
+}
+
+function weekOn(calendar, dateKey, monday, revision = alignmentOn(calendar.marker, dateKey)) {
+  const { startDate, startMonday, baselineRaceDate, raceTarget } = calendar;
+  const raceDate = revision?.raceDate ?? baselineRaceDate;
+  const totalWeeks = revision ? 1 + weeksBetween(startMonday, weekStartOf(raceDate)) : ROAD_TRAIL_WEEKS.length;
+  const calendarWeek = 1 + weeksBetween(startMonday, monday);
+  const completed = revision ? dateKey > raceDate : calendarWeek > totalWeeks;
+  const weekNumber = dateKey < startDate ? 0 : completed ? totalWeeks + 1 : calendarWeek;
+  const strengthWeek = revision && weekNumber > 0 && !completed ? alignedStrengthWeek(weekNumber, totalWeeks) : weekNumber;
+  return {
+    startDate, startMonday, baselineRaceDate, raceDate, raceTarget,
+    raceName: (typeof revision?.raceName === "string" && revision.raceName.trim()) || ROAD_TRAIL_TARGETS[raceTarget].name,
+    aligned: Boolean(revision),
+    weekNumber, totalWeeks, completed, strengthWeek,
+    phase: !weekNumber ? "Upcoming" : completed ? "Recovery" : ROAD_TRAIL_WEEKS[strengthWeek - 1].phase,
+  };
+}
+
+export function describeRoadTrailWeek(program, dateKey) {
+  const calendar = blockCalendar(program);
+  return calendar && validDateKey(dateKey) ? weekOn(calendar, dateKey, weekStartOf(dateKey)) : null;
 }
 
 // Map the saved template to the dated prescription. Recognize the original
 // cardio by its actual fields, including steps after JSONB reorders keys.
 // An edited or removed run remains the athlete's own prescription.
-function trainingDay(day, saved, week, target) {
+function trainingDay(day, saved, week, target, {
+  omitLifting = week.race && (day === "Thursday" || day === "Friday"),
+  runWeek = week, omitBenchmark = false,
+} = {}) {
   const base = template[day];
   const originalRun = base.cardio || base.sessions?.find(s => s.cardio)?.cardio;
   const prescribe = slot => {
     let cardio = slot.cardio;
-    if (originalRun && samePrescription(cardio, originalRun)) cardio = runForDay(day, week, target);
+    if (originalRun && samePrescription(cardio, originalRun)) {
+      cardio = runWeek ? runForDay(day, runWeek, target) : recoveryDay(day).cardio;
+      if (omitBenchmark && cardio?.planRole === "race") cardio = null;
+    } else if (!runWeek && slot === saved && !cardio) {
+      cardio = recoveryDay(day).cardio;
+    }
     let lifting = slot.lifting || [];
-    if (week.race && (day === "Thursday" || day === "Friday")) lifting = [];
+    if (omitLifting) lifting = [];
     else if (week.sets !== 1) lifting = lifting.map(ex => ({
       ...ex, sets: Math.max(1, Math.round(ex.sets * week.sets)), rir: Math.max(ex.rir ?? 2, week.reserve),
     }));
@@ -210,8 +246,8 @@ function trainingDay(day, saved, week, target) {
     return { ...saved, type, sessions };
   }
   const next = prescribe(saved);
-  if (!next.lifting.length && !next.cardio) return saved.lifting?.length ? rest() : next;
-  if (!next.lifting.length && next.cardio && saved.type === base.type) return { ...next, type: next.cardio.type, code: week.race && day === "Saturday" ? "RACE" : next.code };
+  if (!next.lifting.length && !next.cardio) return saved.lifting?.length || saved.cardio ? rest() : next;
+  if (!next.lifting.length && next.cardio && saved.type === base.type) return { ...next, type: next.cardio.type, code: next.cardio.planRole === "race" ? "RACE" : next.code };
   return next;
 }
 function recoveryDay(day) {
@@ -238,11 +274,35 @@ function prescribeWeek(program, weekNumber, raceTarget, firstDay = 0) {
 export function roadTrailWeekProgram(weekNumber, raceTarget = "road10k") {
   return prescribeWeek(template, weekNumber, raceTarget);
 }
-export function resolveRoadTrailWeek(program, dateKey) {
-  const current = describeRoadTrailWeek(program, dateKey);
-  if (!current) return program;
-  if (weekStartOf(dateKey) === current.startMonday) {
-    return prescribeWeek(program, 1, current.raceTarget, WEEK_DAYS.indexOf(weekdayOf(current.startDate)));
+export function resolveRoadTrailWeek(program, dateKey, revisionDate = null) {
+  const calendar = blockCalendar(program);
+  if (!calendar || !validDateKey(dateKey)) return program;
+  const monday = weekStartOf(dateKey);
+  const calendarWeek = 1 + weeksBetween(calendar.startMonday, monday);
+  const revision = revisionDate ? alignmentOn(calendar.marker, revisionDate) : undefined;
+  if (!calendar.marker.alignments?.length || revision === null) {
+    const firstDay = monday === calendar.startMonday ? WEEK_DAYS.indexOf(weekdayOf(calendar.startDate)) : 0;
+    return prescribeWeek(program, calendarWeek, calendar.raceTarget, firstDay);
   }
-  return prescribeWeek(program, current.weekNumber, current.raceTarget);
+
+  const result = { ...program };
+  const target = ROAD_TRAIL_TARGETS[calendar.raceTarget];
+  for (const [index, day] of WEEK_DAYS.entries()) {
+    const key = shiftDate(monday, index);
+    const info = weekOn(calendar, key, monday, revision);
+    if (!info.weekNumber) result[day] = rest("Before the block");
+    else if (info.completed) result[day] = info.aligned && key === shiftDate(info.raceDate, 1) ? rest() : recoveryDay(day);
+    else if (program[day]) {
+      const strengthWeek = ROAD_TRAIL_WEEKS[info.strengthWeek - 1];
+      // The generated race calendar overlays its own runs. Outside that window
+      // the block keeps its original running dose and never adds a second race.
+      const options = info.aligned ? {
+        omitLifting: key >= shiftDate(info.raceDate, -2),
+        runWeek: ROAD_TRAIL_WEEKS[calendarWeek - 1] || null,
+        omitBenchmark: true,
+      } : undefined;
+      result[day] = trainingDay(day, program[day], strengthWeek, target, options);
+    }
+  }
+  return result;
 }

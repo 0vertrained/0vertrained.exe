@@ -11,6 +11,7 @@ import { Icon, Sheet } from "./ui/ledger";
 // Why a day can't be picked, or null when it can.
 function blockedReason(day, from) {
   if (day.started || day.done) return "Training already logged";
+  if (day.moveLock) return day.moveLock;
   if (from && day.dayName === from.dayName) return "The day you picked";
   if (from && day.when === "past" && from.when === "past") return "Pick today or a day ahead";
   return null;

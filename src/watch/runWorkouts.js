@@ -14,17 +14,14 @@
 import { suggestPlanFromNotes, timeBasedCardioPlan } from "../cardioSession";
 import { DEFAULT_PROGRAM, getDayName } from "../constants";
 import { cardioModality } from "../cardioLog";
-import { getProgramSessions } from "../programSessions";
-import { applyRaceBuild, resolveRaceBuildConfig } from "../raceBuild";
+import { getProgramSessions, plannedSessionTime } from "../programSessions";
+import { applyRaceBuild, racePlanOn, resolveRaceBuildConfig } from "../raceBuild";
 import { METERS_PER_MILE, RACE_DISTANCES } from "../runPaces";
 
 export const RUN_WORKOUT_VERSION = 1;
 // Runs from today through the next six days are kept on the watch.
 export const SCHEDULE_DAYS = 7;
 
-// When a scheduled run starts, by the session's time of day.
-const START_TIMES = { morning: "07:00", am: "07:00", midday: "12:00", lunch: "12:00", afternoon: "16:00", evening: "17:30", pm: "17:30", night: "19:00" };
-const DEFAULT_START = "07:00";
 // Seconds per mile either side of a single target pace.
 const PACE_SPREAD = { threshold: 8, interval: 8, repetition: 6, race: 6 };
 // Heart-rate zone cues when there are no paces.
@@ -44,8 +41,8 @@ const time = (minutes) => ({ kind: "time", seconds: Math.round(minutes * 60) });
 const distance = (meters) => ({ kind: "distance", meters: Math.round(meters) });
 
 /** Zones and race distance of the program's race plan, or nulls. */
-export function paceContext(program) {
-  const config = resolveRaceBuildConfig(program?.__raceBuild);
+export function paceContext(program, dateKey) {
+  const config = resolveRaceBuildConfig(racePlanOn(program, dateKey));
   return { zones: config?.zones || null, raceDistance: config?.distance || null };
 }
 
@@ -214,7 +211,7 @@ export function runWorkout(session, { dateKey, index = 0, context = {} } = {}) {
   return {
     id: stableUuid(JSON.stringify({ dateKey, session: session.id, index, content })),
     date: dateKey,
-    time: START_TIMES[String(session.timeOfDay || "").toLowerCase()] || DEFAULT_START,
+    time: plannedSessionTime(session),
     ...content,
   };
 }
@@ -222,7 +219,7 @@ export function runWorkout(session, { dateKey, index = 0, context = {} } = {}) {
 /** A day's planned runs as workout specs. */
 export function runWorkoutsFor(program, dateKey) {
   if (!DATE_KEY.test(dateKey || "")) return [];
-  const context = paceContext(program);
+  const context = paceContext(program, dateKey);
   return runSessionsFor(program, dateKey)
     .map((session, index) => runWorkout(session, { dateKey, index, context }))
     .filter(Boolean);
