@@ -1,5 +1,6 @@
 import Foundation
 import Capacitor
+import WatchConnectivity
 
 /// The page's side of the watch connection: send the week's plans, read the
 /// sets logged on the watch, and confirm them once they're in the log. A
@@ -9,6 +10,9 @@ public class WatchPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "WatchPlugin"
     public let jsName = "OTWatch"
     public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "climbInvite", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "climbCue", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "climbClose", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "sendPlan", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pending", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "ack", returnType: CAPPluginReturnPromise),
@@ -37,6 +41,25 @@ public class WatchPlugin: CAPPlugin, CAPBridgedPlugin {
         if let observer = observer {
             NotificationCenter.default.removeObserver(observer)
         }
+    }
+
+    @objc func climbInvite(_ call: CAPPluginCall) { sendClimb(call, action: "invite") }
+    @objc func climbCue(_ call: CAPPluginCall) { sendClimb(call, action: "cue") }
+    @objc func climbClose(_ call: CAPPluginCall) { sendClimb(call, action: "close") }
+
+    private func sendClimb(_ call: CAPPluginCall, action: String) {
+        guard let owner = call.getString("owner"), !owner.isEmpty, let id = call.getString("recordingId"), UUID(uuidString: id) != nil,
+              WCSession.isSupported(), WCSession.default.activationState == .activated, WCSession.default.isReachable else {
+            call.reject("Open 0vertrained on your paired Watch and try again.")
+            return
+        }
+        var message: [String: Any] = ["climbAction": action, "owner": owner, "recordingId": id, "issuedAt": Date().timeIntervalSince1970]
+        for field in ["name", "date", "landmark"] { if let text = call.getString(field) { message[field] = String(text.prefix(120)) } }
+        for field in ["remaining", "grade", "gap"] { if let number = call.getDouble(field), number.isFinite { message[field] = number } }
+        WCSession.default.sendMessage(message, replyHandler: { reply in
+            if reply["accepted"] as? Bool == true { call.resolve() }
+            else { call.reject("Check the athlete and active workout on your Watch.") }
+        }, errorHandler: { _ in call.reject("Watch disconnected. Open the Watch app to reconnect.") })
     }
 
     @objc func sendPlan(_ call: CAPPluginCall) {

@@ -64,7 +64,7 @@ function secondsToPace(secs) {
 }
 
 // Progress tab
-export function ProgressTab({ owner, data, settings, program, baseProgram = program, loaded, updateEntryAtDate, showToast, onOpenDay, onOpenEdition = null, onOpenBlock = null }) {
+export function ProgressTab({ owner, onRaceClimb, data, settings, program, baseProgram = program, loaded, updateEntryAtDate, showToast, onOpenDay, onOpenEdition = null, onOpenBlock = null }) {
   // Train links straight to the block ("program") and to history; Back from
   // either returns there.
   // home | strength | running | body | recovery | review | history
@@ -137,6 +137,7 @@ export function ProgressTab({ owner, data, settings, program, baseProgram = prog
   if (subView === "history") {
     return (
       <ProgressHistory
+        owner={owner} onRaceClimb={onRaceClimb}
         data={data}
         program={baseProgram}
         goals={goals}

@@ -182,6 +182,7 @@ export function importGpx(text) {
 
 // A course belongs to the athlete's calendar across changes of training plan.
 export function preserveRehearsal(previous, next) {
+  if (previous?.__climbs && next && !Object.hasOwn(next, "__climbs")) next = { ...next, __climbs: previous.__climbs };
   return previous?.__rehearsal && next && !Object.hasOwn(next, "__rehearsal")
     ? { ...next, __rehearsal: previous.__rehearsal } : next;
 }

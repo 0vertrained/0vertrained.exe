@@ -1,6 +1,7 @@
 import Foundation
 import HealthKit
 import WorkoutKit
+import CoreLocation
 import Capacitor
 
 /// Runs on the Apple Watch: planned runs scheduled in the watch's Workout
@@ -18,6 +19,8 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "schedule", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clear", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "recentRuns", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "climbRouteList", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "climbRoute", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "runDetail", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cardioFitness", returnType: CAPPluginReturnPromise)
     ]
@@ -110,6 +113,148 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
             }
         }
         self.health.execute(query)
+    }
+
+    /// Routes are an on-demand permission, separate from normal run syncing.
+    /// Route samples may arrive after the associated workout: list and import
+    /// query the store again instead of caching an earlier missing route.
+    private func requestClimbRoutes() async throws {
+        guard HKHealthStore.isHealthDataAvailable() else { throw ClimbRouteError("Apple Health is unavailable on this device.") }
+        try await health.requestAuthorization(toShare: [], read: [HKObjectType.workoutType(), HKSeriesType.workoutRoute()])
+    }
+
+    private struct ClimbRouteError: LocalizedError {
+        let errorDescription: String?
+        init(_ text: String) { errorDescription = text }
+    }
+
+    private func routeSamples<T: HKSample>(_ type: HKSampleType, predicate: NSPredicate, limit: Int, ascending: Bool) async throws -> [T] {
+        try await withCheckedThrowingContinuation { continuation in
+            let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: ascending)
+            health.execute(HKSampleQuery(sampleType: type, predicate: predicate, limit: limit, sortDescriptors: [sort]) { _, samples, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: samples as? [T] ?? []) }
+            })
+        }
+    }
+
+    private func climbSegments(_ workout: HKWorkout, limit: Int) async throws -> [HKWorkoutRoute] {
+        try await routeSamples(HKSeriesType.workoutRoute(), predicate: HKQuery.predicateForObjects(from: workout), limit: limit, ascending: true)
+    }
+
+    @objc func climbRouteList(_ call: CAPPluginCall) {
+        Task {
+            do {
+                try await requestClimbRoutes()
+                let owner = call.getString("owner")
+                let type = NSCompoundPredicate(orPredicateWithSubpredicates: [HKWorkoutActivityType.running, .hiking, .walking].map { HKQuery.predicateForWorkouts(with: $0) })
+                var predicates = [type as NSPredicate]
+                if let day = call.getString("nearDate"), !day.isEmpty {
+                    let format = DateFormatter()
+                    format.calendar = Calendar(identifier: .gregorian)
+                    format.locale = Locale(identifier: "en_US_POSIX")
+                    format.timeZone = .current
+                    format.dateFormat = "yyyy-MM-dd"
+                    guard let date = format.date(from: day), format.string(from: date) == day else {
+                        throw ClimbRouteError("Choose a valid race date.")
+                    }
+                    let calendar = Calendar.current
+                    let from = calendar.date(byAdding: .day, value: -7, to: date)
+                    let through = calendar.date(byAdding: .day, value: 8, to: date)
+                    predicates.append(HKQuery.predicateForSamples(withStart: from, end: through, options: .strictStartDate))
+                }
+                let workouts: [HKWorkout] = try await routeSamples(HKObjectType.workoutType(), predicate: NSCompoundPredicate(andPredicateWithSubpredicates: predicates), limit: 100, ascending: false)
+                var rows = [[String: Any]]()
+                for workout in workouts {
+                    if let tag = workout.metadata?["OTAthleteOwner"] as? String, tag != owner { continue }
+                    if (workout.metadata?[HKMetadataKeyIndoorWorkout] as? Bool) == true { continue }
+                    guard !(try await climbSegments(workout, limit: 1)).isEmpty else { continue }
+                    let day = RunSchedule.dayKey(workout.startDate)
+                    let activity = workout.workoutActivityType == .hiking ? "Hike" : workout.workoutActivityType == .walking ? "Walk" : "Run"
+                    let name = activity + " · " + day
+                    var row: [String: Any] = ["id": workout.uuid.uuidString, "date": day, "name": name]
+                    row["meters"] = Self.distance(of: workout)
+                    rows.append(row)
+                    if rows.count == 50 { break }
+                }
+                call.resolve(["runs": rows])
+            } catch { call.reject(error.localizedDescription) }
+        }
+    }
+
+    private func climbLocations(_ route: HKWorkoutRoute, budget: Int) async throws -> [CLLocation] {
+        let store = health
+        return try await withCheckedThrowingContinuation { continuation in
+            var locations = [CLLocation]()
+            var complete = false
+            let lock = NSLock()
+            let query = HKWorkoutRouteQuery(route: route) { query, batch, done, error in
+                lock.lock()
+                defer { lock.unlock() }
+                guard !complete else { return }
+                if let error {
+                    complete = true
+                    continuation.resume(throwing: error)
+                    return
+                }
+                if let batch {
+                    if batch.count > budget - locations.count {
+                        complete = true
+                        store.stop(query)
+                        continuation.resume(throwing: ClimbRouteError("This route exceeds 50,000 points. Import a shorter GPX segment."))
+                        return
+                    }
+                    locations.append(contentsOf: batch)
+                }
+                if done {
+                    complete = true
+                    continuation.resume(returning: locations)
+                }
+            }
+            health.execute(query)
+        }
+    }
+
+    @objc func climbRoute(_ call: CAPPluginCall) {
+        guard let text = call.getString("id"), let id = UUID(uuidString: text) else { call.reject("Choose an outdoor workout."); return }
+        Task {
+            do {
+                try await requestClimbRoutes()
+                guard let workout = await workout(id),
+                      [HKWorkoutActivityType.running, .walking, .hiking].contains(workout.workoutActivityType),
+                      (workout.metadata?[HKMetadataKeyIndoorWorkout] as? Bool) != true else {
+                    throw ClimbRouteError("This outdoor workout is unavailable.")
+                }
+                if let tag = workout.metadata?["OTAthleteOwner"] as? String, tag != call.getString("owner") {
+                    throw ClimbRouteError("This workout belongs to another 0VERTRAINED account.")
+                }
+                let segments = try await climbSegments(workout, limit: 33)
+                guard !segments.isEmpty else { throw ClimbRouteError("No route is available yet. Check that workout routes are shared in Health, then retry after the Watch syncs.") }
+                guard segments.count <= 32 else { throw ClimbRouteError("Choose a GPX segment from this workout.") }
+                let date = ISO8601DateFormatter()
+                date.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                let activity = workout.workoutActivityType == .running ? "Run" : workout.workoutActivityType == .walking ? "Walk" : "Hike"
+                var parts = ["<gpx version=\"1.1\" creator=\"0VERTRAINED\" xmlns=\"http://www.topografix.com/GPX/1/1\"><trk><name>" + activity + " · " + RunSchedule.dayKey(workout.startDate) + "</name>"]
+                var remaining = 50_000
+                var valid = 0
+                for route in segments {
+                    let batch = try await climbLocations(route, budget: remaining)
+                    remaining -= batch.count
+                    let points = batch.filter { CLLocationCoordinate2DIsValid($0.coordinate) && $0.horizontalAccuracy >= 0 && $0.horizontalAccuracy <= 100 }
+                    guard points.count >= 2 else { continue }
+                    parts.append("<trkseg>")
+                    for fix in points {
+                        let elevation = fix.verticalAccuracy >= 0 && fix.altitude.isFinite ? "<ele>\(fix.altitude)</ele>" : ""
+                        parts.append("<trkpt lat=\"\(fix.coordinate.latitude)\" lon=\"\(fix.coordinate.longitude)\">" + elevation + "<time>" + date.string(from: fix.timestamp) + "</time></trkpt>")
+                    }
+                    valid += points.count
+                    parts.append("</trkseg>")
+                }
+                guard valid >= 2 else { throw ClimbRouteError("The workout has too few usable GPS positions.") }
+                parts.append("</trk></gpx>")
+                call.resolve(["gpx": parts.joined()])
+            } catch { call.reject(error.localizedDescription) }
+        }
     }
 
     /// id: a run's Health workout id, from recentRuns. Resolves { distance,
@@ -319,6 +464,8 @@ public class RunsPlugin: CAPPlugin, CAPBridgedPlugin {
             "activity": RunSpec.modality(for: workout.workoutActivityType) ?? "cardio",
             "seconds": workout.duration
         ]
+        if let key = workout.metadata?["OTClimbStartDay"] as? String { run["climbDate"] = key }
+        if let recordingId = workout.metadata?["OTCardioID"] as? String { run["recordingId"] = recordingId }
         if let owner = workout.metadata?["OTAthleteOwner"] as? String { run["owner"] = owner }
         if let id = workout.metadata?["OTPlanID"] as? String {
             run["planId"] = id

@@ -16,6 +16,7 @@ class AppViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(RestAlertPlugin())
         bridge?.registerPluginInstance(WatchPlugin())
         bridge?.registerPluginInstance(RunsPlugin())
+        bridge?.registerPluginInstance(ClimbTreadmill())
         bridge?.registerPluginInstance(RemindersPlugin())
         bridge?.registerPluginInstance(HealthDailyPlugin())
         bridge?.registerPluginInstance(BarcodePlugin())

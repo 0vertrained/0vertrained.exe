@@ -67,7 +67,12 @@ final class CardioWorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDe
                         store.startRehearsal(rehearsal, owner: owner, at: now)
                         RehearsalTracker.shared.start()
                     }
-                    self.record?.workoutID = rehearsal == nil ? UUID().uuidString : store.rehearsalAttempt?.id
+                    if spec.sessionId == "climb:" + spec.id, UUID(uuidString: spec.id) != nil, spec.location == "indoor" {
+                        self.record?.workoutID = spec.id
+                        ClimbWrist.shared.invite = nil
+                    } else {
+                        self.record?.workoutID = rehearsal == nil ? UUID().uuidString : store.rehearsalAttempt?.id
+                    }
                     self.persist()
                     session.startActivity(with: now)
                     builder.beginCollection(withStart: now) { _, error in
@@ -76,6 +81,7 @@ final class CardioWorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDe
                     var metadata: [String: Any] = ["OTPlanID": spec.id]
                     if let owner { metadata["OTAthleteOwner"] = owner }
                     metadata["OTCardioID"] = self.record?.workoutID
+                    if spec.sessionId == "climb:" + spec.id, spec.location == "indoor" { metadata["OTClimbStartDay"] = spec.date }
                     if let id = spec.sessionId { metadata["OTSessionID"] = id }
                     builder.addMetadata(metadata) { _, _ in }
                     WatchLiftMirror.shared.start(session, cardio: true)
@@ -310,7 +316,9 @@ struct CardioWorkoutView: View {
                 let steps = record.spec.orderedSteps
                 VStack(spacing: 8) {
                     Text(record.spec.name).font(.headline)
-                    if steps.indices.contains(record.index) {
+                    if let id = record.workoutID, record.spec.sessionId == "climb:" + id {
+                        ClimbWristMetrics(recording: id)
+                    } else if steps.indices.contains(record.index) {
                         let item = steps[record.index]
                         Text("\(item.label) · \(record.index + 1) of \(steps.count)")
                         if item.step.goal.kind == "time", let seconds = item.step.goal.seconds {

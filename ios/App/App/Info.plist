@@ -31,13 +31,13 @@
 	<key>OTAppGroup</key>
 	<string>group.$(APP_BUNDLE_ID)</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>0VERTRAINED connects to the WHOOP strap you select to read heart rate, measure morning HRV, and sync readings saved while you train or sleep.</string>
+	<string>0VERTRAINED connects to the WHOOP strap you select to read heart rate, measure morning HRV, and sync saved readings. For indoor climbs, it reads speed, distance and incline from the treadmill you select.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>0VERTRAINED uses the camera to scan food barcodes into your food log and to take progress photos, which stay on this iPhone.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>0VERTRAINED lets you choose progress photos from your library. They stay on this iPhone.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>0VERTRAINED reads your runs, with their heart rate, splits and effort, your cardio fitness, and your steps, weight, sleep, resting heart rate and HRV to fill in your training log.</string>
+	<string>0VERTRAINED reads your runs, with their heart rate, splits and effort, your cardio fitness, and your steps, weight, sleep, resting heart rate and HRV to fill in your training log. You can also import a selected outdoor workout route for Race the Climb.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>When you turn it on, 0VERTRAINED saves your weight, each day's food totals and the lifts you log on this iPhone, with your effort rating, to Health.</string>
 	<key>UIApplicationSceneManifest</key>

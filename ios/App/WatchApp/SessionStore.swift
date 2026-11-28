@@ -509,6 +509,10 @@ extension SessionStore: WCSessionDelegate {
         }
     }
 
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
+        DispatchQueue.main.async { replyHandler(["accepted": ClimbWrist.shared.receive(message)]) }
+    }
+
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         guard let ids = userInfo["receipts"] as? [String] else { return }
         let owner = userInfo["owner"] as? String

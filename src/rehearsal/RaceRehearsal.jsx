@@ -23,7 +23,7 @@ function History({ entries, recent }) {
   </section>;
 }
 
-function AthleteRehearsal({ owner, program, entries, todayKey, onSaveProgram, onSaveAttempt }) {
+function AthleteRehearsal({ onOpenClimb, owner, program, entries, todayKey, onSaveProgram, onSaveAttempt }) {
   const [editing, setEditing] = useState(false);
   const [recent, setRecent] = useState(null);
   const raw = program?.__rehearsal;
@@ -49,6 +49,7 @@ function AthleteRehearsal({ owner, program, entries, todayKey, onSaveProgram, on
         <button type="button" className="btn btn-p" onClick={() => setEditing(true)}>Build course</button>
       </section>}
     </RehearsalAttempt>
+    {!editing && onOpenClimb && <button type="button" className="btn btn-s" onClick={onOpenClimb}>Rehearse indoors · Race the Climb</button>}
     {!editing && <History entries={entries} recent={recent} />}
   </div>;
 }

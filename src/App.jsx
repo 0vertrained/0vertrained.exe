@@ -4,6 +4,7 @@
 // files (TodayTab/ProgressTab/FuelTab/TrainTab). DemoPage is lazy: it isn't
 // needed for first paint, so it loads on demand and stays out of the initial
 // bundle.
+import { recordClimb } from "./climb/ledger";
 import { rehearsalAttempt } from "./rehearsal/attempts";
 import { preserveRehearsal, validCourseDate } from "./rehearsal/course";
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
@@ -107,6 +108,7 @@ function AppInner({ onThemeChange }) {
   // run log. The nonce makes the same request twice still count twice.
   const [todayIntent, setTodayIntent] = useState(null);
   // Today and Progress can open the training block directly.
+  const [climbHistoryRequest, setClimbHistoryRequest] = useState(null);
   const [trainLanding, setTrainLanding] = useState(null);
   // Today and Progress can ask Recovery to open on the week's edition.
   const [editionAsked, setEditionAsked] = useState(false);
@@ -787,6 +789,27 @@ function AppInner({ onThemeChange }) {
     updateEntryAtDate(dateKey, path.join("."), attempt);
     return true;
   };
+  const saveClimbAttempt = value => {
+    if (!demoMode && !integrationAccountReady) return false;
+    const { dateKey } = value;
+    const owner = demoMode ? "demo" : accountOwner;
+    const day = data[dateKey] || defaultDay();
+    const workout = recordClimb(day.workout, value, owner, program);
+    if (!workout) return false;
+    if (workout === day.workout) return true;
+    if (!demoMode && !stageWatchDays({ [dateKey]: { ...day, workout } })) return false;
+    // Reapply the scoped mutation against the latest state. A Watch edit or
+    // health import for this day may have been queued in the same render.
+    setData(prev => {
+      const current = prev[dateKey] || defaultDay();
+      const updated = { ...current, workout: recordClimb(current.workout, value, owner, program) || current.workout };
+      const next = { ...prev, [dateKey]: updated };
+      if (!demoMode && accountReadyRef.current) writeCache(owner, { entries: next, program, settings, myUsername });
+      scheduleSave(dateKey, updated);
+      return next;
+    });
+    return true;
+  };
   useWatchBridge({ owner: accountOwner, builderPreferences: settings?.programBuilder, ready: integrationAccountReady, data, program, wearableScore: ouraRecovery, readiness: customReadiness, updateEntryAtDate, stageDays: stageWatchDays });
   useWatchRuns({ owner: accountOwner, ready: integrationAccountReady, data, program, updateEntryAtDate, showToast });
   useHealthDaily({ owner: accountOwner, ready: integrationAccountReady, data, wearables: Boolean(settings?.ouraConnected || settings?.whoopConnected), updateEntryAtDate });
@@ -1184,7 +1207,7 @@ function AppInner({ onThemeChange }) {
     : { title: tab, sub: tab === "Today" || tab === "Fuel" ? ` · ${shortDay(new Date())}` : "" };
   const bar = (!overlay && screenBar) || tabBar;
   const logActions = coachEnabled ? [...QUICK_ACTIONS, COACH_ACTION] : QUICK_ACTIONS;
-  const changeTab = (t) => { setTrainLanding(null); navigateTo(t); setSelectedDay(null); };
+  const changeTab = (t) => { setClimbHistoryRequest(null); setTrainLanding(null); navigateTo(t); setSelectedDay(null); };
   // The Sunday Edition is drawn from wearable mornings, so its doors show only
   // on a connected account, and only while an edition is out.
   const openEdition = ouraConnected && !dayZero.recovery.isZero && editionWindow(new Date()).available
@@ -1253,15 +1276,15 @@ function AppInner({ onThemeChange }) {
           {accountUnavailable ? <div className="legacy-screen"><AccountUnavailable reason={accountUnavailable} onRetry={retryBoot} /></div> : (<>
           {tab === "Today" && (
             <div className={loaded && !dayZero.today.isZero ? "tab-screen" : "legacy-screen"}>
-            {loaded && dayZero.today.isZero
+            {loaded && dayZero.today.isZero && !program?.__climbs?.[todayKey]
               ? <DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />
-              : <TodayTab key={accountOwner} integrationRevision={integrationRevision} todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onSaveProgram={handleSaveProgram} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} wearableSample={wearableSample} setTab={navigateTo} onChangeStartDate={() => { setTrainLanding("block"); navigateTo("Train"); }} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={currentLoad} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
+              : <TodayTab onOpenClimb={() => { setClimbHistoryRequest(null); setTrainLanding("climb"); navigateTo("Train"); }} key={accountOwner} integrationRevision={integrationRevision} todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onSaveProgram={handleSaveProgram} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} wearableSample={wearableSample} setTab={navigateTo} onChangeStartDate={() => { setTrainLanding("block"); navigateTo("Train"); }} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={currentLoad} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
             </div>
           )}
           {tab === "Train" && (
             <TrainTab
-              key={(accountOwner || "demo") + (trainLanding || "home")} initialView={trainLanding}
-              owner={demoMode ? "demo" : integrationAccountReady ? accountOwner : null} onSaveRehearsalAttempt={saveRehearsalAttempt}
+              key={(accountOwner || "demo") + (trainLanding || "home")} initialView={trainLanding} initialHealthRun={trainLanding === "climb" && climbHistoryRequest?.owner === accountOwner ? climbHistoryRequest?.run : null}
+              owner={demoMode ? "demo" : integrationAccountReady ? accountOwner : null} onSaveClimbAttempt={saveClimbAttempt} onSaveRehearsalAttempt={saveRehearsalAttempt}
               program={program} liveProgram={recoveryProgram} entries={data} settings={settings}
               onSaveProgram={handleSaveProgram} onApplyGeneratedProgram={handleApplyGeneratedProgram}
               onStartToday={() => { setLogDate(null); navigateTo("Today"); setTodayIntent({ kind: "workout", nonce: Date.now() }); }}
@@ -1279,7 +1302,7 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.progress.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.progress.isZero
               ? <DayZeroSpecimen tab="Progress" progressInfo={dayZero.progress} />
-              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab owner={integrationAccountReady ? accountOwner : null} data={data} settings={settings} program={recoveryProgram} baseProgram={program} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onOpenEdition={openEdition} onOpenBlock={() => { setTrainLanding("block"); navigateTo("Train"); }} /></>}
+              : <><BaselineBanner tab="Progress" firstWeek={firstWeek} settings={settings} entries={data} program={liveProgram} ouraConnected={ouraConnected} /><ProgressTab onRaceClimb={run => { setClimbHistoryRequest({ owner: accountOwner, run }); setTrainLanding("climb"); navigateTo("Train"); }} owner={integrationAccountReady ? accountOwner : null} data={data} settings={settings} program={recoveryProgram} baseProgram={program} loaded={loaded} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onOpenDay={(dateKey) => { setLogDate(dateKey); navigateTo("Today"); }} onOpenEdition={openEdition} onOpenBlock={() => { setTrainLanding("block"); navigateTo("Train"); }} /></>}
             </div>
           )}
           </>)}

@@ -219,7 +219,7 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR, onA
   );
 }
 
-export function TodayTab({ integrationRevision = 0, todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onSaveProgram = null, onChangeStartDate = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, wearableSample = null, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
+export function TodayTab({ onOpenClimb, integrationRevision = 0, todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onSaveProgram = null, onChangeStartDate = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, wearableSample = null, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
   // Broadsheet: below 1440px every wrapper is display:contents and
   // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -744,6 +744,7 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
 
         {p.adaptation?.reason && <p className="t-s c2" aria-label="Custom training adjustment">{p.adaptation.reason}</p>}
         {/* Race plan line: week of the plan, phase, countdown. Renders nothing without a plan. */}
+        {!isLoggingPast && onOpenClimb && baseProgram?.__climbs?.[todayKey] && <LinkRow label="Race the Climb" sub={baseProgram.__climbs[todayKey].name} onClick={onOpenClimb} />}
         <RaceWeekLine program={activeProgram} dateKey={todayKey} />
         {movedFrom(baseProgram || activeProgram, todayKey) && <p className="t-s c2">Moved here from {movedFrom(baseProgram || activeProgram, todayKey)} this week.</p>}
 

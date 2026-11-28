@@ -22,6 +22,7 @@
 		D149A81AC8FF32E58D92940A /* OvertrainedWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729538034977797DF2BD5D23 /* OvertrainedWatchApp.swift */; };
 		E69202C430EE3DED082F6E58 /* Plan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57002D3065893BE4A0C8E868 /* Plan.swift */; };
 		0AFD51DCC80035D52772190B /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F93304EBC9BB081B1F4BA8E /* SessionStore.swift */; };
+		92B054D0C006536EA0CF7287 /* ClimbWrist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32B47B20A91954BFB17DC562 /* ClimbWrist.swift */; };
 		E527802E72B05FE4AD7FBB81 /* RehearsalWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A9904115F3567EB003486F /* RehearsalWorkout.swift */; };
 		67E004AF9352542B8455AE74 /* WatchLiftMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60AF5E7B066B5A9DBE6FEB65 /* WatchLiftMirror.swift */; };
 		54AB01104DB092CD137D3E5A /* LiftJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */; };
@@ -44,6 +45,8 @@
 		B7452FDB3114CDA1EFAB0DAA /* WatchInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF6343409316D3C02888A642 /* WatchInbox.swift */; };
 		3A1971D9450A4097E0147736 /* WatchPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */; };
 		A92E61295872EE52B7F69B9D /* RunsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D95201F6381D68DFE7A852F /* RunsPlugin.swift */; };
+		2CE81E9D56C159D38E58FE99 /* ClimbTreadmill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E9854908085F3A8F9A78BC /* ClimbTreadmill.swift */; };
+		16FFFE7ACEC35D4489987AC0 /* ClimbProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B5629CAF4954DBA1553FA9 /* ClimbProtocol.swift */; };
 		28750D975F84203C6125340E /* RunWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */; };
 		AE8AF8E92F7C5980B2D9C55F /* LiftMirrorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF2C513FD1ED54D98BD00078 /* LiftMirrorProtocol.swift */; };
 		D683DD74C45E98DE4F01DB66 /* RunWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */; };
@@ -156,6 +159,7 @@
 		729538034977797DF2BD5D23 /* OvertrainedWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OvertrainedWatchApp.swift; sourceTree = "<group>"; };
 		57002D3065893BE4A0C8E868 /* Plan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Plan.swift; sourceTree = "<group>"; };
 		8F93304EBC9BB081B1F4BA8E /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		32B47B20A91954BFB17DC562 /* ClimbWrist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClimbWrist.swift; sourceTree = "<group>"; };
 		B8A9904115F3567EB003486F /* RehearsalWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RehearsalWorkout.swift; sourceTree = "<group>"; };
 		60AF5E7B066B5A9DBE6FEB65 /* WatchLiftMirror.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLiftMirror.swift; sourceTree = "<group>"; };
 		3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftJournal.swift; sourceTree = "<group>"; };
@@ -180,6 +184,8 @@
 		CF6343409316D3C02888A642 /* WatchInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchInbox.swift; sourceTree = "<group>"; };
 		33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPlugin.swift; sourceTree = "<group>"; };
 		1D95201F6381D68DFE7A852F /* RunsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunsPlugin.swift; sourceTree = "<group>"; };
+		84E9854908085F3A8F9A78BC /* ClimbTreadmill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClimbTreadmill.swift; sourceTree = "<group>"; };
+		76B5629CAF4954DBA1553FA9 /* ClimbProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClimbProtocol.swift; sourceTree = "<group>"; };
 		FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunWorkout.swift; sourceTree = "<group>"; };
 		5CA2C6E855A85B0C8AB46C04 /* RehearsalCourse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RehearsalCourse.swift; sourceTree = "<group>"; };
 		EF2C513FD1ED54D98BD00078 /* LiftMirrorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftMirrorProtocol.swift; sourceTree = "<group>"; };
@@ -289,6 +295,8 @@
 				CF6343409316D3C02888A642 /* WatchInbox.swift */,
 				33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */,
 				1D95201F6381D68DFE7A852F /* RunsPlugin.swift */,
+				84E9854908085F3A8F9A78BC /* ClimbTreadmill.swift */,
+				76B5629CAF4954DBA1553FA9 /* ClimbProtocol.swift */,
 				79A65BABD675768D7B7FDC32 /* App.entitlements */,
 				0D29241F9B5F62D439F87F16 /* RemindersPlugin.swift */,
 				928997AD756BEB39DCD549AC /* RestActivityController.swift */,
@@ -313,6 +321,7 @@
 				729538034977797DF2BD5D23 /* OvertrainedWatchApp.swift */,
 				57002D3065893BE4A0C8E868 /* Plan.swift */,
 				8F93304EBC9BB081B1F4BA8E /* SessionStore.swift */,
+				32B47B20A91954BFB17DC562 /* ClimbWrist.swift */,
 				B8A9904115F3567EB003486F /* RehearsalWorkout.swift */,
 				60AF5E7B066B5A9DBE6FEB65 /* WatchLiftMirror.swift */,
 				3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */,
@@ -552,6 +561,8 @@
 				B7452FDB3114CDA1EFAB0DAA /* WatchInbox.swift in Sources */,
 				3A1971D9450A4097E0147736 /* WatchPlugin.swift in Sources */,
 				A92E61295872EE52B7F69B9D /* RunsPlugin.swift in Sources */,
+				2CE81E9D56C159D38E58FE99 /* ClimbTreadmill.swift in Sources */,
+				16FFFE7ACEC35D4489987AC0 /* ClimbProtocol.swift in Sources */,
 				28750D975F84203C6125340E /* RunWorkout.swift in Sources */,
 				AE8AF8E92F7C5980B2D9C55F /* LiftMirrorProtocol.swift in Sources */,
 				47E1448CC805B21301C50317 /* RemindersPlugin.swift in Sources */,
@@ -579,6 +590,7 @@
 				D149A81AC8FF32E58D92940A /* OvertrainedWatchApp.swift in Sources */,
 				E69202C430EE3DED082F6E58 /* Plan.swift in Sources */,
 				0AFD51DCC80035D52772190B /* SessionStore.swift in Sources */,
+				92B054D0C006536EA0CF7287 /* ClimbWrist.swift in Sources */,
 				E527802E72B05FE4AD7FBB81 /* RehearsalWorkout.swift in Sources */,
 				67E004AF9352542B8455AE74 /* WatchLiftMirror.swift in Sources */,
 				54AB01104DB092CD137D3E5A /* LiftJournal.swift in Sources */,

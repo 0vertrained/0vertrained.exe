@@ -76,7 +76,7 @@ export function runFill(runs) {
 /** The log writes a fill makes, one per field it has a value for. */
 export function fillWrites(fill) {
   const path = fill.path || "workout.cardio";
-  const writes = ["miles", "time", "pace", "hr", "modality", "type", "plannedSeconds"]
+  const writes = ["miles", "time", "pace", "hr", "modality", "type", "plannedSeconds", "climbRecordingId", "unplanned", "indoor"]
     .filter((field) => fill?.[field])
     .map((field) => ({ path: `${path}.${field}`, value: fill[field] }));
   if (fill.activityRefs?.length) writes.push({ path: `${path}.activityRefs`, value: fill.activityRefs });
@@ -111,7 +111,9 @@ export function planHealthFills({ runs = [], data = {}, handled = [], program } 
     if (seen.has(run.id)) continue;
     seen.add(run.id);
     looked.push(run.id);
-    const { date: dateKey } = run;
+    const climbRecording = typeof run.recordingId === "string" && /^[a-z0-9-]{1,80}$/i.test(run.recordingId) &&
+      run.sessionId?.toLowerCase() === "climb:" + run.recordingId.toLowerCase() ? run.recordingId.toLowerCase() : null;
+    const dateKey = climbRecording && DATE_KEY.test(run.climbDate || "") ? run.climbDate : run.date;
     const modality = run.activity || "run";
     const fill = runFill([run]);
     if (!fill) continue;
@@ -126,6 +128,17 @@ export function planHealthFills({ runs = [], data = {}, handled = [], program } 
     const { blocks, plans, split } = days.get(dateKey);
     const existing = [...blocks.values()].filter(hasCardioResult);
     if (existing.some(block => block.activityRefs?.some(ref => ref.source === "apple" && ref.id === run.id))) continue;
+    if (climbRecording) {
+      const pair = [...blocks].find(([, block]) => block?.climbRecordingId?.toLowerCase() === climbRecording);
+      const path = pair?.[0] || "workout.cardioSessions.climb-" + climbRecording;
+      const ref = { source: "apple", id: run.id, kind: "run", startTime: run.start || null,
+        minutes: positive(run.seconds) / 60, miles: positive(run.meters) / METERS_PER_MILE };
+      const result = { dateKey, path, ...fill, count: 1, modality: "run", type: pair?.[1]?.type || "Indoor climb",
+        climbRecordingId: run.recordingId, indoor: true, ...(pair ? {} : { unplanned: true }), activityRefs: [...(pair?.[1]?.activityRefs || []), ref] };
+      fills.push(result);
+      blocks.set(path, result);
+      continue;
+    }
     const pathFor = plan => split ? `workout.cardioSessions.${plan.sessionId}` : "workout.cardio";
     const candidates = plans.filter(plan => plan.activity === modality);
     const exact = plans.find(plan => plan.id.toLowerCase() === run.planId?.toLowerCase() || (run.sessionId && plan.sessionId === run.sessionId && plan.activity === modality));

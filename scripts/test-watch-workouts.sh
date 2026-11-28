@@ -26,3 +26,6 @@ swiftc ios/App/Shared/LiftMirrorProtocol.swift ios/Tests/LiftMirrorTests.swift -
 
 swiftc ios/App/Shared/RehearsalCourse.swift ios/Tests/RehearsalCourseTests.swift -o "$out/rehearsal"
 "$out/rehearsal"
+
+swiftc ios/App/App/ClimbProtocol.swift ios/Tests/ClimbProtocolTests.swift -o "$out/climb-protocol"
+"$out/climb-protocol"

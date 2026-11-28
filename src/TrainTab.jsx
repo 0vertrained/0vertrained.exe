@@ -30,12 +30,13 @@ import { MoveDaySheet } from "./MoveDay";
 
 // The block brings the planner and the decision engine with it, so it loads
 // when it is opened.
+const ClimbHub = lazy(() => import("./climb/ClimbHub"));
 const RaceRehearsal = lazy(() => import("./rehearsal/RaceRehearsal").then(module => ({ default: module.RaceRehearsal })));
 const BlockScreen = lazy(() => import("./BlockScreen").then((module) => ({ default: module.BlockScreen })));
 // History is Progress's; it loads when it is opened here too.
 const ProgressHistory = lazy(() => import("./ProgressHistory").then((module) => ({ default: module.ProgressHistory })));
 
-const TITLES = { rehearsal: "Race rehearsal", program: "Program", edit: "Edit the week", build: "Build a program", race: "Race plan", block: "Block", history: "History" };
+const TITLES = { climb: "Race the Climb", rehearsal: "Race rehearsal", program: "Program", edit: "Edit the week", build: "Build a program", race: "Race plan", block: "Block", history: "History" };
 const PARENT = { edit: "Program", build: "Program" };
 const loading = (what) => <div className="shell"><div className="main"><p className="t-s c2" role="status">Loading {what}…</p></div></div>;
 
@@ -92,9 +93,10 @@ export function buildTrainWeek({ program, entries, todayKey }) {
   });
 }
 
-export function TrainTab({ owner, onSaveRehearsalAttempt, program, liveProgram, entries, settings, onSaveProgram, onApplyGeneratedProgram, onStartToday, onOpenDay, initialView = null }) {
+export function TrainTab({ owner, initialHealthRun, onSaveClimbAttempt, onSaveRehearsalAttempt, program, liveProgram, entries, settings, onSaveProgram, onApplyGeneratedProgram, onStartToday, onOpenDay, initialView = null }) {
   // "home", or one of its screens: program, edit, build, race, block, history.
-  const [view, setView] = useState(initialView === "block" ? "block" : "home");
+  const [historyRun, setHistoryRun] = useState(initialHealthRun || null);
+  const [view, setView] = useState(initialView === "climb" ? "climb" : initialView === "block" ? "block" : "home");
   const [editDay, setEditDay] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -165,9 +167,13 @@ export function TrainTab({ owner, onSaveRehearsalAttempt, program, liveProgram, 
   }
   // Race plan: Save writes the spec into the program's marker; End removes
   // it. Both go through the normal program save path.
+  if (view === "climb") {
+    return <Suspense fallback={loading("Race the Climb")}><ClimbHub key={owner} owner={owner} entries={entries} program={program}
+      todayKey={todayKey} onSaveProgram={onSaveProgram} onSaveAttempt={onSaveClimbAttempt} initialHealthRun={historyRun} fromToday={initialView === "climb" && !historyRun} /></Suspense>;
+  }
   if (view === "rehearsal") {
     return <Suspense fallback={<p className="t-s c2">Opening race rehearsal…</p>}>
-      <RaceRehearsal owner={owner} program={program} entries={entries} todayKey={todayKey} onSaveProgram={onSaveProgram} onSaveAttempt={onSaveRehearsalAttempt} />
+      <RaceRehearsal onOpenClimb={() => { setHistoryRun(null); setView("climb"); }} owner={owner} program={program} entries={entries} todayKey={todayKey} onSaveProgram={onSaveProgram} onSaveAttempt={onSaveRehearsalAttempt} />
     </Suspense>;
   }
   if (view === "race") {
@@ -193,7 +199,7 @@ export function TrainTab({ owner, onSaveRehearsalAttempt, program, liveProgram, 
   if (view === "history") {
     return (
       <Suspense fallback={loading("history")}>
-        <ProgressHistory data={entries} program={program} goals={settings?.goals} selectedDay={selectedDay} onSelectDay={setSelectedDay} isBroadsheet={isBroadsheet} onOpenDay={onOpenDay} />
+        <ProgressHistory owner={owner} onRaceClimb={run => { setHistoryRun(run); setView("climb"); }} data={entries} program={program} goals={settings?.goals} selectedDay={selectedDay} onSelectDay={setSelectedDay} isBroadsheet={isBroadsheet} onOpenDay={onOpenDay} />
       </Suspense>
     );
   }
@@ -260,6 +266,7 @@ export function TrainTab({ owner, onSaveRehearsalAttempt, program, liveProgram, 
           <ul className="rows">
             <li><LinkRow label="Program" sub={planSummary.hasProgram ? planSummary.line : "No program yet. Build one or pick a preset."} onClick={() => setView("program")} /></li>
             <li><LinkRow label="Block" sub={hybridWeek ? `Road & Trail Hybrid · ${hybridWeekLabel(hybridWeek)}` : "Where this week sits in the block"} onClick={() => setView("block")} /></li>
+            <li><LinkRow label="Race the Climb" sub="Rehearse a climb indoors against a ghost or pacer" onClick={() => { setHistoryRun(null); setView("climb"); }} /></li>
             <li><LinkRow label="Race rehearsal" sub={program?.__rehearsal?.name || "Draw a course and practice your splits and aid stops"} onClick={() => setView("rehearsal")} /></li>
             <li><LinkRow label="Race plan" sub={hasRacePlan ? `${program.__raceBuild.raceName} · ${formatPlanDate(program.__raceBuild.raceDate)}${raceCopy ? ` · ${raceCopy.countdown}` : ""}` : "Train for a 5K, 10K or half, built around your lifting"} onClick={() => setView("race")} /></li>
             <li><LinkRow label="History" sub="Every session and run" onClick={() => setView("history")} /></li>

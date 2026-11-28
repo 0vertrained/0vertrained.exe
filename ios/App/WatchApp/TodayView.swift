@@ -7,6 +7,7 @@ struct TodayView: View {
     @EnvironmentObject private var store: SessionStore
     @EnvironmentObject private var workout: WorkoutManager
     @ObservedObject private var cardioWorkout = CardioWorkoutManager.shared
+    @ObservedObject private var climb = ClimbWrist.shared
     @State private var confirmingEnd = false
 
     var body: some View {
@@ -15,6 +16,8 @@ struct TodayView: View {
                 RehearsalWorkoutView(attempt: attempt)
             } else if cardioWorkout.isActive {
                 CardioWorkoutView()
+            } else if let invite = climb.invite, invite.owner == store.athleteOwner {
+                ClimbWristInvite(invite: invite)
             } else if let plan = store.today {
                 if plan.sessions.isEmpty && plan.cardioWorkouts.isEmpty && plan.rehearsal?.valid != true {
                     EmptyStateView(

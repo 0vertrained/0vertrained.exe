@@ -4,6 +4,7 @@
 // totals. A day opens read-only; "Edit this day" hands it to Today, which is
 // where a past day is changed. On a wide screen the day docks beside the list.
 
+import { HistoryClimbs } from "./climb/HistoryClimbs";
 import { applyRaceBuild } from "./raceBuild";
 import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName } from "./constants";
@@ -76,7 +77,7 @@ function StoredWorkoutWindows({ bridge, workout }) {
 }
 
 // A day, read-only.
-export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClose }) {
+export function DayDetail({ owner, onRaceClimb, data, dateKey, program, goals = {}, onOpenDay, onClose }) {
   const [allLifts, setAllLifts] = useState(false);
   const strap = useWhoopBluetooth();
   const day = data[dateKey] || defaultDay();
@@ -147,6 +148,9 @@ export function DayDetail({ data, dateKey, program, goals = {}, onOpenDay, onClo
           </section>
         );
       })}
+
+      {cardioBlocks.some(block => !block.indoor && ["run", "walk", "hike"].includes(cardioModality(block))) &&
+        <HistoryClimbs key={(owner || "") + dateKey} owner={owner} dateKey={dateKey} onRaceClimb={onRaceClimb} />}
 
       {day.workout?.notes && (
         <section aria-label="Notes" style={{ ...column(4), borderTop: "1px solid var(--line)", paddingTop: 12 }}>
@@ -294,7 +298,7 @@ function Timeline({ data, filter, setFilter, onOpen }) {
   );
 }
 
-export function ProgressHistory({ data, program, goals, selectedDay, onSelectDay, isBroadsheet = false, onOpenDay }) {
+export function ProgressHistory({ owner, onRaceClimb, data, program, goals, selectedDay, onSelectDay, isBroadsheet = false, onOpenDay }) {
   const todayKey = getTodayKey();
   const [view, setView] = useState("calendar");
   const [search, setSearch] = useState("");
@@ -317,7 +321,7 @@ export function ProgressHistory({ data, program, goals, selectedDay, onSelectDay
     </button>
   );
   const detail = selectedDay
-    ? <DayDetail key={selectedDay} data={data} dateKey={selectedDay} program={program} goals={goals} onOpenDay={onOpenDay} onClose={isBroadsheet ? () => onSelectDay(null) : undefined} />
+    ? <DayDetail key={selectedDay} owner={owner} onRaceClimb={onRaceClimb} data={data} dateKey={selectedDay} program={program} goals={goals} onOpenDay={onOpenDay} onClose={isBroadsheet ? () => onSelectDay(null) : undefined} />
     : null;
 
   if (selectedDay && !isBroadsheet) return <div className="shell" data-screen="progress-day"><div className="main">{detail}</div></div>;
