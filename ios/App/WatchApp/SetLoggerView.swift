@@ -15,6 +15,7 @@ struct SetLoggerView: View {
     @State private var editsFor = ""
     @State private var motionReview: (owner: String, slot: String, exerciseID: String, evidence: RepMotionEvidence)?
     @State private var showingOptions = false
+    @State private var showingBarbell = false
     @FocusState private var focus: String?
 
     init(key: ExerciseKey) {
@@ -44,9 +45,28 @@ struct SetLoggerView: View {
             }
         }
         .navigationTitle(exercise?.display ?? "")
-        .onAppear { store.rememberExercise(key) }
+        .onAppear {
+            store.rememberExercise(key)
+            publishDraft()
+        }
+        .onChange(of: edits) { _, _ in publishDraft() }
+        .onDisappear { WatchLiftMirror.shared.clearDraft(for: key) }
         .onChange(of: key) { _, next in store.rememberExercise(next) }
+        .onReceive(NotificationCenter.default.publisher(for: WatchLiftMirror.editApplied)) { note in
+            if let next = note.object as? ExerciseKey { move(to: next) }
+        }
         .sheet(isPresented: $showingOptions) { options }
+        .sheet(isPresented: $showingBarbell) {
+            if let exercise, let rules = store.today?.barbellRules,
+               let field = exercise.fields.first(where: { $0.prop == "weight" }),
+               let current = store.nextOpenSet(for: key) {
+                let entered = value(field, current: current)
+                let lastWarmup = exercise.warmupSets?.max { ($0.at ?? "") < ($1.at ?? "") }?.workingWeight
+                NavigationStack {
+                    barbellSheet(exercise, rules: rules, weight: entered > 0 ? entered : lastWarmup ?? 0)
+                }
+            }
+        }
     }
 
     // MARK: - The set
@@ -59,17 +79,29 @@ struct SetLoggerView: View {
                     .foregroundStyle(Ledger.ink2)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
+                if let target = exercise.sets[current.index].target, !target.isEmpty {
+                    Text("Program target · " + Format.summary(target, fields: exercise.fields))
+                        .font(.footnote)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 HStack(spacing: 6) {
                     ForEach(exercise.fields, id: \.prop) { field in
                         tile(field, current: current)
                     }
                 }
 
-                if let label = current.sourceLabel, !isEdited(current) {
+                if let label = current.sourceLabel, !isEdited(current),
+                   label != "Target" || exercise.sets[current.index].target == nil {
                     Text("From \(label.lowercased())")
                         .font(.footnote)
                         .foregroundStyle(Ledger.ink2)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if exercise.barbell == true, store.today?.barbellRules != nil {
+                    Button("Warm-up & plates") { showingBarbell = true }
+                        .buttonStyle(SecondaryButtonStyle())
                 }
 
                 if let motionExercise = RepMotionExercise(name: exercise.display),
@@ -121,12 +153,60 @@ struct SetLoggerView: View {
         }
     }
 
+    private func barbellSheet(_ exercise: PlanExercise, rules: BarbellRules, weight: Double) -> some View {
+        List {
+            Section("Working load · \(Format.number(rules.bar)) lb bar") {
+                if let plates = rules.perSide(for: weight) {
+                    Text("\(Format.number(weight)) lb")
+                    Text(plates)
+                        .font(.footnote)
+                } else {
+                    Text("Set the working weight to at least \(Format.number(rules.bar)) lb in the set logger.")
+                        .font(.footnote)
+                }
+            }
+            let ramp = rules.ramp(to: weight)
+            if !ramp.isEmpty {
+                Section("Warm-up sets") {
+                    ForEach(ramp.indices, id: \.self) { index in
+                        let step = ramp[index]
+                        let done = exercise.warmupSets?.first(where: { $0.matches(step) })?.done == true
+                        Button {
+                            store.toggleWarmup(key, workingWeight: weight, index: index)
+                        } label: {
+                            HStack {
+                                Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(done ? Ledger.good : Ledger.ink2)
+                                VStack(alignment: .leading) {
+                                    Text("\(Format.number(step.weight)) lb × \(step.reps)")
+                                    if let plates = rules.perSide(for: step.weight) {
+                                        Text(plates)
+                                            .font(.caption2).foregroundStyle(Ledger.ink2)
+                                    }
+                                }
+                            }
+                        }
+                        .accessibilityValue(done ? "Complete" : "Open")
+                    }
+                }
+            }
+            Button("Back to set") { showingBarbell = false }
+        }
+        .navigationTitle("Warm-up & plates")
+    }
+
     private var pairLabel: String {
         guard let first = store.today?.pairLeader(for: key) else { return "" }
         return first == key ? "A1 · " : "A2 · "
     }
 
+    private func publishDraft() {
+        guard let current = store.nextOpenSet(for: key) else { return }
+        WatchLiftMirror.shared.updateDraft(for: key, index: current.index, edits: isEdited(current) ? edits : [:])
+    }
+
     private func move(to next: ExerciseKey) {
+        WatchLiftMirror.shared.clearDraft(for: key)
         edits = [:]
         editsFor = ""
         motionReview = nil
@@ -254,7 +334,7 @@ struct SetLoggerView: View {
         var logged: [String: Double] = [:]
         for field in exercise.fields {
             let number = value(field, current: current)
-            if field.required || number > 0 { logged[field.prop] = number }
+            if field.required || number > 0 || field.prop == "assistance" { logged[field.prop] = number }
         }
         if exercise.targetRir != nil, isEdited(current), let reserve = edits["rir"] {
             logged["rir"] = reserve

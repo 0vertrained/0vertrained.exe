@@ -11,11 +11,33 @@ extension SessionStore {
         commitGymEdit(event) { day in
             day.mutateExercise(key) { current in
                 var alternatives = (current.swaps ?? []).filter { $0.name != name && $0.name != current.display }
-                alternatives.append(PlanVariation(name: current.display, fields: current.fields, sets: current.sets))
+                alternatives.append(PlanVariation(name: current.display, fields: current.fields, sets: current.sets, barbell: current.barbell))
                 current.display = choice.name
+                current.barbell = choice.barbell
+                current.warmupSets = nil
                 current.fields = choice.fields
                 current.sets = choice.sets
                 current.swaps = alternatives
+            }
+        }
+    }
+
+    func toggleWarmup(_ key: ExerciseKey, workingWeight: Double, index: Int) {
+        guard let plan = today, let rules = plan.barbellRules, let ex = plan.exercise(key),
+              ex.barbell == true, workingWeight <= 1500 else { return }
+        let ramp = rules.ramp(to: workingWeight)
+        guard ramp.indices.contains(index) else { return }
+        var step = ramp[index]
+        step.done = !(ex.warmupSets?.first(where: { $0.matches(step) })?.done ?? false)
+        let event = GymEditEvent(type: "warmup", date: plan.date, session: key.session,
+                                 exercise: key.name, performedName: ex.display, setIndex: index,
+                                 enabled: step.done, workingWeight: workingWeight)
+        step.workingWeight = workingWeight
+        step.at = event.at
+        commitGymEdit(event) { day in
+            day.mutateExercise(key) { current in
+                let other = (current.warmupSets ?? []).filter { !$0.matches(step) }
+                current.warmupSets = Array(other.suffix(63)) + [step]
             }
         }
     }

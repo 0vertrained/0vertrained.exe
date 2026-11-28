@@ -11,10 +11,12 @@ struct TodayView: View {
 
     var body: some View {
         Group {
-            if cardioWorkout.isActive {
+            if let attempt = store.rehearsalAttempt {
+                RehearsalWorkoutView(attempt: attempt)
+            } else if cardioWorkout.isActive {
                 CardioWorkoutView()
             } else if let plan = store.today {
-                if plan.sessions.isEmpty && plan.cardioWorkouts.isEmpty {
+                if plan.sessions.isEmpty && plan.cardioWorkouts.isEmpty && plan.rehearsal?.valid != true {
                     EmptyStateView(
                         symbol: "moon.zzz",
                         title: "Nothing planned today",
@@ -59,6 +61,15 @@ struct TodayView: View {
         List {
             if let reason = plan.adaptationReason, !reason.isEmpty {
                 Text(reason).font(.footnote).foregroundStyle(Ledger.ink2)
+            }
+            if let course = plan.rehearsal, course.valid {
+                Section("Race rehearsal") {
+                    NavigationLink {
+                        RehearsalPreview(course: course)
+                    } label: {
+                        Label(course.name, systemImage: "map")
+                    }
+                }
             }
             let runs = plan.cardioWorkouts
             if !runs.isEmpty {

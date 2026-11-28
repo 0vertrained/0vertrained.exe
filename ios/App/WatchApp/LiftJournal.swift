@@ -7,6 +7,18 @@ struct LiftJournal: Codable {
         var startedAt: Date
         var plan: WatchPlan
         var exercise: ExerciseKey?
+        var mirrorRevision: String?
+        var healthStartedAt: Date?
+
+        func matchesHealth(start: Date?, owner: String?, taggedOwner: String?, workoutID: String?) -> Bool {
+            guard plan.owner == nil || plan.owner == owner, taggedOwner == nil || taggedOwner == owner else { return false }
+            if let workoutID { return workoutID == id }
+            guard let start else { return false }
+            if let healthStartedAt { return abs(start.timeIntervalSince(healthStartedAt)) < 2 }
+            // Earlier builds could start Health after the first offline set.
+            if let taggedOwner, taggedOwner == owner, start >= startedAt { return true }
+            return abs(start.timeIntervalSince(startedAt)) < 2
+        }
     }
     struct Rest: Codable, Equatable {
         var endsAt: Date
@@ -14,6 +26,7 @@ struct LiftJournal: Codable {
         var next: String?
     }
 
+    var rehearsal: RehearsalAttempt?
     var active: Session?
     var lastFinish: Session?
     var finishedAt: Date?
@@ -41,6 +54,17 @@ struct LiftJournal: Codable {
         finishedAt = now
         active = nil
         rest = nil
+    }
+
+    /// Persist the result and clear the pinned course together. A replay cannot
+    /// publish somebody else's attempt or enqueue the same terminal event twice.
+    mutating func finishRehearsal(owner: String?, at end: Date) -> Bool {
+        guard let attempt = rehearsal, attempt.owner == owner,
+              let data = try? JSONEncoder().encode(attempt.result(at: end)),
+              let event = String(data: data, encoding: .utf8) else { return false }
+        if !outbox.contains(where: { Self.eventID($0) == attempt.id }) { outbox.append(event) }
+        rehearsal = nil
+        return true
     }
 
     static func eventID(_ raw: String) -> String? {

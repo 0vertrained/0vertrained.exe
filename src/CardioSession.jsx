@@ -32,7 +32,7 @@ function Stepper({ label, value, display, onChange, step, min, max }) {
   );
 }
 
-export function CardioSession({ open, onClose, cardio, onLogTime, showToast, settings, pulseSummary, onSavePulse }) {
+export function CardioSession({ open, onClose, cardio, onLogTime, onStartAt, showToast, settings, pulseSummary, onSavePulse }) {
   const suggested = useMemo(() => suggestPlanForCardio(cardio), [cardio]);
   const hapticsEnabled = settings?.trainingCues?.haptics !== false;
   useScreenWakeLock(open);
@@ -99,6 +99,7 @@ export function CardioSession({ open, onClose, cardio, onLogTime, showToast, set
 
   const start = () => {
     startedAtRef.current = Date.now();
+    onStartAt?.(new Date(startedAtRef.current).toISOString());
     setNow(startedAtRef.current);
     setStartedAt(startedAtRef.current);
     setSegIdx(0);

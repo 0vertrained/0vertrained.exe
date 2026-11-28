@@ -26,6 +26,29 @@ final class SessionStore: NSObject, ObservableObject {
         owner == athleteOwner || (owner == nil && athleteOwner == defaults.string(forKey: Key.legacyOwner))
     }
     var activeLift: LiftJournal.Session? { journal.active }
+    var rehearsalAttempt: RehearsalAttempt? { journal.rehearsal }
+
+    func startRehearsal(_ course: RehearsalCourse, owner: String, at now: Date) {
+        guard athleteOwner == owner, journal.active == nil, journal.rehearsal == nil, course.valid else { return }
+        journal.rehearsal = RehearsalAttempt(owner: owner, course: course, start: now)
+        persist()
+    }
+
+    func editRehearsal(_ edit: (inout RehearsalAttempt) -> Void) {
+        guard var attempt = journal.rehearsal, attempt.owner == athleteOwner else { return }
+        let original = attempt
+        edit(&attempt)
+        guard original != attempt else { return }
+        journal.rehearsal = attempt
+        persist()
+    }
+
+    /// Clearing the attempt and queueing its terminal event are one journal write.
+    func finishRehearsal(at end: Date) {
+        guard journal.finishRehearsal(owner: athleteOwner, at: end) else { return }
+        persist()
+        flush()
+    }
     var unsyncedCount: Int { journal.outbox.count }
 
     private enum Key {
@@ -72,15 +95,25 @@ final class SessionStore: NSObject, ObservableObject {
     var today: WatchPlan? { journal.day(Self.dateKey(Date()), week: week) }
 
     func beginLift(at now: Date = Date()) {
-        guard journal.active == nil, let plan = today, !plan.sessions.isEmpty else { return }
+        guard journal.rehearsal == nil, journal.active == nil, let plan = today, !plan.sessions.isEmpty else { return }
         journal.begin(plan, at: now)
         persist()
+    }
+
+    func beginHealthLift(at start: Date) -> String? {
+        beginLift(at: start)
+        guard var active = journal.active else { return nil }
+        active.healthStartedAt = start
+        journal.active = active
+        persist()
+        return active.id
     }
 
     func commitGymEdit<Event: Encodable>(_ event: Event, undoing id: String? = nil, _ mutate: (inout WatchPlan) -> Void) {
         beginLift()
         guard var session = journal.active else { return }
         mutate(&session.plan)
+        session.mirrorRevision = UUID().uuidString
         journal.active = session
         if let id { journal.pending.removeAll { $0.id == id } }
         send(event)
@@ -169,12 +202,28 @@ final class SessionStore: NSObject, ObservableObject {
         exercise.sets[setIndex].completedAt = at
         session.plan.sessions[section].exercises[row] = exercise
         session.exercise = key
+        session.mirrorRevision = id
         journal.active = session
         journal.pending.append(PendingSet(id: id, date: session.plan.date, session: key.session, exercise: key.name,
                                          setIndex: setIndex, values: values, loggedAt: now))
         send(SetEvent(id: id, date: session.plan.date, session: key.session, exercise: key.name,
                       setIndex: setIndex, values: values, at: at, performedName: exercise.display))
         return id
+    }
+
+    /// A bench-display edit is a target until the athlete logs the set.
+    func setNextMirrorTarget(_ key: ExerciseKey, index: Int, values: [String: Double]) -> Bool {
+        guard var lift = journal.active, nextOpenSet(for: key)?.index == index else { return false }
+        lift.plan.mutateExercise(key) { exercise in
+            exercise.sets[index].values = values
+            exercise.sets[index].source = "target"
+            exercise.sets[index].sourceLabel = "Bench display"
+        }
+        lift.mirrorRevision = UUID().uuidString
+        lift.exercise = key
+        journal.active = lift
+        persist()
+        return true
     }
 
     func finish(_ summary: WorkoutSummary) {
@@ -346,6 +395,8 @@ final class SessionStore: NSObject, ObservableObject {
         if let next = incoming.owner, next != athleteOwner {
             if defaults.string(forKey: Key.legacyOwner) == nil { defaults.set(next, forKey: Key.legacyOwner) }
             if athleteOwner != nil {
+                RehearsalTracker.shared.stop()
+                finishRehearsal(at: Date())
                 WorkoutManager.shared.endForAccountChange()
                 CardioWorkoutManager.shared.closeForAccountChange()
                 persist()

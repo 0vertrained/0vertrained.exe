@@ -22,7 +22,8 @@ import { WhoopWorkoutPulse } from "./workout/WhoopWorkoutPulse";
 import { useWhoopBluetooth } from "./whoop/bluetooth";
 import { getTodayKey } from "./constants";
 import { lastSessionSets, buildNextGlance } from "./setGhosts";
-import { getLastPerformance, calcPlateMath, suggestRestSeconds, buildWarmupRamp, priorBestWeight } from "./sessionIntelligence";
+import { getLastPerformance, calcPlateMath, suggestRestSeconds, buildWarmupRamp, priorBestWeight, updateWarmup, warmupEntry } from "./sessionIntelligence";
+import { usesStandardBarbell } from "./programExerciseLibrary";
 import { getRankedSubstitutions } from "./exerciseSubstitutions";
 import { buildExercisePrescription, buildProgressionDecision, formatPrescription, prescriptionWeightAt } from "./progressionEngine";
 import { buildDeloadRecommendation } from "./fatigueManagement";
@@ -287,9 +288,13 @@ export function SessionMode({
     () => priorBestWeight(allData, performedName, todayKey),
     [allData, performedName, todayKey]
   );
-  const workingWeight = Number.parseFloat(sets[activeSetIndex]?.weight) || prescriptionWeightAt(prescription, activeSetIndex) || null;
-  const plates = workingWeight ? calcPlateMath(workingWeight) : null;
-  const ramp = useMemo(() => workingWeight ? buildWarmupRamp(workingWeight) : null, [workingWeight]);
+  const latestWarmup = Array.isArray(exData.warmupSets) ? exData.warmupSets.reduce((latest, entry) =>
+    entry?.at && (!latest || entry.at > latest.at) ? entry : latest, null) : null;
+  const workingWeight = Number.parseFloat(sets[activeSetIndex]?.weight) || prescriptionWeightAt(prescription, activeSetIndex)
+    || latestWarmup?.workingWeight || null;
+  const barbell = usesStandardBarbell(performedName);
+  const plates = barbell && workingWeight ? calcPlateMath(workingWeight) : null;
+  const ramp = useMemo(() => barbell && workingWeight ? buildWarmupRamp(workingWeight) : null, [barbell, workingWeight]);
   const subs = useMemo(() => exercise ? getRankedSubstitutions(exercise.name, { reason: substitutionReason }) : null, [exercise, substitutionReason]);
   const deload = useMemo(
     () => buildDeloadRecommendation({ data: allData, todayKey, body: bodyData, workout: workoutData, safetyFlag }),
@@ -470,7 +475,7 @@ export function SessionMode({
   const chooseSubstitution = (substitution) => {
     if (liftLogged) return;
     saveExercise({ ...exData, sets, progressionDecision: undefined, nextPrescription: undefined,
-      performedName: substitution?.name, substitutionReason: substitution ? substitutionReason : undefined });
+      warmupSets: [], watchSwapAt: new Date().toISOString(), performedName: substitution?.name, substitutionReason: substitution ? substitutionReason : undefined });
     setSheet(null);
   };
 
@@ -482,13 +487,9 @@ export function SessionMode({
   };
 
   const toggleWarmup = (warmupIndex) => {
-    const current = Array.isArray(exData.warmupSets) ? exData.warmupSets : [];
-    const next = ramp.steps.map((rampStep, index) => ({
-      weight: rampStep.weight,
-      reps: rampStep.reps,
-      done: index === warmupIndex ? !current[index]?.done : Boolean(current[index]?.done),
-    }));
-    saveExercise({ ...exData, sets, warmupSets: next });
+    const step = ramp.steps[warmupIndex];
+    const done = !warmupEntry(exData.warmupSets, step)?.done;
+    saveExercise({ ...exData, sets, warmupSets: updateWarmup(exData.warmupSets, step, done, new Date().toISOString(), workingWeight) });
   };
 
   const clearPainFlags = () => {
@@ -592,7 +593,7 @@ export function SessionMode({
   const warmupList = ramp && (
     <ul className="rows" data-testid="warmup-ramp">
       {ramp.steps.map((rampStep, index) => {
-        const done = Boolean(exData.warmupSets?.[index]?.done);
+        const done = Boolean(warmupEntry(exData.warmupSets, rampStep)?.done);
         return (
           <li key={`${rampStep.weight}-${rampStep.reps}`}>
             <button type="button" className="row" aria-pressed={done} onClick={() => toggleWarmup(index)}>

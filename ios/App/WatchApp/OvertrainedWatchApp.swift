@@ -3,7 +3,7 @@ import WatchKit
 
 final class WatchWorkoutDelegate: NSObject, WKApplicationDelegate {
     func handleActiveWorkoutRecovery() {
-        WorkoutManager.shared.recover()
+        DispatchQueue.main.async { WorkoutManager.shared.recover() }
     }
 }
 
@@ -31,7 +31,12 @@ struct OvertrainedWatchApp: App {
             .tint(Ledger.ink)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { store.refreshDay() }
+            if phase == .active {
+                store.refreshDay()
+                if store.activeLift?.healthStartedAt != nil || store.rehearsalAttempt != nil || CardioWorkoutManager.shared.hasSavedRecord {
+                    workout.recover()
+                }
+            }
         }
     }
 }

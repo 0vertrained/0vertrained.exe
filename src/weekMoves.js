@@ -9,7 +9,7 @@
 // see the same week. A week's moves are dropped eight weeks on, the next
 // time moves are saved. Pure: dates are passed in.
 
-import { alignmentOn } from "./plans/hybridAlignmentDates.js";
+import { alignmentOn, validDateKey } from "./plans/hybridAlignmentDates.js";
 import { shiftDate } from "./coachWindows.js";
 
 export const WEEK_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -43,7 +43,7 @@ function savedMovesFor(program, start) {
   return Object.keys(clean).length ? clean : null;
 }
 
-function moveLock(raceDate, key) {
+export function moveLock(raceDate, key) {
   if (!raceDate) return null;
   if (key === raceDate) return "Race day";
   if (key < raceDate && key >= shiftDate(raceDate, -2)) return "Race taper";
@@ -131,13 +131,25 @@ function withWeek(program, start, map) {
   return next;
 }
 
+export function datedSessionEdits(program) {
+  const edits = program?.__sessionEdits;
+  if (edits?.version !== 1 || !Array.isArray(edits.items)) return [];
+  return edits.items.filter(edit => validDateKey(edit?.from) && (edit.to === null || validDateKey(edit.to)) &&
+    typeof edit.id === "string" && typeof edit.title === "string");
+}
+
+export function hasSessionEditOn(program, dateKey) {
+  return datedSessionEdits(program).some(edit => edit.from === dateKey || edit.to === dateKey);
+}
+
 /** The program with two days of a week swapped, on top of any earlier moves. */
 export function swapDays(program, dateKey, first, second) {
   const start = weekStartOf(dateKey);
   if (!start || !WEEK_DAYS.includes(first) || !WEEK_DAYS.includes(second) || first === second) return program;
+  const firstDate = shiftDate(start, WEEK_DAYS.indexOf(first));
+  const secondDate = shiftDate(start, WEEK_DAYS.indexOf(second));
+  if (hasSessionEditOn(program, firstDate) || hasSessionEditOn(program, secondDate)) return program;
   if (program.__hybridBlock?.alignments?.length) {
-    const firstDate = shiftDate(start, WEEK_DAYS.indexOf(first));
-    const secondDate = shiftDate(start, WEEK_DAYS.indexOf(second));
     if (raceMoveLock(program, firstDate) || raceMoveLock(program, secondDate)) return program;
   }
   const map = fullMap(program, dateKey);
@@ -148,6 +160,13 @@ export function swapDays(program, dateKey, first, second) {
 /** The program with a week back as planned. */
 export function resetWeek(program, dateKey) {
   const start = weekStartOf(dateKey);
-  if (!start) return program;
+  if (!start || !canResetWeek(program, dateKey)) return program;
   return withWeek(program, start, Object.fromEntries(WEEK_DAYS.map((day) => [day, day])));
+}
+
+
+export function canResetWeek(program, dateKey) {
+  const start = weekStartOf(dateKey);
+  return Object.keys(savedMovesFor(program, start) || {}).every(day =>
+    !hasSessionEditOn(program, shiftDate(start, WEEK_DAYS.indexOf(day))));
 }

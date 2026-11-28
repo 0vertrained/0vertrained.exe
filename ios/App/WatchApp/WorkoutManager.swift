@@ -30,6 +30,9 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var builder: HKLiveWorkoutBuilder?
     private var averageHeartRate: Double?
     private var activeEnergy: Double?
+    private var detachedOwner = false
+    private var recovering = false
+    var blocksCardioStart: Bool { phase != .idle || recovering }
     private var onEnded: ((WorkoutSummary) -> Void)?
 
     private var shareTypes: Set<HKSampleType> { [HKObjectType.workoutType()] }
@@ -45,7 +48,7 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     /// Asks for Health access the first time, then starts.
     func start() {
-        guard phase == .idle, !CardioWorkoutManager.shared.isActive else { return }
+        guard phase == .idle, !recovering, !CardioWorkoutManager.shared.isActive, SessionStore.shared.rehearsalAttempt == nil else { return }
         guard HKHealthStore.isHealthDataAvailable() else {
             problem = "Health isn't available on this watch."
             return
@@ -69,18 +72,21 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// Starts without asking, if Health access was already given. Logging a
     /// set calls this so rest taps work even if Start was skipped.
     func startIfAllowed() {
-        guard phase == .idle, canSave, !CardioWorkoutManager.shared.isActive else { return }
+        guard phase == .idle, !recovering, canSave, !CardioWorkoutManager.shared.isActive, SessionStore.shared.rehearsalAttempt == nil else { return }
         begin()
     }
 
     func end(then completion: @escaping (WorkoutSummary) -> Void) {
         guard phase == .running, let session else { return }
         phase = .ending
+        WatchLiftMirror.shared.stop()
         onEnded = completion
         session.end()
     }
 
     private func begin() {
+        guard SessionStore.shared.today?.sessions.isEmpty == false, SessionStore.shared.rehearsalAttempt == nil,
+              !CardioWorkoutManager.shared.isActive else { phase = .idle; return }
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = .traditionalStrengthTraining
         configuration.locationType = .indoor
@@ -94,17 +100,20 @@ final class WorkoutManager: NSObject, ObservableObject {
             self.builder = builder
 
             let start = Date()
-            SessionStore.shared.beginLift(at: start)
+            let workoutID = SessionStore.shared.beginHealthLift(at: start)
+            detachedOwner = false
             session.startActivity(with: start)
             builder.beginCollection(withStart: start) { [weak self] _, error in
                 guard error != nil else { return }
-                DispatchQueue.main.async { self?.problem = "Heart rate isn't being recorded for this workout." }
+                DispatchQueue.main.async { if self?.session === session, self?.detachedOwner == false { self?.problem = "Heart rate isn't being recorded for this workout." } }
             }
-            if let owner = SessionStore.shared.athleteOwner {
-                builder.addMetadata(["OTAthleteOwner": owner]) { _, _ in }
-            }
+            var metadata: [String: Any] = [:]
+            metadata["OTAthleteOwner"] = SessionStore.shared.athleteOwner
+            metadata["OTLiftID"] = workoutID
+            builder.addMetadata(metadata) { _, _ in }
             startDate = start
             phase = .running
+            WatchLiftMirror.shared.start(session)
         } catch {
             phase = .idle
             problem = "The workout couldn't start. Try again."
@@ -114,36 +123,68 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// A real athlete change parks the old owner's final metrics in that
     /// journal before any new owner's plan can receive asynchronous callbacks.
     func endForAccountChange() {
+        WatchLiftMirror.shared.stop()
         if let lift = SessionStore.shared.activeLift {
             SessionStore.shared.finish(WorkoutSummary(startedAt: lift.startedAt, endedAt: Date(),
                 averageHeartRate: averageHeartRate, activeEnergy: activeEnergy))
         }
+        detachedOwner = true
+        heartRate = nil
+        startDate = nil
+        averageHeartRate = nil
+        activeEnergy = nil
+        problem = nil
         onEnded = nil
         if phase == .starting { phase = .idle }
         else if phase == .running { phase = .ending; session?.end() }
     }
 
     func recover() {
-        let owner = SessionStore.shared.athleteOwner
+        guard phase == .idle, !recovering, !CardioWorkoutManager.shared.isActive else { return }
+        let store = SessionStore.shared
+        if store.rehearsalAttempt != nil { RehearsalTracker.shared.recoverIfNeeded(); return }
+        recovering = true
+        let owner = store.athleteOwner
         healthStore.recoverActiveWorkoutSession { [weak self] recovered, _ in
-            guard let recovered else { return }
             DispatchQueue.main.async {
-                guard let self, self.phase == .idle, SessionStore.shared.isCurrentOwner(owner) else { return }
+                guard let self else { return }
+                self.recovering = false
+                guard let recovered, self.phase == .idle else { return }
+                guard store.isCurrentOwner(owner) else { Self.closeOrphan(recovered); return }
                 if recovered.workoutConfiguration.activityType != .traditionalStrengthTraining {
-                    CardioWorkoutManager.shared.restore(recovered)
+                    if !CardioWorkoutManager.shared.restore(recovered) { Self.closeOrphan(recovered) }
                     return
                 }
+                let builder = recovered.associatedWorkoutBuilder()
+                guard recovered.state != .ended,
+                      SessionStore.shared.activeLift?.matchesHealth(start: recovered.startDate, owner: owner,
+                          taggedOwner: builder.metadata["OTAthleteOwner"] as? String, workoutID: builder.metadata["OTLiftID"] as? String) == true else {
+                    Self.closeOrphan(recovered)
+                    return
+                }
+                self.detachedOwner = false
                 self.session = recovered
-                self.builder = recovered.associatedWorkoutBuilder()
+                self.builder = builder
                 recovered.delegate = self
                 self.builder?.delegate = self
                 self.startDate = recovered.startDate ?? SessionStore.shared.activeLift?.startedAt
                 self.phase = .running
+                WatchLiftMirror.shared.start(recovered)
             }
         }
     }
 
+    /// HealthKit may restore a workout after its owner's terminal journal write.
+    /// Save that builder without attaching it to a different app session.
+    static func closeOrphan(_ session: HKWorkoutSession) {
+        guard session.state != .ended else { return }
+        let builder = session.associatedWorkoutBuilder()
+        session.end()
+        builder.endCollection(withEnd: Date()) { _, _ in builder.finishWorkout { _, _ in } }
+    }
+
     private func finished(at date: Date) {
+        WatchLiftMirror.shared.stop()
         let summary = WorkoutSummary(
             startedAt: startDate ?? date,
             endedAt: date,
@@ -177,13 +218,25 @@ final class WorkoutManager: NSObject, ObservableObject {
 }
 
 extension WorkoutManager: HKWorkoutSessionDelegate {
+    func workoutSession(_ workoutSession: HKWorkoutSession, didReceiveDataFromRemoteWorkoutSession data: [Data]) {
+        DispatchQueue.main.async { WatchLiftMirror.shared.receive(data, from: workoutSession) }
+    }
+
+    func workoutSession(_ workoutSession: HKWorkoutSession, didDisconnectFromRemoteDeviceWithError error: Error?) {
+        DispatchQueue.main.async { WatchLiftMirror.shared.disconnected(workoutSession) }
+    }
+
     func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
-        guard toState == .ended, let builder else { return }
-        builder.endCollection(withEnd: date) { _, _ in
-            builder.finishWorkout { _, error in
-                DispatchQueue.main.async {
-                    if error != nil { self.problem = "Workout log kept. Apple Health could not save the recording." }
-                    self.finished(at: date)
+        guard toState == .ended else { return }
+        DispatchQueue.main.async {
+            guard self.session === workoutSession, let builder = self.builder else { return }
+            builder.endCollection(withEnd: date) { _, _ in
+                builder.finishWorkout { _, error in
+                    DispatchQueue.main.async {
+                        guard self.session === workoutSession else { return }
+                        if error != nil && !self.detachedOwner { self.problem = "Workout log kept. Apple Health could not save the recording." }
+                        self.finished(at: date)
+                    }
                 }
             }
         }
@@ -191,7 +244,8 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
 
     func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
         DispatchQueue.main.async {
-            self.problem = "The workout stopped unexpectedly."
+            guard self.session === workoutSession else { return }
+            if !self.detachedOwner { self.problem = "The workout stopped unexpectedly." }
             if self.phase == .running || self.phase == .ending {
                 self.finished(at: Date())
             }
@@ -206,7 +260,9 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
         for type in collectedTypes {
             guard let quantityType = type as? HKQuantityType,
                   let statistics = workoutBuilder.statistics(for: quantityType) else { continue }
-            DispatchQueue.main.async { self.update(statistics) }
+            DispatchQueue.main.async {
+                if self.builder === workoutBuilder, !self.detachedOwner { self.update(statistics) }
+            }
         }
     }
 }

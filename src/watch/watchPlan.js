@@ -9,16 +9,18 @@
 // watch; useWatchBridge does.
 
 import { DEFAULT_PROGRAM, defaultDay, getDayName, getTodayKey } from "../constants";
+import { buildCourse, validCourseDate } from "../rehearsal/course";
+import { rehearsalAttempt } from "../rehearsal/attempts";
 import { applyRaceBuild } from "../raceBuild";
 import { getProgramSessions } from "../programSessions";
 import { withAdded } from "../addedExercises";
 import { resolveCustomTrainingDay, sessionPrescription } from "../customTrainingDay";
 import { lastSessionSets } from "../setGhosts";
-import { suggestRestSeconds } from "../sessionIntelligence";
+import { BARBELL_RULES, buildWarmupRamp, suggestRestSeconds, updateWarmup, warmupEntry } from "../sessionIntelligence";
 import { proposeSet, setFields } from "../workout/setFill";
 import { completeSet } from "../workout/completeSet";
 import { defaultWeightIncrement, isSessionHandled, reconcileExerciseSets, resolveTrackingMode, TRACKING_MODES, validateSet } from "../workoutLogging";
-import { availableSwapNames, exercisePrescription, findLibraryExercise } from "../programExerciseLibrary";
+import { availableSwapNames, exercisePrescription, findLibraryExercise, usesStandardBarbell } from "../programExerciseLibrary";
 import { getRankedSubstitutions } from "../exerciseSubstitutions";
 import { readSupersetPref } from "../liftLogPrefs";
 import { runWorkoutsFor } from "./runWorkouts";
@@ -100,13 +102,21 @@ function planExercise({ data, exercise, exData, dateKey, adaptive, dayName, redu
   const fields = setFields(movement);
   const increment = defaultWeightIncrement(movement);
   const sets = reconcileExerciseSets(exercise, exData.sets || []);
+  const barbell = usesStandardBarbell(performedName);
+  const warmupSets = barbell && Array.isArray(exData.warmupSets) ? exData.warmupSets.filter(step =>
+    Number.isFinite(step?.weight) && Number.isInteger(step.reps) && typeof step.done === "boolean")
+    .slice(-64).map(({ weight, reps, done, at, workingWeight }) => ({ weight, reps, done,
+      ...(typeof at === "string" && { at }), ...(Number.isFinite(workingWeight) && { workingWeight }),
+    })) : [];
   return {
     name: exercise.name,
     display: performedName,
     ...(exData.skipped ? { skipped: true } : {}),
     restSeconds: suggestRestSeconds(exercise),
     ...((exData.pairNext ?? (readSupersetPref(dayName, exercise.name) || exercise.pairNext)) && { pairNext: true }),
-    ...(adaptive && exercise.rir != null && { targetRir: String(exercise.rir) }),
+    ...(exercise.rir != null && { targetRir: String(exercise.rir) }),
+    ...(barbell && { barbell: true }),
+    ...(warmupSets.length > 0 && { warmupSets }),
     fields: fields.map((field) => ({
       prop: field.prop,
       label: field.label,
@@ -117,18 +127,21 @@ function planExercise({ data, exercise, exData, dateKey, adaptive, dayName, redu
       required: !field.optional && field.prop !== "assistance",
     })),
     sets: sets.map((set, setIndex) => {
-      if (set.done === true) return { done: true, values: numbers(set, fields),
+      if (set.done === true) return { done: true, values: { ...numbers(set, fields),
+        ...(toNumber(set.rir) != null && { rir: toNumber(set.rir) }) },
         ...(set.watchEventID && { watchEventID: set.watchEventID, completedAt: set.completedAt }) };
       const proposal = proposeSet({ set, setIndex, sets, exercise: movement, prescription, lastRaw });
+      const target = proposal.options.find(option => option.key === "target");
+      const targetInfo = target ? { target: numbers(target.values, fields) } : {};
       // A substituted lift can show its own recent working load. When
       // recovery reduced today's work, leave unfamiliar weights to the lifter.
       if (swapped && adaptive && !reduced && !proposal.set.weight && lastRaw?.date >= addDays(dateKey, -42)) {
         const previous = lastRaw.sets[setIndex] || lastRaw.sets.at(-1);
-        return { done: false, values: numbers(previous, fields), source: "last", sourceLabel: "Last time" };
+        return { done: false, ...targetInfo, values: numbers(previous, fields), source: "last", sourceLabel: "Last time" };
       }
       return {
         done: false,
-        values: numbers(proposal.set, fields),
+        ...targetInfo, values: numbers(proposal.set, fields),
         ...(proposal.source ? { source: proposal.source.key, sourceLabel: proposal.source.name } : {}),
       };
     }),
@@ -141,7 +154,7 @@ function watchExercise(args) {
   if (choices.length) {
     planned.swaps = choices.map(name => {
       const variant = planExercise({ ...args, exData: { performedName: name } });
-      return { name: variant.display, fields: variant.fields, sets: variant.sets };
+      return { name: variant.display, fields: variant.fields, sets: variant.sets, ...(variant.barbell && { barbell: true }) };
     });
   }
   return planned;
@@ -154,8 +167,14 @@ export function buildWatchPlan({ owner = null, builderPreferences, data = {}, pr
   const exercises = (data[dateKey] || defaultDay()).workout?.exercises || {};
   const cardio = ["rest", "safety"].includes(day.adaptation?.status) && !getProgramSessions(day).some(session => session.cardio)
     ? [] : runWorkoutsFor(program, dateKey);
+  let rehearsal;
+  if (program?.__rehearsal?.date === dateKey) {
+    try { rehearsal = buildCourse(program.__rehearsal); } catch { /* An invalid saved course cannot be run on the Watch. */ }
+  }
   return {
+    ...(rehearsal && { rehearsal }),
     v: WATCH_PLAN_VERSION,
+    ...(sessions.length > 0 && { barbellRules: BARBELL_RULES }),
     ...(owner && { owner }),
     date: dateKey,
     sentAt,
@@ -235,8 +254,9 @@ export function parseWatchEvent(raw) {
   }
   if (!event || typeof event !== "object") return null;
   if (typeof event.id !== "string" || !event.id) return null;
-  if (!["set", "finish", "swap", "undo", "pair"].includes(event.type)) return null;
+  if (!["set", "finish", "swap", "undo", "pair", "warmup", "rehearsal"].includes(event.type)) return null;
   if (typeof event.date !== "string" || !DATE_KEY.test(event.date)) return null;
+  if (event.type === "rehearsal" && (!event.owner || !validCourseDate(event.date))) return null;
   return event;
 }
 
@@ -273,7 +293,7 @@ export function applyWatchEvents({ owner = null, acceptLegacy = true, data = {},
     if (performed != null && performed !== (exData.performedName || exercise.name)) {
       if (exData.sets?.some(s => s.done) || exData.watchSwapAt ||
           ![exercise.name, ...swapNames(exercise), ...(offline?.offlineSwaps || [])].includes(performed)) return false;
-      exData = { ...exData, performedName: performed, substitutionReason: "equipment", sets: [], progressionDecision: null, nextPrescription: null };
+      exData = { ...exData, performedName: performed, substitutionReason: "equipment", warmupSets: [], sets: [], progressionDecision: null, nextPrescription: null };
     }
     const setIndex = event.setIndex;
     if (!Number.isInteger(setIndex) || setIndex < 0) return false;
@@ -300,7 +320,7 @@ export function applyWatchEvents({ owner = null, acceptLegacy = true, data = {},
       entered[field.prop] = usable ? toEntry(value) : "";
     }
     const reserve = event.values?.rir;
-    if ((custom || offline?.rir != null) && Number.isInteger(reserve) && reserve >= 0 && reserve <= 10) entered.rir = String(reserve);
+    if ((custom || exercise.rir != null || offline?.rir != null) && Number.isInteger(reserve) && reserve >= 0 && reserve <= 10) entered.rir = String(reserve);
     if (!validateSet(entered, exercise).valid) return false;
 
     const performedName = exData.performedName || exercise.name;
@@ -366,6 +386,17 @@ export function applyWatchEvents({ owner = null, acceptLegacy = true, data = {},
     if (!session || !Number.isFinite(Date.parse(event.at))) return false;
     const i = session.lifting.findIndex(ex => ex.name === event.exercise);
     const ex = session.lifting[i];
+    if (event.type === "warmup") {
+      if (event.performedName !== (log.performedName || ex.name) || !usesStandardBarbell(event.performedName) ||
+          typeof event.enabled !== "boolean" || !Number.isFinite(event.workingWeight) ||
+          event.workingWeight > FIELD_MAX.weight || !Number.isInteger(event.setIndex)) return false;
+      const step = buildWarmupRamp(event.workingWeight)?.steps[event.setIndex];
+      if (!step) return false;
+      const previous = warmupEntry(log.warmupSets, step);
+      if ([previous?.at, log.watchSwapAt].some(at => at && Date.parse(at) >= Date.parse(event.at))) return false;
+      write(event.date, path, { ...log, warmupSets: updateWarmup(log.warmupSets, step, event.enabled, event.at, event.workingWeight) });
+      return true;
+    }
     if (event.type === "pair") {
       if (typeof event.enabled !== "boolean" || session.lifting[i + 1]?.name !== event.partner ||
           (log.watchPairAt && Date.parse(log.watchPairAt) >= Date.parse(event.at))) return false;
@@ -376,7 +407,7 @@ export function applyWatchEvents({ owner = null, acceptLegacy = true, data = {},
     if (![ex.name, ...swapNames(ex), ...(pinned?.offlineSwaps || [])].includes(event.performedName) ||
         log.sets?.some(s => s.done) || (log.watchSwapAt && Date.parse(log.watchSwapAt) >= Date.parse(event.at))) return false;
     write(event.date, path, { ...log, performedName: event.performedName === ex.name ? null : event.performedName,
-      substitutionReason: event.performedName === ex.name ? null : "equipment", sets: [], nextPrescription: null,
+      substitutionReason: event.performedName === ex.name ? null : "equipment", warmupSets: [], sets: [], nextPrescription: null,
       progressionDecision: null, watchSwapAt: event.at });
     return true;
   }
@@ -418,7 +449,13 @@ export function applyWatchEvents({ owner = null, acceptLegacy = true, data = {},
     processed.push(event.id);
     let done;
     if (event.type === "set") done = applySet(event);
-    else if (event.type === "finish") {
+    else if (event.type === "rehearsal") {
+      const attempt = rehearsalAttempt(event);
+      if (attempt && !working[event.date]?.workout?.raceRehearsals?.[attempt.id]) {
+        write(event.date, ["workout", "raceRehearsals", attempt.id], attempt);
+        done = true;
+      }
+    } else if (event.type === "finish") {
       const finished = applyFinish(event);
       const kept = keepWorkout(event);
       done = finished || kept;

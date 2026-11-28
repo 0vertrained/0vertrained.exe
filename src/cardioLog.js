@@ -52,6 +52,17 @@ export function cardioModality(block) {
   return Number(block?.miles) > 0 || block?.race ? "run" : "cardio";
 }
 
+// Older entries and accepted imports can record a planned run in the plain
+// cardio block. Link it only when one session can own that activity.
+export function legacyCardioSessionId(sessions, workout) {
+  const plain = workout?.cardio;
+  if (plain?.unplanned || !hasCardioResult(plain)) return null;
+  const cardios = sessions.filter(s => s.cardio);
+  const slot = cardios[0];
+  if (cardios.length !== 1 || hasCardioResult(workout.cardioSessions?.[slot.id])) return null;
+  return cardioModality(slot.cardio) === cardioModality(plain) ? slot.id : null;
+}
+
 export function cardioLabel(block) {
   return block?.type || SPORT_NAMES[cardioModality(block)] || "Cardio";
 }

@@ -10,6 +10,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Before the page loads, so sets from the watch are kept even when
         // they wake the app in the background.
         WatchLink.shared.activate()
+        if #available(iOS 17.0, *) { PhoneLiftMirror.shared.activate() }
         return true
     }
 

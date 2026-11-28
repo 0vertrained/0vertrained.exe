@@ -22,7 +22,7 @@ const race = {
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-function mountSchedule({ dateKey = friday, start = "2026-11-23", racePlan = null, liftingComplete = false, onChangeStartDate = null } = {}) {
+function mountSchedule({ dateKey = friday, start = "2026-11-23", racePlan = null, liftingComplete = false, onChangeStartDate = null, onSaveProgram = null } = {}) {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(`${dateKey}T12:00:00`));
   const todayName = getDayName(new Date());
@@ -39,7 +39,7 @@ function mountSchedule({ dateKey = friday, start = "2026-11-23", racePlan = null
   const { container } = render(
     <ThemeProvider>
       <TodayTab todayName={todayName} todayData={day} updateToday={vi.fn()} showToast={vi.fn()} loaded
-        program={live} baseProgram={base} onChangeStartDate={onChangeStartDate} settings={{ ...DEFAULT_SETTINGS, onboarded: true }} allData={data}
+        program={live} baseProgram={base} onSaveProgram={onSaveProgram} onChangeStartDate={onChangeStartDate} settings={{ ...DEFAULT_SETTINGS, onboarded: true }} allData={data}
         logDate={null} setLogDate={vi.fn()} ouraRecovery={null} setTab={vi.fn()} />
     </ThemeProvider>
   );
@@ -67,6 +67,18 @@ describe("Road & Trail Hybrid on Today", () => {
     expect(card.getByRole("button", { name: "Start run" })).toBeTruthy();
     expect(card.getByRole("button", { name: "Box Score" })).toBeTruthy();
     expect(card.queryByRole("button", { name: "Start session" })).toBeNull();
+  });
+
+  it("opens Friday PM directly from Today after finishing AM and saves only that skip", async () => {
+    const save = vi.fn().mockResolvedValue(true);
+    mountSchedule({ liftingComplete: true, onSaveProgram: save });
+    fireEvent.click(screen.getByRole("button", { name: "Move or skip PM run" }));
+    const sheet = within(screen.getByRole("dialog"));
+    fireEvent.click(sheet.getByRole("button", { name: "Skip" }));
+    expect(sheet.getByText(/after this change/).textContent).toMatch(/AM · Upper bodybuilding/);
+    fireEvent.click(sheet.getByRole("button", { name: "Skip this session" }));
+    await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(save.mock.calls[0][0].__sessionEdits.items).toMatchObject([{ from: friday, id: "pm", to: null }]);
   });
 
   it("shows the selected midweek start on an empty day and offers to change it", () => {

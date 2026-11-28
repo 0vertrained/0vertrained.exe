@@ -21,6 +21,7 @@
 
 import { generateRunPlan, isRunPlanSpec } from "./runPlanGenerator";
 import { resolveRoadTrailWeek, ROAD_TRAIL_HYBRID } from "./plans/roadTrailHybrid";
+import { applySessionEdits, prepareSessionChange } from "./sessionMoves";
 import { applyWeekMoves, WEEK_DAYS } from "./weekMoves";
 import { alignmentOn, validDateKey } from "./plans/hybridAlignmentDates";
 import { shiftDate } from "./coachWindows";
@@ -298,6 +299,15 @@ function applyPlanPatch(day, patch) {
 // reference when there is nothing to do (no marker or moves, unknown id, not
 // started, race complete) so React consumers don't re-render for nothing.
 export function applyRaceBuild(program, todayKey) {
+  const scheduled = weekBeforeSessionEdits(program, todayKey);
+  return applySessionEdits(program, scheduled, todayKey, weekBeforeSessionEdits, racePlanOn);
+}
+
+export function changeDatedSession(program, entries, request) {
+  return prepareSessionChange(program, entries, request, weekBeforeSessionEdits, applyRaceBuild, racePlanOn);
+}
+
+function weekBeforeSessionEdits(program, todayKey) {
   const hybridWeek = resolveRoadTrailWeek(program, todayKey);
   const marker = program?.__hybridBlock;
   const monday = mondayKeyOf(todayKey);

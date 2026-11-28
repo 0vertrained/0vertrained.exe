@@ -22,6 +22,8 @@
 		D149A81AC8FF32E58D92940A /* OvertrainedWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729538034977797DF2BD5D23 /* OvertrainedWatchApp.swift */; };
 		E69202C430EE3DED082F6E58 /* Plan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57002D3065893BE4A0C8E868 /* Plan.swift */; };
 		0AFD51DCC80035D52772190B /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F93304EBC9BB081B1F4BA8E /* SessionStore.swift */; };
+		E527802E72B05FE4AD7FBB81 /* RehearsalWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A9904115F3567EB003486F /* RehearsalWorkout.swift */; };
+		67E004AF9352542B8455AE74 /* WatchLiftMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60AF5E7B066B5A9DBE6FEB65 /* WatchLiftMirror.swift */; };
 		54AB01104DB092CD137D3E5A /* LiftJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */; };
 		0B7536D05E9E67AED22BC779 /* GymSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAEDFF4AAB48AC36996B87A /* GymSession.swift */; };
 		3B322103072F703D8D0E22D4 /* RepMotionDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32D4FA71BE89E0DCFA4BFE0E /* RepMotionDetector.swift */; };
@@ -38,11 +40,15 @@
 		05B735A7766D283AA9783A23 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C86C8E8B50612AEA804D7DF6 /* Assets.xcassets */; };
 		4C6B28BBC80DBF91D65282C0 /* WatchApp.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8BAEAEF91065D80CBCA650A4 /* WatchApp.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		590F95388AC9C227C76786DC /* WatchLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4221B06C2DCB2CF22321BF /* WatchLink.swift */; };
+		35613C8D3B615179A7A4AECD /* PhoneLiftMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5A1BB954D55A8A92701743 /* PhoneLiftMirror.swift */; };
 		B7452FDB3114CDA1EFAB0DAA /* WatchInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF6343409316D3C02888A642 /* WatchInbox.swift */; };
 		3A1971D9450A4097E0147736 /* WatchPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */; };
 		A92E61295872EE52B7F69B9D /* RunsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D95201F6381D68DFE7A852F /* RunsPlugin.swift */; };
 		28750D975F84203C6125340E /* RunWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */; };
+		AE8AF8E92F7C5980B2D9C55F /* LiftMirrorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF2C513FD1ED54D98BD00078 /* LiftMirrorProtocol.swift */; };
 		D683DD74C45E98DE4F01DB66 /* RunWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */; };
+		C181038B53C35167AAB1BF07 /* RehearsalCourse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CA2C6E855A85B0C8AB46C04 /* RehearsalCourse.swift */; };
+		D21636DA6C6E5DB194E0ED01 /* LiftMirrorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF2C513FD1ED54D98BD00078 /* LiftMirrorProtocol.swift */; };
 		47E1448CC805B21301C50317 /* RemindersPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D29241F9B5F62D439F87F16 /* RemindersPlugin.swift */; };
 		3FD49D64B4380268CA2337C8 /* RestActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 928997AD756BEB39DCD549AC /* RestActivityController.swift */; };
 		FD79FEAE77134C454FA1A913 /* RestActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190EAC8F00D0886AC873CB93 /* RestActivity.swift */; };
@@ -150,6 +156,8 @@
 		729538034977797DF2BD5D23 /* OvertrainedWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OvertrainedWatchApp.swift; sourceTree = "<group>"; };
 		57002D3065893BE4A0C8E868 /* Plan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Plan.swift; sourceTree = "<group>"; };
 		8F93304EBC9BB081B1F4BA8E /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		B8A9904115F3567EB003486F /* RehearsalWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RehearsalWorkout.swift; sourceTree = "<group>"; };
+		60AF5E7B066B5A9DBE6FEB65 /* WatchLiftMirror.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLiftMirror.swift; sourceTree = "<group>"; };
 		3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftJournal.swift; sourceTree = "<group>"; };
 		3BAEDFF4AAB48AC36996B87A /* GymSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GymSession.swift; sourceTree = "<group>"; };
 		32D4FA71BE89E0DCFA4BFE0E /* RepMotionDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepMotionDetector.swift; sourceTree = "<group>"; };
@@ -168,10 +176,13 @@
 		1DDBD41B34367BB49A6C50A4 /* WatchApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WatchApp.entitlements; sourceTree = "<group>"; };
 		8BAEAEF91065D80CBCA650A4 /* WatchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WatchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE4221B06C2DCB2CF22321BF /* WatchLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLink.swift; sourceTree = "<group>"; };
+		5C5A1BB954D55A8A92701743 /* PhoneLiftMirror.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneLiftMirror.swift; sourceTree = "<group>"; };
 		CF6343409316D3C02888A642 /* WatchInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchInbox.swift; sourceTree = "<group>"; };
 		33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPlugin.swift; sourceTree = "<group>"; };
 		1D95201F6381D68DFE7A852F /* RunsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunsPlugin.swift; sourceTree = "<group>"; };
 		FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunWorkout.swift; sourceTree = "<group>"; };
+		5CA2C6E855A85B0C8AB46C04 /* RehearsalCourse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RehearsalCourse.swift; sourceTree = "<group>"; };
+		EF2C513FD1ED54D98BD00078 /* LiftMirrorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftMirrorProtocol.swift; sourceTree = "<group>"; };
 		79A65BABD675768D7B7FDC32 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		0D29241F9B5F62D439F87F16 /* RemindersPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersPlugin.swift; sourceTree = "<group>"; };
 		928997AD756BEB39DCD549AC /* RestActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestActivityController.swift; sourceTree = "<group>"; };
@@ -274,6 +285,7 @@
 				F96BE0CE0BD54388E58060CD /* DevicePlugin.swift */,
 				EB4495DBD229BCAEA7533599 /* RestAlertPlugin.swift */,
 				CE4221B06C2DCB2CF22321BF /* WatchLink.swift */,
+				5C5A1BB954D55A8A92701743 /* PhoneLiftMirror.swift */,
 				CF6343409316D3C02888A642 /* WatchInbox.swift */,
 				33FFBCFCA24E640E8845A2CF /* WatchPlugin.swift */,
 				1D95201F6381D68DFE7A852F /* RunsPlugin.swift */,
@@ -301,6 +313,8 @@
 				729538034977797DF2BD5D23 /* OvertrainedWatchApp.swift */,
 				57002D3065893BE4A0C8E868 /* Plan.swift */,
 				8F93304EBC9BB081B1F4BA8E /* SessionStore.swift */,
+				B8A9904115F3567EB003486F /* RehearsalWorkout.swift */,
+				60AF5E7B066B5A9DBE6FEB65 /* WatchLiftMirror.swift */,
 				3F6FDF882B78DFBB96E1FCFF /* LiftJournal.swift */,
 				3BAEDFF4AAB48AC36996B87A /* GymSession.swift */,
 				32D4FA71BE89E0DCFA4BFE0E /* RepMotionDetector.swift */,
@@ -326,6 +340,8 @@
 			isa = PBXGroup;
 			children = (
 				FD2D3F73048DD88DC8DCDB75 /* RunWorkout.swift */,
+				5CA2C6E855A85B0C8AB46C04 /* RehearsalCourse.swift */,
+				EF2C513FD1ED54D98BD00078 /* LiftMirrorProtocol.swift */,
 				190EAC8F00D0886AC873CB93 /* RestActivity.swift */,
 				64B325A3E3869E212D1EA303 /* DayCards.swift */,
 				F5BD495E632C8DBCDE10DB77 /* TodayTimeline.swift */,
@@ -532,10 +548,12 @@
 				ECF5A5356C7B26509D72E684 /* DevicePlugin.swift in Sources */,
 				6E4BDACBA708E39B66331921 /* RestAlertPlugin.swift in Sources */,
 				590F95388AC9C227C76786DC /* WatchLink.swift in Sources */,
+				35613C8D3B615179A7A4AECD /* PhoneLiftMirror.swift in Sources */,
 				B7452FDB3114CDA1EFAB0DAA /* WatchInbox.swift in Sources */,
 				3A1971D9450A4097E0147736 /* WatchPlugin.swift in Sources */,
 				A92E61295872EE52B7F69B9D /* RunsPlugin.swift in Sources */,
 				28750D975F84203C6125340E /* RunWorkout.swift in Sources */,
+				AE8AF8E92F7C5980B2D9C55F /* LiftMirrorProtocol.swift in Sources */,
 				47E1448CC805B21301C50317 /* RemindersPlugin.swift in Sources */,
 				3FD49D64B4380268CA2337C8 /* RestActivityController.swift in Sources */,
 				FD79FEAE77134C454FA1A913 /* RestActivity.swift in Sources */,
@@ -561,6 +579,8 @@
 				D149A81AC8FF32E58D92940A /* OvertrainedWatchApp.swift in Sources */,
 				E69202C430EE3DED082F6E58 /* Plan.swift in Sources */,
 				0AFD51DCC80035D52772190B /* SessionStore.swift in Sources */,
+				E527802E72B05FE4AD7FBB81 /* RehearsalWorkout.swift in Sources */,
+				67E004AF9352542B8455AE74 /* WatchLiftMirror.swift in Sources */,
 				54AB01104DB092CD137D3E5A /* LiftJournal.swift in Sources */,
 				0B7536D05E9E67AED22BC779 /* GymSession.swift in Sources */,
 				3B322103072F703D8D0E22D4 /* RepMotionDetector.swift in Sources */,
@@ -576,6 +596,8 @@
 				CF6923614FD9B2B006C793AD /* SetLoggerView.swift in Sources */,
 				98F3A6BF01D5ED4C72E38AD7 /* StartLiftIntent.swift in Sources */,
 				D683DD74C45E98DE4F01DB66 /* RunWorkout.swift in Sources */,
+				C181038B53C35167AAB1BF07 /* RehearsalCourse.swift in Sources */,
+				D21636DA6C6E5DB194E0ED01 /* LiftMirrorProtocol.swift in Sources */,
 				CF97977C9688BF7FD2F91E91 /* DayCards.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

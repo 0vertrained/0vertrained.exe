@@ -33,8 +33,27 @@ struct WatchGymTests {
         let b = ExerciseKey(session: "main", name: row.name)
         let store = SessionStore(WatchPlan(v: 1, date: "2026-11-26",
             sessions: [PlanSession(id: "main", title: "Upper", exercises: [first, row, curl])]))
+        let rules = BarbellRules(bar: 45, plates: [45, 35, 25, 10, 5, 2.5], rampMinimum: 95,
+                                 increment: 5, emptyReps: 10, steps: [.init(fraction: 0.55, reps: 5),
+                                 .init(fraction: 0.70, reps: 3), .init(fraction: 0.85, reps: 2)])
+        store.today?.barbellRules = rules
+        store.today?.mutateExercise(a) { $0.barbell = true }
+        precondition(rules.perSide(for: 225) == "2 × 45 / side")
+        precondition(rules.perSide(for: 46)?.contains("0.5 lb short per side") == true)
+        precondition(rules.perSide(for: 35) == nil && rules.ramp(to: 85).isEmpty)
+        precondition(rules.ramp(to: 225).map(\.weight) == [45, 125, 160, 190])
+        store.toggleWarmup(a, workingWeight: 225, index: 1)
+        store.toggleWarmup(a, workingWeight: 185, index: 1)
+        precondition(store.sets(for: a) == [open, open] && !store.isResting)
+        precondition(store.sent.last?["type"] as? String == "warmup")
+        precondition(store.sent.last?["workingWeight"] as? Double == 185)
+        let persisted = try JSONDecoder().decode(WatchPlan.self, from: JSONEncoder().encode(store.today!))
+        precondition(persisted.exercise(a)?.warmupSets?.map(\.weight) == [125, 100])
+        store.toggleWarmup(a, workingWeight: 185, index: 1)
+        precondition(store.today?.exercise(a)?.warmupSets?.last?.done == false)
         store.swapExercise(a, to: choice.name)
         precondition(store.today?.exercise(a)?.display == choice.name && store.sets(for: a)[0].values["weight"] == 50)
+        precondition(store.today?.exercise(a)?.barbell != true && store.today?.exercise(a)?.warmupSets == nil)
         store.swapExercise(a, to: first.name)
         precondition(store.today?.exercise(a)?.display == first.name && store.sets(for: a)[0].values["weight"] == 185)
         store.pairExercise(a, enabled: true)

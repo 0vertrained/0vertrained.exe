@@ -4,6 +4,8 @@
 // files (TodayTab/ProgressTab/FuelTab/TrainTab). DemoPage is lazy: it isn't
 // needed for first paint, so it loads on demand and stays out of the initial
 // bundle.
+import { rehearsalAttempt } from "./rehearsal/attempts";
+import { preserveRehearsal, validCourseDate } from "./rehearsal/course";
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { ThemeProvider, useTheme } from "./theme";
 import { DEFAULT_PROGRAM, defaultDay, getTodayKey, getDayName, presetProgram } from "./constants";
@@ -50,6 +52,7 @@ import { getSkeletonPlan, resolveLoadState } from "./uiStability";
 import { isFirstWeekUser, buildNewUserEmptyState, countLoggedDays } from "./firstWeekJourney";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TodayTab } from "./TodayTab";
+import LiveLiftMirror from "./watch/LiveLiftMirror";
 import { useWatchBridge } from "./watch/useWatchBridge";
 import { useWatchRuns } from "./watch/useWatchRuns";
 
@@ -774,6 +777,16 @@ function AppInner({ onThemeChange }) {
     setPendingSaves(previous => ({ ...previous, ...days }));
     return true;
   };
+  const saveRehearsalAttempt = (dateKey, raw) => {
+    const attempt = rehearsalAttempt(raw);
+    if (!attempt || !validCourseDate(dateKey) || (!demoMode && !integrationAccountReady)) return false;
+    const day = data[dateKey] || defaultDay();
+    if (day.workout?.raceRehearsals?.[attempt.id]) return true;
+    const path = ["workout", "raceRehearsals", attempt.id];
+    if (!demoMode && !stageWatchDays({ [dateKey]: setPath(day, path, attempt) })) return false;
+    updateEntryAtDate(dateKey, path.join("."), attempt);
+    return true;
+  };
   useWatchBridge({ owner: accountOwner, builderPreferences: settings?.programBuilder, ready: integrationAccountReady, data, program, wearableScore: ouraRecovery, readiness: customReadiness, updateEntryAtDate, stageDays: stageWatchDays });
   useWatchRuns({ owner: accountOwner, ready: integrationAccountReady, data, program, updateEntryAtDate, showToast });
   useHealthDaily({ owner: accountOwner, ready: integrationAccountReady, data, wearables: Boolean(settings?.ouraConnected || settings?.whoopConnected), updateEntryAtDate });
@@ -907,6 +920,8 @@ function AppInner({ onThemeChange }) {
       programToSave = presetProgram(programPreset);
     }
 
+    programToSave = preserveRehearsal(program, programToSave);
+
     if (!demoMode) {
       // Setup only counts once it's saved: on a failed save the wizard stays on its last step
       // and Finish retries. Settings (the onboarded flag) only save after the
@@ -962,7 +977,8 @@ function AppInner({ onThemeChange }) {
   };
 
   // Save updated program to Supabase + local state
-  const handleSaveProgram = async (newProgram, { savedMessage = "Program saved" } = {}) => {
+  const handleSaveProgram = async (incomingProgram, { savedMessage = "Program saved" } = {}) => {
+    const newProgram = preserveRehearsal(program, incomingProgram);
     setSaving(true);
     if (demoMode) {
       setProgram(newProgram);
@@ -996,7 +1012,8 @@ function AppInner({ onThemeChange }) {
   // the builder panel's Apply button — nothing here runs before Apply. Saves the
   // generated program via the existing program path AND merges the builder
   // preferences into settings.programBuilder WITHOUT clobbering other settings.
-  const handleApplyGeneratedProgram = async ({ program: generatedProgram, preferences }) => {
+  const handleApplyGeneratedProgram = async ({ program: incomingProgram, preferences }) => {
+    const generatedProgram = preserveRehearsal(program, incomingProgram);
     const builderPatch = { programBuilder: { ...settingsRef.current.programBuilder, ...preferences } };
     if (demoMode) {
       setProgram(generatedProgram);
@@ -1183,6 +1200,7 @@ function AppInner({ onThemeChange }) {
         </Suspense>
       )}
       <Header title={bar.title} sub={bar.sub} back={bar.back} onBack={bar.onBack} close={bar.close} onClose={bar.onClose} saving={saving} demoMode={demoMode} onOpenProfile={overlay === "profile" && !isDesktop ? undefined : openProfile} isOnline={isOnline} pendingSaves={pendingSaves} currentTab={overlay === "profile" ? null : tab} onTabChange={changeTab} onQuickAction={() => setSheetOpen(true)} onOpenPalette={() => setPaletteOpen(true)} tabsOrder={TABS_ORDER} />
+      {integrationAccountReady && <LiveLiftMirror key={accountOwner} owner={accountOwner} />}
       {appLoadState.showRefreshing && <RefreshingBar label="Refreshing your latest data in the background" />}
 
       <AppMain overlay={overlay} tab={tab} profilePage={overlay === "profile" && PROFILE_TITLES[profileView] ? profileView : null} title={bar.title} back={bar.back} enabled={!isDesktop} id="main" tabIndex={-1} style={{ outline: "none", display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
@@ -1237,12 +1255,13 @@ function AppInner({ onThemeChange }) {
             <div className={loaded && !dayZero.today.isZero ? "tab-screen" : "legacy-screen"}>
             {loaded && dayZero.today.isZero
               ? <DayZeroSpecimen tab="Today" onAction={() => setShowTutorial(true)} />
-              : <TodayTab key={accountOwner} integrationRevision={integrationRevision} todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} wearableSample={wearableSample} setTab={navigateTo} onChangeStartDate={() => { setTrainLanding("block"); navigateTo("Train"); }} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={currentLoad} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
+              : <TodayTab key={accountOwner} integrationRevision={integrationRevision} todayName={todayName} todayData={todayData} updateToday={updateToday} updateEntryAtDate={updateEntryAtDate} showToast={showToast} onExport={exportJSON} loaded={loaded} program={liveProgram} baseProgram={program} onSaveProgram={handleSaveProgram} onUseRaceForPaces={applyRaceToPaces} settings={settings} allData={data} logDate={logDate} setLogDate={setLogDate} ouraRecovery={ouraRecovery} wearableSample={wearableSample} setTab={navigateTo} onChangeStartDate={() => { setTrainLanding("block"); navigateTo("Train"); }} saving={saving} isOnline={isOnline} savePending={Boolean(pendingSaves[todayKey])} intent={todayIntent} onIntentHandled={() => setTodayIntent(null)} onOpenEdition={openEdition} recoveryLoad={currentLoad} onCall={(read) => setTodayCall({ ...read, owner: user?.id ?? null })} />}
             </div>
           )}
           {tab === "Train" && (
             <TrainTab
-              key={trainLanding || "home"} initialView={trainLanding}
+              key={(accountOwner || "demo") + (trainLanding || "home")} initialView={trainLanding}
+              owner={demoMode ? "demo" : integrationAccountReady ? accountOwner : null} onSaveRehearsalAttempt={saveRehearsalAttempt}
               program={program} liveProgram={recoveryProgram} entries={data} settings={settings}
               onSaveProgram={handleSaveProgram} onApplyGeneratedProgram={handleApplyGeneratedProgram}
               onStartToday={() => { setLogDate(null); navigateTo("Today"); setTodayIntent({ kind: "workout", nonce: Date.now() }); }}

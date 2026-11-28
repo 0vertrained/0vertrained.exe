@@ -6,7 +6,7 @@
 // plan, the block and history.
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { DAYS, DEFAULT_PROGRAM, getTodayKey } from "./constants";
-import { getProgramSessions, flattenProgramLifting } from "./programSessions";
+import { getProgramSessions, flattenProgramLifting, usesProgramSessions } from "./programSessions";
 import { summarizeProgramDay } from "./programSummary";
 import { isExerciseHandled } from "./workoutLogging";
 import { mondayKeyOf, describeBuildWeek, keepRacePlan } from "./raceBuild";
@@ -22,16 +22,20 @@ import { ProgramBuilderPanel } from "./ProgramBuilderPanel";
 import { RacePlanPanel } from "./RacePlanPanel";
 import { useMediaQuery, BROADSHEET_QUERY } from "./ui/useMediaQuery";
 import { dayDate } from "./sections/charts";
-import { movedFrom, raceMoveLock, resetWeek, swapDays, weekMovesFor } from "./weekMoves";
+import { canResetWeek, hasSessionEditOn, movedFrom, raceMoveLock, resetWeek, swapDays, weekMovesFor } from "./weekMoves";
+import { SessionSchedule } from "./MoveSession";
+import { legacyCardioSessionId } from "./cardioLog";
+import { workoutStarted } from "./sessionMoves";
 import { MoveDaySheet } from "./MoveDay";
 
 // The block brings the planner and the decision engine with it, so it loads
 // when it is opened.
+const RaceRehearsal = lazy(() => import("./rehearsal/RaceRehearsal").then(module => ({ default: module.RaceRehearsal })));
 const BlockScreen = lazy(() => import("./BlockScreen").then((module) => ({ default: module.BlockScreen })));
 // History is Progress's; it loads when it is opened here too.
 const ProgressHistory = lazy(() => import("./ProgressHistory").then((module) => ({ default: module.ProgressHistory })));
 
-const TITLES = { program: "Program", edit: "Edit the week", build: "Build a program", race: "Race plan", block: "Block", history: "History" };
+const TITLES = { rehearsal: "Race rehearsal", program: "Program", edit: "Edit the week", build: "Build a program", race: "Race plan", block: "Block", history: "History" };
 const PARENT = { edit: "Program", build: "Program" };
 const loading = (what) => <div className="shell"><div className="main"><p className="t-s c2" role="status">Loading {what}…</p></div></div>;
 
@@ -61,10 +65,14 @@ export function buildTrainWeek({ program, entries, todayKey }) {
     const sessions = getProgramSessions(day);
     const cardios = sessions.filter(session => session.cardio);
     const hasCardio = cardios.length > 0;
-    const cardioLogged = (parseFloat(logged.cardio?.miles) || 0) > 0 || String(logged.cardio?.time || "").trim() !== ""
-      || Object.values(logged.cardioSessions || {}).some((c) => (parseFloat(c?.miles) || 0) > 0 || String(c?.time || "").trim() !== "");
+    const split = usesProgramSessions(day);
+    const legacyId = split ? legacyCardioSessionId(sessions, logged) : null;
+    const recorded = session => {
+      const block = split && session.id !== legacyId ? logged.cardioSessions?.[session.id] : logged.cardio;
+      return (parseFloat(block?.miles) || 0) > 0 || String(block?.time || "").trim() !== "";
+    };
     const isRest = lifting.length === 0 && !hasCardio;
-    const done = !isRest && doneLifts === lifting.length && (!hasCardio || cardioLogged);
+    const done = !isRest && doneLifts === lifting.length && cardios.every(recorded);
     const when = dateKey === todayKey ? "today" : dateKey < todayKey ? "past" : "ahead";
     const from = movedFrom(program, dateKey);
     const parts = from ? [`From ${from}`] : [];
@@ -75,16 +83,16 @@ export function buildTrainWeek({ program, entries, todayKey }) {
     if (done) parts.push("done");
     return {
       dayName, dateKey, when, isRest, done,
-      started: doneLifts > 0 || cardioLogged,
+      split, started: workoutStarted(logged),
       label: `${dayName.slice(0, 3)}${NBSP}${date.getDate()}`,
       title: isRest ? "Rest day" : (summary.label || dayName),
       detail: isRest ? [...parts, "No training planned"].join(" · ") : parts.join(" · "),
-      liftCount: lifting.length, sessions, moveLock: raceMoveLock(program, dateKey),
+      liftCount: lifting.length, sessions, moveLock: raceMoveLock(program, dateKey) || (hasSessionEditOn(program, dateKey) ? "Individual session rescheduled" : null),
     };
   });
 }
 
-export function TrainTab({ program, liveProgram, entries, settings, onSaveProgram, onApplyGeneratedProgram, onStartToday, onOpenDay, initialView = null }) {
+export function TrainTab({ owner, onSaveRehearsalAttempt, program, liveProgram, entries, settings, onSaveProgram, onApplyGeneratedProgram, onStartToday, onOpenDay, initialView = null }) {
   // "home", or one of its screens: program, edit, build, race, block, history.
   const [view, setView] = useState(initialView === "block" ? "block" : "home");
   const [editDay, setEditDay] = useState(null);
@@ -157,6 +165,11 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
   }
   // Race plan: Save writes the spec into the program's marker; End removes
   // it. Both go through the normal program save path.
+  if (view === "rehearsal") {
+    return <Suspense fallback={<p className="t-s c2">Opening race rehearsal…</p>}>
+      <RaceRehearsal owner={owner} program={program} entries={entries} todayKey={todayKey} onSaveProgram={onSaveProgram} onSaveAttempt={onSaveRehearsalAttempt} />
+    </Suspense>;
+  }
   if (view === "race") {
     const base = program || DEFAULT_PROGRAM;
     return (
@@ -213,7 +226,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
             <h2 id="train-week" className="t-h">This week</h2>
             <span className="t-s c2">{shortDate(week[0].dateKey, { month: "short", day: "numeric" })} to {shortDate(week[6].dateKey, { month: "short", day: "numeric" })}</span>
           </div>
-          <MoveDaySheet open={moveOpen} week={week} onSwap={swapThisWeek} onReset={weekMoved ? resetThisWeek : null} onClose={() => setMoveOpen(false)} />
+          <MoveDaySheet open={moveOpen} week={week} onSwap={swapThisWeek} onReset={weekMoved && canResetWeek(program, todayKey) ? resetThisWeek : null} onClose={() => setMoveOpen(false)} />
           <ol className="rows">
             {week.map((d) => {
               const body = (
@@ -236,6 +249,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
               );
             })}
           </ol>
+          <SessionSchedule {...{ program, entries, week, todayKey, onSaveProgram }} />
           <button type="button" className="btn btn-g btn-sm" onClick={() => setMoveOpen(true)} style={{ alignSelf: "flex-start", paddingLeft: 0 }}>
             {weekMoved ? "Move another day" : "Move a day this week"}
           </button>
@@ -246,6 +260,7 @@ export function TrainTab({ program, liveProgram, entries, settings, onSaveProgra
           <ul className="rows">
             <li><LinkRow label="Program" sub={planSummary.hasProgram ? planSummary.line : "No program yet. Build one or pick a preset."} onClick={() => setView("program")} /></li>
             <li><LinkRow label="Block" sub={hybridWeek ? `Road & Trail Hybrid · ${hybridWeekLabel(hybridWeek)}` : "Where this week sits in the block"} onClick={() => setView("block")} /></li>
+            <li><LinkRow label="Race rehearsal" sub={program?.__rehearsal?.name || "Draw a course and practice your splits and aid stops"} onClick={() => setView("rehearsal")} /></li>
             <li><LinkRow label="Race plan" sub={hasRacePlan ? `${program.__raceBuild.raceName} · ${formatPlanDate(program.__raceBuild.raceDate)}${raceCopy ? ` · ${raceCopy.countdown}` : ""}` : "Train for a 5K, 10K or half, built around your lifting"} onClick={() => setView("race")} /></li>
             <li><LinkRow label="History" sub="Every session and run" onClick={() => setView("history")} /></li>
           </ul>

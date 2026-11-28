@@ -140,15 +140,20 @@ export function buildProgressionHint({ last, exercise }) {
 // Standard lb plates per side for a given target on a 45-lb bar. Returns null
 // when the target is below the bar or not a number. Greedy from heaviest —
 // exact for anything loadable in 2.5-lb steps; flags a remainder otherwise.
-const PLATES_LB = [45, 35, 25, 10, 5, 2.5];
+// The Watch receives these same loading rules with its offline plan so the
+// calculator still works when the athlete changes the weight at the rack.
+export const BARBELL_RULES = {
+  bar: 45, plates: [45, 35, 25, 10, 5, 2.5], rampMinimum: 95, increment: 5, emptyReps: 10,
+  steps: [{ fraction: 0.55, reps: 5 }, { fraction: 0.70, reps: 3 }, { fraction: 0.85, reps: 2 }],
+};
 
-export function calcPlateMath(target, barWeight = 45) {
+export function calcPlateMath(target, barWeight = BARBELL_RULES.bar) {
   const t = parseFloat(target);
   if (!Number.isFinite(t) || t < barWeight) return null;
   if (t === barWeight) return { perSide: [], label: "empty bar" };
   let perSideWeight = (t - barWeight) / 2;
   const perSide = [];
-  for (const p of PLATES_LB) {
+  for (const p of BARBELL_RULES.plates) {
     while (perSideWeight >= p - 1e-9) {
       perSide.push(p);
       perSideWeight -= p;
@@ -169,19 +174,13 @@ export function calcPlateMath(target, barWeight = 45) {
 // ~70% × 3, ~85% × 2, then work sets. Steps round to 5 lb, dedupe, and skip
 // anything at/below the bar. Below 95 lb a ramp is pointless — bar work and
 // the first set ARE the warm-up — so this returns null.
-const RAMP_STEPS = [
-  { pct: 0.55, reps: 5 },
-  { pct: 0.70, reps: 3 },
-  { pct: 0.85, reps: 2 },
-];
-
-export function buildWarmupRamp(workingWeight, barWeight = 45) {
+export function buildWarmupRamp(workingWeight, barWeight = BARBELL_RULES.bar) {
   const w = parseFloat(workingWeight);
-  if (!Number.isFinite(w) || w < 95) return null;
-  const steps = [{ weight: barWeight, reps: 10, label: "empty bar" }];
+  if (!Number.isFinite(w) || w < BARBELL_RULES.rampMinimum) return null;
+  const steps = [{ weight: barWeight, reps: BARBELL_RULES.emptyReps, label: "empty bar" }];
   const seen = new Set([barWeight]);
-  for (const s of RAMP_STEPS) {
-    const target = Math.round((w * s.pct) / 5) * 5;
+  for (const s of BARBELL_RULES.steps) {
+    const target = Math.round((w * s.fraction) / BARBELL_RULES.increment) * BARBELL_RULES.increment;
     if (target <= barWeight || target >= w || seen.has(target)) continue;
     seen.add(target);
     const plates = calcPlateMath(target, barWeight);
@@ -189,6 +188,17 @@ export function buildWarmupRamp(workingWeight, barWeight = 45) {
   }
   const workPlates = calcPlateMath(w, barWeight);
   return { steps, working: { weight: w, label: workPlates ? workPlates.label : "" } };
+}
+
+// Match by load and reps so a changed work target never credits a different step.
+export function warmupEntry(entries, step) {
+  return entries?.find?.(entry => entry?.weight === step.weight && entry.reps === step.reps);
+}
+
+export function updateWarmup(entries, step, done, at, workingWeight) {
+  const other = (Array.isArray(entries) ? entries : []).filter(entry => entry &&
+    (entry.weight !== step.weight || entry.reps !== step.reps));
+  return [...other.slice(-63), { weight: step.weight, reps: step.reps, done, at, workingWeight }];
 }
 
 // Rest timer defaults

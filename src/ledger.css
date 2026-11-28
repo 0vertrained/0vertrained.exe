@@ -470,3 +470,13 @@ a.row:active, button.row:active { background: var(--press); }
   .ot .inkable:not([data-motion="reduced"] *, [data-motion="still"] *)::after { transition: clip-path var(--t-press) ease; }
   .ot .is-ink .inkable:not([data-motion="reduced"] *, [data-motion="still"] *)::after { transition: clip-path var(--t-sheet) var(--e-out) var(--d, 0ms); }
 }
+
+/* A live Watch workout can be opened from any tab while the phone is on the bench. */
+.mirror-entry { width: 100%; display: flex; align-items: center; gap: 8px; padding: 10px 16px; min-height: 44px; background: var(--sunk); color: var(--ink); border-bottom: 1px solid var(--line); text-align: left; font-weight: 600; }
+.mirror-panel { display: grid; gap: 12px; }
+.mirror-panel h3 { font-size: clamp(28px, 6vw, 42px); line-height: 1.12; }
+.mirror-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; }
+.mirror-fields input { width: 100%; min-width: 0; min-height: 52px; padding: 6px 10px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 24px; }
+.mirror-metrics { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; }
+.mirror-metrics:empty { display: none; }
+.mirror-metrics strong { font-size: clamp(28px, 6vw, 40px); line-height: 1.2; }

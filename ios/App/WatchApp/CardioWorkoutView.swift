@@ -16,15 +16,23 @@ final class CardioWorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDe
     @Published private(set) var finishing = false
     @Published private(set) var record: Record?
     @Published private(set) var heartRate: Int?
+    private var measuredMeters: Double?
     @Published var problem: String?
 
     typealias Record = CardioProgress
 
     var isActive: Bool { starting || record != nil }
     var startDate: Date? { record?.start }
+    var hasSavedRecord: Bool {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let saved = try? JSONDecoder().decode(Record.self, from: data) else { return false }
+        return SessionStore.shared.isCurrentOwner(saved.owner)
+    }
 
-    func start(_ spec: RunSpec) {
-        guard !isActive, WorkoutManager.shared.phase == .idle else { return }
+    func start(_ spec: RunSpec, rehearsal: RehearsalCourse? = nil) {
+        let store = SessionStore.shared
+        guard !isActive, !WorkoutManager.shared.blocksCardioStart, store.activeLift == nil, store.rehearsalAttempt == nil else { return }
+        if let rehearsal, !rehearsal.valid || rehearsal.date != store.today?.date || store.athleteOwner == nil { return }
         guard !spec.orderedSteps.isEmpty, HKHealthStore.isHealthDataAvailable() else {
             problem = "Health or workout steps are unavailable."
             return
@@ -33,10 +41,14 @@ final class CardioWorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDe
         let owner = SessionStore.shared.athleteOwner
         starting = true
         problem = nil
-        health.requestAuthorization(toShare: [HKObjectType.workoutType()], read: [HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned)]) { _, _ in
+        var read: Set<HKObjectType> = [HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned)]
+        if let type = Self.distanceType(spec.healthActivity) { read.insert(type) }
+        health.requestAuthorization(toShare: [HKObjectType.workoutType()], read: read) { _, _ in
             DispatchQueue.main.async {
                 guard token == self.generation else { return }
                 defer { self.starting = false }
+                guard owner == store.athleteOwner else { return }
+                guard store.activeLift == nil, store.rehearsalAttempt == nil, !WorkoutManager.shared.blocksCardioStart else { return }
                 guard self.health.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized else {
                     self.problem = "Allow workout access in Health, then try again."
                     return
@@ -51,15 +63,22 @@ final class CardioWorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDe
                     self.attach(session)
                     let now = Date()
                     self.record = Record(spec: spec, start: now, index: 0, beganStep: now, owner: owner)
+                    if let rehearsal, let owner {
+                        store.startRehearsal(rehearsal, owner: owner, at: now)
+                        RehearsalTracker.shared.start()
+                    }
+                    self.record?.workoutID = rehearsal == nil ? UUID().uuidString : store.rehearsalAttempt?.id
                     self.persist()
                     session.startActivity(with: now)
                     builder.beginCollection(withStart: now) { _, error in
-                        if error != nil { DispatchQueue.main.async { self.problem = "Health could not start collecting workout measurements." } }
+                        if error != nil { DispatchQueue.main.async { if self.session === session { self.problem = "Health could not start collecting workout measurements." } } }
                     }
                     var metadata: [String: Any] = ["OTPlanID": spec.id]
                     if let owner { metadata["OTAthleteOwner"] = owner }
+                    metadata["OTCardioID"] = self.record?.workoutID
                     if let id = spec.sessionId { metadata["OTSessionID"] = id }
                     builder.addMetadata(metadata) { _, _ in }
+                    WatchLiftMirror.shared.start(session, cardio: true)
                 } catch {
                     self.problem = "The workout could not start. Try again."
                 }
@@ -68,6 +87,7 @@ final class CardioWorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDe
     }
 
     func closeForAccountChange() {
+        WatchLiftMirror.shared.stop(session: session)
         generation += 1
         starting = false
         problem = nil
@@ -84,15 +104,44 @@ final class CardioWorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDe
         clear(nil)
     }
 
-    func restore(_ session: HKWorkoutSession) {
-        guard let data = UserDefaults.standard.data(forKey: key),
-              let saved = try? JSONDecoder().decode(Record.self, from: data),
-              saved.owner == nil || saved.owner == SessionStore.shared.athleteOwner,
-              saved.spec.healthActivity == session.workoutConfiguration.activityType,
-              let actualStart = session.startDate, abs(actualStart.timeIntervalSince(saved.start)) < 5 else { return }
+    @discardableResult
+    func restore(_ session: HKWorkoutSession) -> Bool {
+        if self.session === session { return true }
+        guard self.session == nil, session.state != .ended, let actualStart = session.startDate else { return false }
+        let store = SessionStore.shared
+        let metadata = session.associatedWorkoutBuilder().metadata
+        let taggedOwner = metadata["OTAthleteOwner"] as? String
+        let taggedID = metadata["OTCardioID"] as? String
+        guard taggedOwner == nil || taggedOwner == store.athleteOwner else { return false }
+        var saved: Record
+        if let attempt = store.rehearsalAttempt, attempt.owner == store.athleteOwner, taggedID == nil || taggedID == attempt.id,
+           session.workoutConfiguration.activityType == .running, abs(actualStart.timeIntervalSince(attempt.start)) < 2 {
+            saved = Record(spec: attempt.course.run, start: attempt.start, index: 0, beganStep: attempt.start,
+                           owner: attempt.owner, workoutID: attempt.id)
+        } else {
+            guard let data = UserDefaults.standard.data(forKey: key),
+                  let existing = try? JSONDecoder().decode(Record.self, from: data),
+                  store.isCurrentOwner(existing.owner), taggedID == nil || taggedID == existing.workoutID,
+                  existing.spec.healthActivity == session.workoutConfiguration.activityType,
+                  abs(actualStart.timeIntervalSince(existing.start)) < 2 else { return false }
+            saved = existing
+        }
+        if saved.workoutID == nil { saved.workoutID = UUID().uuidString }
         record = saved
+        persist()
         attach(session)
+        if matchesRehearsal {
+            RehearsalTracker.shared.start()
+        } else if saved.spec.sessionId?.hasPrefix("rehearsal:") == true {
+            finish()
+            return true
+        }
+        if let builder {
+            updateMetrics(builder, types: Set([HKQuantityType(.heartRate), Self.distanceType(saved.spec.healthActivity)].compactMap { $0 }))
+        }
+        WatchLiftMirror.shared.start(session, cardio: true)
         tick()
+        return true
     }
 
     private func attach(_ session: HKWorkoutSession) {
@@ -109,7 +158,61 @@ final class CardioWorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDe
         else { UserDefaults.standard.removeObject(forKey: key) }
     }
 
+    var matchesRehearsal: Bool {
+        guard let attempt = SessionStore.shared.rehearsalAttempt, let record else { return false }
+        return attempt.owner == record.owner && record.spec.sessionId == "rehearsal:" + attempt.course.id && record.start == attempt.start
+    }
+
+    var canMirror: Bool { record != nil && !finishing }
+
+    private static func distanceType(_ activity: HKWorkoutActivityType) -> HKQuantityType? {
+        switch activity {
+        case .running, .walking, .hiking: return HKQuantityType(.distanceWalkingRunning)
+        case .cycling: return HKQuantityType(.distanceCycling)
+        case .swimming: return HKQuantityType(.distanceSwimming)
+        case .rowing:
+            if #available(watchOS 11, *) { return HKQuantityType(.distanceRowing) }
+            return nil
+        case .crossCountrySkiing:
+            if #available(watchOS 11, *) { return HKQuantityType(.distanceCrossCountrySkiing) }
+            return nil
+        default: return nil
+        }
+    }
+
+    func mirrorSnapshot() -> LiftMirrorSnapshot? {
+        guard canMirror, let record, let id = record.workoutID, let owner = SessionStore.shared.athleteOwner,
+              record.owner == owner else { return nil }
+        let attempt = matchesRehearsal ? SessionStore.shared.rehearsalAttempt : nil
+        var cardio = CardioMirrorSnapshot(activity: record.spec.activity ?? "run",
+            kind: attempt == nil ? "cardio" : "rehearsal", name: record.spec.name,
+            distanceMeters: attempt?.distanceMeters ?? measuredMeters)
+        if let attempt {
+            let cp = attempt.atStop && !attempt.marks.isEmpty ? attempt.course.checkpoints[attempt.marks.count - 1] : attempt.next
+            cardio.checkpointName = cp?.name
+            cardio.checkpointMeters = cp?.meters
+            cardio.checkpointTargetSeconds = cp?.targetSeconds
+            cardio.checkpointInstruction = cp?.instruction
+            cardio.atStation = attempt.atStop
+        } else {
+            let steps = record.spec.orderedSteps
+            if steps.indices.contains(record.index) {
+                let item = steps[record.index]
+                cardio.stepLabel = item.label
+                cardio.stepIndex = record.index + 1
+                cardio.stepCount = steps.count
+                cardio.stepStartedAt = record.beganStep.timeIntervalSince1970 * 1000
+                cardio.stepTargetSeconds = item.step.goal.seconds
+                cardio.stepTargetMeters = item.step.goal.meters
+            }
+        }
+        let cursor = LiftMirrorCursor(owner: owner, workoutID: id, revision: id)
+        return LiftMirrorSnapshot(cursor: cursor, title: record.spec.name, total: 0, fields: [], values: [:],
+            heartRate: heartRate.map(Double.init), startedAt: record.start.timeIntervalSince1970 * 1000, cardio: cardio)
+    }
+
     private func tick() {
+        if matchesRehearsal { RehearsalTracker.shared.tick() }
         guard !finishing, var active = record, active.catchUp(at: Date()) else { return }
         record = active
         persist()
@@ -126,6 +229,11 @@ final class CardioWorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDe
         guard let session, !finishing else { return }
         tick()
         finishing = true
+        WatchLiftMirror.shared.stop(session: session)
+        if matchesRehearsal {
+            SessionStore.shared.finishRehearsal(at: Date())
+            RehearsalTracker.shared.stop()
+        }
         if let record, let builder {
             let segments = record.segments(until: Date())
             if let data = try? JSONSerialization.data(withJSONObject: segments), let json = String(data: data, encoding: .utf8) {
@@ -137,6 +245,12 @@ final class CardioWorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDe
     }
 
     private func clear(_ error: Error?) {
+        WatchLiftMirror.shared.stop(session: session)
+        measuredMeters = nil
+        if matchesRehearsal {
+            SessionStore.shared.finishRehearsal(at: Date())
+            RehearsalTracker.shared.stop()
+        }
         timer?.invalidate()
         timer = nil
         session = nil
@@ -160,11 +274,29 @@ final class CardioWorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDe
         DispatchQueue.main.async { if self.session === workoutSession { self.clear(error) } }
     }
 
+    func workoutSession(_ workoutSession: HKWorkoutSession, didReceiveDataFromRemoteWorkoutSession data: [Data]) {
+        DispatchQueue.main.async { WatchLiftMirror.shared.receive(data, from: workoutSession) }
+    }
+
+    func workoutSession(_ workoutSession: HKWorkoutSession, didDisconnectFromRemoteDeviceWithError error: Error?) {
+        DispatchQueue.main.async { WatchLiftMirror.shared.disconnected(workoutSession) }
+    }
+
     func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
     func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf types: Set<HKSampleType>) {
+        DispatchQueue.main.async {
+            guard self.builder === workoutBuilder else { return }
+            self.updateMetrics(workoutBuilder, types: types)
+        }
+    }
+
+    private func updateMetrics(_ builder: HKLiveWorkoutBuilder, types: Set<HKSampleType>) {
         let hr = HKQuantityType(.heartRate)
-        if types.contains(hr), let bpm = workoutBuilder.statistics(for: hr)?.mostRecentQuantity()?.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) {
-            DispatchQueue.main.async { self.heartRate = Int(bpm.rounded()) }
+        if types.contains(hr), let bpm = builder.statistics(for: hr)?.mostRecentQuantity()?.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) {
+            heartRate = Int(bpm.rounded())
+        }
+        if let activity = record?.spec.healthActivity, let distance = Self.distanceType(activity), types.contains(distance) {
+            measuredMeters = builder.statistics(for: distance)?.sumQuantity()?.doubleValue(for: .meter())
         }
     }
 }

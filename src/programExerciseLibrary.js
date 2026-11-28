@@ -215,6 +215,16 @@ export function findLibraryExercise(name) {
   return exercisesByName.get(key) || null;
 }
 
+// Only straight-bar movements use the two-sided 45 lb loading calculator.
+export function usesStandardBarbell(name) {
+  const normalized = String(name || "").trim();
+  if (/landmine|trap bar|hex bar|ez[ -]?bar|skull crusher/i.test(normalized)) return false;
+  const equipment = findLibraryExercise(normalized)?.equipment;
+  if (equipment) return equipment === "barbell";
+  return /\bbarbell\b/i.test(normalized) ||
+    /^(?:(?:incline|decline|flat|close[ -]grip) )?bench press$|^(?:deadlift|high[ -]bar squat|low[ -]bar squat|bent[ -]over row|military press)$/i.test(normalized);
+}
+
 export function exercisePrescription(name) {
   const exercise = findLibraryExercise(name);
   if (!exercise) return null;

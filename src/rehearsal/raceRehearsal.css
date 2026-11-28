@@ -1,0 +1,10 @@
+.race-rehearsal { width: 100%; max-width: 820px; margin: 0 auto; padding: 20px 16px 32px; }
+.rr-stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.rr-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rr-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 12px; }
+.rr-pair > *, .rr-stack input, .rr-stack select { min-width: 0; }
+.rr-stack summary { cursor: pointer; padding: 10px 0; font-weight: 600; }
+.rr-split { padding: 9px 0; border-bottom: 1px solid var(--line); }
+.rr-box { border: 1px solid var(--edge); border-radius: 8px; padding: 12px; }
+.rr-box legend { padding: 0 6px; }
+.rr-record { border-top: 1px solid var(--line); }

@@ -210,10 +210,17 @@ private struct RepCounterView: View {
         }
         .navigationTitle("Rep counter")
         .onChange(of: capture.phase) { _, phase in
+            WatchLiftMirror.shared.liveReps = phase == .counting ? capture.count : nil
             if phase == .review { corrected = Double(min(limit, capture.count)) }
         }
         .sheet(isPresented: $showingCalibration) { calibrationSettings }
-        .onDisappear { capture.stopUpdates() }
+        .onChange(of: capture.count) { _, count in
+            if capture.phase == .counting { WatchLiftMirror.shared.liveReps = count }
+        }
+        .onDisappear {
+            WatchLiftMirror.shared.liveReps = nil
+            capture.stopUpdates()
+        }
     }
 
     private var calibrationSettings: some View {

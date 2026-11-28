@@ -50,6 +50,36 @@ struct WatchJournalTests {
         restored.close(at: start.addingTimeInterval(600))
         precondition(restored.lastFinish?.id == workoutID && restored.rest == nil)
         precondition(restored.day(next, week: week)?.date == next)
+        var lift = LiftJournal.Session(id: "lift-A", startedAt: start, plan: plan)
+        lift.plan.owner = "A"
+        lift.healthStartedAt = start.addingTimeInterval(600)
+        precondition(lift.matchesHealth(start: lift.healthStartedAt, owner: "A", taggedOwner: "A", workoutID: "lift-A"))
+        precondition(!lift.matchesHealth(start: lift.healthStartedAt, owner: "B", taggedOwner: "A", workoutID: "lift-A"))
+        precondition(!lift.matchesHealth(start: lift.healthStartedAt, owner: "A", taggedOwner: "A", workoutID: "lift-B"))
+        precondition(!lift.matchesHealth(start: start, owner: "A", taggedOwner: nil, workoutID: nil))
+        precondition(lift.matchesHealth(start: lift.healthStartedAt, owner: "A", taggedOwner: nil, workoutID: nil))
+
+        let course = RehearsalCourse(id: "trail", name: "Trail", date: first,
+            points: [.init(lat: 1, lon: 1), .init(lat: 1, lon: 1.1)],
+            checkpoints: [.init(id: "water", name: "Water", kind: "water", pointIndex: 1, meters: 100)],
+            distanceMeters: 100)
+        var race = RehearsalAttempt(owner: "A", course: course, start: start)
+        race.mark(taken: true, at: start.addingTimeInterval(20))
+        var raceJournal = LiftJournal()
+        raceJournal.rehearsal = race
+        raceJournal = try JSONDecoder().decode(LiftJournal.self, from: JSONEncoder().encode(raceJournal))
+        raceJournal.receive(week, calendarDay: next)
+        precondition(raceJournal.rehearsal?.atStop == true && raceJournal.rehearsal?.course.date == first)
+        precondition(!raceJournal.finishRehearsal(owner: "B", at: start.addingTimeInterval(25)))
+        precondition(raceJournal.finishRehearsal(owner: "A", at: start.addingTimeInterval(30)))
+        precondition(!raceJournal.finishRehearsal(owner: "A", at: start.addingTimeInterval(31)))
+        var racePhone = WatchInbox()
+        precondition(racePhone.receive(raceJournal.outbox).isEmpty && racePhone.events.count == 1)
+        precondition(WatchInbox.owner(racePhone.events[0]) == "A" && WatchInbox.id(racePhone.events[0]) == race.id)
+        racePhone.confirm([race.id])
+        let receipts = racePhone.receive(raceJournal.outbox)
+        raceJournal.acknowledge(Set(receipts))
+        precondition(raceJournal.rehearsal == nil && raceJournal.outbox.isEmpty)
         print("Watch offline rollover, restore, ordered retry and receipt fixtures passed")
     }
 }

@@ -19,7 +19,7 @@
     X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(self), payment=()"
     # V12.1 CSP tightening:
     #  · script-src drops 'unsafe-inline' — Vite production builds emit no
     #    inline scripts, so it only widened the XSS blast radius.
@@ -28,7 +28,7 @@
     #  · style-src/font-src drop Google's domains — fonts are self-hosted via
     #    @fontsource (src/fonts.js). style-src keeps 'unsafe-inline' because
     #    React style props require it.
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://*.supabase.co https://api.nal.usda.gov https://cloud.ouraring.com https://api.ouraring.com https://api.prod.whoop.com https://www.strava.com https://www.strava.com/api/v3; media-src 'self' blob: data:; img-src 'self' data: blob:; frame-ancestors 'none'; form-action 'self' https://cloud.ouraring.com https://api.prod.whoop.com https://www.strava.com;"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://*.supabase.co https://api.nal.usda.gov https://cloud.ouraring.com https://api.ouraring.com https://api.prod.whoop.com https://www.strava.com https://www.strava.com/api/v3; media-src 'self' blob: data:; img-src 'self' data: blob: https://tile.openstreetmap.org; frame-ancestors 'none'; form-action 'self' https://cloud.ouraring.com https://api.prod.whoop.com https://www.strava.com;"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
 
 [[headers]]

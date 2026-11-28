@@ -18,6 +18,8 @@ struct WatchPlan: Codable, Equatable {
     /// Today's planned runs. Missing from plans sent before runs existed.
     var runs: [RunSpec]?
     var cardio: [RunSpec]?
+    var rehearsal: RehearsalCourse?
+    var barbellRules: BarbellRules?
     var cardioWorkouts: [RunSpec] { cardio ?? runs ?? [] }
 
     func exercise(_ key: ExerciseKey) -> PlanExercise? {
@@ -79,12 +81,63 @@ struct PlanExercise: Codable, Equatable {
     var sets: [PlanSet]
     var swaps: [PlanVariation]?
     var pairNext: Bool?
+    var barbell: Bool?
+    var warmupSets: [WarmupSet]?
 }
 
 struct PlanVariation: Codable, Equatable {
     var name: String
     var fields: [PlanField]
     var sets: [PlanSet]
+    var barbell: Bool?
+}
+
+struct WarmupSet: Codable, Equatable {
+    var weight: Double
+    var reps: Int
+    var done: Bool
+    var at: String?
+    var workingWeight: Double?
+
+    func matches(_ other: WarmupSet) -> Bool { weight == other.weight && reps == other.reps }
+}
+
+/// The phone supplies the same rules its plate and ramp calculators use.
+struct BarbellRules: Codable, Equatable {
+    struct Step: Codable, Equatable { var fraction: Double; var reps: Int }
+    var bar: Double
+    var plates: [Double]
+    var rampMinimum: Double
+    var increment: Double
+    var emptyReps: Int
+    var steps: [Step]
+
+    func ramp(to work: Double) -> [WarmupSet] {
+        guard work.isFinite, work >= rampMinimum, increment > 0, bar > 0, bar < work else { return [] }
+        var result = [WarmupSet(weight: bar, reps: emptyReps, done: false)]
+        for step in steps {
+            let weight = (work * step.fraction / increment).rounded() * increment
+            if weight > bar && weight < work && !result.contains(where: { $0.weight == weight }) {
+                result.append(WarmupSet(weight: weight, reps: step.reps, done: false))
+            }
+        }
+        return result
+    }
+
+    func perSide(for total: Double) -> String? {
+        guard total.isFinite, total >= bar, total <= 1500, bar > 0 else { return nil }
+        var remaining = (total - bar) / 2
+        var parts: [String] = []
+        for plate in plates where plate >= 0.25 {
+            let count = Int((remaining / plate).rounded(.down))
+            guard count > 0 else { continue }
+            parts.append(count == 1 ? Format.number(plate) : "\(count) × \(Format.number(plate))")
+            remaining -= Double(count) * plate
+        }
+        var label = parts.isEmpty ? "Empty bar" : parts.joined(separator: " + ") + " / side"
+        if remaining >= 0.005 { label += " · \(Format.number(remaining)) lb short per side" }
+        return label
+    }
 }
 
 struct PlanField: Codable, Equatable, Hashable {
@@ -107,6 +160,7 @@ struct PlanSet: Codable, Equatable {
     var sourceLabel: String?
     var watchEventID: String?
     var completedAt: String?
+    var target: [String: Double]?
 }
 
 struct ExerciseKey: Codable, Hashable {
@@ -161,6 +215,7 @@ struct GymEditEvent: Encodable {
     var targetID: String?
     var partner: String?
     var enabled: Bool?
+    var workingWeight: Double?
 }
 
 struct FinishEvent: Encodable {

@@ -99,6 +99,7 @@ struct CardioProgress: Codable {
     var beganStep: Date
     var durations: [Double] = []
     var owner: String?
+    var workoutID: String?
 
     mutating func catchUp(at now: Date) -> Bool {
         let steps = spec.orderedSteps

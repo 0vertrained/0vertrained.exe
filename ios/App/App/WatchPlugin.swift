@@ -12,18 +12,28 @@ public class WatchPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "sendPlan", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pending", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "ack", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "mirrorStatus", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "mirrorCommand", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise)
     ]
 
     private var observer: NSObjectProtocol?
 
+    private var mirrorObserver: NSObjectProtocol?
+
     override public func load() {
+        if #available(iOS 17.0, *) {
+            mirrorObserver = NotificationCenter.default.addObserver(forName: PhoneLiftMirror.changed, object: nil, queue: .main) { [weak self] _ in
+                self?.notifyListeners("liftMirrorChanged", data: [:])
+            }
+        }
         observer = NotificationCenter.default.addObserver(forName: WatchLink.inboxChanged, object: nil, queue: .main) { [weak self] _ in
             self?.notifyListeners("watchEvent", data: [:])
         }
     }
 
     deinit {
+        if let mirrorObserver { NotificationCenter.default.removeObserver(mirrorObserver) }
         if let observer = observer {
             NotificationCenter.default.removeObserver(observer)
         }
@@ -46,6 +56,27 @@ public class WatchPlugin: CAPPlugin, CAPBridgedPlugin {
         let ids = call.getArray("ids", String.self) ?? []
         WatchLink.shared.acknowledge(ids: Set(ids), owner: call.getString("owner"))
         call.resolve()
+    }
+
+    @objc func mirrorStatus(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard #available(iOS 17.0, *), let owner = call.getString("owner") else { call.resolve(); return }
+            call.resolve(PhoneLiftMirror.shared.status(owner: owner))
+        }
+    }
+
+    @objc func mirrorCommand(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard #available(iOS 17.0, *), let owner = call.getString("owner"),
+                  let raw = call.getString("payload"), raw.utf8.count <= 16_384,
+                  let request = try? JSONDecoder().decode(LiftMirrorCommand.self, from: Data(raw.utf8)) else {
+                call.reject("Invalid Watch command.")
+                return
+            }
+            PhoneLiftMirror.shared.command(request, owner: owner) { error in
+                if let error { call.reject(error) } else { call.resolve() }
+            }
+        }
     }
 
     @objc func status(_ call: CAPPluginCall) {

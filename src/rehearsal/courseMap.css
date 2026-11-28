@@ -1,0 +1,39 @@
+.course-map { min-width: 0; }
+.course-map-view {
+  width: 100%;
+  height: clamp(270px, 47svh, 500px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  isolation: isolate;
+  background-color: #e7e8df;
+  background-image: linear-gradient(90deg, #d2d4c8 1px, transparent 1px), linear-gradient(#d2d4c8 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.course-map-view[data-mode="draw"], .course-map-view[data-mode="checkpoint"] { cursor: crosshair; }
+.course-map-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.course-map-view .leaflet-control-attribution { color: #252d30; background: rgba(255,255,255,.95); font: 11px/1.5 system-ui,sans-serif; }
+.course-map-view .leaflet-control-attribution a { color: #124964; text-decoration: underline; }
+.course-map-view .leaflet-control-zoom a { color: #163d4d; background: #fff; }
+.course-map-pin {
+  box-sizing: border-box;
+  display: grid;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  border: 0;
+  background: transparent;
+  font: 700 11px/1 system-ui,sans-serif;
+}
+.course-map-pin.endpoint, .course-map-pin.checkpoint {
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px #20333d9a;
+  background-color: #0b5174;
+}
+.course-map-pin.checkpoint { background-color: #8c3b18; }
+.course-map-pin.waypoint::after { content: ""; width: 9px; height: 9px; border: 2px solid #0b5174; border-radius: 50%; background: white; }
+.course-map-pin:focus-visible { outline: 3px solid #d07815; outline-offset: 2px; }
+@media (max-width: 360px) {
+  .course-map-view { height: 260px; }
+  .course-map-view .leaflet-control-scale { max-width: 65px; }
+}

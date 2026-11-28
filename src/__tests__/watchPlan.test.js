@@ -286,3 +286,53 @@ describe("buildWatchWeek", () => {
     expect(thursday.sessions[0].exercises[0].name).toBe("Bench Press");
   });
 });
+
+
+describe("Watch lifting guidance", () => {
+  const prescribed = { ...program, Thursday: { ...upper, lifting: [
+    { ...upper.lifting[0], rir: 2 }, { name: "Machine Chest Press", reps: 8, sets: 3 },
+  ] } };
+  const data = { [LAST_WEEK]: lastWeek };
+  const warmup = (id, enabled, at, extra = {}) => ({ id, type: "warmup", date: DAY, session: "main",
+    exercise: "Bench Press", performedName: "Bench Press", workingWeight: 225, setIndex: 1, enabled, at, ...extra });
+
+  it("preserves the prescribed target beside the editable entry and records preset RIR, including zero", () => {
+    const actual = { ...data, [DAY]: { workout: { exercises: { "Bench Press": { sets: [{ weight: "170", reps: "7" }] } } } } };
+    const bench = buildWatchPlan({ program: prescribed, data: actual, dateKey: DAY }).sessions[0].exercises[0];
+    expect(bench).toMatchObject({ barbell: true, targetRir: "2" });
+    expect(bench.sets[0].values).toEqual({ weight: 170, reps: 7 });
+    expect(bench.sets[0].target.weight).toBeGreaterThan(170);
+    const event = setEvent("preset-rir", 0, { weight: 170, reps: 7, rir: 0 });
+    const result = applyWatchEvents({ program: prescribed, data: actual, events: [event] });
+    const logged = result.days[DAY].workout.exercises["Bench Press"].sets[0];
+    expect(logged).toMatchObject({ done: true, rir: "0" });
+    expect(buildWatchPlan({ program: prescribed, data: result.days, dateKey: DAY }).sessions[0]
+      .exercises[0].sets[0].values.rir).toBe(0);
+  });
+
+  it("can replay offline warm-ups and corrections without creating working sets or completing the session", () => {
+    const tick = warmup("tick", true, "2026-11-26T07:00:01Z");
+    const undo = warmup("untick", false, "2026-11-26T07:01:01Z");
+    const stale = warmup("stale", true, "2026-11-26T07:00:45Z");
+    const otherLoad = warmup("lighter", true, "2026-11-26T07:00:50Z", { workingWeight: 185 });
+    const result = applyWatchEvents({ program: prescribed, data, events: [tick, undo, tick, stale, otherLoad] });
+    expect(result.applied).toBe(3);
+    const log = result.days[DAY].workout.exercises["Bench Press"];
+    expect(log.sets).toBeUndefined();
+    expect(log.nextPrescription).toBeUndefined();
+    expect(log.warmupSets).toMatchObject([{ weight: 125, reps: 5, done: false }, { weight: 100, reps: 5, done: true }]);
+    const plan = buildWatchPlan({ program: prescribed, data: result.days, dateKey: DAY });
+    expect(plan.sessions[0].exercises[0].warmupSets).toEqual(log.warmupSets);
+    expect(plan.sessions[0].exercises[1].barbell).toBeUndefined();
+    expect(plan.barbellRules).toMatchObject({ bar: 45, plates: [45, 35, 25, 10, 5, 2.5] });
+    const wrongMovement = warmup("swapped", true, tick.at, { performedName: "Dumbbell Bench Press" });
+    const impossibleStep = warmup("invalid", true, tick.at, { workingWeight: 80 });
+    expect(applyWatchEvents({ program: prescribed, events: [wrongMovement, impossibleStep] }).applied).toBe(0);
+
+    const pinned = { ...tick, workoutID: "workout-id",
+      offlinePlan: { sessions: [{ id: "main", exercises: [{ name: tick.exercise, count: 3, fields: ["weight", "reps"] }] }] } };
+    const changed = { ...program, Thursday: { type: "Rest", lifting: [], cardio: null } };
+    expect(applyWatchEvents({ program: changed, events: [pinned] }).days[DAY].workout.exercises[tick.exercise]
+      .warmupSets[0]).toMatchObject({ done: true, weight: 125, reps: 5 });
+  });
+});

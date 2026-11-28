@@ -49,7 +49,8 @@ import { isFirstWeekUser, countLoggedDays, buildFirstWeekChecklist, summarizeChe
 import { useDayOps, CallCard, FuelSnapshot, DayProgress, CallSheets } from "./TodayCall";
 import { describeRoadTrailWeek } from "./plans/roadTrailHybrid";
 import { formatPlanDate, RaceWeekLine } from "./RaceWeekLine";
-import { cardioLabel, cardioModality, cardioResultText, hasCardioResult, isRunCardio } from "./cardioLog";
+import { SessionSchedule } from "./MoveSession";
+import { cardioLabel, cardioModality, cardioResultText, hasCardioResult, isRunCardio, legacyCardioSessionId } from "./cardioLog";
 import { paceCheck, paceCheckText } from "./runPaceCheck";
 import { tomorrowSummary } from "./tomorrowLine";
 import { watchLiftLine, watchLiftSummary } from "./watch/liftSummary";
@@ -218,7 +219,7 @@ function QuickEdit({ lifting, workout, allData, todayKey, updateToday, onPR, onA
   );
 }
 
-export function TodayTab({ integrationRevision = 0, todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onChangeStartDate = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, wearableSample = null, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
+export function TodayTab({ integrationRevision = 0, todayName, todayData, updateToday, updateEntryAtDate, showToast, loaded, program, baseProgram = null, onSaveProgram = null, onChangeStartDate = null, onUseRaceForPaces = null, settings, allData, logDate, setLogDate, ouraRecovery, wearableSample = null, setTab, saving = false, isOnline = true, savePending = false, intent = null, onIntentHandled = null, onOpenEdition = null , recoveryLoad = null, onCall = null}) {
   // Broadsheet: below 1440px every wrapper is display:contents and
   // this component lays out as before.
   const isBroadsheet = useMediaQuery(BROADSHEET_QUERY);
@@ -439,8 +440,10 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
 
   // Single "Do next" row — the emphasized primary action derived from current
   // logging state. Display-only; the button just scrolls to the right inputs.
+  const legacyCardioId = sessionAwareProgram ? legacyCardioSessionId(programSessions, wo) : null;
+  const logFor = session => sessionAwareProgram && session.id !== legacyCardioId ? wo.cardioSessions?.[session.id] : wo.cardio;
   const pendingCardio = programSessions.find(session => session.cardio &&
-    !hasCardioResult(sessionAwareProgram ? wo.cardioSessions?.[session.id] : wo.cardio));
+    !hasCardioResult(logFor(session)));
   const cardioLogged = hasPlannedCardio && !pendingCardio;
   const nextAction = buildNextAction({
     totalExercises,
@@ -460,7 +463,7 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
   const checkinRef = useRef(null);
   const planRef = useRef(null);
   // The run-by-hand fields: opened on request, and whenever a run sits there.
-  const hasPlainCardio = !sessionAwareProgram && Boolean(p.cardio);
+  const hasPlainCardio = !!legacyCardioId || (!sessionAwareProgram && Boolean(p.cardio));
   const unplannedLogged = !hasPlainCardio && hasCardioResult(wo.cardio);
   const plainRunning = !unplannedLogged || cardioModality(wo.cardio) === "run";
   const [runOpen, setRunOpen] = useState(false);
@@ -555,7 +558,7 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
   const raceSpec = isRunPlanSpec((baseProgram || activeProgram)?.__raceBuild) ? (baseProgram || activeProgram).__raceBuild : null;
   const bests = personalBests(raceResults(allData || {}));
   const blockAt = (path) => path.split(".").reduce((node, key) => node?.[key], todayData) || {};
-  const cardioPath = session => sessionAwareProgram ? `workout.cardioSessions.${session.id}` : "workout.cardio";
+  const cardioPath = session => sessionAwareProgram && session.id !== legacyCardioId ? `workout.cardioSessions.${session.id}` : "workout.cardio";
   const logCardioField = (path, planned, field, value) => {
     const logged = blockAt(path);
     // Confirm the sport once, alongside the measurement, so a later plan
@@ -744,6 +747,14 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
         <RaceWeekLine program={activeProgram} dateKey={todayKey} />
         {movedFrom(baseProgram || activeProgram, todayKey) && <p className="t-s c2">Moved here from {movedFrom(baseProgram || activeProgram, todayKey)} this week.</p>}
 
+        {!isLoggingPast && onSaveProgram && baseProgram && (
+          <SessionSchedule program={baseProgram} entries={allData} todayKey={todayKey} onSaveProgram={onSaveProgram}
+            week={[{ dateKey: todayKey, split: sessionAwareProgram, sessions: programSessions }]}
+            initialId={sessionAwareProgram && pendingCardio && pendingCardio.id !== "main" && !pendingCardio.id.startsWith("moved-") ? pendingCardio.id : null}
+            buttonLabel={sessionAwareProgram && pendingCardio && pendingCardio.id !== "main" && !pendingCardio.id.startsWith("moved-")
+              ? `Move or skip ${pendingCardio.label} ${isRunCardio(pendingCardio.cardio) ? "run" : "cardio"}` : "Manage today’s sessions"} />
+        )}
+
         <div className="rows">
         {sessionAwareProgram && programSessions.map((session) => {
           const lifts = session.lifting || [];
@@ -766,8 +777,8 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
               {open && <QuickEdit lifting={lifts} workout={wo} allData={allData} todayKey={todayKey} updateToday={updateToday} onPR={checkPR} onAddExercise={() => setAddFor(session.id)} />}
               {session.cardio && cardioBlock({
                 cardio: session.cardio,
-                logged: wo.cardioSessions?.[session.id] || {},
-                path: `workout.cardioSessions.${session.id}`,
+                logged: logFor(session) || {},
+                path: cardioPath(session),
                 onStart: () => { setActiveCardioSessionId(session.id); setCardioSessionOpen(true); },
                 startLabel: isRunCardio(session.cardio) ? "Start run" : "Start cardio",
               })}
@@ -969,6 +980,8 @@ export function TodayTab({ integrationRevision = 0, todayName, todayData, update
             cardio={activeCardioSession.cardio}
             pulseSummary={wo.whoopHeartRate?.[`cardio-${activeCardioSession.id || "main"}`]}
             onSavePulse={isLoggingPast ? undefined : summary => updateToday(`workout.whoopHeartRate.cardio-${activeCardioSession.id || "main"}`, { ...summary, label: activeCardioSession.cardio?.type || "Cardio" })}
+            onStartAt={!isLoggingPast && sessionAwareProgram && !wo.cardioSessions?.[activeCardioSession.id]?.startedAt
+              ? at => updateToday(cardioPath(activeCardioSession) + ".startedAt", at) : undefined}
             onLogTime={(mmss) => logCardioField(cardioPath(activeCardioSession), activeCardioSession.cardio, "time", mmss)}
             showToast={showToast}
             settings={settings}
